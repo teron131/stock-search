@@ -1,16 +1,26 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from typing import Literal
 
 import requests
 import yfinance as yf
 from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
+from langchain.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
 
-from .llm import llm_formatter
 from .schema import News
 
 load_dotenv()
+
+
+class ContentSentiment(BaseModel):
+    """Structured output for cleaned content with sentiment analysis."""
+
+    content: str = Field(description="Clean, readable article content in markdown format")
+    sentiment: Literal["positive", "neutral", "negative"] = Field(description="Overall sentiment of the article")
 
 
 def webloader(url: str) -> str:
@@ -28,6 +38,41 @@ def webloader(url: str) -> str:
         return result.document.export_to_markdown()
     except Exception as e:
         return ""
+
+
+def llm_formatter(content_list: list[str]) -> list[ContentSentiment]:
+    """Format a list of content using LLM with sentiment analysis.
+
+    Args:
+        content_list (list[str]): A list of content to format
+
+    Returns:
+        list[ContentSentiment]: A list of formatted content with sentiment analysis
+    """
+    llm = ChatGoogleGenerativeAI(
+        model=os.getenv("FAST_LLM"),
+        temperature=0,
+        api_key=os.getenv("GEMINI_API_KEY"),
+        # base_url="https://openrouter.ai/api/v1",
+    )
+
+    # Create structured LLM (Gemini doesn't use function_calling method)
+    structured_llm = llm.with_structured_output(ContentSentiment)
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Clean the article content by removing navigation, ads, and formatting elements. Keep only the main title, content, date, and author. Analyze sentiment as positive, neutral, or negative. Return clean markdown content with sentiment.",
+            ),
+            ("human", "{content}"),
+        ]
+    )
+
+    chain = prompt | structured_llm
+
+    results = chain.batch([{"content": content} for content in content_list])
+    return results
 
 
 def _process_articles_with_llm(articles: list[News]) -> list[News]:
