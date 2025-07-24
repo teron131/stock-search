@@ -1,40 +1,53 @@
 import os
+from typing import Literal
 
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
 
-def llm_formatter(content_list: list[str]) -> list[str]:
-    """Format a list of content using LLM with a system prompt.
+class ContentSentiment(BaseModel):
+    """Structured output for cleaned content with sentiment analysis."""
+
+    content: str = Field(description="Clean, readable article content in markdown format")
+    sentiment: Literal["positive", "neutral", "negative"] = Field(description="Overall sentiment of the article")
+
+
+def llm_formatter(content_list: list[str]) -> list[ContentSentiment]:
+    """Format a list of content using LLM with sentiment analysis.
 
     Args:
         content_list (list[str]): A list of content to format
 
     Returns:
-        list[str]: A list of formatted content
+        list[ContentSentiment]: A list of formatted content with sentiment analysis
     """
     llm = ChatGoogleGenerativeAI(
         model=os.getenv("FAST_LLM"),
         temperature=0,
         api_key=os.getenv("GEMINI_API_KEY"),
-        base_url="https://openrouter.ai/api/v1",
+        # base_url="https://openrouter.ai/api/v1",
     )
+
+    # Create structured LLM (Gemini doesn't use function_calling method)
+    structured_llm = llm.with_structured_output(ContentSentiment)
 
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                """Extract and clean the main article content from the following web page text. 
+                """The following content is a raw webscraped article. Extract and clean the main article content, then analyze its sentiment.
 
-KEEP:
+CONTENT CLEANING - KEEP:
 - Main article title and content
 - Publication date and author (if present)
 - Main content of the article
 
-REMOVE:
+CONTENT CLEANING - REMOVE:
+- Meaningless text for formatting and structures
 - Navigation menus and headers
 - Advertisements and promotional content
 - Cookie notices and pop-ups
@@ -42,16 +55,22 @@ REMOVE:
 - Comments sections
 - Footer content and site-wide elements
 
-Return only the clean, readable article content in markdown format.""",
+SENTIMENT ANALYSIS:
+- Analyze the overall tone and sentiment of the article content
+- Consider the language used, context, and implications
+- Classify as positive, neutral, or negative based on the overall message
+
+Return the clean, readable article content in markdown format along with the sentiment classification.""",
             ),
             ("human", "{content}"),
         ]
     )
 
-    chain = prompt | llm
+    chain = prompt | structured_llm
 
-    results = chain.batch(content_list)
-    return [result.content for result in results]
+    # Batch process the content
+    results = chain.batch([{"content": content} for content in content_list])
+    return results
 
 
 if __name__ == "__main__":

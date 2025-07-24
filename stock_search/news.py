@@ -7,6 +7,7 @@ import yfinance as yf
 from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
 
+from .llm import llm_formatter
 from .schema import News
 
 load_dotenv()
@@ -27,6 +28,47 @@ def webloader(url: str) -> str:
         return result.document.export_to_markdown()
     except Exception as e:
         return ""
+
+
+def _process_articles_with_llm(articles: list[News]) -> list[News]:
+    """Process articles by loading content, filtering empty content, and applying LLM formatting.
+
+    Args:
+        articles (list[News]): List of News objects with title, url, and date
+
+    Returns:
+        list[News]: List of News objects with formatted content
+    """
+    if not articles:
+        return []
+
+    # Load content from URLs concurrently
+    with ThreadPoolExecutor(max_workers=min(len(articles), os.cpu_count())) as executor:
+        futures = [executor.submit(webloader, article.url) for article in articles]
+        news_content = [future.result() for future in futures]
+
+    # Filter out articles with empty content
+    filtered_articles = [(article, content) for article, content in zip(articles, news_content) if content.strip()]  # Filter out empty or whitespace-only content
+
+    if not filtered_articles:
+        return []
+
+    # Extract content for LLM formatting
+    content_list = [content for _, content in filtered_articles]
+
+    # Apply LLM formatting to all content concurrently
+    formatted_content = llm_formatter(content_list)
+
+    return [
+        News(
+            title=article.title,
+            url=article.url,
+            date=article.date,
+            content=formatted_content[i].content,
+            sentiment=formatted_content[i].sentiment,
+        )
+        for i, (article, _) in enumerate(filtered_articles)
+    ]
 
 
 def get_news_yfinance(query: str) -> list[News]:
@@ -51,19 +93,7 @@ def get_news_yfinance(query: str) -> list[News]:
         for article in raw_articles
     ]
 
-    with ThreadPoolExecutor(max_workers=min(len(articles), os.cpu_count())) as executor:
-        futures = [executor.submit(webloader, article.url) for article in articles]
-        news_content = [future.result() for future in futures]
-
-    return [
-        News(
-            title=article.title,
-            url=article.url,
-            date=article.date,
-            content=content,
-        )
-        for article, content in zip(articles, news_content)
-    ]
+    return _process_articles_with_llm(articles)
 
 
 def get_news_api(query: str, n_days: int = 7) -> list[News]:
@@ -104,16 +134,4 @@ def get_news_api(query: str, n_days: int = 7) -> list[News]:
         for article in raw_articles
     ]
 
-    with ThreadPoolExecutor(max_workers=min(len(articles), os.cpu_count())) as executor:
-        futures = [executor.submit(webloader, article.url) for article in articles]
-        news_content = [future.result() for future in futures]
-
-    return [
-        News(
-            title=article.title,
-            url=article.url,
-            date=article.date,
-            content=content,
-        )
-        for article, content in zip(articles, news_content)
-    ]
+    return _process_articles_with_llm(articles)
