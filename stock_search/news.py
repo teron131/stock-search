@@ -63,7 +63,28 @@ def llm_formatter(content_list: list[str]) -> list[ContentSentiment]:
         [
             (
                 "system",
-                "Clean the article content by removing navigation, ads, and formatting elements. Keep only the main title, content, date, and author. Analyze sentiment as positive, neutral, or negative. Return clean markdown content with sentiment.",
+                """The following content is a raw webscraped article. Extract and clean the main article content, then analyze its sentiment.
+
+CONTENT CLEANING - KEEP:
+- Main article title and content
+- Publication date and author (if present)
+- Main content of the article
+
+CONTENT CLEANING - REMOVE:
+- Meaningless text for formatting and structures
+- Navigation menus and headers
+- Advertisements and promotional content
+- Cookie notices and pop-ups
+- Social media buttons and related links
+- Comments sections
+- Footer content and site-wide elements
+
+SENTIMENT ANALYSIS:
+- Analyze the overall tone and sentiment of the article content
+- Consider the language used, context, and implications
+- Classify as positive, neutral, or negative based on the overall message
+
+Return the clean, readable article content in markdown format along with the sentiment classification.""",
             ),
             ("human", "{content}"),
         ]
@@ -71,6 +92,7 @@ def llm_formatter(content_list: list[str]) -> list[ContentSentiment]:
 
     chain = prompt | structured_llm
 
+    # Batch process the content
     results = chain.batch([{"content": content} for content in content_list])
     return results
 
@@ -104,7 +126,8 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
     # Apply LLM formatting to all content concurrently
     formatted_content = llm_formatter(content_list)
 
-    return [
+    # Filter out None results and build final articles
+    final_articles = [
         News(
             title=article.title,
             url=article.url,
@@ -113,10 +136,13 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
             sentiment=formatted_content[i].sentiment,
         )
         for i, (article, _) in enumerate(filtered_articles)
+        if formatted_content[i] is not None
     ]
 
+    return final_articles
 
-def get_news_yfinance(query: str) -> list[News]:
+
+def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
     """Search for news articles about a given stock ticker symbol.
 
     Args:
@@ -125,7 +151,7 @@ def get_news_yfinance(query: str) -> list[News]:
     Returns:
         list[News]: A list of News objects containing news article information
     """
-    raw_articles = yf.Search(query=query).news
+    raw_articles = yf.Search(query=query, max_results=max_results).news
     if not raw_articles:
         return []
 
@@ -141,7 +167,11 @@ def get_news_yfinance(query: str) -> list[News]:
     return _process_articles_with_llm(articles)
 
 
-def get_news_api(query: str, n_days: int = 7) -> list[News]:
+def get_news_api(
+    query: str,
+    n_days: int = 7,
+    max_results: int = 10,
+) -> list[News]:
     """Get the financial news for a given query and number of days.
 
     Args:
@@ -159,7 +189,7 @@ def get_news_api(query: str, n_days: int = 7) -> list[News]:
         "to": (now - timedelta(days=1)).strftime("%Y-%m-%d"),
         "language": "en",
         "sortBy": "popularity",
-        "pageSize": 10,
+        "pageSize": max_results,
         "apiKey": os.getenv("NEWS_API_KEY"),
     }
 
