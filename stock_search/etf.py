@@ -9,6 +9,12 @@ load_dotenv()
 
 
 def get_etf_data(etf_symbol: str) -> ETF:
+    """Get the ETF data for a given ETF symbol.
+
+    It uses the Gemini URL context tool to get the data from the ETF Database website.
+
+    Gemini does not support structured output when using the URL context tool, so it is separated into two steps.
+    """
     client = Client(
         api_key=os.getenv("GEMINI_API_KEY"),
         http_options={"timeout": 600000},  # 10 minutes timeout
