@@ -4,17 +4,37 @@ from pydantic import BaseModel, Field
 
 
 class Quote(BaseModel):
-    regular_price: str = Field(description="The regular price")
-    regular_change: str = Field(description="The regular change")
-    regular_change_percent: str = Field(description="The regular change percent")
-    premarket_price: str = Field(description="The premarket/postmarket price")
-    premarket_change: str = Field(description="The premarket/postmarket change")
-    premarket_change_percent: str = Field(description="The premarket/postmarket change percent")
+    regular_price: str = Field(default=None, description="The regular price")
+    regular_change: str = Field(default=None, description="The regular change")
+    regular_change_percent: str = Field(default=None, description="The regular change percent")
+    premarket_price: str = Field(default=None, description="The premarket/postmarket price")
+    premarket_change: str = Field(default=None, description="The premarket/postmarket change")
+    premarket_change_percent: str = Field(default=None, description="The premarket/postmarket change percent")
+
+
+class Holding(BaseModel):
+    symbol: str = Field(default=None, description="The symbol of the holding")
+    holding: str = Field(default=None, description="The name of the holding")
+    weight: float = Field(default=None, description="The weight of the holding")
+
+
+class Sector(BaseModel):
+    sector: str = Field(default=None, description="The sector of the holding")
+    weight: float = Field(default=None, description="The weight of the sector")
+
+
+class ETF(BaseModel):
+    top_holdings: list[Holding] = Field(default=None, description="The top holdings of the ETF")
+    sectors: list[Sector] = Field(default=None, description="The sectors of the ETF")
+
+
+class Portfolio(BaseModel):
+    holdings: list[Holding] = Field(default=None, description="The holdings of the portfolio")
 
 
 class News(BaseModel):
-    title: str = Field(description="The title of the news article")
-    url: str = Field(description="The URL of the news article")
-    content: str = Field(None, description="The content of the news article")
-    sentiment: Literal["positive", "neutral", "negative"] = Field(None, description="The sentiment of the news article")
-    date: str = Field(None, description="The date of the news article")
+    title: str = Field(default=None, description="The title of the news article")
+    url: str = Field(default=None, description="The URL of the news article")
+    content: str = Field(default=None, description="The content of the news article")
+    sentiment: Literal["positive", "neutral", "negative"] = Field(default=None, description="The sentiment of the news article")
+    date: str = Field(default=None, description="The date of the news article")
