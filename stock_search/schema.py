@@ -3,6 +3,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class Quote(BaseModel):
+    regular_price: str = Field(description="The regular price")
+    regular_change: str = Field(description="The regular change")
+    regular_change_percent: str = Field(description="The regular change percent")
+    premarket_price: str = Field(description="The premarket/postmarket price")
+    premarket_change: str = Field(description="The premarket/postmarket change")
+    premarket_change_percent: str = Field(description="The premarket/postmarket change percent")
+
+
 class News(BaseModel):
     title: str = Field(description="The title of the news article")
     url: str = Field(description="The URL of the news article")
