@@ -11,39 +11,52 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from stock_search.schema import Quote
 
-# Set up Chrome options
-chrome_options = Options()
-chrome_options.add_argument("--headless=new")  # ⚡ faster headless mode
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("--window-size=1200,800")
 
-# Disable images, CSS, and web-fonts → smaller downloads
-prefs = {
-    "profile.managed_default_content_settings.images": 2,
-    "profile.managed_default_content_settings.stylesheets": 2,
-    "profile.managed_default_content_settings.fonts": 2,
-}
-chrome_options.add_experimental_option("prefs", prefs)
+def get_driver() -> webdriver.Chrome:
+    # Set up Chrome options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")  # ⚡ faster headless mode
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1200,800")
 
-# Return immediately (pageLoadStrategy='none') – we'll wait only for what we need
-caps = chrome_options.to_capabilities()
-caps["pageLoadStrategy"] = "none"  # ⏱️ fastest strategy
+    # Disable images, CSS, and web-fonts → smaller downloads
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.fonts": 2,
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
 
-# Initialize the webdriver (create once, reuse for many symbols)
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(
-    service=service,
-    options=chrome_options,
-)
-# ––– Extra speed: block un-needed network requests via Chrome DevTools Protocol
-driver.execute_cdp_cmd("Network.enable", {})
-driver.execute_cdp_cmd(
-    "Network.setBlockedURLs",
-    {"urls": ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.css", "*.woff", "*.woff2", "*.ttf", "*doubleclick*", "*googlesyndication*", "*analytics*"]},  # wild-cards allowed
-)
-driver.implicitly_wait(2)  # we can tighten this a bit
+    # Return immediately (pageLoadStrategy='none') – we'll wait only for what we need
+    caps = chrome_options.to_capabilities()
+    caps["pageLoadStrategy"] = "none"  # ⏱️ fastest strategy
+
+    # Initialize the webdriver (create once, reuse for many symbols)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(
+        service=service,
+        options=chrome_options,
+    )
+    # ––– Extra speed: block un-needed network requests via Chrome DevTools Protocol
+    driver.execute_cdp_cmd("Network.enable", {})
+    driver.execute_cdp_cmd(
+        "Network.setBlockedURLs",
+        {"urls": ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.css", "*.woff", "*.woff2", "*.ttf", "*doubleclick*", "*googlesyndication*", "*analytics*"]},  # wild-cards allowed
+    )
+    driver.implicitly_wait(2)  # we can tighten this a bit
+
+    return driver
+
+
+def close_driver():
+    """Closes the webdriver."""
+    if driver:
+        driver.quit()
+
+
+driver = get_driver()
 
 
 def get_quote(symbol: str) -> Quote:
@@ -82,12 +95,6 @@ def get_quote(symbol: str) -> Quote:
     except Exception as e:
         print(f"Could not extract price element for {symbol}: {e}")
         return None
-
-
-def close_driver():
-    """Closes the webdriver."""
-    if driver:
-        driver.quit()
 
 
 # Robinhood
