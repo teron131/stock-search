@@ -45,17 +45,17 @@ driver.execute_cdp_cmd(
 )
 driver.implicitly_wait(2)  # we can tighten this a bit
 
-try:
-    # Load the Yahoo Finance page for AMD
-    url = "https://finance.yahoo.com/quote/AMD/"
+
+def get_quote(symbol: str) -> Quote:
+    """Get the price and change (including premarket and postmarket) for a given symbol from Yahoo Finance."""
+    # Load the Yahoo Finance page for the given symbol
+    url = f"https://finance.yahoo.com/quote/{symbol}/"
     driver.get(url)
 
     # Wait for the page to load
     wait = WebDriverWait(driver, 5)  # shorter explicit wait – DOM is ready sooner
 
-    # Get the page content
-    page_content = driver.page_source
-    print("Page loaded successfully!")
+    print(f"Page for {symbol} loaded successfully!")
 
     # Optionally, extract specific elements like the stock price
     try:
@@ -70,21 +70,25 @@ try:
         premarket_change = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-pre-price-change']")
         premarket_change_percent = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-pre-price-change-percent']")
 
-        quote = Quote(
+        return Quote(
             regular_price=regular_price.text,
             regular_change=regular_change.text,
-            regular_change_percent=re.sub(r"[^0-9.+\-%]", "", regular_change_percent.text),
+            regular_change_percent=re.sub(r"[()]+", "", regular_change_percent.text),
             premarket_price=premarket_price.text,
             premarket_change=premarket_change.text,
-            premarket_change_percent=re.sub(r"[^0-9.+\-%]", "", premarket_change_percent.text),
+            premarket_change_percent=re.sub(r"[()]+", "", premarket_change_percent.text),
         )
-        print(quote)
-    except:
-        print("Could not extract price element")
 
-finally:
-    # Close the browser
-    driver.quit()
+    except Exception as e:
+        print(f"Could not extract price element for {symbol}: {e}")
+        return None
+
+
+def close_driver():
+    """Closes the webdriver."""
+    if driver:
+        driver.quit()
+
 
 # Robinhood
 # def get_quote(symbol: str) -> tuple[str, str]:
@@ -97,3 +101,11 @@ finally:
 #     change = bonfire["chart_section"]["default_display"]["secondary_value"]["main"]["value"]
 
 #     return price, change
+
+if __name__ == "__main__":
+    try:
+        amd_quote = get_quote("AMD")
+        if amd_quote:
+            print(amd_quote)
+    finally:
+        close_driver()
