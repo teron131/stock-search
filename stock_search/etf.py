@@ -46,7 +46,3 @@ List the sectors with their name and weight.""",
     )
 
     return structured_response.parsed
-
-
-if __name__ == "__main__":
-    print(get_etf_data("VOOG"))
