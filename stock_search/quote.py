@@ -1,5 +1,8 @@
+import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 from rich import print
 from selenium import webdriver
@@ -8,6 +11,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from tqdm import tqdm
 from webdriver_manager.chrome import ChromeDriverManager
 
 from stock_search.schema import Quote
@@ -71,49 +75,7 @@ def get_driver() -> webdriver.Chrome:
     driver.execute_cdp_cmd("Network.enable", {})
     driver.execute_cdp_cmd(
         "Network.setBlockedURLs",
-        {
-            "urls": [
-                "*.png",
-                "*.jpg",
-                "*.jpeg",
-                "*.gif",
-                "*.svg",
-                "*.webp",
-                "*.ico",
-                "*.css",
-                "*.woff",
-                "*.woff2",
-                "*.ttf",
-                "*.otf",
-                "*doubleclick*",
-                "*googlesyndication*",
-                "*analytics*",
-                "*gtag*",
-                "*facebook*",
-                "*twitter*",
-                "*linkedin*",
-                "*pinterest*",
-                "*ads*",
-                "*ad.*",
-                "*advertising*",
-                "*metrics*",
-                "*chartbeat*",
-                "*optimizely*",
-                "*hotjar*",
-                "*mixpanel*",
-                "*.mp4",
-                "*.webm",
-                "*.ogg",
-                "*.mp3",
-                "*.wav",
-                "*cdn.jsdelivr*",
-                "*cdnjs*",
-                "*unpkg*",
-                "*bootstrap*",
-                "*jquery*",
-                "*tracking*",
-            ]
-        },
+        {"urls": ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.webp", "*.ico", "*.css", "*.woff", "*.woff2", "*.ttf", "*.otf", "*doubleclick*", "*googlesyndication*", "*analytics*", "*gtag*", "*facebook*", "*twitter*", "*linkedin*", "*pinterest*", "*ads*", "*ad.*", "*advertising*", "*metrics*", "*chartbeat*", "*optimizely*", "*hotjar*", "*mixpanel*", "*.mp4", "*.webm", "*.ogg", "*.mp3", "*.wav", "*cdn.jsdelivr*", "*cdnjs*", "*unpkg*", "*bootstrap*", "*jquery*", "*tracking*"]},
     )
 
     # Add user agent and more CDP optimizations
@@ -152,26 +114,23 @@ def safe_get_text(driver: webdriver.Chrome, primary_selector: str, fallback_sele
         return default
 
 
-def get_quote(symbol: str) -> Quote:
-    """Get the price and change (including premarket and overnight) for a given symbol from Yahoo Finance."""
+def _get_quote_with_driver(symbol: str, driver_instance: webdriver.Chrome) -> Quote:
+    """Internal function to get quote using a specific driver instance."""
     start_time = time.time()
 
-    # Load the Yahoo Finance page for the given symbol
-    url = f"https://finance.yahoo.com/quote/{symbol}/"
-    driver.get(url)
-
-    # Ultra-fast wait with balanced timeout
-    wait = WebDriverWait(driver, 2.0)  # Sweet spot for speed vs reliability
-
-    print(f"Page for {symbol} loaded successfully!")
-
-    # Optimized element extraction
     try:
+        # Load the Yahoo Finance page for the given symbol
+        url = f"https://finance.yahoo.com/quote/{symbol}/"
+        driver_instance.get(url)
+
+        # Ultra-fast wait with balanced timeout
+        wait = WebDriverWait(driver_instance, 3.0)  # Sweet spot for speed vs reliability
+
         # Wait only for the main price element (fastest single check)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='qsp-price']")))
 
         # Ultra-fast batch element finding - only get elements that actually exist
-        elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid^='qsp-']")
+        elements = driver_instance.find_elements(By.CSS_SELECTOR, "[data-testid^='qsp-']")
         element_dict = {elem.get_attribute("data-testid"): elem for elem in elements}
 
         # Get regular market data (these always exist)
@@ -186,7 +145,7 @@ def get_quote(symbol: str) -> Quote:
 
         # Stop page loading immediately after getting data
         try:
-            driver.execute_script("window.stop();")
+            driver_instance.execute_script("window.stop();")
         except:
             pass
 
@@ -203,8 +162,80 @@ def get_quote(symbol: str) -> Quote:
         )
 
     except Exception as e:
-        print(f"Could not extract price element for {symbol}: {e}")
+        print(f"❌ Could not extract price element for {symbol}: {e}")
         return None
+
+
+def get_quote(symbol: str) -> Quote:
+    """Get the price and change (including premarket and overnight) for a given symbol from Yahoo Finance."""
+    return _get_quote_with_driver(symbol, driver)
+
+
+def _get_single_quote_with_own_driver(symbol: str) -> Quote:
+    """Get quote for a single symbol using its own driver instance (for concurrent use)."""
+    local_driver = None
+    try:
+        local_driver = get_driver()
+        return _get_quote_with_driver(symbol, local_driver)
+    except Exception as e:
+        print(f"❌ Error fetching quote for {symbol}: {e}")
+        return None
+    finally:
+        if local_driver:
+            try:
+                local_driver.quit()
+            except:
+                pass  # Ignore cleanup errors
+
+
+def batch_get_quote(symbols: List[str], max_retries: int = 2) -> List[Quote]:
+    """Get quotes for multiple symbols concurrently with retry mechanism.
+
+    Args:
+        symbols: List of stock symbols to fetch quotes for
+        max_retries: Maximum number of retry attempts for failed quotes
+
+    Returns:
+        List of Quote objects (may contain None for quotes that failed all retries)
+    """
+    if not symbols:
+        return []
+
+    # Limit workers to avoid overwhelming the system and Yahoo Finance
+    max_workers = min(len(symbols), os.cpu_count(), 8)  # Cap at 8 concurrent requests
+    results = [None] * len(symbols)
+
+    for attempt in range(max_retries + 1):
+        # Find which symbols still need to be fetched
+        symbols_to_fetch = [symbols[i] for i, result in enumerate(results) if result is None]
+
+        if not symbols_to_fetch:
+            break  # All symbols successfully fetched
+
+        attempt_desc = f"Attempt {attempt + 1}" if attempt > 0 else "Initial fetch"
+        print(f"🚀 {attempt_desc}: Fetching quotes for {len(symbols_to_fetch)} symbols using {max_workers} workers...")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            batch_results = list(tqdm(executor.map(_get_single_quote_with_own_driver, symbols_to_fetch), total=len(symbols_to_fetch), desc=f"Fetching quotes ({attempt_desc.lower()})"))
+
+        # Update results for successful fetches
+        for symbol, quote in zip(symbols_to_fetch, batch_results):
+            original_index = symbols.index(symbol)
+            if quote is not None:
+                results[original_index] = quote
+                print(f"✅ {symbol}: Successfully fetched")
+            else:
+                if attempt < max_retries:
+                    print(f"🔄 {symbol}: Failed, will retry")
+                else:
+                    print(f"❌ {symbol}: Failed after {max_retries + 1} attempts")
+
+        # Add delay between retries
+        if symbols_to_fetch and attempt < max_retries:
+            print(f"⏳ Waiting 2 seconds before retry...")
+            time.sleep(2)
+
+    return results
 
 
 # Robinhood
@@ -218,11 +249,3 @@ def get_quote(symbol: str) -> Quote:
 #     change = bonfire["chart_section"]["default_display"]["secondary_value"]["main"]["value"]
 
 #     return price, change
-
-if __name__ == "__main__":
-    try:
-        amd_quote = get_quote("AMD")
-        if amd_quote:
-            print(amd_quote)
-    finally:
-        close_driver()
