@@ -7,9 +7,9 @@ class Quote(BaseModel):
     regular_price: str = Field(default=None, description="The regular price")
     regular_change: str = Field(default=None, description="The regular change")
     regular_change_percent: str = Field(default=None, description="The regular change percent")
-    premarket_price: str = Field(default=None, description="The premarket/postmarket price")
-    premarket_change: str = Field(default=None, description="The premarket/postmarket change")
-    premarket_change_percent: str = Field(default=None, description="The premarket/postmarket change percent")
+    realtime_price: str = Field(default=None, description="The premarket / overnight price")
+    realtime_change: str = Field(default=None, description="The premarket / overnight change")
+    realtime_change_percent: str = Field(default=None, description="The premarket / overnight change percent")
 
 
 class Holding(BaseModel):

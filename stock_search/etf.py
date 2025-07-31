@@ -25,11 +25,8 @@ def get_etf_data(etf_symbol: str) -> ETF:
 
     raw_response = client.models.generate_content(
         model=os.getenv("FAST_LLM"),
-        contents=f"""Extract the top holdings of {etf_symbol} in:
-https://etfdb.com/etf/{etf_symbol}/#holdings
-Extract the sector percentages of the holdings of {etf_symbol} in:
-https://etfdb.com/etf/{etf_symbol}/#charts
-
+        contents=f"""Extract the top holdings and sector percentages of {etf_symbol} in:
+https://finviz.com/quote.ashx?t={etf_symbol}
 List the top holdings with their ticker, name, and weight.
 List the sectors with their name and weight.""",
         config=types.GenerateContentConfig(

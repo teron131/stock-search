@@ -1,4 +1,5 @@
 import re
+import time
 
 from rich import print
 from selenium import webdriver
@@ -13,21 +14,47 @@ from stock_search.schema import Quote
 
 
 def get_driver() -> webdriver.Chrome:
-    # Set up Chrome options
+    # Set up Chrome options for maximum speed
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")  # ⚡ faster headless mode
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-plugins")
+    chrome_options.add_argument("--disable-images")
+    # chrome_options.add_argument("--disable-javascript")  # Yahoo Finance needs JS
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-client-side-phishing-detection")
+    chrome_options.add_argument("--disable-crash-reporter")
+    chrome_options.add_argument("--disable-oopr-debug-crash-dump")
+    chrome_options.add_argument("--no-crash-upload")
+    chrome_options.add_argument("--disable-low-res-tiling")
+    chrome_options.add_argument("--memory-pressure-off")
     chrome_options.add_argument("--window-size=1200,800")
 
-    # Disable images, CSS, and web-fonts → smaller downloads
+    # ULTRA aggressive disable content for speed
     prefs = {
         "profile.managed_default_content_settings.images": 2,
         "profile.managed_default_content_settings.stylesheets": 2,
         "profile.managed_default_content_settings.fonts": 2,
+        "profile.managed_default_content_settings.plugins": 2,
+        "profile.managed_default_content_settings.popups": 2,
+        "profile.managed_default_content_settings.geolocation": 2,
+        "profile.managed_default_content_settings.notifications": 2,
+        "profile.managed_default_content_settings.media_stream": 2,
+        "profile.managed_default_content_settings.cookies": 2,
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_settings.popups": 0,
+        "profile.managed_default_content_settings.media_stream": 2,
     }
     chrome_options.add_experimental_option("prefs", prefs)
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
     # Return immediately (pageLoadStrategy='none') – we'll wait only for what we need
     caps = chrome_options.to_capabilities()
@@ -39,13 +66,64 @@ def get_driver() -> webdriver.Chrome:
         service=service,
         options=chrome_options,
     )
+
     # ––– Extra speed: block un-needed network requests via Chrome DevTools Protocol
     driver.execute_cdp_cmd("Network.enable", {})
     driver.execute_cdp_cmd(
         "Network.setBlockedURLs",
-        {"urls": ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.css", "*.woff", "*.woff2", "*.ttf", "*doubleclick*", "*googlesyndication*", "*analytics*"]},  # wild-cards allowed
+        {
+            "urls": [
+                "*.png",
+                "*.jpg",
+                "*.jpeg",
+                "*.gif",
+                "*.svg",
+                "*.webp",
+                "*.ico",
+                "*.css",
+                "*.woff",
+                "*.woff2",
+                "*.ttf",
+                "*.otf",
+                "*doubleclick*",
+                "*googlesyndication*",
+                "*analytics*",
+                "*gtag*",
+                "*facebook*",
+                "*twitter*",
+                "*linkedin*",
+                "*pinterest*",
+                "*ads*",
+                "*ad.*",
+                "*advertising*",
+                "*metrics*",
+                "*chartbeat*",
+                "*optimizely*",
+                "*hotjar*",
+                "*mixpanel*",
+                "*.mp4",
+                "*.webm",
+                "*.ogg",
+                "*.mp3",
+                "*.wav",
+                "*cdn.jsdelivr*",
+                "*cdnjs*",
+                "*unpkg*",
+                "*bootstrap*",
+                "*jquery*",
+                "*tracking*",
+            ]
+        },
     )
-    driver.implicitly_wait(2)  # we can tighten this a bit
+
+    # Add user agent and more CDP optimizations
+    driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+    driver.execute_cdp_cmd("Runtime.enable", {})
+
+    # Inject performance script to stop loading early
+    driver.execute_cdp_cmd("Runtime.addBinding", {"name": "stopLoading"})
+
+    driver.implicitly_wait(0.5)  # Even more aggressive - 0.5 seconds
 
     return driver
 
@@ -59,37 +137,69 @@ def close_driver():
 driver = get_driver()
 
 
+def safe_get_text(driver: webdriver.Chrome, primary_selector: str, fallback_selector: str = None, default: str = None) -> str:
+    """Helper function to safely get element text with fallback selectors."""
+    try:
+        element = driver.find_element(By.CSS_SELECTOR, primary_selector)
+        return element.text if element.text else default
+    except:
+        if fallback_selector:
+            try:
+                element = driver.find_element(By.CSS_SELECTOR, fallback_selector)
+                return element.text if element.text else default
+            except:
+                return default
+        return default
+
+
 def get_quote(symbol: str) -> Quote:
-    """Get the price and change (including premarket and postmarket) for a given symbol from Yahoo Finance."""
+    """Get the price and change (including premarket and overnight) for a given symbol from Yahoo Finance."""
+    start_time = time.time()
+
     # Load the Yahoo Finance page for the given symbol
     url = f"https://finance.yahoo.com/quote/{symbol}/"
     driver.get(url)
 
-    # Wait for the page to load
-    wait = WebDriverWait(driver, 5)  # shorter explicit wait – DOM is ready sooner
+    # Ultra-fast wait with balanced timeout
+    wait = WebDriverWait(driver, 2.0)  # Sweet spot for speed vs reliability
 
     print(f"Page for {symbol} loaded successfully!")
 
-    # Optionally, extract specific elements like the stock price
+    # Optimized element extraction
     try:
-        # Wait only for the first price element
+        # Wait only for the main price element (fastest single check)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='qsp-price']")))
 
-        # Now fetch everything without extra waits
-        regular_price = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-price']")
-        regular_change = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-price-change']")
-        regular_change_percent = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-price-change-percent']")
-        premarket_price = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-pre-price']")
-        premarket_change = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-pre-price-change']")
-        premarket_change_percent = driver.find_element(By.CSS_SELECTOR, "[data-testid='qsp-pre-price-change-percent']")
+        # Ultra-fast batch element finding - only get elements that actually exist
+        elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid^='qsp-']")
+        element_dict = {elem.get_attribute("data-testid"): elem for elem in elements}
+
+        # Get regular market data (these always exist)
+        regular_price = element_dict.get("qsp-price")
+        regular_change = element_dict.get("qsp-price-change")
+        regular_change_percent = element_dict.get("qsp-price-change-percent")
+
+        # Check for premarket/overnight data with simplified logic
+        realtime_price_elem = element_dict.get("qsp-pre-price") or element_dict.get("qsp-overnight-price")
+        realtime_change_elem = element_dict.get("qsp-pre-price-change") or element_dict.get("qsp-overnight-price-change")
+        realtime_change_percent_elem = element_dict.get("qsp-pre-price-change-percent") or element_dict.get("qsp-overnight-price-change-percent")
+
+        # Stop page loading immediately after getting data
+        try:
+            driver.execute_script("window.stop();")
+        except:
+            pass
+
+        elapsed_time = time.time() - start_time
+        print(f"✅ Scraped {symbol} in {elapsed_time:.2f} seconds")
 
         return Quote(
-            regular_price=regular_price.text,
-            regular_change=regular_change.text,
-            regular_change_percent=re.sub(r"[()]+", "", regular_change_percent.text),
-            premarket_price=premarket_price.text,
-            premarket_change=premarket_change.text,
-            premarket_change_percent=re.sub(r"[()]+", "", premarket_change_percent.text),
+            regular_price=regular_price.text if regular_price else None,
+            regular_change=regular_change.text if regular_change else None,
+            regular_change_percent=re.sub(r"[()]+", "", regular_change_percent.text) if regular_change_percent else None,
+            realtime_price=realtime_price_elem.text if realtime_price_elem else None,
+            realtime_change=realtime_change_elem.text if realtime_change_elem else None,
+            realtime_change_percent=re.sub(r"[()]+", "", realtime_change_percent_elem.text) if realtime_change_percent_elem else None,
         )
 
     except Exception as e:
