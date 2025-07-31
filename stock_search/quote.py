@@ -1,6 +1,5 @@
 import os
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
@@ -116,15 +115,13 @@ def safe_get_text(driver: webdriver.Chrome, primary_selector: str, fallback_sele
 
 def _get_quote_with_driver(symbol: str, driver_instance: webdriver.Chrome) -> Quote:
     """Internal function to get quote using a specific driver instance."""
-    start_time = time.time()
-
     try:
         # Load the Yahoo Finance page for the given symbol
         url = f"https://finance.yahoo.com/quote/{symbol}/"
         driver_instance.get(url)
 
         # Ultra-fast wait with balanced timeout
-        wait = WebDriverWait(driver_instance, 3.0)  # Sweet spot for speed vs reliability
+        wait = WebDriverWait(driver_instance, 4.0)
 
         # Wait only for the main price element (fastest single check)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='qsp-price']")))
@@ -148,9 +145,6 @@ def _get_quote_with_driver(symbol: str, driver_instance: webdriver.Chrome) -> Qu
             driver_instance.execute_script("window.stop();")
         except:
             pass
-
-        elapsed_time = time.time() - start_time
-        print(f"✅ Scraped {symbol} in {elapsed_time:.2f} seconds")
 
         return Quote(
             regular_price=regular_price.text if regular_price else None,
@@ -188,7 +182,7 @@ def _get_single_quote_with_own_driver(symbol: str) -> Quote:
                 pass  # Ignore cleanup errors
 
 
-def batch_get_quote(symbols: List[str], max_retries: int = 2) -> List[Quote]:
+def batch_get_quote(symbols: List[str], max_retries: int = 3) -> List[Quote]:
     """Get quotes for multiple symbols concurrently with retry mechanism.
 
     Args:
@@ -202,7 +196,7 @@ def batch_get_quote(symbols: List[str], max_retries: int = 2) -> List[Quote]:
         return []
 
     # Limit workers to avoid overwhelming the system and Yahoo Finance
-    max_workers = min(len(symbols), os.cpu_count(), 8)  # Cap at 8 concurrent requests
+    max_workers = min(len(symbols), os.cpu_count(), 16)
     results = [None] * len(symbols)
 
     for attempt in range(max_retries + 1):
@@ -212,28 +206,14 @@ def batch_get_quote(symbols: List[str], max_retries: int = 2) -> List[Quote]:
         if not symbols_to_fetch:
             break  # All symbols successfully fetched
 
-        attempt_desc = f"Attempt {attempt + 1}" if attempt > 0 else "Initial fetch"
-        print(f"🚀 {attempt_desc}: Fetching quotes for {len(symbols_to_fetch)} symbols using {max_workers} workers...")
-
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            batch_results = list(tqdm(executor.map(_get_single_quote_with_own_driver, symbols_to_fetch), total=len(symbols_to_fetch), desc=f"Fetching quotes ({attempt_desc.lower()})"))
+            batch_results = list(tqdm(executor.map(_get_single_quote_with_own_driver, symbols_to_fetch), total=len(symbols_to_fetch)))
 
         # Update results for successful fetches
         for symbol, quote in zip(symbols_to_fetch, batch_results):
             original_index = symbols.index(symbol)
             if quote is not None:
                 results[original_index] = quote
-                print(f"✅ {symbol}: Successfully fetched")
-            else:
-                if attempt < max_retries:
-                    print(f"🔄 {symbol}: Failed, will retry")
-                else:
-                    print(f"❌ {symbol}: Failed after {max_retries + 1} attempts")
-
-        # Add delay between retries
-        if symbols_to_fetch and attempt < max_retries:
-            print(f"⏳ Waiting 2 seconds before retry...")
-            time.sleep(2)
 
     return results
 
