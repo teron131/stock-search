@@ -3,11 +3,9 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
-from typing import Dict, List, Optional
+from typing import List, Optional
 
-from rich import print
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -25,6 +23,35 @@ logger = logging.getLogger(__name__)
 # Constants
 TIMEOUT = 4.0
 MAX_WORKERS = 16
+
+
+def _str_to_float(text: str) -> Optional[float]:
+    """Parse price/change/percentage text to float.
+
+    Handles formats like:
+    - "150.25" -> 150.25
+    - "+2.50" -> 2.50
+    - "-1.75" -> -1.75
+    - "+1.67%" -> 1.67
+    - "$150.25" -> 150.25
+    - "1,234.56" -> 1234.56
+    """
+    if not text or not text.strip():
+        return None
+
+    try:
+        # Clean the text: remove currency symbols, parentheses, and extra spaces
+        cleaned = re.sub(r"[$,()%\s]", "", text.strip())
+
+        # Handle empty string after cleaning
+        if not cleaned:
+            return None
+
+        # Convert to float
+        return float(cleaned)
+    except (ValueError, TypeError):
+        logger.warning(f"Could not parse number: '{text}'")
+        return None
 
 
 def _get_chrome_options() -> Options:
@@ -117,19 +144,15 @@ def _extract_quote_data(driver: webdriver.Chrome, symbol: str) -> Optional[Quote
         except Exception:
             pass
 
-        # Extract regular market data
-        regular_price = data.get("qsp-price")
-        regular_change = data.get("qsp-price-change")
-        regular_change_percent = data.get("qsp-price-change-percent")
-        if regular_change_percent:
-            regular_change_percent = re.sub(r"[()]+", "", regular_change_percent)
+        # Extract and parse regular market data
+        regular_price = _str_to_float(data.get("qsp-price"))
+        regular_change = _str_to_float(data.get("qsp-price-change"))
+        regular_change_percent = _str_to_float(data.get("qsp-price-change-percent"))
 
-        # Extract premarket/overnight data
-        realtime_price = data.get("qsp-pre-price") or data.get("qsp-overnight-price") or data.get("qsp-post-price")
-        realtime_change = data.get("qsp-pre-price-change") or data.get("qsp-overnight-price-change") or data.get("qsp-post-price-change")
-        realtime_change_percent = data.get("qsp-pre-price-change-percent") or data.get("qsp-overnight-price-change-percent") or data.get("qsp-post-price-change-percent")
-        if realtime_change_percent:
-            realtime_change_percent = re.sub(r"[()]+", "", realtime_change_percent)
+        # Extract and parse premarket/overnight/postmarket data
+        realtime_price = _str_to_float(data.get("qsp-pre-price") or data.get("qsp-overnight-price") or data.get("qsp-post-price"))
+        realtime_change = _str_to_float(data.get("qsp-pre-price-change") or data.get("qsp-overnight-price-change") or data.get("qsp-post-price-change"))
+        realtime_change_percent = _str_to_float(data.get("qsp-pre-price-change-percent") or data.get("qsp-overnight-price-change-percent") or data.get("qsp-post-price-change-percent"))
 
         return Quote(
             symbol=symbol,
