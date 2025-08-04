@@ -8,6 +8,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "docling>=2.41.0",
     "google-genai>=1.25.0",
+    "helium>=5.1.1",
     "ib-async>=2.0.1",
     "langchain-community>=0.3.27",
     "langchain-google-genai>=2.1.8",

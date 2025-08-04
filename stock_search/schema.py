@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class Quote(BaseModel):
-    symbol: Optional[str] = Field(default=None, description="The symbol of the quote")
+    symbol: Optional[str] = Field(default=None, description="The symbol / ticker of the stock / ETF")
     regular_price: Optional[float] = Field(default=None, description="The regular price")
     regular_change: Optional[float] = Field(default=None, description="The regular change")
     regular_change_percent: Optional[float] = Field(default=None, description="The regular change percent")
