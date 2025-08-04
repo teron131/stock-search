@@ -5,7 +5,6 @@ class StockIndicator:
     def __init__(self, ticker: str):
         self.ticker = yf.Ticker(ticker)
         self.info = self.ticker.info
-        self.price = self.info["regularMarketPreviousClose"]
 
     @property
     def market_cap(self) -> float:
@@ -44,18 +43,18 @@ class StockIndicator:
 
     @property
     def ma_strategy(self) -> str:
-        """Simplified Moving Average Strategy - Single Signal Output."""
+        """Moving Average Strategy as a combination"""
+        price = self.info["regularMarketPreviousClose"]
         ma_50 = self.info["fiftyDayAverage"]
         ma_200 = self.info["twoHundredDayAverage"]
-        current_price = self.price
 
         # Calculate key metrics
-        above_200ma = current_price > ma_200
-        above_50ma = current_price > ma_50
+        above_200ma = price > ma_200
+        above_50ma = price > ma_50
         golden_cross = ma_50 > ma_200
 
         # Distance from 200MA (key trend indicator)
-        distance_200 = ((current_price - ma_200) / ma_200) * 100
+        distance_200 = ((price - ma_200) / ma_200) * 100
 
         # Simple classification based on 200MA strategy
         if above_200ma and golden_cross and above_50ma:

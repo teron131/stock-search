@@ -169,7 +169,7 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
 
 def get_news_api(
     query: str,
-    n_days: int = 7,
+    n_days: int = 2,
     max_results: int = 10,
 ) -> list[News]:
     """Get the financial news for a given query and number of days.
