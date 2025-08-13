@@ -40,17 +40,26 @@ class DriverManager:
     @classmethod
     def get_driver(cls) -> webdriver.Chrome:
         if cls._driver is None:
-            logger.info("Initializing new Chrome driver instance...")
+            logger.info("Initializing new Chrome driver instance with performance optimizations...")
             options = Options()
-            options.binary_location = "/usr/bin/google-chrome-stable"  # Point to installed Chrome
-            args = ["--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--disable-extensions", "--disable-images", "--window-size=1200,800"]
+            options.binary_location = "/usr/bin/google-chrome-stable"
+
+            # Use the comprehensive, optimized arguments from the original script
+            args = ["--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--disable-extensions", "--disable-plugins", "--disable-images", "--disable-web-security", "--disable-features=VizDisplayCompositor", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--disable-client-side-phishing-detection", "--disable-crash-reporter", "--disable-oopr-debug-crash-dump", "--no-crash-upload", "--disable-low-res-tiling", "--memory-pressure-off", "--window-size=1200,800"]
             for arg in args:
                 options.add_argument(arg)
 
-            # Use a basic Service object without webdriver-manager
+            # Disable content for speed
+            prefs = {
+                "profile.managed_default_content_settings.images": 2,
+                "profile.managed_default_content_settings.stylesheets": 2,
+                "profile.managed_default_content_settings.fonts": 2,
+            }
+            options.add_experimental_option("prefs", prefs)
+
             service = Service()
             cls._driver = webdriver.Chrome(service=service, options=options)
-            logger.info("Chrome driver initialized.")
+            logger.info("Optimized Chrome driver initialized.")
         return cls._driver
 
     @classmethod
