@@ -13,11 +13,10 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
 
-# --- Reliable Configuration with Retry Logic ---
+# --- Configuration ---
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
-MAX_RETRIES = 3  # Retry logic for webdriver-manager
+CHROMEDRIVER_PATH = "/usr/local/bin/chromedriver"  # System-installed ChromeDriver
 
 
 # --- Pydantic Schema ---
@@ -31,7 +30,8 @@ class Quote(BaseModel):
     realtime_change_percent: Optional[float] = None
 
 
-# --- Reliable Functions with Retry Logic ---
+# --- Helper Functions ---
+
 
 def _str_to_float(text: str) -> Optional[float]:
     """Parse price/change/percentage text to float."""
@@ -89,32 +89,21 @@ def _get_optimized_chrome_options() -> Options:
     return options
 
 
-def _get_driver_with_retry() -> webdriver.Chrome:
-    """Get ChromeDriver with retry logic for webdriver-manager."""
+def _create_driver() -> webdriver.Chrome:
+    """Create ChromeDriver using system-installed binary."""
     options = _get_optimized_chrome_options()
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            # Try to get ChromeDriver with webdriver-manager
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=options)
-            driver.implicitly_wait(0.5)
-            return driver
-        except Exception as e:
-            if attempt < MAX_RETRIES - 1:
-                print(f"ChromeDriver attempt {attempt + 1} failed: {e}")
-                time.sleep(2 ** attempt)  # Exponential backoff
-                continue
-            else:
-                raise Exception(f"Failed to create ChromeDriver after {MAX_RETRIES} attempts: {e}")
+    service = Service(executable_path=CHROMEDRIVER_PATH)
+    driver = webdriver.Chrome(service=service, options=options)
+    driver.implicitly_wait(0.5)
+    return driver
 
 
 @contextmanager
 def _get_reliable_driver():
-    """Reliable driver context manager with retry logic."""
+    """Reliable driver context manager."""
     driver = None
     try:
-        driver = _get_driver_with_retry()
+        driver = _create_driver()
         yield driver
     finally:
         if driver:
@@ -129,8 +118,8 @@ def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Q
     try:
         driver.get(f"https://finance.yahoo.com/quote/{symbol}/")
 
-        # Wait for elements to load naturally (no timeout)
-        wait = WebDriverWait(driver, float("inf"))  # Wait indefinitely
+        # Wait for elements to load naturally
+        wait = WebDriverWait(driver, 10)  # 10 second timeout
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='qsp-price']")))
 
         # Get all quote elements
@@ -156,11 +145,11 @@ def _get_single_quote_reliable(symbol: str) -> Optional[Quote]:
         return _extract_quote_reliable(driver, symbol)
 
 
-# --- Reliable FastAPI App ---
+# --- FastAPI App ---
 
 app = FastAPI(
-    title="Reliable Stock Quote API",
-    description="Reliable stock quotes with retry logic",
+    title="Stock Quote API",
+    description="Real-time stock quotes using system-installed Chrome",
     version="1.0.0",
 )
 
@@ -200,12 +189,4 @@ def get_quotes(symbols: str):
 @app.get("/")
 def root():
     """API information and usage examples."""
-    return {
-        "message": "🔄 Reliable Stock Quote API",
-        "description": "Reliable stock quotes with retry logic",
-        "usage": {
-            "single_quote": "https://realtime-stock-quote.up.railway.app/quote?symbol=AMD",
-            "multiple_quotes": "https://realtime-stock-quote.up.railway.app/quotes?symbols=AMD,NVDA,PLTR"
-        },
-        "docs": "/docs"
-    }
+    return {"message": "🚀 Stock Quote API", "description": "Real-time stock quotes using system-installed Chrome", "usage": {"single_quote": "/quote?symbol=AMD", "multiple_quotes": "/quotes?symbols=AMD,NVDA,PLTR"}, "docs": "/docs"}
