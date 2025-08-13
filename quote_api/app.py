@@ -12,7 +12,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
 
 # --- Simple Resource Configuration ---
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
@@ -90,11 +89,12 @@ def _get_optimized_chrome_options() -> Options:
 
 @contextmanager
 def _get_optimized_driver():
-    """Driver context manager with natural loading."""
+    """Driver context manager using system-installed ChromeDriver."""
     driver = None
     try:
         options = _get_optimized_chrome_options()
-        service = Service(ChromeDriverManager().install())
+        # Use system-installed ChromeDriver
+        service = Service("/usr/local/bin/chromedriver")
         driver = webdriver.Chrome(service=service, options=options)
         driver.implicitly_wait(0.5)
         yield driver
@@ -138,11 +138,11 @@ def _get_single_quote_natural(symbol: str) -> Optional[Quote]:
         return _extract_quote_natural(driver, symbol)
 
 
-# --- Natural Loading FastAPI App ---
+# --- Reliable FastAPI App ---
 
 app = FastAPI(
-    title="Natural Loading Stock API",
-    description="Reliable stock quotes with natural page loading",
+    title="Reliable Stock Quote API",
+    description="Fast, reliable stock quotes with system ChromeDriver",
     version="1.0.0",
 )
 
@@ -182,4 +182,4 @@ def get_quotes(symbols: str):
 @app.get("/")
 def root():
     """API information and usage examples."""
-    return {"message": "🌿 Natural Loading Stock API", "description": "Reliable stock quotes with natural page loading", "usage": {"single_quote": "https://realtime-stock-quote.up.railway.app/quote?symbol=AMD", "multiple_quotes": "https://realtime-stock-quote.up.railway.app/quotes?symbols=AMD,NVDA,PLTR"}, "docs": "/docs"}
+    return {"message": "🚀 Reliable Stock Quote API", "description": "Fast, reliable stock quotes with system ChromeDriver", "usage": {"single_quote": "https://realtime-stock-quote.up.railway.app/quote?symbol=AMD", "multiple_quotes": "https://realtime-stock-quote.up.railway.app/quotes?symbols=AMD,NVDA,PLTR"}, "docs": "/docs"}

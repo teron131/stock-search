@@ -9,14 +9,24 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y \
     wget \
     gnupg \
+    unzip \
     --no-install-recommends && \
     wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list && \
     apt-get update && \
     apt-get install -y \
     google-chrome-stable \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    --no-install-recommends
+
+# Install ChromeDriver directly
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1-3) && \
+    wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*.*}/chromedriver_linux64.zip" && \
+    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/chromedriver && \
+    rm /tmp/chromedriver.zip
+
+# Clean up
+RUN rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container
 COPY requirements.txt .
