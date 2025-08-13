@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import List, Optional
@@ -108,12 +109,27 @@ def _get_optimized_chrome_options() -> Options:
     return options
 
 
+_driver_install_lock = threading.Lock()
+_chromedriver_path: Optional[str] = None
+
+
+def _ensure_chromedriver_path() -> str:
+    """Download/resolve a matching ChromeDriver path once, thread-safe."""
+    global _chromedriver_path
+    if _chromedriver_path:
+        return _chromedriver_path
+    with _driver_install_lock:
+        if not _chromedriver_path:
+            logger.info("Using webdriver-manager to install a matching ChromeDriver")
+            _chromedriver_path = ChromeDriverManager().install()
+    return _chromedriver_path
+
+
 def _create_driver() -> webdriver.Chrome:
     """Create Chrome WebDriver using a matching driver for installed Chrome."""
     try:
         options = _get_optimized_chrome_options()
-        # Use webdriver-manager to install the correct ChromeDriver version
-        service = Service(ChromeDriverManager().install())
+        service = Service(_ensure_chromedriver_path())
         driver = webdriver.Chrome(service=service, options=options)
         driver.implicitly_wait(0.5)
         logger.info("ChromeDriver created successfully")
@@ -155,6 +171,10 @@ def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Q
         # Get all quote elements
         elements = driver.find_elements(By.CSS_SELECTOR, "[data-testid^='qsp-']")
         data = {elem.get_attribute("data-testid"): elem.text for elem in elements if elem.text}
+        try:
+            driver.execute_script("window.stop();")
+        except Exception:
+            pass
 
         logger.info(f"Found {len(data)} data elements for {symbol}")
 
@@ -163,9 +183,9 @@ def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Q
             regular_price=_str_to_float(data.get("qsp-price")),
             regular_change=_str_to_float(data.get("qsp-price-change")),
             regular_change_percent=_str_to_float(data.get("qsp-price-change-percent")),
-            realtime_price=_str_to_float(data.get("qsp-pre-price") or data.get("qsp-post-price")),
-            realtime_change=_str_to_float(data.get("qsp-pre-price-change") or data.get("qsp-post-price-change")),
-            realtime_change_percent=_str_to_float(data.get("qsp-pre-price-change-percent") or data.get("qsp-post-price-change-percent")),
+            realtime_price=_str_to_float(data.get("qsp-pre-price") or data.get("qsp-overnight-price") or data.get("qsp-post-price")),
+            realtime_change=_str_to_float(data.get("qsp-pre-price-change") or data.get("qsp-overnight-price-change") or data.get("qsp-post-price-change")),
+            realtime_change_percent=_str_to_float(data.get("qsp-pre-price-change-percent") or data.get("qsp-overnight-price-change-percent") or data.get("qsp-post-price-change-percent")),
         )
 
         logger.info(f"Successfully extracted quote for {symbol}: ${quote.regular_price}")
