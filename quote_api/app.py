@@ -8,9 +8,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -107,10 +109,12 @@ def _get_optimized_chrome_options() -> Options:
 
 
 def _create_driver() -> webdriver.Chrome:
-    """Create Chrome WebDriver using Selenium Manager to match installed Chrome."""
+    """Create Chrome WebDriver using a matching driver for installed Chrome."""
     try:
         options = _get_optimized_chrome_options()
-        driver = webdriver.Chrome(options=options)
+        # Use webdriver-manager to install the correct ChromeDriver version
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
         driver.implicitly_wait(0.5)
         logger.info("ChromeDriver created successfully")
         return driver
