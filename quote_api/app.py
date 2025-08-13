@@ -1,6 +1,5 @@
 import logging
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import List, Optional
@@ -9,7 +8,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
-CHROMEDRIVER_PATH = "/usr/local/bin/chromedriver"  # System-installed ChromeDriver
 
 
 # --- Pydantic Schema ---
@@ -36,7 +33,6 @@ class Quote(BaseModel):
 
 class HealthCheck(BaseModel):
     status: str
-    chromedriver_path: str
     chrome_version: Optional[str] = None
     error: Optional[str] = None
 
@@ -111,12 +107,10 @@ def _get_optimized_chrome_options() -> Options:
 
 
 def _create_driver() -> webdriver.Chrome:
-    """Create ChromeDriver using system-installed binary."""
+    """Create Chrome WebDriver using Selenium Manager to match installed Chrome."""
     try:
-        logger.info(f"Creating ChromeDriver with path: {CHROMEDRIVER_PATH}")
         options = _get_optimized_chrome_options()
-        service = Service(executable_path=CHROMEDRIVER_PATH)
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(options=options)
         driver.implicitly_wait(0.5)
         logger.info("ChromeDriver created successfully")
         return driver
@@ -198,24 +192,12 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthCheck)
 def health_check():
-    """Health check endpoint to verify ChromeDriver installation."""
-    import os
+    """Health check endpoint to verify Chrome and WebDriver availability."""
     import subprocess
 
-    health = HealthCheck(status="unknown", chromedriver_path=CHROMEDRIVER_PATH)
+    health = HealthCheck(status="unknown")
 
     try:
-        # Check if ChromeDriver exists and is executable
-        if not os.path.exists(CHROMEDRIVER_PATH):
-            health.status = "error"
-            health.error = f"ChromeDriver not found at {CHROMEDRIVER_PATH}"
-            return health
-
-        if not os.access(CHROMEDRIVER_PATH, os.X_OK):
-            health.status = "error"
-            health.error = f"ChromeDriver not executable at {CHROMEDRIVER_PATH}"
-            return health
-
         # Try to get Chrome version
         try:
             result = subprocess.run(["google-chrome", "--version"], capture_output=True, text=True, timeout=5)
@@ -223,7 +205,7 @@ def health_check():
         except Exception as e:
             health.chrome_version = f"Could not determine version: {e}"
 
-        # Try to create a driver
+        # Attempt to create a driver
         with _get_reliable_driver() as driver:
             health.status = "healthy"
 
