@@ -102,8 +102,9 @@ def _create_driver() -> webdriver.Chrome:
     caps = options.to_capabilities()
     caps["pageLoadStrategy"] = "none"
 
-    # Use older Selenium syntax for compatibility
-    driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(), options=options)
+    # Use modern Selenium syntax - EXACT from original
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
 
     _setup_driver_performance(driver)
     driver.implicitly_wait(0.5)
