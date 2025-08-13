@@ -3,6 +3,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
+from queue import Empty, Queue
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
+TIMEOUT = 6  # Seconds to wait for key elements
 
 
 # --- Pydantic Schema ---
@@ -106,11 +108,21 @@ def _get_optimized_chrome_options() -> Options:
     options.add_experimental_option("useAutomationExtension", False)
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
 
+    # Faster navigation; we explicitly wait for required elements
+    try:
+        options.page_load_strategy = "none"
+    except Exception:
+        pass
+
     return options
 
 
 _driver_install_lock = threading.Lock()
 _chromedriver_path: Optional[str] = None
+
+# Simple reusable ChromeDriver pool to amortize startup cost
+POOL_SIZE = MAX_WORKERS
+_driver_pool: Queue = Queue(maxsize=POOL_SIZE)
 
 
 def _ensure_chromedriver_path() -> str:
@@ -131,6 +143,39 @@ def _create_driver() -> webdriver.Chrome:
         options = _get_optimized_chrome_options()
         service = Service(_ensure_chromedriver_path())
         driver = webdriver.Chrome(service=service, options=options)
+        # Block unnecessary resources to speed up loads
+        try:
+            driver.execute_cdp_cmd("Network.enable", {})
+            driver.execute_cdp_cmd(
+                "Network.setBlockedURLs",
+                {
+                    "urls": [
+                        "*.png",
+                        "*.jpg",
+                        "*.jpeg",
+                        "*.gif",
+                        "*.svg",
+                        "*.webp",
+                        "*.ico",
+                        "*.css",
+                        "*.woff*",
+                        "*.ttf",
+                        "*doubleclick*",
+                        "*analytics*",
+                        "*ads*",
+                        "*advertising*",
+                        "*.mp4",
+                        "*.mp3",
+                        "*tracking*",
+                    ]
+                },
+            )
+            driver.execute_cdp_cmd(
+                "Network.setUserAgentOverride",
+                {"userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
+            )
+        except Exception:
+            pass
         driver.implicitly_wait(0.5)
         logger.info("ChromeDriver created successfully")
         return driver
@@ -158,6 +203,27 @@ def _get_reliable_driver():
                 logger.warning(f"Error closing driver: {e}")
 
 
+@contextmanager
+def _get_pooled_driver():
+    """Borrow a driver from the pool; return it after use."""
+    driver = None
+    try:
+        try:
+            driver = _driver_pool.get_nowait()
+        except Empty:
+            driver = _create_driver()
+        yield driver
+    finally:
+        if driver:
+            try:
+                _driver_pool.put_nowait(driver)
+            except Exception:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+
+
 def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Quote]:
     """Extract quote data with natural page loading."""
     try:
@@ -165,7 +231,7 @@ def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Q
         driver.get(f"https://finance.yahoo.com/quote/{symbol}/")
 
         # Wait for elements to load naturally
-        wait = WebDriverWait(driver, 15)  # 15 second timeout
+        wait = WebDriverWait(driver, TIMEOUT)
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='qsp-price']")))
 
         # Get all quote elements
@@ -198,7 +264,7 @@ def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Q
 def _get_single_quote_reliable(symbol: str) -> Optional[Quote]:
     """Get quote with reliable driver and resource limits."""
     try:
-        with _get_reliable_driver() as driver:
+        with _get_pooled_driver() as driver:
             return _extract_quote_reliable(driver, symbol)
     except Exception as e:
         logger.error(f"Failed to get quote for {symbol}: {e}")
@@ -212,6 +278,36 @@ app = FastAPI(
     description="Real-time stock quotes using system-installed Chrome",
     version="1.0.0",
 )
+
+
+@app.on_event("startup")
+def _on_startup():
+    # Pre-resolve driver path and pre-warm pool
+    try:
+        _ensure_chromedriver_path()
+    except Exception:
+        pass
+    try:
+        while _driver_pool.qsize() < POOL_SIZE:
+            _driver_pool.put(_create_driver())
+    except Exception:
+        pass
+
+
+@app.on_event("shutdown")
+def _on_shutdown():
+    try:
+        while True:
+            try:
+                d = _driver_pool.get_nowait()
+            except Empty:
+                break
+            try:
+                d.quit()
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 @app.get("/health", response_model=HealthCheck)
