@@ -13,7 +13,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-# --- Simple Resource Configuration ---
+# --- System ChromeDriver - No webdriver-manager needed ---
+# Using pre-installed ChromeDriver at /usr/local/bin/chromedriver
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
 
 
