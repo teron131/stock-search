@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from typing import List, Optional
@@ -12,10 +13,11 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from webdriver_manager.chrome import ChromeDriverManager
 
-# --- System ChromeDriver - No webdriver-manager needed ---
-# Using pre-installed ChromeDriver at /usr/local/bin/chromedriver
+# --- Reliable Configuration with Retry Logic ---
 MAX_WORKERS = 2  # Keep low concurrency to prevent resource spikes
+MAX_RETRIES = 3  # Retry logic for webdriver-manager
 
 
 # --- Pydantic Schema ---
@@ -29,8 +31,7 @@ class Quote(BaseModel):
     realtime_change_percent: Optional[float] = None
 
 
-# --- Natural Loading Functions ---
-
+# --- Reliable Functions with Retry Logic ---
 
 def _str_to_float(text: str) -> Optional[float]:
     """Parse price/change/percentage text to float."""
@@ -88,16 +89,32 @@ def _get_optimized_chrome_options() -> Options:
     return options
 
 
+def _get_driver_with_retry() -> webdriver.Chrome:
+    """Get ChromeDriver with retry logic for webdriver-manager."""
+    options = _get_optimized_chrome_options()
+    
+    for attempt in range(MAX_RETRIES):
+        try:
+            # Try to get ChromeDriver with webdriver-manager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+            driver.implicitly_wait(0.5)
+            return driver
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                print(f"ChromeDriver attempt {attempt + 1} failed: {e}")
+                time.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            else:
+                raise Exception(f"Failed to create ChromeDriver after {MAX_RETRIES} attempts: {e}")
+
+
 @contextmanager
-def _get_optimized_driver():
-    """Driver context manager using system-installed ChromeDriver."""
+def _get_reliable_driver():
+    """Reliable driver context manager with retry logic."""
     driver = None
     try:
-        options = _get_optimized_chrome_options()
-        # Use system-installed ChromeDriver
-        service = Service("/usr/local/bin/chromedriver")
-        driver = webdriver.Chrome(service=service, options=options)
-        driver.implicitly_wait(0.5)
+        driver = _get_driver_with_retry()
         yield driver
     finally:
         if driver:
@@ -107,8 +124,8 @@ def _get_optimized_driver():
                 pass
 
 
-def _extract_quote_natural(driver: webdriver.Chrome, symbol: str) -> Optional[Quote]:
-    """Extract quote data with natural page loading - no timeouts."""
+def _extract_quote_reliable(driver: webdriver.Chrome, symbol: str) -> Optional[Quote]:
+    """Extract quote data with natural page loading."""
     try:
         driver.get(f"https://finance.yahoo.com/quote/{symbol}/")
 
@@ -133,17 +150,17 @@ def _extract_quote_natural(driver: webdriver.Chrome, symbol: str) -> Optional[Qu
         return None
 
 
-def _get_single_quote_natural(symbol: str) -> Optional[Quote]:
-    """Get quote with natural loading and resource limits."""
-    with _get_optimized_driver() as driver:
-        return _extract_quote_natural(driver, symbol)
+def _get_single_quote_reliable(symbol: str) -> Optional[Quote]:
+    """Get quote with reliable driver and resource limits."""
+    with _get_reliable_driver() as driver:
+        return _extract_quote_reliable(driver, symbol)
 
 
 # --- Reliable FastAPI App ---
 
 app = FastAPI(
     title="Reliable Stock Quote API",
-    description="Fast, reliable stock quotes with system ChromeDriver",
+    description="Reliable stock quotes with retry logic",
     version="1.0.0",
 )
 
@@ -151,7 +168,7 @@ app = FastAPI(
 @app.get("/quote", response_model=Quote)
 def get_quote(symbol: str):
     """Get a single stock quote."""
-    quote = _get_single_quote_natural(symbol.upper())
+    quote = _get_single_quote_reliable(symbol.upper())
     if not quote:
         raise HTTPException(status_code=404, detail=f"Quote for '{symbol}' not found")
     return quote
@@ -166,7 +183,7 @@ def get_quotes(symbols: str):
 
     # Low concurrency to prevent resource spikes
     with ThreadPoolExecutor(max_workers=min(len(symbol_list), MAX_WORKERS)) as executor:
-        future_to_symbol = {executor.submit(_get_single_quote_natural, sym): sym for sym in symbol_list}
+        future_to_symbol = {executor.submit(_get_single_quote_reliable, sym): sym for sym in symbol_list}
         results = []
 
         for future in as_completed(future_to_symbol):
@@ -183,4 +200,12 @@ def get_quotes(symbols: str):
 @app.get("/")
 def root():
     """API information and usage examples."""
-    return {"message": "🚀 Reliable Stock Quote API", "description": "Fast, reliable stock quotes with system ChromeDriver", "usage": {"single_quote": "https://realtime-stock-quote.up.railway.app/quote?symbol=AMD", "multiple_quotes": "https://realtime-stock-quote.up.railway.app/quotes?symbols=AMD,NVDA,PLTR"}, "docs": "/docs"}
+    return {
+        "message": "🔄 Reliable Stock Quote API",
+        "description": "Reliable stock quotes with retry logic",
+        "usage": {
+            "single_quote": "https://realtime-stock-quote.up.railway.app/quote?symbol=AMD",
+            "multiple_quotes": "https://realtime-stock-quote.up.railway.app/quotes?symbols=AMD,NVDA,PLTR"
+        },
+        "docs": "/docs"
+    }

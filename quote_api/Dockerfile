@@ -1,47 +1,25 @@
-# Use an official and more secure Python runtime as a parent image
-FROM python:3.11-slim-bullseye
+# Use Python slim image
+FROM python:3.11-slim
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies required by Google Chrome and chromedriver
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y \
+# Install minimal system dependencies for Chrome
+RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     unzip \
-    --no-install-recommends && \
-    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list && \
-    apt-get update && \
-    apt-get install -y \
-    google-chrome-stable \
-    --no-install-recommends
+    && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver directly
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1-3) && \
-    wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*.*}/chromedriver_linux64.zip" && \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
-    chmod +x /usr/local/bin/chromedriver && \
-    rm /tmp/chromedriver.zip
-
-# Clean up
-RUN rm -rf /var/lib/apt/lists/*
-
-# Copy the requirements file into the container
+# Copy requirements and install Python packages
 COPY requirements.txt .
-
-# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application code into the container
+# Copy application
 COPY app.py .
 
-# Make port 8000 available to the world outside this container
+# Expose port
 EXPOSE 8000
 
-# Define environment variable using modern syntax
-ENV NAME="World"
-
-# Run app.py when the container launches
+# Run the application
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
