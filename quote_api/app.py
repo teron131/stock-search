@@ -13,7 +13,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from webdriver_manager.chrome import ChromeDriverManager
 
 
 # --- Pydantic Schema ---
@@ -43,11 +42,13 @@ class DriverManager:
         if cls._driver is None:
             logger.info("Initializing new Chrome driver instance...")
             options = Options()
+            options.binary_location = "/usr/bin/google-chrome-stable"  # Point to installed Chrome
             args = ["--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage", "--disable-extensions", "--disable-images", "--window-size=1200,800"]
             for arg in args:
                 options.add_argument(arg)
 
-            service = Service(ChromeDriverManager().install())
+            # Use a basic Service object without webdriver-manager
+            service = Service()
             cls._driver = webdriver.Chrome(service=service, options=options)
             logger.info("Chrome driver initialized.")
         return cls._driver
