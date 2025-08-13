@@ -29,9 +29,9 @@ class StockIndicator:
         return self.info["grossMargins"] * 100
 
     @property
-    def reasonable_priced(self) -> bool:
+    def peg(self) -> float:
         # < 1 indicates reasonable price
-        return self.info["trailingPE"] / (self.info["earningsGrowth"] * 100) < 1
+        return self.info["trailingPE"] / (self.info["earningsGrowth"] * 100)
 
     @property
     def fifty_day_change_percent(self) -> float:

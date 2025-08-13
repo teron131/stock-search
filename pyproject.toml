@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.13.4",
     "docling>=2.41.0",
+    "fastapi>=0.116.1",
     "google-genai>=1.25.0",
     "helium>=5.1.1",
     "ib-async>=2.0.1",
