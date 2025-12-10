@@ -1,8 +1,82 @@
 import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
 from pydantic import BaseModel, ConfigDict
 
 RSI_PERIOD = 14
 MARKET_CAP_UNITS = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
+
+
+def parse_ratings(ticker: str, days: int = 90) -> dict | None:
+    """
+    Parse analyst ratings for a ticker and calculate upside metrics.
+
+    Args:
+        ticker: Stock ticker symbol
+        days: Number of days to look back for recent ratings (default 90)
+
+    Returns:
+        Dictionary containing analyst ratings data with keys:
+        - ticker: Stock ticker symbol
+        - current_price: Current stock price
+        - days_lookback: Number of days analyzed
+        - num_recent_ratings: Count of analyst ratings within period
+        - average_upside_pct: Average upside percentage
+        - median_upside_pct: Median upside percentage
+        - max_upside_pct: Maximum upside percentage
+        - min_upside_pct: Minimum upside percentage
+        - recent_ratings_df: DataFrame with detailed ratings
+
+        Returns None if no ratings data available.
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        current_price = stock.info.get("currentPrice")
+
+        if current_price is None:
+            return None
+
+        # Get upgrades/downgrades which includes dates and price targets
+        upgrades_df = stock.upgrades_downgrades
+
+        if upgrades_df is None or upgrades_df.empty:
+            return None
+
+        # Convert index to datetime
+        upgrades_df.index = pd.to_datetime(upgrades_df.index)
+
+        # Calculate cutoff date
+        cutoff_date = datetime.now() - timedelta(days=days)
+
+        # Filter for recent analyst ratings
+        recent_ratings = upgrades_df[upgrades_df.index >= cutoff_date].copy()
+
+        if recent_ratings.empty:
+            return None
+
+        # Calculate upside for each rating
+        recent_ratings["Upside %"] = (
+            (recent_ratings["currentPriceTarget"] - current_price) / current_price * 100
+        )
+        recent_ratings["Upside %"] = recent_ratings["Upside %"].round(2)
+
+        # Calculate metrics
+        average_upside = recent_ratings["Upside %"].mean()
+        median_upside = recent_ratings["Upside %"].median()
+
+        return {
+            "ticker": ticker,
+            "current_price": current_price,
+            "days_lookback": days,
+            "num_recent_ratings": len(recent_ratings),
+            "average_upside_pct": round(average_upside, 2),
+            "median_upside_pct": round(median_upside, 2),
+            "max_upside_pct": recent_ratings["Upside %"].max(),
+            "min_upside_pct": recent_ratings["Upside %"].min(),
+            "recent_ratings_df": recent_ratings,
+        }
+    except Exception:
+        return None
 
 
 class YFinanceInfo(BaseModel):
@@ -332,6 +406,22 @@ class StockIndicator:
     def two_hundred_day_change_percent_str(self) -> str | None:
         """String representation of 200-day change percentage with percent sign."""
         return self._format_number(self.two_hundred_day_change_percent, suffix="%", show_sign=True)
+
+    @property
+    def median_upside(self) -> float | None:
+        """Median analyst upside from recent ratings (last 90 days).
+
+        Calculation: Median of (target_price - current_price) / current_price * 100
+        across all analyst ratings from the last 90 days.
+
+        Returns:
+            Median upside percentage on 0-100 scale. Positive indicates upside potential.
+            None if no recent analyst ratings available.
+        """
+        ratings = parse_ratings(self.ticker.ticker)
+        if ratings is None:
+            return None
+        return ratings["median_upside_pct"]
 
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
