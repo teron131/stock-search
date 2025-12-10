@@ -7,82 +7,159 @@ class StockIndicator:
         self.info = self.ticker.info
 
     @property
-    def market_cap(self) -> float:
-        return f"{self.info["marketCap"] / 1e12}B" if self.info["marketCap"] > 1e12 else f"{self.info["marketCap"] / 1e9}M"
+    def price(self) -> float | str:
+        """Get latest price in order of postMarket, preMarket, or regularMarket."""
+        for price_key in ["postMarketPrice", "preMarketPrice", "regularMarketPrice"]:
+            if (price := self.info.get(price_key)) is not None:
+                return price
+        return "N/A"
+
+    def _get_previous_close(self) -> float | None:
+        """Get appropriate previous close based on current price source."""
+        if self.info.get("postMarketPrice") is not None:
+            return self.info.get("regularMarketPreviousClose")
+        if self.info.get("preMarketPrice") is not None:
+            return self.info.get("postMarketPrice") or self.info.get("regularMarketPreviousClose")
+        return self.info.get("regularMarketPreviousClose")
 
     @property
-    def volume_surge_percent(self) -> float:
-        return (self.info["volume"] / self.info["averageVolume10days"] - 1) * 100
+    def change(self) -> float | str:
+        """Calculate change from previous close based on current price source."""
+        if (current_price := self.price) == "N/A":
+            return "N/A"
+        if (previous_close := self._get_previous_close()) is None:
+            return "N/A"
+        return current_price - previous_close
+
+    @property
+    def change_percent(self) -> float | str:
+        """Calculate percentage change from previous close based on current price source."""
+        if (current_price := self.price) == "N/A":
+            return "N/A"
+        if (previous_close := self._get_previous_close()) is None or previous_close == 0:
+            return "N/A"
+        return ((current_price - previous_close) / previous_close) * 100
+
+    @property
+    def market_cap(self) -> str:
+        """Format market cap as T/B/M/K with appropriate precision."""
+        if (market_cap := self.info.get("marketCap")) is None:
+            return "N/A"
+
+        for divisor, suffix in [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]:
+            if market_cap >= divisor:
+                return f"{(market_cap / divisor):.3f}{suffix}"
+
+        return f"{market_cap:.3f}"
+
+    @property
+    def pe(self) -> float | str:
+        """Price-to-Earnings ratio (trailing P/E)."""
+        if (pe := self.info.get("trailingPE")) is None:
+            return "N/A"
+        return pe
+
+    @property
+    def peg(self) -> float | str:
+        """Price/Earnings to Growth ratio. < 2 indicates reasonable price and < 1 means undervalued."""
+        pe_value = self.pe
+        if pe_value == "N/A":
+            return "N/A"
+        if (earnings_growth := self.info.get("earningsGrowth")) is None or earnings_growth == 0:
+            return "N/A"
+        return pe_value / earnings_growth
 
     @property
     def earning_direction(self) -> str:
+        """Direction of expected earnings change based on P/E ratios."""
         # Forward P/E can be lower than the trailing P/E if a company is expected to increase its earnings in the coming year, vice versa
         # > 0 when analysts expect earnings to grow faster than price
-        return "Increase" if (self.info["trailingPE"] - self.info["forwardPE"]) / self.info["trailingPE"] > 0 else "Decrease"
+        trailing_pe = self.info.get("trailingPE")
+        forward_pe = self.info.get("forwardPE")
+        if trailing_pe is None or forward_pe is None or trailing_pe == 0:
+            return "N/A"
+        return "Increase" if (trailing_pe - forward_pe) / trailing_pe > 0 else "Decrease"
 
     @property
-    def eps_growth_percent(self) -> float:
-        return (self.info["forwardEps"] / self.info["trailingEps"] - 1) * 100
+    def rsi(self) -> float | str:
+        """Relative Strength Index (RSI, 14-period). 70+ overbought, 30- oversold."""
+        period = 14
+        try:
+            hist = self.ticker.history(period=f"{period + 10}d")
+            if hist.empty or len(hist) < period + 1:
+                return "N/A"
+
+            close_prices = hist["Close"]
+            deltas = close_prices.diff()
+
+            gains = deltas.where(deltas > 0, 0)
+            losses = -deltas.where(deltas < 0, 0)
+
+            avg_gain = gains.rolling(window=period).mean().iloc[-1]
+            avg_loss = losses.rolling(window=period).mean().iloc[-1]
+
+            if avg_loss == 0:
+                return 100.0
+
+            rs = avg_gain / avg_loss
+            rsi_value = 100 - (100 / (1 + rs))
+
+            return round(rsi_value, 2)
+        except Exception:
+            return "N/A"
 
     @property
-    def expected_earnings_percent(self) -> float:
+    def gross_margin(self) -> float:
         return self.info["grossMargins"] * 100
 
-    @property
-    def peg(self) -> float:
-        # < 1 indicates reasonable price
-        return self.info["trailingPE"] / (self.info["earningsGrowth"] * 100)
+    def _calculate_change_percent(self, days: int) -> float | str:
+        """Calculate percentage change as (price / EMA - 1) * 100."""
+        try:
+            hist = self.ticker.history(period=f"{days + 30}d")
+            if hist.empty or len(hist) < days:
+                return "N/A"
+
+            current_price = self.price
+            if current_price == "N/A":
+                return "N/A"
+
+            close_prices = hist["Close"]
+            ema = close_prices.ewm(span=days, adjust=False).mean().iloc[-1]
+
+            if ema == 0:
+                return "N/A"
+
+            return ((current_price / ema) - 1) * 100
+        except Exception:
+            return "N/A"
 
     @property
-    def fifty_day_change_percent(self) -> float:
-        return self.info["fiftyDayAverageChangePercent"] * 100
+    def twenty_day_change_percent(self) -> float | str:
+        """20-day percentage change."""
+        if change := self.info.get("twentyDayAverageChangePercent"):
+            return change * 100
+        return self._calculate_change_percent(20)
 
     @property
-    def two_hundred_day_change_percent(self) -> float:
-        return self.info["twoHundredDayAverageChangePercent"] * 100
+    def fifty_day_change_percent(self) -> float | str:
+        """50-day percentage change."""
+        if change := self.info.get("fiftyDayAverageChangePercent"):
+            return change * 100
+        return self._calculate_change_percent(50)
 
     @property
-    def ma_strategy(self) -> str:
-        """Moving Average Strategy as a combination"""
-        price = self.info["regularMarketPreviousClose"]
-        ma_50 = self.info["fiftyDayAverage"]
-        ma_200 = self.info["twoHundredDayAverage"]
-
-        # Calculate key metrics
-        above_200ma = price > ma_200
-        above_50ma = price > ma_50
-        golden_cross = ma_50 > ma_200
-
-        # Distance from 200MA (key trend indicator)
-        distance_200 = ((price - ma_200) / ma_200) * 100
-
-        # Simple classification based on 200MA strategy
-        if above_200ma and golden_cross and above_50ma:
-            if distance_200 > 10:
-                return "🚀 STRONG BULLISH - All signals aligned, price well above 200MA"
-            else:
-                return "📈 BULLISH - Above both moving averages, uptrend confirmed"
-        elif above_200ma and golden_cross:
-            return "✅ CAUTIOUSLY BULLISH - Above 200MA with golden cross, watch 50MA"
-        elif above_200ma:
-            return "🟡 NEUTRAL BULLISH - Above 200MA but mixed short-term signals"
-        elif not above_200ma and not golden_cross and not above_50ma:
-            if distance_200 < -10:
-                return "🐻 STRONG BEARISH - All signals down, price well below 200MA"
-            else:
-                return "📉 BEARISH - Below both moving averages, downtrend confirmed"
-        elif not above_200ma and not golden_cross:
-            return "⚠️ CAUTIOUSLY BEARISH - Below 200MA with death cross, avoid"
-        else:
-            return "🔄 CONSOLIDATION - Mixed signals, price between moving averages"
+    def one_hundred_day_change_percent(self) -> float | str:
+        """100-day percentage change."""
+        if change := self.info.get("oneHundredDayAverageChangePercent"):
+            return change * 100
+        return self._calculate_change_percent(100)
 
     @property
-    def upside_downside(self) -> str:
-        return (self.info["targetMedianPrice"] / self.info["currentPrice"] - 1) * 100
-
-    @property
-    def analyst_rating(self) -> str:
-        return self.info["averageAnalystRating"].split(" - ")[1]
+    def two_hundred_day_change_percent(self) -> float | str:
+        """200-day percentage change."""
+        if change := self.info.get("twoHundredDayAverageChangePercent"):
+            return change * 100
+        return self._calculate_change_percent(200)
 
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
