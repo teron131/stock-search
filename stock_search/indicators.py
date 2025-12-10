@@ -3,10 +3,21 @@ import pandas as pd
 from datetime import datetime, timedelta
 from pydantic import BaseModel, ConfigDict
 
-from stock_search.schema import AnalystRatings
-
 RSI_PERIOD = 14
 MARKET_CAP_UNITS = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
+
+
+class AnalystRatings(BaseModel):
+    """Analyst ratings data with upside metrics."""
+
+    ticker: str
+    current_price: float
+    days_lookback: int
+    num_recent_ratings: int
+    average_upside_pct: float
+    median_upside_pct: float
+    max_upside_pct: float
+    min_upside_pct: float
 
 
 def parse_ratings(ticker: str, days: int = 90) -> AnalystRatings | None:

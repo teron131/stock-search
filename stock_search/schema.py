@@ -39,14 +39,3 @@ class News(BaseModel):
     content: str = Field(default=None, description="The content of the news article")
     sentiment: Literal["positive", "neutral", "negative"] = Field(default=None, description="The sentiment of the news article")
     date: str = Field(default=None, description="The date of the news article")
-
-
-class AnalystRatings(BaseModel):
-    ticker: str = Field(description="Stock ticker symbol")
-    current_price: float = Field(description="Current stock price in USD")
-    days_lookback: int = Field(description="Number of days analyzed for recent ratings")
-    num_recent_ratings: int = Field(description="Count of analyst ratings within the lookback period")
-    average_upside_pct: float = Field(description="Average upside percentage across all analysts")
-    median_upside_pct: float = Field(description="Median upside percentage across all analysts")
-    max_upside_pct: float = Field(description="Maximum upside percentage among analysts")
-    min_upside_pct: float = Field(description="Minimum upside percentage among analysts")
