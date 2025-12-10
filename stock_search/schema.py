@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Quote(BaseModel):
@@ -39,3 +39,22 @@ class News(BaseModel):
     content: str = Field(default=None, description="The content of the news article")
     sentiment: Literal["positive", "neutral", "negative"] = Field(default=None, description="The sentiment of the news article")
     date: str = Field(default=None, description="The date of the news article")
+
+
+class PortfolioPosition(BaseModel):
+    """A single position with notional exposure."""
+
+    ticker: str = Field(description="Stock ticker symbol")
+    quantity: float = Field(description="Number of shares or contracts")
+    delta: float = Field(default=1.0, description="Delta (1.0 for shares, 0-1 for options)")
+    current_price: float = Field(description="Current price in USD")
+    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(
+        description="Bucket: core_engine, core_satellite, fomo, or defensive"
+    )
+
+
+class Portfolio(BaseModel):
+    """Portfolio with notional exposures."""
+
+    total_equity: float = Field(description="Total equity in USD")
+    positions: list[PortfolioPosition] = Field(description="Portfolio positions")
