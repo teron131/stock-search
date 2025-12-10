@@ -7,7 +7,22 @@ RSI_PERIOD = 14
 MARKET_CAP_UNITS = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
 
 
-def parse_ratings(ticker: str, days: int = 90) -> dict | None:
+class AnalystRatings(BaseModel):
+    """Analyst ratings data with upside metrics."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ticker: str
+    current_price: float
+    days_lookback: int
+    num_recent_ratings: int
+    average_upside_pct: float
+    median_upside_pct: float
+    max_upside_pct: float
+    min_upside_pct: float
+
+
+def parse_ratings(ticker: str, days: int = 90) -> AnalystRatings | None:
     """
     Parse analyst ratings for a ticker and calculate upside metrics.
 
@@ -16,7 +31,7 @@ def parse_ratings(ticker: str, days: int = 90) -> dict | None:
         days: Number of days to look back for recent ratings (default 90)
 
     Returns:
-        Dictionary containing analyst ratings data with keys:
+        AnalystRatings model containing analyst upside metrics:
         - ticker: Stock ticker symbol
         - current_price: Current stock price
         - days_lookback: Number of days analyzed
@@ -25,7 +40,6 @@ def parse_ratings(ticker: str, days: int = 90) -> dict | None:
         - median_upside_pct: Median upside percentage
         - max_upside_pct: Maximum upside percentage
         - min_upside_pct: Minimum upside percentage
-        - recent_ratings_df: DataFrame with detailed ratings
 
         Returns None if no ratings data available.
     """
@@ -64,17 +78,16 @@ def parse_ratings(ticker: str, days: int = 90) -> dict | None:
         average_upside = recent_ratings["Upside %"].mean()
         median_upside = recent_ratings["Upside %"].median()
 
-        return {
-            "ticker": ticker,
-            "current_price": current_price,
-            "days_lookback": days,
-            "num_recent_ratings": len(recent_ratings),
-            "average_upside_pct": round(average_upside, 2),
-            "median_upside_pct": round(median_upside, 2),
-            "max_upside_pct": recent_ratings["Upside %"].max(),
-            "min_upside_pct": recent_ratings["Upside %"].min(),
-            "recent_ratings_df": recent_ratings,
-        }
+        return AnalystRatings(
+            ticker=ticker,
+            current_price=current_price,
+            days_lookback=days,
+            num_recent_ratings=len(recent_ratings),
+            average_upside_pct=round(average_upside, 2),
+            median_upside_pct=round(median_upside, 2),
+            max_upside_pct=recent_ratings["Upside %"].max(),
+            min_upside_pct=recent_ratings["Upside %"].min(),
+        )
     except Exception:
         return None
 
@@ -421,7 +434,7 @@ class StockIndicator:
         ratings = parse_ratings(self.ticker.ticker)
         if ratings is None:
             return None
-        return ratings["median_upside_pct"]
+        return ratings.median_upside_pct
 
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
