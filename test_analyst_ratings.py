@@ -5,6 +5,7 @@ Test script to fetch analyst rating data from yfinance and store in pandas
 
 import yfinance as yf
 import pandas as pd
+from datetime import datetime, timedelta
 
 def get_analyst_ratings(ticker: str) -> pd.DataFrame:
     """
@@ -77,6 +78,71 @@ def get_analyst_ratings_detailed(ticker: str) -> pd.DataFrame:
     return df
 
 
+def get_recent_analyst_upside(ticker: str, days: int = 90) -> dict:
+    """
+    Get recent analyst ratings (within N days) and calculate average upside
+
+    Args:
+        ticker: Stock ticker symbol
+        days: Number of days to look back (default 90)
+
+    Returns:
+        Dictionary containing analyst upside analysis
+    """
+    stock = yf.Ticker(ticker)
+    current_price = stock.info.get('currentPrice')
+
+    # Get upgrades/downgrades which includes dates and price targets
+    try:
+        upgrades_df = stock.upgrades_downgrades
+    except:
+        print(f"Could not retrieve upgrades/downgrades for {ticker}")
+        return None
+
+    if upgrades_df is None or upgrades_df.empty:
+        print(f"No upgrades/downgrades data available for {ticker}")
+        return None
+
+    # Convert index to datetime if not already
+    upgrades_df.index = pd.to_datetime(upgrades_df.index)
+
+    # Calculate cutoff date (90 days ago)
+    cutoff_date = datetime.now() - timedelta(days=days)
+
+    # Filter for recent analyst ratings
+    recent_ratings = upgrades_df[upgrades_df.index >= cutoff_date].copy()
+
+    if recent_ratings.empty:
+        print(f"No analyst ratings within the last {days} days for {ticker}")
+        return None
+
+    # Calculate upside for each rating
+    # Upside % = (Target Price - Current Price) / Current Price * 100
+    recent_ratings['Upside %'] = (
+        (recent_ratings['currentPriceTarget'] - current_price) / current_price * 100
+    )
+
+    # Round upside to 2 decimal places
+    recent_ratings['Upside %'] = recent_ratings['Upside %'].round(2)
+
+    # Calculate average upside
+    average_upside = recent_ratings['Upside %'].mean()
+
+    result = {
+        'ticker': ticker,
+        'current_price': current_price,
+        'days_lookback': days,
+        'num_recent_ratings': len(recent_ratings),
+        'average_upside_pct': round(average_upside, 2),
+        'max_upside_pct': recent_ratings['Upside %'].max(),
+        'min_upside_pct': recent_ratings['Upside %'].min(),
+        'median_upside_pct': recent_ratings['Upside %'].median(),
+        'recent_ratings_df': recent_ratings
+    }
+
+    return result
+
+
 if __name__ == "__main__":
     # Test on NVDA
     ticker = "NVDA"
@@ -91,13 +157,27 @@ if __name__ == "__main__":
     df2 = get_analyst_ratings_detailed(ticker)
     print(df2.to_string())
 
-    # Display all columns (in case some are hidden)
+    # Method 3: Recent analyst upside analysis (last 90 days)
     print(f"\n{'='*60}")
-    print("All Available Columns:")
+    print("Recent Analyst Ratings (Last 90 Days):")
     print(f"{'='*60}")
-    print(df2.columns.tolist())
+    upside_analysis = get_recent_analyst_upside(ticker, days=90)
 
-    print(f"\n{'='*60}")
-    print("DataFrame Info:")
-    print(f"{'='*60}")
-    df2.info()
+    if upside_analysis:
+        print(f"\nTicker: {upside_analysis['ticker']}")
+        print(f"Current Price: ${upside_analysis['current_price']:.2f}")
+        print(f"Number of Recent Ratings: {upside_analysis['num_recent_ratings']}")
+        print(f"\nUpside Analysis:")
+        print(f"  Average Upside: {upside_analysis['average_upside_pct']:.2f}%")
+        print(f"  Median Upside: {upside_analysis['median_upside_pct']:.2f}%")
+        print(f"  Max Upside: {upside_analysis['max_upside_pct']:.2f}%")
+        print(f"  Min Upside: {upside_analysis['min_upside_pct']:.2f}%")
+
+        print(f"\n{'='*60}")
+        print("Detailed Recent Ratings:")
+        print(f"{'='*60}")
+        detailed_df = upside_analysis['recent_ratings_df'][
+            ['Firm', 'Action', 'currentPriceTarget', 'priorPriceTarget', 'Upside %']
+        ].copy()
+        detailed_df.columns = ['Firm', 'Action', 'Target Price', 'Prior Target', 'Upside %']
+        print(detailed_df.to_string())
