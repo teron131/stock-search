@@ -1,6 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -15,7 +14,7 @@ def parse_ratings(ticker: str, days: int = 90) -> dict | None:
         return None
 
     df.index = pd.to_datetime(df.index)
-    recent_ratings = df[df.index >= datetime.now() - timedelta(days=days)]
+    recent_ratings = df[df.index >= datetime.now(UTC) - timedelta(days=days)]
 
     if recent_ratings.empty:
         return None
@@ -383,9 +382,17 @@ class StockIndicator:
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
         exclude = {"ticker", "info", "get_all_indicators", "get_all_indicators_str"}
-        return {name: getattr(self, name) for name in dir(self) if not name.startswith("_") and not name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)}
+        return {
+            name: getattr(self, name)
+            for name in dir(self)
+            if not name.startswith("_") and not name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)
+        }
 
     def get_all_indicators_str(self) -> dict:
         """Get all available string-formatted indicators as a dictionary."""
         exclude = {"ticker", "info", "get_all_indicators", "get_all_indicators_str"}
-        return {name: getattr(self, name) for name in dir(self) if not name.startswith("_") and name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)}
+        return {
+            name: getattr(self, name)
+            for name in dir(self)
+            if not name.startswith("_") and name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)
+        }

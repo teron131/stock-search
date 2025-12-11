@@ -1,7 +1,5 @@
 """Portfolio notional exposure calculations."""
 
-from stock_search.schema import PortfolioPosition
-
 
 def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
     """

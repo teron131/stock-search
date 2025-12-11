@@ -1,15 +1,15 @@
-import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+import os
 from typing import Literal
 
-import requests
-import yfinance as yf
 from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
+import requests
+import yfinance as yf
 
 from .schema import News
 
@@ -36,7 +36,7 @@ def webloader(url: str) -> str:
         converter = DocumentConverter()
         result = converter.convert(url)
         return result.document.export_to_markdown()
-    except Exception as e:
+    except Exception:
         return ""
 
 
@@ -115,7 +115,7 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
         news_content = [future.result() for future in futures]
 
     # Filter out articles with empty content
-    filtered_articles = [(article, content) for article, content in zip(articles, news_content) if content.strip()]  # Filter out empty or whitespace-only content
+    filtered_articles = [(article, content) for article, content in zip(articles, news_content, strict=True) if content.strip()]  # Filter out empty or whitespace-only content
 
     if not filtered_articles:
         return []
@@ -159,7 +159,7 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
         News(
             title=article["title"],
             url=article["link"],
-            date=datetime.fromtimestamp(article["providerPublishTime"]).strftime("%Y-%m-%d %H:%M:%S"),
+            date=datetime.fromtimestamp(article["providerPublishTime"], UTC).strftime("%Y-%m-%d %H:%M:%S"),
         )
         for article in raw_articles
     ]
@@ -182,7 +182,7 @@ def get_news_api(
         list[dict]: A list of dictionaries containing the news articles.
     """
     url = "https://newsapi.org/v2/everything"
-    now = datetime.now()
+    now = datetime.now(UTC)
     params = {
         "q": f"{query} AND (stock OR market OR finance OR invest OR trade OR price OR analyst OR Wall Street)",
         "from": (now - timedelta(days=n_days)).strftime("%Y-%m-%d"),
@@ -193,7 +193,7 @@ def get_news_api(
         "apiKey": os.getenv("NEWS_API_KEY"),
     }
 
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=60)
     response.raise_for_status()
     raw_articles = response.json()["articles"]
 

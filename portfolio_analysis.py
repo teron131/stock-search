@@ -2,8 +2,9 @@
 """Portfolio notional analysis script - calculate and display portfolio metrics."""
 
 import pandas as pd
-from stock_search.schema import PortfolioPosition, Portfolio
+
 from stock_search.portfolio import calculate_notional, calculate_position_weight
+from stock_search.schema import Portfolio, PortfolioPosition
 
 
 def analyze_portfolio(portfolio: Portfolio) -> pd.DataFrame:
@@ -21,9 +22,7 @@ def analyze_portfolio(portfolio: Portfolio) -> pd.DataFrame:
     rows = []
 
     for position in portfolio.positions:
-        notional = calculate_notional(
-            position.quantity, position.delta, position.current_price
-        )
+        notional = calculate_notional(position.quantity, position.delta, position.current_price)
         weight = calculate_position_weight(notional, portfolio.total_equity)
 
         rows.append(
@@ -56,12 +55,8 @@ def analyze_portfolio(portfolio: Portfolio) -> pd.DataFrame:
 
     # Format currency columns
     df["Price"] = df["Price"].apply(lambda x: f"${x:,.2f}" if isinstance(x, float) else x)
-    df["Notional"] = df["Notional"].apply(
-        lambda x: f"${x:,.2f}" if isinstance(x, float) else x
-    )
-    df["Weight %"] = df["Weight %"].apply(
-        lambda x: f"{x:.2f}%" if isinstance(x, float) else x
-    )
+    df["Notional"] = df["Notional"].apply(lambda x: f"${x:,.2f}" if isinstance(x, float) else x)
+    df["Weight %"] = df["Weight %"].apply(lambda x: f"{x:.2f}%" if isinstance(x, float) else x)
 
     return df
 
@@ -76,17 +71,12 @@ def portfolio_summary(portfolio: Portfolio) -> dict:
     Returns:
         Dict with summary metrics
     """
-    total_notional = sum(
-        calculate_notional(p.quantity, p.delta, p.current_price)
-        for p in portfolio.positions
-    )
+    total_notional = sum(calculate_notional(p.quantity, p.delta, p.current_price) for p in portfolio.positions)
     effective_leverage = total_notional / portfolio.total_equity
 
     buckets = {}
     for position in portfolio.positions:
-        notional = calculate_notional(
-            position.quantity, position.delta, position.current_price
-        )
+        notional = calculate_notional(position.quantity, position.delta, position.current_price)
         if position.bucket not in buckets:
             buckets[position.bucket] = 0
         buckets[position.bucket] += notional

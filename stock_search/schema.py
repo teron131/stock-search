@@ -1,16 +1,16 @@
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class Quote(BaseModel):
-    symbol: Optional[str] = Field(default=None, description="The symbol / ticker of the stock / ETF")
-    regular_price: Optional[float] = Field(default=None, description="The regular price")
-    regular_change: Optional[float] = Field(default=None, description="The regular change")
-    regular_change_percent: Optional[float] = Field(default=None, description="The regular change percent")
-    realtime_price: Optional[float] = Field(default=None, description="The premarket/overnight/postmarket price")
-    realtime_change: Optional[float] = Field(default=None, description="The premarket/overnight/postmarket change")
-    realtime_change_percent: Optional[float] = Field(default=None, description="The premarket/overnight/postmarket change percent")
+    symbol: str | None = Field(default=None, description="The symbol / ticker of the stock / ETF")
+    regular_price: float | None = Field(default=None, description="The regular price")
+    regular_change: float | None = Field(default=None, description="The regular change")
+    regular_change_percent: float | None = Field(default=None, description="The regular change percent")
+    realtime_price: float | None = Field(default=None, description="The premarket/overnight/postmarket price")
+    realtime_change: float | None = Field(default=None, description="The premarket/overnight/postmarket change")
+    realtime_change_percent: float | None = Field(default=None, description="The premarket/overnight/postmarket change percent")
 
 
 class Holding(BaseModel):
@@ -29,10 +29,6 @@ class ETF(BaseModel):
     sectors: list[Sector] = Field(default=None, description="The sectors of the ETF")
 
 
-class Portfolio(BaseModel):
-    holdings: list[Holding] = Field(default=None, description="The holdings of the portfolio")
-
-
 class News(BaseModel):
     title: str = Field(default=None, description="The title of the news article")
     url: str = Field(default=None, description="The URL of the news article")
@@ -48,9 +44,7 @@ class PortfolioPosition(BaseModel):
     quantity: float = Field(description="Number of shares or contracts")
     delta: float = Field(default=1.0, description="Delta (1.0 for shares, 0-1 for options)")
     current_price: float = Field(description="Current price in USD")
-    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(
-        description="Bucket: core_engine, core_satellite, fomo, or defensive"
-    )
+    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Bucket: core_engine, core_satellite, fomo, or defensive")
 
 
 class Portfolio(BaseModel):
