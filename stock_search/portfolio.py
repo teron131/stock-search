@@ -3,7 +3,7 @@
 
 def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
     """
-    Calculate notional exposure: delta × quantity × price.
+    Calculate notional exposure: delta x quantity x price.
 
     Args:
         quantity: Number of shares or contracts
