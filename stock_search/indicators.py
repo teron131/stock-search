@@ -4,33 +4,48 @@ import pandas as pd
 import yfinance as yf
 
 
-def parse_ratings(ticker: str, days: int = 90) -> dict | None:
-    """Parse analyst ratings for a ticker and calculate upside metrics."""
-    stock = yf.Ticker(ticker)
+def parse_ratings(ticker: str | yf.Ticker, days: int = 90) -> dict | None:
+    """Parse analyst ratings for a ticker and calculate upside metrics.
+
+    Args:
+        ticker: Ticker symbol string or yf.Ticker instance
+        days: Number of days to look back for ratings
+
+    Returns:
+        Dictionary with median_upside_pct and raw ratings data, or None if unavailable
+    """
+    stock = ticker if isinstance(ticker, yf.Ticker) else yf.Ticker(ticker)
     current_price = stock.info.get("currentPrice")
     df = stock.upgrades_downgrades
 
-    if df is None or df.empty:
+    if df is None or df.empty or current_price is None:
         return None
 
-    df.index = pd.to_datetime(df.index)
-    recent_ratings = df[df.index >= datetime.now(UTC) - timedelta(days=days)]
+    df = df.copy()
+    df.index = pd.to_datetime(df.index, utc=True)
+    cutoff_date = datetime.now(UTC) - timedelta(days=days)
+    recent_ratings = df[df.index >= cutoff_date]
 
     if recent_ratings.empty:
         return None
 
     upside_pct = ((recent_ratings["currentPriceTarget"] - current_price) / current_price * 100).round(2)
+    median_upside_pct = float(upside_pct.median())
 
-    return {
-        "ticker": ticker,
-        "current_price": current_price,
-        "days_lookback": days,
-        "num_recent_ratings": len(recent_ratings),
-        "average_upside_pct": round(float(upside_pct.mean()), 2),
-        "median_upside_pct": round(float(upside_pct.median()), 2),
-        "max_upside_pct": float(upside_pct.max()),
-        "min_upside_pct": float(upside_pct.min()),
-    }
+    return {"median_upside_pct": median_upside_pct, "ratings": recent_ratings.to_dict("records")}
+
+
+def _round(value: float | None, decimals: int = 2) -> float | None:
+    """Round a value if not None."""
+    return round(value, decimals) if value is not None else None
+
+
+def _format_with_sign(value: float | None, suffix: str = "") -> str | None:
+    """Format a numeric value with +/- sign and optional suffix."""
+    if value is None:
+        return None
+    sign = "+" if value >= 0 else ""
+    return f"{sign}{value:.2f}{suffix}"
 
 
 class StockIndicator:
@@ -46,14 +61,12 @@ class StockIndicator:
             Price in currency units (typically USD). None if unavailable.
         """
         price = self.info.get("postMarketPrice") or self.info.get("preMarketPrice") or self.info.get("regularMarketPrice")
-        return round(price, 2) if price is not None else None
+        return _round(price)
 
     @property
     def price_str(self) -> str | None:
         """String representation of price with dollar sign."""
-        if self.price is None:
-            return None
-        return f"${self.price:.2f}"
+        return f"${self.price:.2f}" if self.price is not None else None
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate previous close based on current price source.
@@ -62,13 +75,10 @@ class StockIndicator:
             Previous close price in currency units (typically USD). None if unavailable.
         """
         if self.info.get("postMarketPrice") is not None:
-            prev_close = self.info.get("regularMarketPreviousClose")
-            return round(prev_close, 2) if prev_close is not None else None
+            return _round(self.info.get("regularMarketPreviousClose"))
         if self.info.get("preMarketPrice") is not None:
-            prev_close = self.info.get("postMarketPrice") or self.info.get("regularMarketPreviousClose")
-            return round(prev_close, 2) if prev_close is not None else None
-        prev_close = self.info.get("regularMarketPreviousClose")
-        return round(prev_close, 2) if prev_close is not None else None
+            return _round(self.info.get("postMarketPrice") or self.info.get("regularMarketPreviousClose"))
+        return _round(self.info.get("regularMarketPreviousClose"))
 
     @property
     def change(self) -> float | None:
@@ -89,8 +99,9 @@ class StockIndicator:
         """String representation of change with dollar sign."""
         if self.change is None:
             return None
-        sign = "+" if self.change >= 0 else ""
-        return f"{sign}${self.change:.2f}"
+        if self.change >= 0:
+            return f"+${self.change:.2f}"
+        return f"-${abs(self.change):.2f}"
 
     @property
     def change_percent(self) -> float | None:
@@ -109,10 +120,7 @@ class StockIndicator:
     @property
     def change_percent_str(self) -> str | None:
         """String representation of change percentage with percent sign."""
-        if self.change_percent is None:
-            return None
-        sign = "+" if self.change_percent >= 0 else ""
-        return f"{sign}{self.change_percent:.2f}%"
+        return _format_with_sign(self.change_percent, "%")
 
     @property
     def market_cap(self) -> str | None:
@@ -147,15 +155,12 @@ class StockIndicator:
             P/E ratio (unitless). Lower values may indicate undervaluation.
             Typical range: 10-30 for most stocks. None if unavailable.
         """
-        trailing_pe = self.info.get("trailingPE")
-        return round(trailing_pe, 2) if trailing_pe is not None else None
+        return _round(self.info.get("trailingPE"))
 
     @property
     def pe_str(self) -> str | None:
         """String representation of P/E ratio with percent sign."""
-        if self.pe is None:
-            return None
-        return f"{self.pe:.2f}%"
+        return f"{self.pe:.2f}%" if self.pe is not None else None
 
     @property
     def peg(self) -> float | None:
@@ -176,9 +181,7 @@ class StockIndicator:
     @property
     def peg_str(self) -> str | None:
         """String representation of PEG ratio."""
-        if self.peg is None:
-            return None
-        return f"{self.peg:.2f}"
+        return f"{self.peg:.2f}" if self.peg is not None else None
 
     @property
     def earning_direction(self) -> str | None:
@@ -224,9 +227,7 @@ class StockIndicator:
     @property
     def rsi_str(self) -> str | None:
         """String representation of RSI."""
-        if self.rsi is None:
-            return None
-        return f"{self.rsi:.2f}"
+        return f"{self.rsi:.2f}" if self.rsi is not None else None
 
     @property
     def gross_margin(self) -> float | None:
@@ -239,14 +240,12 @@ class StockIndicator:
             None if unavailable.
         """
         gross_margins = self.info.get("grossMargins")
-        return round(gross_margins * 100, 2) if gross_margins is not None else None
+        return _round(gross_margins * 100) if gross_margins is not None else None
 
     @property
     def gross_margin_str(self) -> str | None:
         """String representation of gross margin with percent sign."""
-        if self.gross_margin is None:
-            return None
-        return f"{self.gross_margin:.2f}%"
+        return f"{self.gross_margin:.2f}%" if self.gross_margin is not None else None
 
     def _calculate_change_percent(self, days: int) -> float | None:
         """Calculate percentage change as (price / EMA - 1) * 100.
@@ -301,10 +300,7 @@ class StockIndicator:
     @property
     def twenty_day_change_percent_str(self) -> str | None:
         """String representation of 20-day change percentage with percent sign."""
-        if self.twenty_day_change_percent is None:
-            return None
-        sign = "+" if self.twenty_day_change_percent >= 0 else ""
-        return f"{sign}{self.twenty_day_change_percent:.2f}%"
+        return _format_with_sign(self.twenty_day_change_percent, "%")
 
     @property
     def fifty_day_change_percent(self) -> float | None:
@@ -320,10 +316,7 @@ class StockIndicator:
     @property
     def fifty_day_change_percent_str(self) -> str | None:
         """String representation of 50-day change percentage with percent sign."""
-        if self.fifty_day_change_percent is None:
-            return None
-        sign = "+" if self.fifty_day_change_percent >= 0 else ""
-        return f"{sign}{self.fifty_day_change_percent:.2f}%"
+        return _format_with_sign(self.fifty_day_change_percent, "%")
 
     @property
     def one_hundred_day_change_percent(self) -> float | None:
@@ -339,10 +332,7 @@ class StockIndicator:
     @property
     def one_hundred_day_change_percent_str(self) -> str | None:
         """String representation of 100-day change percentage with percent sign."""
-        if self.one_hundred_day_change_percent is None:
-            return None
-        sign = "+" if self.one_hundred_day_change_percent >= 0 else ""
-        return f"{sign}{self.one_hundred_day_change_percent:.2f}%"
+        return _format_with_sign(self.one_hundred_day_change_percent, "%")
 
     @property
     def two_hundred_day_change_percent(self) -> float | None:
@@ -358,10 +348,7 @@ class StockIndicator:
     @property
     def two_hundred_day_change_percent_str(self) -> str | None:
         """String representation of 200-day change percentage with percent sign."""
-        if self.two_hundred_day_change_percent is None:
-            return None
-        sign = "+" if self.two_hundred_day_change_percent >= 0 else ""
-        return f"{sign}{self.two_hundred_day_change_percent:.2f}%"
+        return _format_with_sign(self.two_hundred_day_change_percent, "%")
 
     @property
     def median_upside(self) -> float | None:
@@ -374,10 +361,13 @@ class StockIndicator:
             Median upside percentage on 0-100 scale. Positive indicates upside potential.
             None if no recent analyst ratings available.
         """
-        ratings = parse_ratings(self.ticker.ticker)
-        if ratings is None:
-            return None
-        return ratings.get("median_upside_pct")
+        ratings = parse_ratings(self.ticker)
+        return ratings.get("median_upside_pct") if ratings else None
+
+    @property
+    def median_upside_str(self) -> str | None:
+        """String representation of median upside with percent sign."""
+        return _format_with_sign(self.median_upside, "%")
 
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
