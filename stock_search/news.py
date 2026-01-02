@@ -1,100 +1,34 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 import os
-from typing import Literal
 
-from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
-from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
 import requests
 import yfinance as yf
 
-from .schema import News
+from .openrouter import ChatOpenRouter
+from .schema import News, NewsAnalysis
 
 load_dotenv()
 
 
-class ContentSentiment(BaseModel):
-    """Structured output for cleaned content with sentiment analysis."""
-
-    content: str = Field(description="Clean, readable article content in markdown format")
-    sentiment: Literal["positive", "neutral", "negative"] = Field(description="Overall sentiment of the article")
-
-
-def webloader(url: str) -> str:
-    """Load and process the content of a website from URL into a rich unified markdown representation.
+def _news_webloader(url: str) -> NewsAnalysis:
+    """Load and process the content of a website from URL using LLM with web search.
 
     Args:
         url (str): The URL of the website to load
 
     Returns:
-        str: Formatted string containing the website URL followed by the processed content
+        str: Summarized content of the website
     """
-    try:
-        converter = DocumentConverter()
-        result = converter.convert(url)
-        return result.document.export_to_markdown()
-    except Exception:
-        return ""
-
-
-def llm_formatter(content_list: list[str]) -> list[ContentSentiment]:
-    """Format a list of content using LLM with sentiment analysis.
-
-    Args:
-        content_list (list[str]): A list of content to format
-
-    Returns:
-        list[ContentSentiment]: A list of formatted content with sentiment analysis
-    """
-    llm = ChatGoogleGenerativeAI(
-        model=os.getenv("FAST_LLM"),
+    llm = ChatOpenRouter(
+        model="google/gemini-2.5-flash-lite",
         temperature=0,
-        api_key=os.getenv("GEMINI_API_KEY"),
-        # base_url="https://openrouter.ai/api/v1",
-    )
-
-    # Create structured LLM (Gemini doesn't use function_calling method)
-    structured_llm = llm.with_structured_output(ContentSentiment)
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """The following content is a raw webscraped article. Extract and clean the main article content, then analyze its sentiment.
-
-CONTENT CLEANING - KEEP:
-- Main article title and content
-- Publication date and author (if present)
-- Main content of the article
-
-CONTENT CLEANING - REMOVE:
-- Meaningless text for formatting and structures
-- Navigation menus and headers
-- Advertisements and promotional content
-- Cookie notices and pop-ups
-- Social media buttons and related links
-- Comments sections
-- Footer content and site-wide elements
-
-SENTIMENT ANALYSIS:
-- Analyze the overall tone and sentiment of the article content
-- Consider the language used, context, and implications
-- Classify as positive, neutral, or negative based on the overall message
-
-Return the clean, readable article content in markdown format along with the sentiment classification.""",
-            ),
-            ("human", "{content}"),
-        ]
-    )
-
-    chain = prompt | structured_llm
-
-    # Batch process the content
-    results = chain.batch([{"content": content} for content in content_list])
-    return results
+        web_search=True,
+        web_search_max_results=1,
+    ).with_structured_output(NewsAnalysis)
+    response: NewsAnalysis = llm.invoke(f"{url}")
+    return response
 
 
 def _process_articles_with_llm(articles: list[News]) -> list[News]:
@@ -111,33 +45,22 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
 
     # Load content from URLs concurrently
     with ThreadPoolExecutor(max_workers=min(len(articles), os.cpu_count())) as executor:
-        futures = [executor.submit(webloader, article.url) for article in articles]
+        futures = [executor.submit(_news_webloader, article.url) for article in articles]
         news_content = [future.result() for future in futures]
 
-    # Filter out articles with empty content
-    filtered_articles = [(article, content) for article, content in zip(articles, news_content, strict=True) if content.strip()]  # Filter out empty or whitespace-only content
-
-    if not filtered_articles:
-        return []
-
-    # Extract content for LLM formatting
-    content_list = [content for _, content in filtered_articles]
-
-    # Apply LLM formatting to all content concurrently
-    formatted_content = llm_formatter(content_list)
-
-    # Filter out None results and build final articles
-    final_articles = [
-        News(
-            title=article.title,
-            url=article.url,
-            date=article.date,
-            content=formatted_content[i].content,
-            sentiment=formatted_content[i].sentiment,
-        )
-        for i, (article, _) in enumerate(filtered_articles)
-        if formatted_content[i] is not None
-    ]
+    # Filter out articles with empty content and build final articles
+    final_articles = []
+    for article, content in zip(articles, news_content, strict=True):
+        if content.summary:
+            final_articles.append(
+                News(
+                    title=article.title,
+                    url=article.url,
+                    date=article.date,
+                    summary=content.summary,
+                    sentiment=content.sentiment,
+                )
+            )
 
     return final_articles
 
@@ -204,6 +127,7 @@ def get_news_api(
         News(
             title=article["title"],
             url=article["url"],
+            content=article["description"],  # Truncated only from NewsAPI
             date=datetime.fromisoformat(article["publishedAt"].replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S"),
         )
         for article in raw_articles

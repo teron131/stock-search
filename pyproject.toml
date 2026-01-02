@@ -5,21 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "beautifulsoup4>=4.13.4",
     "docling>=2.41.0",
     "fastapi>=0.116.1",
     "google-genai>=1.25.0",
-    "helium>=5.1.1",
     "ib-async>=2.0.1",
-    "langchain-community>=0.3.27",
-    "langchain-google-genai>=2.1.8",
-    "lxml>=5.4.0",
+    "langchain>=1.2.0",
+    "langchain-openai>=1.1.6",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
     "rich>=14.0.0",
-    "selenium>=4.34.2",
     "tavily-python>=0.7.10",
-    "webdriver-manager>=4.0.2",
     "yfinance>=0.2.65",
 ]
 

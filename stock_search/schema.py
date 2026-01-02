@@ -29,11 +29,16 @@ class ETF(BaseModel):
     sectors: list[Sector] = Field(default=None, description="The sectors of the ETF")
 
 
-class News(BaseModel):
+class NewsAnalysis(BaseModel):
+    """Use for structured output of news analysis."""
+
+    summary: str = Field(default=None, description="The brief summary with facts excluding the garbage content and advertisements")
+    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default=None, description="The sentiment of the news article")
+
+
+class News(NewsAnalysis):
     title: str = Field(default=None, description="The title of the news article")
     url: str = Field(default=None, description="The URL of the news article")
-    content: str = Field(default=None, description="The content of the news article")
-    sentiment: Literal["positive", "neutral", "negative"] = Field(default=None, description="The sentiment of the news article")
     date: str = Field(default=None, description="The date of the news article")
 
 
