@@ -87,7 +87,7 @@ class News(NewsAnalysis):
 
     title: str = Field(description="Headline of the article")
     url: str = Field(description="Source URL")
-    date: str = Field(description="Publication date (YYYY-MM-DD HH:MM:SS)")
+    date: str = Field(description="Publication date (YYYY-MM-DD)")
     relevance: Literal["strong", "weak", "irrelevant"] = Field(
         default="irrelevant",
         description="Article relevance based on ticker density.",
