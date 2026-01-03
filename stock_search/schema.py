@@ -32,7 +32,7 @@ class ETF(BaseModel):
 class NewsAnalysis(BaseModel):
     """Use for structured output of news analysis."""
 
-    summary: str = Field(default="", description="The detailed summary of the news with facts excluding the garbage content and advertisements")
+    summary: str = Field(default="", description="The detailed summary of the news including mentioned facts and excluding the garbage content and advertisements")
     relevance: bool = Field(default=False, description="The relevance of the news to the stock")
     category: Literal[
         "macro_economics",
