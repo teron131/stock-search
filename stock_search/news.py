@@ -66,13 +66,13 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
 
 
 def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
-    """Search for news articles about a given stock ticker symbol.
+    """Search for news about a given stock ticker symbol.
 
     Args:
         query (str): The stock ticker symbol to search for
 
     Returns:
-        list[News]: A list of News objects containing news article information
+        list[News]: A list of News objects containing news information
     """
     raw_articles = yf.Search(query=query, max_results=max_results).news
     if not raw_articles:
@@ -102,7 +102,7 @@ def get_news_api(
         n_days (int): The number of days to search for.
 
     Returns:
-        list[dict]: A list of dictionaries containing the news articles.
+        list[dict]: A list of dictionaries containing the news.
     """
     url = "https://newsapi.org/v2/everything"
     now = datetime.now(UTC)

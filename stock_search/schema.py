@@ -33,13 +33,14 @@ class NewsAnalysis(BaseModel):
     """Use for structured output of news analysis."""
 
     summary: str = Field(default=None, description="The brief summary with facts excluding the garbage content and advertisements")
-    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default=None, description="The sentiment of the news article")
+    category: Literal["earnings", "product", "acquisition", "regulation", "other"] = Field(default=None, description="The category of the news")
+    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default=None, description="The sentiment of the news")
 
 
 class News(NewsAnalysis):
-    title: str = Field(default=None, description="The title of the news article")
-    url: str = Field(default=None, description="The URL of the news article")
-    date: str = Field(default=None, description="The date of the news article")
+    title: str = Field(default=None, description="The title of the news")
+    url: str = Field(default=None, description="The URL of the news")
+    date: str = Field(default=None, description="The date of the news")
 
 
 class PortfolioPosition(BaseModel):
