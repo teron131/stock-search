@@ -33,7 +33,7 @@ class NewsAnalysis(BaseModel):
     """Use for structured output of news analysis."""
 
     summary: str = Field(default=None, description="The brief summary with facts excluding the garbage content and advertisements")
-    category: Literal["earnings", "product", "acquisition", "regulation", "other"] = Field(default=None, description="The category of the news")
+    category: Literal[""] = Field(default=None, description="The category of the news")
     sentiment: Literal["bullish", "neutral", "bearish"] = Field(default=None, description="The sentiment of the news")
 
 
