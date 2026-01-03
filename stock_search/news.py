@@ -12,7 +12,7 @@ from .utils import iso_to_str, n_days_ago, timestamp_to_str
 load_dotenv()
 
 # Constants
-DEFAULT_NEWS_MODEL = "google/gemini-2.5-flash-lite"
+NEWS_MODEL = "google/gemini-2.5-flash-lite"
 
 
 def _news_webloader(url: str) -> NewsAnalysis:
@@ -25,7 +25,7 @@ def _news_webloader(url: str) -> NewsAnalysis:
         NewsAnalysis: Summarized content and metadata of the website
     """
     llm = ChatOpenRouter(
-        model=DEFAULT_NEWS_MODEL,
+        model=NEWS_MODEL,
         temperature=0,
         reasoning_effort="minimal",
         web_search=True,
