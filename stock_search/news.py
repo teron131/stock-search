@@ -15,24 +15,6 @@ load_dotenv()
 DEFAULT_NEWS_MODEL = "google/gemini-2.5-flash-lite"
 
 
-def _calculate_relevance(num_tickers: int) -> str:
-    """Calculate relevance based on the number of tickers mentioned.
-
-    Args:
-        num_tickers (int): Number of tickers in the analysis
-
-    Returns:
-        str: Relevance level ("strong", "weak", or "irrelevant")
-    """
-    if num_tickers == 0:
-        return "irrelevant"
-    if num_tickers <= 5:
-        return "strong"
-    if num_tickers <= 10:
-        return "weak"
-    return "irrelevant"
-
-
 def _news_webloader(url: str) -> NewsAnalysis:
     """Load and process the content of a website from URL using LLM with web search.
 
@@ -68,23 +50,15 @@ def _process_articles_with_llm(news_list: list[News]) -> list[News]:
     # Load content from URLs concurrently
     max_workers = min(len(news_list), os.cpu_count() or 1)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        news_analysis = list(executor.map(_news_webloader, [n.url for n in news_list]))
+        news_analysis = list(executor.map(_news_webloader, [news.url for news in news_list]))
 
-    # Build final articles with calculated relevance
-    final_news_list = []
-    for news, analysis in zip(news_list, news_analysis, strict=True):
-        if not analysis.summary:
-            continue
-
-        relevance = _calculate_relevance(len(analysis.tickers))
-
-        # Update analysis with calculated relevance and merge into news
-        analysis_data = analysis.model_dump()
-        analysis_data["relevance"] = relevance
-
-        final_news_list.append(news.model_copy(update=analysis_data))
-
-    return final_news_list
+    # Build final articles
+    return [
+        news.model_copy(
+            update=analysis.model_dump(),
+        )
+        for news, analysis in zip(news_list, news_analysis, strict=True)
+    ]
 
 
 def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:

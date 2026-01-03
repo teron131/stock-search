@@ -1,7 +1,6 @@
-import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 # Common Fields
 Ticker = Annotated[str, Field(description="Stock ticker symbol (e.g., 'NVDA', 'AAPL')")]
@@ -49,10 +48,6 @@ class NewsAnalysis(BaseModel):
         default="",
         description="Detailed description of news, excluding noise/ads. Avoid meta-language like 'The article mentions...'",
     )
-    tickers: list[Ticker] = Field(
-        default_factory=list,
-        description="Stock tickers mentioned in the article.",
-    )
     category: Literal[
         "macro_economics",
         "industry_news",
@@ -75,12 +70,6 @@ class NewsAnalysis(BaseModel):
         description="Market sentiment for the primary subject.",
     )
 
-    @field_validator("tickers")
-    @classmethod
-    def validate_tickers(cls, v: list[str]) -> list[str]:
-        ticker_pattern = re.compile(r"^[A-Z]{1,5}$")
-        return [ticker for ticker in v if ticker_pattern.match(ticker)]
-
 
 class News(NewsAnalysis):
     """Full news article data including analysis results."""
@@ -88,10 +77,6 @@ class News(NewsAnalysis):
     title: str = Field(description="Headline of the article")
     url: str = Field(description="Source URL")
     date: str = Field(description="Publication date (YYYY-MM-DD)")
-    relevance: Literal["strong", "weak", "irrelevant"] = Field(
-        default="irrelevant",
-        description="Article relevance based on ticker density.",
-    )
 
 
 class PortfolioPosition(BaseModel):
