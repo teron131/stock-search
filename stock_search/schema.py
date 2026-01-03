@@ -74,6 +74,14 @@ class News(NewsAnalysis):
     title: str = Field(default=None, description="The title of the news")
     url: str = Field(default=None, description="The URL of the news")
     date: str = Field(default=None, description="The date of the news")
+    relevance: Literal[
+        "strong",
+        "weak",
+        "irrelevant",
+    ] = Field(
+        default="irrelevant",
+        description="Relevance of the news based on the number of tickers mentioned.",
+    )
 
 
 class PortfolioPosition(BaseModel):

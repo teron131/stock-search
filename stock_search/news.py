@@ -53,7 +53,22 @@ def _process_articles_with_llm(news_list: list[News]) -> list[News]:
     final_news_list = []
     for news, analysis in zip(news_list, news_analysis, strict=True):
         if analysis.summary:
-            final_news_list.append(news.model_copy(update=analysis.model_dump()))
+            # Calculate relevance based on number of tickers
+            num_tickers = len(analysis.tickers)
+            if num_tickers == 0:
+                relevance = "irrelevant"
+            elif num_tickers <= 5:
+                relevance = "strong"
+            elif num_tickers > 5 and num_tickers <= 10:
+                relevance = "medium"
+            else:
+                relevance = "weak"
+
+            # Update analysis with calculated relevance
+            analysis_data = analysis.model_dump()
+            analysis_data["relevance"] = relevance
+
+            final_news_list.append(news.model_copy(update=analysis_data))
 
     return final_news_list
 
