@@ -1,6 +1,7 @@
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Quote(BaseModel):
@@ -30,10 +31,16 @@ class ETF(BaseModel):
 
 
 class NewsAnalysis(BaseModel):
-    """Use for structured output of news analysis."""
+    """Structured analysis of a financial news article."""
 
-    summary: str = Field(default="", description="The detailed summary of the news including mentioned facts and excluding the garbage content and advertisements")
-    relevance: bool = Field(default=False, description="The relevance of the news to the stock")
+    summary: str = Field(
+        default="",
+        description="The detailed description of the news including mentioned facts and excluding the garbage content and advertisements. Do not use meta languages such as 'The news / article / search result is about / mentioned / discussed...'",
+    )
+    tickers: list[str] = Field(
+        default_factory=list,
+        description="Stock tickers mentioned in the article (e.g., ['NVDA', 'AAPL']).",
+    )
     category: Literal[
         "macro_economics",
         "industry_news",
@@ -43,12 +50,24 @@ class NewsAnalysis(BaseModel):
         "analyst_rating",
         "analysis",
         "other",
-    ] = Field(default="other", description="The category of the news")
+    ] = Field(
+        default="other",
+        description="Primary focus of the news.",
+    )
     sentiment: Literal[
         "bullish",
         "neutral",
         "bearish",
-    ] = Field(default="neutral", description="The sentiment of the news")
+    ] = Field(
+        default="neutral",
+        description="Market sentiment specifically for the primary subject.",
+    )
+
+    @field_validator("tickers")
+    @classmethod
+    def validate_tickers(cls, v: list[str]) -> list[str]:
+        ticker_pattern = re.compile(r"^[A-Z]{1,5}$")
+        return [ticker for ticker in v if ticker_pattern.match(ticker)]
 
 
 class News(NewsAnalysis):
