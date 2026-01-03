@@ -22,7 +22,7 @@ def _calculate_relevance(num_tickers: int) -> str:
         num_tickers (int): Number of tickers in the analysis
 
     Returns:
-        str: Relevance level ("irrelevant", "strong", "medium", or "weak")
+        str: Relevance level ("strong", "weak", or "irrelevant")
     """
     if num_tickers == 0:
         return "irrelevant"
