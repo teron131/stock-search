@@ -32,7 +32,8 @@ class ETF(BaseModel):
 class NewsAnalysis(BaseModel):
     """Use for structured output of news analysis."""
 
-    summary: str = Field(default=None, description="The detailed summary of the news with facts excluding the garbage content and advertisements")
+    summary: str = Field(default="", description="The detailed summary of the news with facts excluding the garbage content and advertisements")
+    relevance: bool = Field(default=False, description="The relevance of the news to the stock")
     category: Literal[
         "macro_economics",
         "industry_news",
@@ -42,12 +43,12 @@ class NewsAnalysis(BaseModel):
         "analyst_rating",
         "analysis",
         "other",
-    ] = Field(default=None, description="The category of the news")
+    ] = Field(default="other", description="The category of the news")
     sentiment: Literal[
         "bullish",
         "neutral",
         "bearish",
-    ] = Field(default=None, description="The sentiment of the news")
+    ] = Field(default="neutral", description="The sentiment of the news")
 
 
 class News(NewsAnalysis):
