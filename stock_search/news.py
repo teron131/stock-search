@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
 import os
 
 from dotenv import load_dotenv
@@ -8,8 +7,30 @@ import yfinance as yf
 
 from .openrouter import ChatOpenRouter
 from .schema import News, NewsAnalysis
+from .utils import iso_to_str, n_days_ago, timestamp_to_str
 
 load_dotenv()
+
+# Constants
+DEFAULT_NEWS_MODEL = "google/gemini-2.5-flash-lite"
+
+
+def _calculate_relevance(num_tickers: int) -> str:
+    """Calculate relevance based on the number of tickers mentioned.
+
+    Args:
+        num_tickers (int): Number of tickers in the analysis
+
+    Returns:
+        str: Relevance level ("irrelevant", "strong", "medium", or "weak")
+    """
+    if num_tickers == 0:
+        return "irrelevant"
+    if num_tickers <= 5:
+        return "strong"
+    if num_tickers <= 10:
+        return "weak"
+    return "irrelevant"
 
 
 def _news_webloader(url: str) -> NewsAnalysis:
@@ -19,65 +40,59 @@ def _news_webloader(url: str) -> NewsAnalysis:
         url (str): The URL of the website to load
 
     Returns:
-        str: Summarized content of the website
+        NewsAnalysis: Summarized content and metadata of the website
     """
     llm = ChatOpenRouter(
-        model="google/gemini-2.5-flash-lite",
+        model=DEFAULT_NEWS_MODEL,
         temperature=0,
         reasoning_effort="minimal",
         web_search=True,
         web_search_max_results=1,
     ).with_structured_output(NewsAnalysis)
-    response: NewsAnalysis = llm.invoke(f"{url}")
+    response: NewsAnalysis = llm.invoke(url)
     return response
 
 
 def _process_articles_with_llm(news_list: list[News]) -> list[News]:
-    """Process articles by loading content, filtering empty content, and applying LLM formatting.
+    """Process articles by loading content and applying LLM analysis.
 
     Args:
-        articles (list[News]): List of News objects with title, url, and date
+        news_list (list[News]): List of News objects with title, url, and date
 
     Returns:
-        list[News]: List of News objects with formatted content
+        list[News]: List of News objects with formatted analysis content
     """
     if not news_list:
         return []
 
     # Load content from URLs concurrently
-    with ThreadPoolExecutor(max_workers=min(len(news_list), os.cpu_count())) as executor:
-        futures = [executor.submit(_news_webloader, news.url) for news in news_list]
-        news_analysis = [future.result() for future in futures]
+    max_workers = min(len(news_list), os.cpu_count() or 1)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        news_analysis = list(executor.map(_news_webloader, [n.url for n in news_list]))
 
-    # Filter out articles with empty content and build final articles
+    # Build final articles with calculated relevance
     final_news_list = []
     for news, analysis in zip(news_list, news_analysis, strict=True):
-        if analysis.summary:
-            # Calculate relevance based on number of tickers
-            num_tickers = len(analysis.tickers)
-            if num_tickers == 0:
-                relevance = "irrelevant"
-            elif num_tickers <= 5:
-                relevance = "strong"
-            elif num_tickers > 5 and num_tickers <= 10:
-                relevance = "medium"
-            else:
-                relevance = "weak"
+        if not analysis.summary:
+            continue
 
-            # Update analysis with calculated relevance
-            analysis_data = analysis.model_dump()
-            analysis_data["relevance"] = relevance
+        relevance = _calculate_relevance(len(analysis.tickers))
 
-            final_news_list.append(news.model_copy(update=analysis_data))
+        # Update analysis with calculated relevance and merge into news
+        analysis_data = analysis.model_dump()
+        analysis_data["relevance"] = relevance
+
+        final_news_list.append(news.model_copy(update=analysis_data))
 
     return final_news_list
 
 
 def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
-    """Search for news about a given stock ticker symbol.
+    """Search for news about a given stock ticker symbol using Yahoo Finance.
 
     Args:
         query (str): The stock ticker symbol to search for
+        max_results (int): Maximum number of results to return
 
     Returns:
         list[News]: A list of News objects containing news information
@@ -90,7 +105,7 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
         News(
             title=article["title"],
             url=article["link"],
-            date=datetime.fromtimestamp(article["providerPublishTime"], UTC).strftime("%Y-%m-%d %H:%M:%S"),
+            date=timestamp_to_str(article["providerPublishTime"]),
         )
         for article in raw_articles
     ]
@@ -103,21 +118,21 @@ def get_news_api(
     n_days: int = 3,
     max_results: int = 10,
 ) -> list[News]:
-    """Get the financial news for a given query and number of days.
+    """Get the financial news for a given query and number of days using NewsAPI.
 
     Args:
         ticker (str): The ticker symbol to search for.
-        n_days (int): The number of days to search for.
+        n_days (int): The number of days to search back.
+        max_results (int): Maximum number of results to return.
 
     Returns:
-        list[dict]: A list of dictionaries containing the news.
+        list[News]: A list of News objects containing the news.
     """
     url = "https://newsapi.org/v2/everything"
-    now = datetime.now(UTC)
     params = {
         "q": f"{ticker} AND (stock OR market OR finance OR invest OR trade OR price OR analyst OR Wall Street)",
-        "from": (now - timedelta(days=n_days)).strftime("%Y-%m-%d"),
-        "to": (now - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "from": n_days_ago(n_days),
+        "to": n_days_ago(1),
         "language": "en",
         "sortBy": "popularity",
         "pageSize": max_results,
@@ -126,7 +141,7 @@ def get_news_api(
 
     response = requests.get(url, params=params, timeout=60)
     response.raise_for_status()
-    raw_articles = response.json()["articles"]
+    raw_articles = response.json().get("articles", [])
 
     if not raw_articles:
         return []
@@ -135,8 +150,7 @@ def get_news_api(
         News(
             title=article["title"],
             url=article["url"],
-            content=article["description"],  # Truncated only from NewsAPI
-            date=datetime.fromisoformat(article["publishedAt"].replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S"),
+            date=iso_to_str(article["publishedAt"]),
         )
         for article in raw_articles
     ]
