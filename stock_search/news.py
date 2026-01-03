@@ -24,6 +24,7 @@ def _news_webloader(url: str) -> NewsAnalysis:
     llm = ChatOpenRouter(
         model="google/gemini-2.5-flash-lite",
         temperature=0,
+        reasoning_effort="minimal",
         web_search=True,
         web_search_max_results=1,
     ).with_structured_output(NewsAnalysis)
@@ -31,7 +32,7 @@ def _news_webloader(url: str) -> NewsAnalysis:
     return response
 
 
-def _process_articles_with_llm(articles: list[News]) -> list[News]:
+def _process_articles_with_llm(news_list: list[News]) -> list[News]:
     """Process articles by loading content, filtering empty content, and applying LLM formatting.
 
     Args:
@@ -40,29 +41,21 @@ def _process_articles_with_llm(articles: list[News]) -> list[News]:
     Returns:
         list[News]: List of News objects with formatted content
     """
-    if not articles:
+    if not news_list:
         return []
 
     # Load content from URLs concurrently
-    with ThreadPoolExecutor(max_workers=min(len(articles), os.cpu_count())) as executor:
-        futures = [executor.submit(_news_webloader, article.url) for article in articles]
-        news_content = [future.result() for future in futures]
+    with ThreadPoolExecutor(max_workers=min(len(news_list), os.cpu_count())) as executor:
+        futures = [executor.submit(_news_webloader, news.url) for news in news_list]
+        news_analysis = [future.result() for future in futures]
 
     # Filter out articles with empty content and build final articles
-    final_articles = []
-    for article, content in zip(articles, news_content, strict=True):
-        if content.summary:
-            final_articles.append(
-                News(
-                    title=article.title,
-                    url=article.url,
-                    date=article.date,
-                    summary=content.summary,
-                    sentiment=content.sentiment,
-                )
-            )
+    final_news_list = []
+    for news, analysis in zip(news_list, news_analysis, strict=True):
+        if analysis.summary:
+            final_news_list.append(news.model_copy(update=analysis.model_dump()))
 
-    return final_articles
+    return final_news_list
 
 
 def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
@@ -91,14 +84,14 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
 
 
 def get_news_api(
-    query: str,
-    n_days: int = 2,
+    ticker: str,
+    n_days: int = 3,
     max_results: int = 10,
 ) -> list[News]:
     """Get the financial news for a given query and number of days.
 
     Args:
-        query (str): The query to search for.
+        ticker (str): The ticker symbol to search for.
         n_days (int): The number of days to search for.
 
     Returns:
@@ -107,7 +100,7 @@ def get_news_api(
     url = "https://newsapi.org/v2/everything"
     now = datetime.now(UTC)
     params = {
-        "q": f"{query} AND (stock OR market OR finance OR invest OR trade OR price OR analyst OR Wall Street)",
+        "q": f"{ticker} AND (stock OR market OR finance OR invest OR trade OR price OR analyst OR Wall Street)",
         "from": (now - timedelta(days=n_days)).strftime("%Y-%m-%d"),
         "to": (now - timedelta(days=1)).strftime("%Y-%m-%d"),
         "language": "en",
