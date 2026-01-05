@@ -32,7 +32,10 @@ def parse_ratings(ticker: str | yf.Ticker, days: int = 90) -> dict | None:
     upside_pct = ((recent_ratings["currentPriceTarget"] - current_price) / current_price * 100).round(2)
     median_upside_pct = float(upside_pct.median())
 
-    return {"median_upside_pct": median_upside_pct, "ratings": recent_ratings.to_dict("records")}
+    return {
+        "median_upside_pct": median_upside_pct,
+        "ratings": recent_ratings.to_dict("records"),
+    }
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
