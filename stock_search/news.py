@@ -71,20 +71,20 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
     Returns:
         list[News]: A list of News objects containing news information
     """
-    raw_articles = yf.Search(query=query, max_results=max_results).news
-    if not raw_articles:
+    news_list = yf.Search(query=query, max_results=max_results).news
+    if not news_list:
         return []
 
-    articles = [
+    news_list = [
         News(
-            title=article["title"],
-            url=article["link"],
-            date=timestamp_to_str(article["providerPublishTime"]),
+            title=news["title"],
+            url=news["link"],
+            date=timestamp_to_str(news["providerPublishTime"]),
         )
-        for article in raw_articles
+        for news in news_list
     ]
 
-    return _process_articles_with_llm(articles)
+    return _process_articles_with_llm(news_list)
 
 
 def get_news_api(
