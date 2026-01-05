@@ -169,17 +169,15 @@ class StockIndicator:
     def peg(self) -> float | None:
         """Price/Earnings to Growth ratio. < 2 indicates reasonable price, < 1 means undervalued.
 
-        Calculation: P/E ratio / (Earnings growth rate * 100)
+        Prefer Yahoo's trailingPegRatio when available.
 
         Returns:
             PEG ratio (unitless).
-            None if P/E or earnings growth unavailable, or earnings growth is zero.
+            None if trailing PEG is unavailable.
         """
-        if (pe_value := self.pe) is None or (earnings_growth := self.info.get("earningsGrowth")) is None or earnings_growth == 0:
+        if (peg_ratio := self.info.get("trailingPegRatio")) is None:
             return None
-        # Convert earnings growth from decimal to percentage rate (e.g., 0.6667 -> 66.67)
-        earnings_growth_rate = earnings_growth * 100
-        return round(pe_value / earnings_growth_rate, 2)
+        return _round(peg_ratio)
 
     @property
     def peg_str(self) -> str | None:
