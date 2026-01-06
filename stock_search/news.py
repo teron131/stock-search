@@ -33,7 +33,9 @@ def _analyze_news(news_markdowns: list[str]) -> list[NewsAnalysis]:
 
     prompt = PromptTemplate(
         input_variables=["markdown"],
-        template="""Summarize the article clearly and concretely (no meta-language).
+        template="""Describe the news with details and numbers mentioned clearly and concretely.
+No meta-language.
+Exclude garbage and ads.
 Set relevancy by how directly it impacts the primary subject:
 - high = directly about the subject (earnings, guidance, major product, regulation)
 - medium = same sector/competitors/macro with indirect impact
