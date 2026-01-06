@@ -1,7 +1,11 @@
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+import logging
 
 import pandas as pd
 import yfinance as yf
+
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 
 def parse_ratings(ticker: str | yf.Ticker, days: int = 90) -> dict | None:
@@ -54,7 +58,15 @@ def _format_with_sign(value: float | None, suffix: str = "") -> str | None:
 class StockIndicator:
     def __init__(self, ticker: str):
         self.ticker = yf.Ticker(ticker)
-        self.info = self.ticker.info
+        self._info: dict = {}
+
+    @property
+    def info(self) -> dict:
+        """Fetch and cache info to avoid repeated network calls."""
+        if not self._info:
+            with suppress(Exception):
+                self._info = self.ticker.info or {}
+        return self._info
 
     @property
     def price(self) -> float | None:
