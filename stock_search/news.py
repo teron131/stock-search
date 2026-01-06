@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 import os
+from urllib.parse import parse_qsl, urlparse, urlunparse
 
 from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
@@ -19,11 +20,14 @@ FAST_LLM = os.getenv("FAST_LLM", "google/gemini-2.5-flash-lite")
 def _load_news_markdown(urls: list[str]) -> list[str]:
     """Load article markdown for a list of URLs."""
     converter = DocumentConverter()
-    results = converter.convert_all(urls)
+    try:
+        results = list(converter.convert_all(urls, raises_on_error=False))
+    except Exception:
+        return ["" for _ in urls]
     return [result.document.export_to_markdown() if result.document else "" for result in results]
 
 
-def _analyze_news(news_markdowns: list[str]) -> list[NewsAnalysis]:
+def _analyze_news(ticker: str, news_markdowns: list[str]) -> list[NewsAnalysis]:
     """Run LLM analysis over article markdowns."""
     llm = ChatOpenRouter(
         model=FAST_LLM,
@@ -31,27 +35,36 @@ def _analyze_news(news_markdowns: list[str]) -> list[NewsAnalysis]:
         reasoning_effort="low",
     ).with_structured_output(NewsAnalysis)
 
-    prompt = PromptTemplate(
-        input_variables=["markdown"],
+    prompt_template = PromptTemplate(
         template="""Describe the news with details and numbers mentioned clearly and concretely.
 No meta-language.
 Exclude garbage and ads.
-Set relevancy by how directly it impacts the primary subject:
-- high = directly about the subject (earnings, guidance, major product, regulation)
+Set relevancy by how directly it impacts {ticker}:
+- high = directly about {ticker} (earnings, guidance, major product, regulation)
 - medium = same sector/competitors/macro with indirect impact
-- low = general market noise
+- low = general market noise; subjective analyst opinions without objective new facts
 Sentiment:
-- bullish if clearly positive for the subject
+- bullish if clearly positive for {ticker}
 - bearish if clearly negative
-- neutral if mixed or unclear
-Choose the best category for the primary focus.
+- neutral if mixed or unclear; insider selling is neutral unless unusually large, illegal, or clearly adverse
+Choose the best category for the primary focus:
+- company_news: directly about the company
+- earnings: financial results and guidance
+- analyst_rating: changes in analyst coverage/targets
+- industry_news: sector-wide news
+- market_news: general stock market updates
+- macro_economics: economic data and policy
+- analysis: deep dives or opinion pieces
+- other: anything else
 
 {markdown}""",
+        input_variables=["ticker", "markdown"],
     )
-    return llm.batch([prompt.format(markdown=markdown) for markdown in news_markdowns])
+    inputs = [prompt_template.format(ticker=ticker, markdown=markdown) for markdown in news_markdowns]
+    return llm.batch(inputs, config={"max_concurrency": len(news_markdowns)})
 
 
-def _process_articles(news_list: list[News]) -> list[News]:
+def _process_articles(ticker: str, news_list: list[News]) -> list[News]:
     """Process articles by loading content and applying LLM analysis.
 
     Args:
@@ -63,16 +76,10 @@ def _process_articles(news_list: list[News]) -> list[News]:
     if not news_list:
         return []
 
-    urls = [news.url for news in news_list]
-    news_markdowns = _load_news_markdown(urls)
-    news_analysis = _analyze_news(news_markdowns)
+    news_markdowns = _load_news_markdown([news.url for news in news_list])
+    news_analysis = _analyze_news(ticker, news_markdowns)
 
-    return [
-        news.model_copy(
-            update=analysis.model_dump(),
-        )
-        for news, analysis in zip(news_list, news_analysis, strict=True)
-    ]
+    return [news.model_copy(update=analysis.model_dump()) for news, analysis in zip(news_list, news_analysis, strict=True)]
 
 
 def _days_ago(date_str: str) -> int | None:
@@ -81,53 +88,51 @@ def _days_ago(date_str: str) -> int | None:
     return (datetime.now(UTC).date() - published.date()).days
 
 
-def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
-    """Search for news about a given stock ticker using Yahoo Finance.
+def _normalize_url(url: str) -> str:
+    """Normalize URLs for deduping across sources."""
+    parsed = urlparse(url)
+    netloc = parsed.netloc.lower()
+    path = parsed.path.rstrip("/")
+    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if not key.lower().startswith("utm_")]
+    normalized = parsed._replace(
+        netloc=netloc,
+        path=path,
+        query="&".join(f"{k}={v}" for k, v in query),
+    )
+    return urlunparse(normalized)
 
-    Args:
-        query (str): The stock ticker to search for
-        max_results (int): Maximum number of results to return
 
-    Returns:
-        list[News]: A list of News objects containing news information
-    """
-    news_list = yf.Search(query=query, max_results=max_results).news
-    if not news_list:
+def _get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
+    """Get news about a given stock ticker using Yahoo Finance."""
+    raw_news = yf.Search(query=query, max_results=max_results).news
+    if not raw_news:
         return []
 
-    news_list = []
-    for news in news_list:
-        date_str = timestamp_to_str(news["providerPublishTime"])
-        news_list.append(
-            News(
-                title=news["title"],
-                url=news["link"],
-                date=date_str,
-                days_ago=_days_ago(date_str),
-            )
+    return [
+        News(
+            title=item["title"],
+            url=item["link"],
+            date=(date_str := timestamp_to_str(item["providerPublishTime"])),
+            days_ago=_days_ago(date_str),
         )
+        for item in raw_news
+    ]
 
-    return _process_articles(news_list)
 
-
-def get_news_api(
+def _get_news_api(
     ticker: str,
     n_days: int = 3,
     max_results: int = 10,
 ) -> list[News]:
-    """Get the financial news for a given query and number of days using NewsAPI.
-
-    Args:
-        ticker (str): The ticker to search for.
-        n_days (int): The number of days to search back.
-        max_results (int): Maximum number of results to return.
-
-    Returns:
-        list[News]: A list of News objects containing the news.
-    """
+    """Get financial news using NewsAPI."""
     url = "https://newsapi.org/v2/everything"
     params = {
-        "q": f"{ticker} AND (stock OR market OR finance OR invest OR trade OR price OR analyst OR Wall Street)",
+        "q": (
+            f"{ticker} AND (stock OR shares OR market OR finance OR invest OR trade "
+            "OR price OR analyst OR earnings OR guidance OR revenue OR profit OR "
+            "upgrade OR downgrade OR target OR dividend OR buyback OR SEC OR "
+            "regulatory OR merger OR acquisition OR lawsuit OR recall)"
+        ),
         "from": n_days_ago(n_days),
         "to": n_days_ago(1),
         "language": "en",
@@ -139,20 +144,37 @@ def get_news_api(
     response = requests.get(url, params=params, timeout=60)
     response.raise_for_status()
     raw_articles = response.json().get("articles", [])
-
     if not raw_articles:
         return []
 
-    articles = []
-    for article in raw_articles:
-        date_str = iso_to_str(article["publishedAt"])
-        articles.append(
-            News(
-                title=article["title"],
-                url=article["url"],
-                date=date_str,
-                days_ago=_days_ago(date_str),
-            )
+    return [
+        News(
+            title=article["title"],
+            url=article["url"],
+            date=(date_str := iso_to_str(article["publishedAt"])),
+            days_ago=_days_ago(date_str),
         )
+        for article in raw_articles
+    ]
 
-    return _process_articles(articles)
+
+def get_news(
+    ticker: str,
+    n_days: int = 3,
+    max_results: int = 10,
+) -> list[News]:
+    """Fetch news from Yahoo Finance and NewsAPI, dedupe by URL, then analyze."""
+    sources = _get_news_yfinance(
+        ticker,
+        max_results=max_results,
+    ) + _get_news_api(
+        ticker,
+        n_days=n_days,
+        max_results=max_results,
+    )
+    deduped: dict[str, News] = {}
+    for item in sources:
+        key = _normalize_url(item.url)
+        if key not in deduped:
+            deduped[key] = item
+    return _process_articles(ticker, list(deduped.values()))
