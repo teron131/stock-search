@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 import os
 from urllib.parse import parse_qsl, urlparse, urlunparse
 
-from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 import requests
@@ -14,39 +13,37 @@ from .utils import iso_to_str, n_days_ago, timestamp_to_str
 
 load_dotenv()
 
-FAST_LLM = os.getenv("FAST_LLM", "google/gemini-2.5-flash-lite")
+FAST_LLM = os.getenv("FAST_LLM", "google/gemini-3-flash-preview")
 
 
-def _load_news_markdown(urls: list[str]) -> list[str]:
-    """Load article markdown for a list of URLs."""
-    converter = DocumentConverter()
-    try:
-        results = list(converter.convert_all(urls, raises_on_error=False))
-    except Exception:
-        return ["" for _ in urls]
-    return [result.document.export_to_markdown() if result.document else "" for result in results]
-
-
-def _analyze_news(ticker: str, news_markdowns: list[str]) -> list[NewsAnalysis]:
-    """Run LLM analysis over article markdowns."""
+def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
+    """Run LLM analysis over article URLs using web search."""
     llm = ChatOpenRouter(
         model=FAST_LLM,
         temperature=0,
         reasoning_effort="low",
+        web_search=True,
+        web_search_max_results=1,
     ).with_structured_output(NewsAnalysis)
 
     prompt_template = PromptTemplate(
-        template="""Describe the news with details and numbers mentioned clearly and concretely.
+        template="""Use web search to read the news at the URL.
+Describe the news with details and numbers mentioned clearly and concretely.
 No meta-language.
 Exclude garbage and ads.
 Set relevancy by how directly it impacts {ticker}:
 - high = directly about {ticker} (earnings, guidance, major product, regulation)
 - medium = same sector/competitors/macro with indirect impact
 - low = general market noise; subjective analyst opinions without objective new facts
+Relevancy rules:
+- high only if {ticker} is the primary subject (headline + article focus)
+- market wraps and broad sector commentary default to low unless {ticker} is a primary driver
 Sentiment:
 - bullish if clearly positive for {ticker}
 - bearish if clearly negative
 - neutral if mixed or unclear; insider selling is neutral unless unusually large, illegal, or clearly adverse
+Subjective analysis/opinion defaults to neutral sentiment unless objective new facts clearly support a direction.
+If the article cannot be accessed or does not mention {ticker}, set relevancy to low, sentiment to neutral, and summary to a brief note that no relevant content was found.
 Choose the best category for the primary focus:
 - company_news: directly about the company
 - earnings: financial results and guidance
@@ -57,15 +54,23 @@ Choose the best category for the primary focus:
 - analysis: deep dives or opinion pieces
 - other: anything else
 
-{markdown}""",
-        input_variables=["ticker", "markdown"],
+Title: {title}
+URL: {url}""",
+        input_variables=["ticker", "title", "url"],
     )
-    inputs = [prompt_template.format(ticker=ticker, markdown=markdown) for markdown in news_markdowns]
-    return llm.batch(inputs, config={"max_concurrency": len(news_markdowns)})
+    inputs = [
+        prompt_template.format(
+            ticker=ticker,
+            title=news.title,
+            url=news.url,
+        )
+        for news in news_list
+    ]
+    return llm.batch(inputs, config={"max_concurrency": len(news_list)})
 
 
 def _process_articles(ticker: str, news_list: list[News]) -> list[News]:
-    """Process articles by loading content and applying LLM analysis.
+    """Process articles by analyzing their URLs and applying LLM analysis.
 
     Args:
         news_list (list[News]): List of News objects with title, url, and date
@@ -76,10 +81,14 @@ def _process_articles(ticker: str, news_list: list[News]) -> list[News]:
     if not news_list:
         return []
 
-    news_markdowns = _load_news_markdown([news.url for news in news_list])
-    news_analysis = _analyze_news(ticker, news_markdowns)
+    news_analysis = _analyze_news(ticker, news_list)
 
-    return [news.model_copy(update=analysis.model_dump()) for news, analysis in zip(news_list, news_analysis, strict=True)]
+    return [
+        news.model_copy(
+            update=analysis.model_dump(),
+        )
+        for news, analysis in zip(news_list, news_analysis, strict=True)
+    ]
 
 
 def _days_ago(date_str: str) -> int | None:
