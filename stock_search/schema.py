@@ -3,42 +3,53 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 # Common Fields
-Ticker = Annotated[str, Field(description="Stock ticker symbol (e.g., 'NVDA', 'AAPL')")]
-Weight = Annotated[float, Field(description="Weight percentage")]
+Ticker = Annotated[str, Field(description="Ticker")]
+Weight = Annotated[float, Field(description="Weight as a percentage (0-100)")]
 
 
 class Quote(BaseModel):
     """Real-time and regular market quotes."""
 
-    symbol: Ticker | None = None
-    regular_price: float | None = Field(default=None, description="The regular market price")
-    regular_change: float | None = Field(default=None, description="The regular market price change")
-    regular_change_percent: float | None = Field(default=None, description="The regular market price change percentage")
+    ticker: Ticker = Field(description="Ticker symbol")
+    regular_price: float | None = Field(default=None, description="Regular market price")
+    regular_change: float | None = Field(default=None, description="Regular market price change")
+    regular_change_percent: float | None = Field(default=None, description="Regular market price change percent")
     realtime_price: float | None = Field(default=None, description="Pre/post market price")
     realtime_change: float | None = Field(default=None, description="Pre/post market price change")
-    realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percentage")
+    realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percent")
 
 
 class Holding(BaseModel):
     """A single holding within an ETF."""
 
-    symbol: Ticker = Field(description="Ticker symbol of the holding")
-    holding: str = Field(description="Full name of the holding")
+    ticker: Ticker
     weight: Weight
 
 
 class Sector(BaseModel):
     """Industry sector allocation."""
 
-    sector: str = Field(description="Name of the sector")
+    sector: Literal[
+        "Technology",
+        "Materials",
+        "Financials",
+        "Healthcare",
+        "Industrials",
+        "Real Estate",
+        "Energy",
+        "Utilities",
+        "Consumer Discretionary",
+        "Communication Services",
+        "Consumer Staples",
+    ] = Field(description="Standardized sector name")
     weight: Weight
 
 
 class ETF(BaseModel):
     """ETF-specific metadata including holdings and sector breakdown."""
 
-    top_holdings: list[Holding] = Field(default_factory=list, description="List of top holdings")
-    sectors: list[Sector] = Field(default_factory=list, description="Sector allocation breakdown")
+    top_holdings: list[Holding] = Field(default_factory=list, description="Top holdings list")
+    sectors: list[Sector] = Field(default_factory=list, description="Sector allocation list")
 
 
 class NewsAnalysis(BaseModel):
@@ -46,7 +57,7 @@ class NewsAnalysis(BaseModel):
 
     summary: str = Field(
         default="",
-        description="Detailed description of news, excluding noise/ads. Avoid meta-language like 'The article mentions...'",
+        description="Detailed summary; exclude noise/ads and meta-language.",
     )
     category: Literal[
         "macro_economics",
@@ -74,7 +85,7 @@ class NewsAnalysis(BaseModel):
 class News(NewsAnalysis):
     """Full news article data including analysis results."""
 
-    title: str = Field(description="Headline of the article")
+    title: str = Field(description="Headline")
     url: str = Field(description="Source URL")
     date: str = Field(description="Publication date (YYYY-MM-DD)")
 
@@ -83,14 +94,14 @@ class PortfolioPosition(BaseModel):
     """A single portfolio position with notional exposure metrics."""
 
     ticker: Ticker
-    quantity: float = Field(description="Number of shares or contracts")
-    delta: float = Field(default=1.0, description="Option delta or 1.0 for shares")
-    current_price: float = Field(description="Current market price in USD")
+    quantity: float | None = Field(default=None, description="Number of shares or contracts")
+    delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
+    current_price: float | None = Field(default=None, description="Current market price (USD)")
     bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Portfolio strategy bucket")
 
 
 class Portfolio(BaseModel):
     """Aggregate portfolio data."""
 
-    total_equity: float = Field(description="Total portfolio equity in USD")
-    positions: list[PortfolioPosition] = Field(default_factory=list, description="List of current positions")
+    total_equity: float | None = Field(default=None, description="Total portfolio equity (USD)")
+    positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
