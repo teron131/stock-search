@@ -60,6 +60,10 @@ class NewsAnalysis(BaseModel):
         default="",
         description="Detailed summary; exclude noise/ads and meta-language.",
     )
+    relevancy: Literal["high", "medium", "low"] = Field(
+        default="medium",
+        description="How relevant the news is to the target ticker.",
+    )
     category: Literal[
         "macro_economics",
         "industry_news",
@@ -71,7 +75,7 @@ class NewsAnalysis(BaseModel):
         "other",
     ] = Field(
         default="other",
-        description="Primary focus of the news.",
+        description="Category of the news.",
     )
     sentiment: Literal[
         "bullish",
@@ -79,7 +83,7 @@ class NewsAnalysis(BaseModel):
         "bearish",
     ] = Field(
         default="neutral",
-        description="Market sentiment for the primary subject.",
+        description="Market sentiment from the news.",
     )
 
 
@@ -89,6 +93,7 @@ class News(NewsAnalysis):
     title: str = Field(description="Headline")
     url: str = Field(description="Source URL")
     date: str = Field(description="Publication date (YYYY-MM-DD)")
+    days_ago: int | None = Field(default=None, description="Days since publication")
 
 
 class PortfolioPosition(BaseModel):
