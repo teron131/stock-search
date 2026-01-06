@@ -1,6 +1,6 @@
-from concurrent.futures import ThreadPoolExecutor
 import os
 
+from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
 import requests
 import yfinance as yf
@@ -11,31 +11,27 @@ from .utils import iso_to_str, n_days_ago, timestamp_to_str
 
 load_dotenv()
 
-# Constants
 FAST_LLM = os.getenv("FAST_LLM", "google/gemini-2.5-flash-lite")
 
 
-def _news_webloader(url: str) -> NewsAnalysis:
-    """Load and process the content of a website from URL using LLM with web search.
+def _load_news_markdown(urls: list[str]) -> list[str]:
+    """Load article markdown for a list of URLs."""
+    converter = DocumentConverter()
+    results = converter.convert_all(urls)
+    return [result.document.export_to_markdown() if result.document else "" for result in results]
 
-    Args:
-        url (str): The URL of the website to load
 
-    Returns:
-        NewsAnalysis: Summarized content and metadata of the website
-    """
+def _analyze_news(news_markdowns: list[str]) -> list[NewsAnalysis]:
+    """Run LLM analysis over article markdowns."""
     llm = ChatOpenRouter(
         model=FAST_LLM,
         temperature=0,
         reasoning_effort="minimal",
-        web_search=True,
-        web_search_max_results=1,
     ).with_structured_output(NewsAnalysis)
-    response: NewsAnalysis = llm.invoke(url)
-    return response
+    return llm.batch(news_markdowns)
 
 
-def _process_articles_with_llm(news_list: list[News]) -> list[News]:
+def _process_articles(news_list: list[News]) -> list[News]:
     """Process articles by loading content and applying LLM analysis.
 
     Args:
@@ -47,12 +43,10 @@ def _process_articles_with_llm(news_list: list[News]) -> list[News]:
     if not news_list:
         return []
 
-    # Load content from URLs concurrently
-    max_workers = min(len(news_list), os.cpu_count() or 1)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        news_analysis = list(executor.map(_news_webloader, [news.url for news in news_list]))
+    urls = [news.url for news in news_list]
+    news_markdowns = _load_news_markdown(urls)
+    news_analysis = _analyze_news(news_markdowns)
 
-    # Build final articles
     return [
         news.model_copy(
             update=analysis.model_dump(),
@@ -84,7 +78,7 @@ def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
         for news in news_list
     ]
 
-    return _process_articles_with_llm(news_list)
+    return _process_articles(news_list)
 
 
 def get_news_api(
@@ -129,4 +123,4 @@ def get_news_api(
         for article in raw_articles
     ]
 
-    return _process_articles_with_llm(articles)
+    return _process_articles(articles)
