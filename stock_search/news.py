@@ -62,10 +62,10 @@ def _process_articles_with_llm(news_list: list[News]) -> list[News]:
 
 
 def get_news_yfinance(query: str, max_results: int = 10) -> list[News]:
-    """Search for news about a given stock ticker symbol using Yahoo Finance.
+    """Search for news about a given stock ticker using Yahoo Finance.
 
     Args:
-        query (str): The stock ticker symbol to search for
+        query (str): The stock ticker to search for
         max_results (int): Maximum number of results to return
 
     Returns:
@@ -95,7 +95,7 @@ def get_news_api(
     """Get the financial news for a given query and number of days using NewsAPI.
 
     Args:
-        ticker (str): The ticker symbol to search for.
+        ticker (str): The ticker to search for.
         n_days (int): The number of days to search back.
         max_results (int): Maximum number of results to return.
 

@@ -8,7 +8,7 @@ def parse_ratings(ticker: str | yf.Ticker, days: int = 90) -> dict | None:
     """Parse analyst ratings for a ticker and calculate upside metrics.
 
     Args:
-        ticker: Ticker symbol string or yf.Ticker instance
+        ticker: Ticker string or yf.Ticker instance
         days: Number of days to look back for ratings
 
     Returns:
