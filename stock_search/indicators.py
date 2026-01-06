@@ -166,18 +166,30 @@ class StockIndicator:
         return f"{self.pe:.2f}%" if self.pe is not None else None
 
     @property
-    def peg(self) -> float | None:
-        """Price/Earnings to Growth ratio. < 2 indicates reasonable price, < 1 means undervalued.
+    def pe_forward(self) -> float | None:
+        """Price-to-Earnings ratio (forward P/E).
 
-        Prefer Yahoo's trailingPegRatio when available.
+        Calculation: Market price per share / Earnings per share (forward 12 months)
+
+        Returns:
+            P/E ratio (unitless). Lower values may indicate undervaluation.
+            Typical range: 10-30 for most stocks. None if unavailable.
+        """
+        return _round(self.info.get("forwardPE"))
+
+    @property
+    def pe_forward_str(self) -> str | None:
+        """String representation of P/E ratio with percent sign."""
+        return f"{self.pe_forward:.2f}%" if self.pe_forward is not None else None
+
+    @property
+    def peg(self) -> float | None:
+        """Price/Earnings to Growth ratio. < 2 indicates reasonable price, < 1 means undervalued. It is called 'trailing' but it is 5 years forward expected.
 
         Returns:
             PEG ratio (unitless).
-            None if trailing PEG is unavailable.
         """
-        if (peg_ratio := self.info.get("trailingPegRatio")) is None:
-            return None
-        return _round(peg_ratio)
+        return _round(self.info.get("trailingPegRatio"))
 
     @property
     def peg_str(self) -> str | None:
