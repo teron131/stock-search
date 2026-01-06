@@ -41,6 +41,7 @@ class Sector(BaseModel):
         "Consumer Discretionary",
         "Communication Services",
         "Consumer Staples",
+        "Other",
     ] = Field(description="Standardized sector name")
     weight: Weight
 
@@ -96,12 +97,12 @@ class PortfolioPosition(BaseModel):
     ticker: Ticker
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
     delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
-    current_price: float | None = Field(default=None, description="Current market price (USD)")
+    current_price: float | None = Field(default=None, description="Current market price")
     bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Portfolio strategy bucket")
 
 
 class Portfolio(BaseModel):
     """Aggregate portfolio data."""
 
-    total_equity: float | None = Field(default=None, description="Total portfolio equity (USD)")
+    total_equity: float | None = Field(default=None, description="Total portfolio equity")
     positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
