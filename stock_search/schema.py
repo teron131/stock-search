@@ -61,7 +61,7 @@ class NewsAnalysis(BaseModel):
         description="Detailed summary; exclude noise/ads and meta-language.",
     )
     relevancy: Literal["high", "medium", "low"] = Field(
-        default="medium",
+        default="low",
         description="How relevant the news is to the target ticker.",
     )
     category: Literal[
