@@ -6,9 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "docling>=2.41.0",
-    "exa-py>=2.0.2",
     "fastapi>=0.116.1",
-    "finnhub-python>=2.4.26",
     "google-genai>=1.25.0",
     "ib-async>=2.0.1",
     "iprogress>=0.4",
@@ -17,7 +15,6 @@ dependencies = [
     "ipywidgets>=8.1.8",
     "langchain>=1.2.0",
     "langchain-openai>=1.1.6",
-    "newsapi-python>=0.2.7",
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
     "rich>=14.0.0",

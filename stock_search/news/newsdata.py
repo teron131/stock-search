@@ -13,15 +13,13 @@ import requests
 
 load_dotenv()
 
-NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY")
-
 
 def get_news_newsdata(
     query: str,
 ) -> list[dict]:
     """Get financial news using NewsData."""
     params = {
-        "apikey": NEWSDATA_API_KEY,
+        "apikey": os.getenv("NEWSDATA_API_KEY"),
         "q": f"{query}",
         "country": "us",
         "language": "en",
@@ -32,8 +30,9 @@ def get_news_newsdata(
         "sort": "relevancy",
     }
     response = requests.get(
-        "https://newsdata.io/api/1/latest",
+        url="https://newsdata.io/api/1/latest",
         params=params,
         timeout=60,
     )
-    return response.json().get("results")
+    response.raise_for_status()
+    return response.json().get("results", [])
