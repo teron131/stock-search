@@ -54,6 +54,7 @@ def get_news_exa(
             url=news["url"],
             date=(date_str := format_date(datetime.fromisoformat(news["publishedDate"].replace("Z", "+00:00")))),
             days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
+            summary="[FAILED TO FETCH]",
         )
         for news in news_list
     ]

@@ -3,7 +3,7 @@ Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Sear
 - Free
 """
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
 import yfinance as yf
 
