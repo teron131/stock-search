@@ -36,7 +36,7 @@ def webloader_docling(urls: list[str]) -> list[str | None]:
         return list(executor.map(_convert, urls))
 
 
-def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
+def analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
     """Run LLM analysis over article URLs, preferring docling web loader."""
     llm = ChatOpenRouter(
         model=FAST_LLM,
@@ -114,7 +114,7 @@ def process_news(ticker: str, news_list: list[News]) -> list[News]:
         )
         for news, analysis in zip(
             news_list,
-            _analyze_news(ticker, news_list),
+            analyze_news(ticker, news_list),
             strict=True,
         )
     ]

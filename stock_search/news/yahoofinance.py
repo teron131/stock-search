@@ -8,7 +8,9 @@ from datetime import UTC, date, datetime
 import yfinance as yf
 
 from ..schema import News
-from ..utils import format_date
+from ..utils import format_date_local_from_timestamp, get_local_tz
+
+LOCAL_TZ = get_local_tz()
 
 
 def get_news_yfinance(
@@ -24,8 +26,8 @@ def get_news_yfinance(
         News(
             title=item["title"],
             url=item["link"],
-            date=(date_str := format_date(datetime.fromtimestamp(item["providerPublishTime"], UTC))),
-            days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
+            date=(date_str := format_date_local_from_timestamp(item["providerPublishTime"], LOCAL_TZ)),
+            days_ago=(datetime.now(LOCAL_TZ).date() - date.fromisoformat(date_str)).days,
         )
         for item in raw_news
     ]

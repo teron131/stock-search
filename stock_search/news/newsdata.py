@@ -7,16 +7,19 @@ Documentation: https://newsdata.io/documentation#latest-news
 - Last 48 hours news
 """
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 import os
 
 from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date
+from ..utils import format_date_local, get_local_tz, parse_datetime_local
 
 load_dotenv()
+
+
+LOCAL_TZ = get_local_tz()
 
 
 def get_news_newsdata(
@@ -46,8 +49,9 @@ def get_news_newsdata(
         News(
             title=news["title"],
             url=news["link"],
-            date=(date_str := format_date(datetime.fromisoformat(news["pubDate"].replace("Z", "+00:00")))),
-            days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
+            date=(date_str := format_date_local(parse_datetime_local(news["pubDate"], LOCAL_TZ), LOCAL_TZ)),
+            days_ago=(datetime.now(LOCAL_TZ).date() - date.fromisoformat(date_str)).days,
+            summary=f"[TRUNCATED] {news['description']}",
         )
         for news in news_list
     ]

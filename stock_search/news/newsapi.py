@@ -12,9 +12,11 @@ from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date
+from ..utils import format_date, format_date_local, get_local_tz, parse_datetime_local
 
 load_dotenv()
+
+LOCAL_TZ = get_local_tz()
 
 
 def get_news_newsapi(
@@ -49,8 +51,9 @@ def get_news_newsapi(
         News(
             title=news["title"],
             url=news["url"],
-            date=(date_str := format_date(datetime.fromisoformat(news["publishedAt"].replace("Z", "+00:00")))),
-            days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
+            date=(date_str := format_date_local(parse_datetime_local(news["publishedAt"], LOCAL_TZ), LOCAL_TZ)),
+            days_ago=(datetime.now(LOCAL_TZ).date() - date.fromisoformat(date_str)).days,
+            summary=f"[TRUNCATED] {news['description']}",
         )
         for news in news_list
     ]
