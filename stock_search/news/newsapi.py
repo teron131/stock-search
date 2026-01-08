@@ -43,14 +43,14 @@ def get_news_newsapi(
         timeout=60,
     )
     response.raise_for_status()
-    raw_articles = response.json().get("articles", [])
+    news_list = response.json().get("articles", [])
 
     return [
         News(
-            title=article["title"],
-            url=article["url"],
-            date=(date_str := format_date(datetime.fromisoformat(article["publishedAt"].replace("Z", "+00:00")))),
+            title=news["title"],
+            url=news["url"],
+            date=(date_str := format_date(datetime.fromisoformat(news["publishedAt"].replace("Z", "+00:00")))),
             days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
         )
-        for article in raw_articles
+        for news in news_list
     ]

@@ -13,6 +13,9 @@ from langchain_core.prompts import PromptTemplate
 
 from ..openrouter import ChatOpenRouter
 from ..schema import News, NewsAnalysis
+from ..utils import normalize_url
+from .newsapi import get_news_newsapi
+from .yahoofinance import get_news_yfinance
 
 load_dotenv()
 
@@ -115,3 +118,25 @@ def process_articles(ticker: str, news_list: list[News]) -> list[News]:
             strict=True,
         )
     ]
+
+
+def get_news(
+    ticker: str,
+    n_days: int = 3,
+    max_results: int = 10,
+) -> list[News]:
+    """Fetch news from Yahoo Finance and NewsAPI, dedupe by URL, then analyze."""
+    sources = get_news_yfinance(
+        query=ticker,
+        max_results=max_results,
+    ) + get_news_newsapi(
+        query=ticker,
+        n_days=n_days,
+        max_results=max_results,
+    )
+    deduped: dict[str, News] = {}
+    for item in sources:
+        key = normalize_url(item.url)
+        if key not in deduped:
+            deduped[key] = item
+    return process_articles(ticker, list(deduped.values()))

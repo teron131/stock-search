@@ -5,13 +5,14 @@ Documentation: https://docs.exa.ai/reference/search
 - Other LLM analysis costs apply, so disabled here
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 import os
 
 from dotenv import load_dotenv
 import requests
 
-from ..utils import format_iso_z
+from ..schema import News
+from ..utils import format_date, format_iso_z
 
 load_dotenv()
 
@@ -20,7 +21,7 @@ def get_news_exa(
     query: str,
     n_days: int = 3,
     num_results: int = 10,
-) -> list[dict]:
+) -> list[News]:
     """Search Exa for news results and return raw payload items."""
     end_published_date = format_iso_z(datetime.now(UTC))
     start_published_date = format_iso_z(datetime.now(UTC) - timedelta(days=n_days))
@@ -45,4 +46,14 @@ def get_news_exa(
         timeout=60,
     )
     response.raise_for_status()
-    return response.json().get("results", [])
+    news_list = response.json().get("results", [])
+
+    return [
+        News(
+            title=news["title"],
+            url=news["url"],
+            date=(date_str := format_date(datetime.fromisoformat(news["publishedDate"].replace("Z", "+00:00")))),
+            days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
+        )
+        for news in news_list
+    ]
