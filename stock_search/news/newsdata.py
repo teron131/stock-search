@@ -1,6 +1,9 @@
 """NewsData
 Playground: https://newsdata.io/search-dashboard
 Documentation: https://newsdata.io/documentation#latest-news
+- Free
+- 200 credits per day
+- 10 articles per credit
 """
 
 import os

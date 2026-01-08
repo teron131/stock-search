@@ -1,3 +1,9 @@
+"""News analysis
+Primarily idea: Use quality APIs to get the URLs, then use Docling webloader to get the text, then use a LLM to analyze the text.
+Follow a fallback strategy.
+CAUTION: Web search is not reliable for getting specific content from a URL.
+"""
+
 from concurrent.futures import ThreadPoolExecutor
 import os
 

@@ -1,6 +1,8 @@
 """Exa
 Playground: https://dashboard.exa.ai/playground/search
 Documentation: https://docs.exa.ai/reference/search
+- $5 per 1000 results when max results is up to 25
+- Other LLM analysis costs apply, so disabled here
 """
 
 from datetime import UTC, datetime, timedelta

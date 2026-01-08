@@ -1,5 +1,8 @@
 """NewsAPI
 Documentation: https://newsapi.org/docs/endpoints/everything
+- Free
+- 24 hours delay
+- 100 requests per day
 """
 
 from datetime import UTC, date, datetime, timedelta

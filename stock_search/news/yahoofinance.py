@@ -1,5 +1,6 @@
 """yfinance
 Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Search.html
+- Free
 """
 
 from datetime import UTC, date, datetime
