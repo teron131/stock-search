@@ -103,8 +103,8 @@ Choose the best category for the primary focus:
     return results
 
 
-def process_articles(ticker: str, news_list: list[News]) -> list[News]:
-    """Process articles by analyzing their URLs and applying LLM analysis."""
+def process_news(ticker: str, news_list: list[News]) -> list[News]:
+    """Process news by analyzing their URLs and applying LLM analysis."""
     if not news_list:
         return []
 
@@ -139,4 +139,4 @@ def get_news(
         key = normalize_url(item.url)
         if key not in deduped:
             deduped[key] = item
-    return process_articles(ticker, list(deduped.values()))
+    return process_news(ticker, list(deduped.values()))
