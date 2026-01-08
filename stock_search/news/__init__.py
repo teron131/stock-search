@@ -7,12 +7,12 @@ from .newsdata import get_news_newsdata
 from .yahoofinance import get_news_yfinance
 
 __all__ = [
+    "analyze_news",
     "get_news",
     "get_news_exa",
     "get_news_newsapi",
     "get_news_newsdata",
     "get_news_yfinance",
-    "analyze_news",
     "process_news",
     "webloader_docling",
 ]

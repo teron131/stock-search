@@ -5,18 +5,16 @@ Documentation: https://newsapi.org/docs/endpoints/everything
 - 100 requests per day
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import os
 
 from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, format_date_local, get_local_tz, parse_datetime_local
+from ..utils import format_date, get_days_ago, parse_date
 
 load_dotenv()
-
-LOCAL_TZ = get_local_tz()
 
 
 def get_news_newsapi(
@@ -25,6 +23,10 @@ def get_news_newsapi(
     max_results: int = 10,
 ) -> list[News]:
     """Get financial news using NewsAPI."""
+    # NewsAPI expects dates in YYYY-MM-DD
+    from_date = format_date(datetime.now(UTC) - timedelta(days=n_days), tz=UTC)
+    to_date = format_date(datetime.now(UTC) - timedelta(days=1), tz=UTC)
+
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
         "q": (
@@ -33,8 +35,8 @@ def get_news_newsapi(
             "upgrade OR downgrade OR target OR dividend OR buyback OR SEC OR "
             "regulatory OR merger OR acquisition OR lawsuit OR recall)"
         ),
-        "from": format_date(datetime.now(UTC) - timedelta(days=n_days)),
-        "to": format_date(datetime.now(UTC) - timedelta(days=1)),
+        "from": from_date,
+        "to": to_date,
         "language": "en",
         "sortBy": "popularity",
         "pageSize": max_results,
@@ -47,13 +49,16 @@ def get_news_newsapi(
     response.raise_for_status()
     news_list = response.json().get("articles", [])
 
-    return [
-        News(
-            title=news["title"],
-            url=news["url"],
-            date=(date_str := format_date_local(parse_datetime_local(news["publishedAt"], LOCAL_TZ), LOCAL_TZ)),
-            days_ago=(datetime.now(LOCAL_TZ).date() - date.fromisoformat(date_str)).days,
-            summary=f"[TRUNCATED] {news['description']}",
+    results = []
+    for news in news_list:
+        dt = parse_date(news["publishedAt"])
+        results.append(
+            News(
+                title=news["title"],
+                url=news["url"],
+                date=format_date(dt),
+                days_ago=get_days_ago(dt),
+                summary=f"[TRUNCATED] {news['description']}",
+            )
         )
-        for news in news_list
-    ]
+    return results

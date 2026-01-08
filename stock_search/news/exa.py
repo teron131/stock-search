@@ -5,14 +5,14 @@ Documentation: https://docs.exa.ai/reference/search
 - Other LLM analysis costs apply, so disabled here
 """
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import os
 
 from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, format_iso_z
+from ..utils import format_date, format_iso_z, get_days_ago, parse_date
 
 load_dotenv()
 
@@ -48,13 +48,16 @@ def get_news_exa(
     response.raise_for_status()
     news_list = response.json().get("results", [])
 
-    return [
-        News(
-            title=news["title"],
-            url=news["url"],
-            date=(date_str := format_date(datetime.fromisoformat(news["publishedDate"].replace("Z", "+00:00")))),
-            days_ago=(datetime.now(UTC).date() - date.fromisoformat(date_str)).days,
-            summary="[FAILED TO FETCH]",
+    results = []
+    for news in news_list:
+        dt = parse_date(news["publishedDate"])
+        results.append(
+            News(
+                title=news["title"],
+                url=news["url"],
+                date=format_date(dt),
+                days_ago=get_days_ago(dt),
+                summary="[FAILED TO FETCH]",
+            )
         )
-        for news in news_list
-    ]
+    return results

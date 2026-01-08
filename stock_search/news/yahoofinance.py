@@ -3,14 +3,10 @@ Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Sear
 - Free
 """
 
-from datetime import date, datetime
-
 import yfinance as yf
 
 from ..schema import News
-from ..utils import format_date_local_from_timestamp, get_local_tz
-
-LOCAL_TZ = get_local_tz()
+from ..utils import format_date, get_days_ago, parse_date
 
 
 def get_news_yfinance(
@@ -22,12 +18,16 @@ def get_news_yfinance(
     if not raw_news:
         return []
 
-    return [
-        News(
-            title=item["title"],
-            url=item["link"],
-            date=(date_str := format_date_local_from_timestamp(item["providerPublishTime"], LOCAL_TZ)),
-            days_ago=(datetime.now(LOCAL_TZ).date() - date.fromisoformat(date_str)).days,
+    results = []
+    for item in raw_news:
+        # yfinance returns UNIX timestamp
+        dt = parse_date(item["providerPublishTime"])
+        results.append(
+            News(
+                title=item["title"],
+                url=item["link"],
+                date=format_date(dt),
+                days_ago=get_days_ago(dt),
+            )
         )
-        for item in raw_news
-    ]
+    return results
