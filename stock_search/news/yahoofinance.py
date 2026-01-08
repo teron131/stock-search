@@ -1,3 +1,7 @@
+"""yfinance
+Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Search.html
+"""
+
 from datetime import UTC, date, datetime
 
 import yfinance as yf

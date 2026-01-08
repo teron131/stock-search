@@ -1,3 +1,8 @@
+"""Exa
+Playground: https://dashboard.exa.ai/playground/search
+Documentation: https://docs.exa.ai/reference/search
+"""
+
 from datetime import UTC, datetime, timedelta
 import os
 
@@ -8,7 +13,7 @@ from ..utils import format_iso_z
 
 load_dotenv()
 
-exa = Exa(api_key=os.getenv("EXA_API_KEY"))
+client = Exa(api_key=os.getenv("EXA_API_KEY"))
 
 
 def get_news_exa(
@@ -21,7 +26,7 @@ def get_news_exa(
     end_published_date = format_iso_z(datetime.now(UTC))
     start_published_date = format_iso_z(datetime.now(UTC) - timedelta(days=n_days))
 
-    result = exa.search(
+    result = client.search(
         query,
         category="news",
         num_results=num_results,
