@@ -1,5 +1,6 @@
 portfolio.json
 .DS_Store
+uv.lock
 
 # Python-generated files
 __pycache__/
