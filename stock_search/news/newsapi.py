@@ -23,9 +23,9 @@ def get_news_newsapi(
     max_results: int = 10,
 ) -> list[News]:
     """Get financial news using NewsAPI."""
-    # NewsAPI expects dates in YYYY-MM-DD
-    from_date = format_date(datetime.now(UTC) - timedelta(days=n_days), tz=UTC)
-    to_date = format_date(datetime.now(UTC) - timedelta(days=1), tz=UTC)
+    # NewsAPI expects dates in YYYY-MM-DD (UTC)
+    from_date = (datetime.now(UTC) - timedelta(days=n_days)).strftime("%Y-%m-%d")
+    to_date = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
 
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
