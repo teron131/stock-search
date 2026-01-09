@@ -1,8 +1,10 @@
 """OpenRouter LLM client initialization and configuration."""
 
+from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import Literal
 
+from docling.document_converter import DocumentConverter
 from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
@@ -137,3 +139,18 @@ def parse_batch(
 ) -> list[str] | list[tuple[str | None, str]]:
     """Parse batched responses, optionally with reasoning."""
     return [parse_invoke(response, include_reasoning) for response in responses]
+
+
+def webloader_docling(urls: list[str]) -> list[str | None]:
+    """Load and process website content from URLs into markdown."""
+    converter = DocumentConverter()
+
+    def _convert(url: str) -> str | None:
+        try:
+            return converter.convert(url).document.export_to_markdown()
+        except Exception:
+            return None
+
+    max_workers = min(len(urls), os.cpu_count())
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(executor.map(_convert, urls))

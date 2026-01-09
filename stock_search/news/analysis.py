@@ -4,13 +4,11 @@ Follow a fallback strategy.
 CAUTION: Web search is not reliable for getting specific content from a URL.
 """
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 
-from docling.document_converter import DocumentConverter
 from langchain_core.prompts import PromptTemplate
 
-from ..openrouter import ChatOpenRouter
+from ..openrouter import ChatOpenRouter, webloader_docling
 from ..schema import News, NewsAnalysis
 from ..utils import normalize_url
 from .newsapi import get_news_newsapi
@@ -46,21 +44,6 @@ Choose the best category for the primary focus:
 
 {title}
 {text}"""
-
-
-def webloader_docling(urls: list[str]) -> list[str | None]:
-    """Load and process website content from URLs into markdown."""
-    converter = DocumentConverter()
-
-    def _convert(url: str) -> str | None:
-        try:
-            return converter.convert(url).document.export_to_markdown()
-        except Exception:
-            return None
-
-    max_workers = min(len(urls), os.cpu_count())
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        return list(executor.map(_convert, urls))
 
 
 def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
