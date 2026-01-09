@@ -58,11 +58,12 @@ def webloader_docling(urls: list[str]) -> list[str | None]:
         except Exception:
             return None
 
-    with ThreadPoolExecutor(max_workers=min(len(urls), os.cpu_count())) as executor:
+    max_workers = min(len(urls), os.cpu_count())
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(_convert, urls))
 
 
-def analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
+def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
     """Run LLM analysis over article URLs, preferring docling web loader."""
     llm = ChatOpenRouter(
         model=FAST_LLM,
@@ -102,19 +103,6 @@ def analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
     return results
 
 
-def process_news(ticker: str, news_list: list[News]) -> list[News]:
-    """Process news by analyzing their URLs and applying LLM analysis."""
-    if not news_list:
-        return []
-
-    return [
-        news.model_copy(
-            update=analysis.model_dump(),
-        )
-        for news, analysis in zip(news_list, analyze_news(ticker, news_list), strict=True)
-    ]
-
-
 def get_news(
     ticker: str,
     n_days: int = 3,
@@ -129,9 +117,17 @@ def get_news(
         n_days=n_days,
         max_results=max_results,
     )
-    deduped: dict[str, News] = {}
-    for item in sources:
-        key = normalize_url(item.url)
-        if key not in deduped:
-            deduped[key] = item
-    return process_news(ticker, list(deduped.values()))
+
+    deduped = {normalize_url(item.url): item for item in sources}
+    news_list = list(deduped.values())
+
+    if not news_list:
+        return []
+
+    analyses = _analyze_news(ticker, news_list)
+    return [
+        news.model_copy(
+            update=analysis.model_dump(),
+        )
+        for news, analysis in zip(news_list, analyses, strict=True)
+    ]
