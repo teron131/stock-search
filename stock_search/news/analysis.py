@@ -18,6 +18,10 @@ from .newsdata import get_news_newsdata
 from .yahoofinance import get_news_yfinance
 
 FAST_LLM = os.getenv("FAST_LLM", "google/gemini-3-flash-preview")
+FALLBACK_SUMMARIES = (
+    "[TRUNCATED]",
+    "[FAILED TO FETCH]",
+)
 
 ANALYSIS_PROMPT = """Describe the news with details and numbers mentioned clearly and concretely.
 No meta-language.
@@ -125,7 +129,9 @@ def get_news(
     results: list[News] = []
     for news, analysis in zip(news_list, analyses, strict=True):
         updated = news.model_copy(update=analysis.model_dump())
-        if updated.summary == "[FAILED TO FETCH]":
+        if updated.summary.startswith(FALLBACK_SUMMARIES):
+            continue
+        if updated.relevancy == "low":
             continue
         results.append(updated)
     return results
