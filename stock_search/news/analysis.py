@@ -11,7 +11,10 @@ from langchain_core.prompts import PromptTemplate
 from ..openrouter import ChatOpenRouter, webloader_docling
 from ..schema import News, NewsAnalysis
 from ..utils import normalize_url
+from .exa import get_news_exa
+from .massive import get_news_massive
 from .newsapi import get_news_newsapi
+from .newsdata import get_news_newsdata
 from .yahoofinance import get_news_yfinance
 
 FAST_LLM = os.getenv("FAST_LLM", "google/gemini-3-flash-preview")
@@ -91,26 +94,38 @@ def get_news(
     n_days: int = 3,
     max_results: int = 10,
 ) -> list[News]:
-    """Fetch news from Yahoo Finance and NewsAPI, dedupe by URL, then analyze."""
-    sources = get_news_yfinance(
-        query=ticker,
-        max_results=max_results,
-    ) + get_news_newsapi(
-        query=ticker,
-        n_days=n_days,
-        max_results=max_results,
+    """Fetch news from multiple providers, dedupe by URL, then analyze."""
+    providers = (
+        lambda: get_news_newsdata(query=ticker),
+        lambda: get_news_massive(ticker=ticker, n_days=n_days, max_results=max_results),
+        lambda: get_news_exa(query=ticker, n_days=n_days, num_results=max_results),
+        lambda: get_news_yfinance(ticker=ticker, max_results=max_results),
+        lambda: get_news_newsapi(query=ticker, n_days=n_days, max_results=max_results),
     )
 
-    deduped = {normalize_url(item.url): item for item in sources}
+    sources: list[News] = []
+    for fetch_fn in providers:
+        try:
+            sources.extend(fetch_fn())
+        except Exception:
+            continue
+
+    deduped: dict[str, News] = {}
+    for item in sources:
+        key = normalize_url(item.url) if item.url else item.title
+        if key not in deduped:
+            deduped[key] = item
     news_list = list(deduped.values())
 
     if not news_list:
         return []
 
     analyses = _analyze_news(ticker, news_list)
-    return [
-        news.model_copy(
-            update=analysis.model_dump(),
-        )
-        for news, analysis in zip(news_list, analyses, strict=True)
-    ]
+
+    results: list[News] = []
+    for news, analysis in zip(news_list, analyses, strict=True):
+        updated = news.model_copy(update=analysis.model_dump())
+        if updated.summary == "[FAILED TO FETCH]":
+            continue
+        results.append(updated)
+    return results
