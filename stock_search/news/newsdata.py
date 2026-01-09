@@ -13,18 +13,18 @@ from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, get_days_ago, parse_date
+from ..utils import format_date, get_days_ago, parse_date, parse_query
 
 load_dotenv()
 
 
 def get_news_newsdata(
-    ticker: str,
+    query: str,
 ) -> list[News]:
     """Get the last 48 hours of financial news using NewsData."""
     params = {
         "apikey": os.getenv("NEWSDATA_API_KEY"),
-        "q": ticker,
+        "q": parse_query(query),
         "country": "us",
         "language": "en",
         "category": "business,breaking,politics,technology,top",

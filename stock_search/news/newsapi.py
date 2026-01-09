@@ -12,26 +12,22 @@ from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, get_days_ago, parse_date
+from ..utils import format_date, get_days_ago, parse_date, parse_query
 
 load_dotenv()
 
 
 def get_news_newsapi(
-    ticker: str,
+    query: str,
     n_days: int = 3,
     max_results: int = 25,
 ) -> list[News]:
     """Get financial news using NewsAPI."""
-    # NewsAPI expects dates in YYYY-MM-DD (UTC)
-    from_date = (datetime.now(UTC) - timedelta(days=n_days)).strftime("%Y-%m-%d")
-    to_date = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
-
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
-        "q": ticker,
-        "from": from_date,
-        "to": to_date,
+        "q": parse_query(query),
+        "from": (datetime.now(UTC) - timedelta(days=n_days)).strftime("%Y-%m-%d"),
+        "to": (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d"),
         "language": "en",
         "sortBy": "popularity",
         "pageSize": max_results,

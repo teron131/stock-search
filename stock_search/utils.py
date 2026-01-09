@@ -1,5 +1,8 @@
 from datetime import UTC, datetime
+import re
 from urllib.parse import parse_qsl, urlparse, urlunparse
+
+import yfinance as yf
 
 
 def parse_date(value: str | int | float | datetime) -> datetime:
@@ -30,3 +33,11 @@ def normalize_url(url: str) -> str:
     p = urlparse(url)
     query = "&".join(f"{k}={v}" for k, v in parse_qsl(p.query) if not k.startswith("utm_"))
     return urlunparse(p._replace(netloc=p.netloc.lower(), path=p.path.rstrip("/"), query=query))
+
+
+def parse_query(ticker_or_query: str) -> str:
+    """Return the display name for a ticker, falling back to the ticker itself."""
+    ticker_or_query = ticker_or_query.strip().upper()
+    if re.match(r"^[A-Z]{1,4}$", ticker_or_query):
+        return yf.Ticker(ticker_or_query).info.get("displayName", ticker_or_query)
+    return ticker_or_query

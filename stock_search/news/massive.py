@@ -22,13 +22,10 @@ def get_news_massive(
     max_results: int = 25,
 ) -> list[News]:
     """Get financial news using Massive API."""
-    # Massive API expects dates in ISO 8601 format (date-time or date)
-    from_date = (datetime.now(UTC) - timedelta(days=n_days)).isoformat()
-
     params = {
         "apiKey": os.getenv("MASSIVE_API_KEY"),
         "ticker": ticker,
-        "published_utc.gte": from_date,
+        "published_utc.gte": (datetime.now(UTC) - timedelta(days=n_days)).isoformat(),
         "order": "desc",
         "limit": max_results,
         "sort": "published_utc",
