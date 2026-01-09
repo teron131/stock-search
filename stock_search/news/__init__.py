@@ -1,4 +1,4 @@
-from .analysis import get_news, process_news
+from .analysis import get_news
 from .exa import get_news_exa
 from .newsapi import get_news_newsapi
 from .newsdata import get_news_newsdata
@@ -10,5 +10,4 @@ __all__ = [
     "get_news_newsapi",
     "get_news_newsdata",
     "get_news_yfinance",
-    "process_news",
 ]
