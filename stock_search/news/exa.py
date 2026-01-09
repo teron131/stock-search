@@ -24,8 +24,8 @@ def get_news_exa(
         "query": parse_query(query),
         "category": "news",
         "num_results": num_results,
-        "start_published_date": format_iso_z(datetime.now(UTC)),
-        "end_published_date": format_iso_z(datetime.now(UTC) - timedelta(days=n_days)),
+        "start_published_date": format_iso_z(datetime.now(UTC) - timedelta(days=n_days)),
+        "end_published_date": format_iso_z(datetime.now(UTC)),
         "type": "auto",
         "user_location": "US",
     }
