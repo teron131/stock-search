@@ -1,7 +1,9 @@
-portfolio.json
 .DS_Store
 uv.lock
+*.json
 *.ipynb
+*test*
+
 
 # Python-generated files
 __pycache__/

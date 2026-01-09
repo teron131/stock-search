@@ -15,6 +15,12 @@ from ..utils import format_date, get_days_ago, parse_date
 
 load_dotenv()
 
+SENTIMENT_MAP = {
+    "positive": "bullish",
+    "neutral": "neutral",
+    "negative": "bearish",
+}
+
 
 def get_news_massive(
     ticker: str,
@@ -41,6 +47,8 @@ def get_news_massive(
     results = []
     for news in news_list:
         dt = parse_date(news["published_utc"])
+        insights = news.get("insights", [{}])
+        sentiment = SENTIMENT_MAP.get(insights[0].get("sentiment"), "neutral")
         results.append(
             News(
                 title=news["title"],
@@ -48,6 +56,7 @@ def get_news_massive(
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
                 summary=news.get("description", "[FAILED TO FETCH]"),
+                sentiment=sentiment,
             )
         )
     return results
