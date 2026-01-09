@@ -8,13 +8,10 @@ Documentation: https://docs.exa.ai/reference/search
 from datetime import UTC, datetime, timedelta
 import os
 
-from dotenv import load_dotenv
 import requests
 
 from ..schema import News
 from ..utils import format_date, format_iso_z, get_days_ago, parse_date
-
-load_dotenv()
 
 
 def get_news_exa(

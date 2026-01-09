@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 
 from docling.document_converter import DocumentConverter
-from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 
 from ..openrouter import ChatOpenRouter
@@ -17,35 +16,9 @@ from ..utils import normalize_url
 from .newsapi import get_news_newsapi
 from .yahoofinance import get_news_yfinance
 
-load_dotenv()
-
 FAST_LLM = os.getenv("FAST_LLM", "google/gemini-3-flash-preview")
 
-
-def webloader_docling(urls: list[str]) -> list[str | None]:
-    """Load and process website content from URLs into markdown."""
-    converter = DocumentConverter()
-
-    def _convert(url: str) -> str | None:
-        try:
-            return converter.convert(url).document.export_to_markdown()
-        except Exception:
-            return None
-
-    with ThreadPoolExecutor(max_workers=min(len(urls), os.cpu_count())) as executor:
-        return list(executor.map(_convert, urls))
-
-
-def analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
-    """Run LLM analysis over article URLs, preferring docling web loader."""
-    llm = ChatOpenRouter(
-        model=FAST_LLM,
-        temperature=0,
-        reasoning_effort="low",
-    ).with_structured_output(NewsAnalysis)
-
-    prompt_template = PromptTemplate(
-        template="""Describe the news with details and numbers mentioned clearly and concretely.
+ANALYSIS_PROMPT = """Describe the news with details and numbers mentioned clearly and concretely.
 No meta-language.
 Exclude garbage and ads.
 Set relevancy by how directly it impacts {ticker}:
@@ -72,32 +45,58 @@ Choose the best category for the primary focus:
 - other: anything else
 
 {title}
-{text}""",
+{text}"""
+
+
+def webloader_docling(urls: list[str]) -> list[str | None]:
+    """Load and process website content from URLs into markdown."""
+    converter = DocumentConverter()
+
+    def _convert(url: str) -> str | None:
+        try:
+            return converter.convert(url).document.export_to_markdown()
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=min(len(urls), os.cpu_count())) as executor:
+        return list(executor.map(_convert, urls))
+
+
+def analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
+    """Run LLM analysis over article URLs, preferring docling web loader."""
+    llm = ChatOpenRouter(
+        model=FAST_LLM,
+        temperature=0,
+        reasoning_effort="low",
+    ).with_structured_output(NewsAnalysis)
+
+    prompt_template = PromptTemplate(
+        template=ANALYSIS_PROMPT,
         input_variables=["ticker", "title", "text"],
     )
 
-    fallback = NewsAnalysis(summary="Content unavailable or invalid URL.")
     urls = [news.url for news in news_list]
     documents = webloader_docling(urls)
-    results: list[NewsAnalysis] = [fallback] * len(news_list)
-    prompts: list[str] = []
-    prompt_indices: list[int] = []
-    for idx, (news, article_text) in enumerate(zip(news_list, documents, strict=True)):
-        if not article_text:
-            continue
 
-        prompts.append(
-            prompt_template.format(
-                ticker=ticker,
-                title=news.title,
-                text=article_text,
-            )
+    successful = [
+        (idx, news, text)
+        for idx, (news, text) in enumerate(
+            zip(news_list, documents, strict=True),
         )
-        prompt_indices.append(idx)
+        if text
+    ]
 
-    if prompts:
-        responses = llm.batch(prompts, config={"max_concurrency": len(prompts)})
-        for idx, response in zip(prompt_indices, responses, strict=True):
+    results: list[NewsAnalysis] = [NewsAnalysis(summary="[FAILED TO FETCH]")] * len(news_list)
+
+    if successful:
+        prompts = [prompt_template.format(ticker=ticker, title=news.title, text=text) for _, news, text in successful]
+
+        max_concurrency = min(len(prompts), os.cpu_count())
+        responses = llm.batch(
+            prompts,
+            config={"max_concurrency": max_concurrency},
+        )
+        for (idx, _, _), response in zip(successful, responses, strict=True):
             results[idx] = response
 
     return results
@@ -112,11 +111,7 @@ def process_news(ticker: str, news_list: list[News]) -> list[News]:
         news.model_copy(
             update=analysis.model_dump(),
         )
-        for news, analysis in zip(
-            news_list,
-            analyze_news(ticker, news_list),
-            strict=True,
-        )
+        for news, analysis in zip(news_list, analyze_news(ticker, news_list), strict=True)
     ]
 
 
