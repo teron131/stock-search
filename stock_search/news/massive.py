@@ -17,7 +17,7 @@ load_dotenv()
 
 
 def get_news_massive(
-    query: str,
+    ticker: str,
     n_days: int = 3,
     max_results: int = 25,
 ) -> list[News]:
@@ -27,7 +27,7 @@ def get_news_massive(
 
     params = {
         "apiKey": os.getenv("MASSIVE_API_KEY"),
-        "ticker": query,
+        "ticker": ticker,
         "published_utc.gte": from_date,
         "order": "desc",
         "limit": max_results,

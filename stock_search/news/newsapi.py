@@ -18,7 +18,7 @@ load_dotenv()
 
 
 def get_news_newsapi(
-    query: str,
+    ticker: str,
     n_days: int = 3,
     max_results: int = 25,
 ) -> list[News]:
@@ -29,12 +29,7 @@ def get_news_newsapi(
 
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
-        "q": (
-            f"{query} AND (stock OR shares OR market OR finance OR invest OR trade "
-            "OR price OR analyst OR earnings OR guidance OR revenue OR profit OR "
-            "upgrade OR downgrade OR target OR dividend OR buyback OR SEC OR "
-            "regulatory OR merger OR acquisition OR lawsuit OR recall)"
-        ),
+        "q": ticker,
         "from": from_date,
         "to": to_date,
         "language": "en",

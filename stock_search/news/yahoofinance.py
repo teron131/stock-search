@@ -10,11 +10,11 @@ from ..utils import format_date, get_days_ago, parse_date
 
 
 def get_news_yfinance(
-    query: str,
+    ticker: str,
     max_results: int = 10,
 ) -> list[News]:
     """Get news about a given stock ticker using Yahoo Finance."""
-    raw_news = yf.Search(query=query, max_results=max_results).news
+    raw_news = yf.Search(query=ticker, max_results=max_results).news
     if not raw_news:
         return []
 

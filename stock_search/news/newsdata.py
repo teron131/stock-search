@@ -19,12 +19,12 @@ load_dotenv()
 
 
 def get_news_newsdata(
-    query: str,
+    ticker: str,
 ) -> list[News]:
     """Get the last 48 hours of financial news using NewsData."""
     params = {
         "apikey": os.getenv("NEWSDATA_API_KEY"),
-        "q": f"{query}",
+        "q": ticker,
         "country": "us",
         "language": "en",
         "category": "business,breaking,politics,technology,top",
