@@ -17,7 +17,7 @@ from ..utils import format_date, format_iso_z, get_days_ago, parse_date
 def get_news_exa(
     query: str,
     n_days: int = 3,
-    num_results: int = 10,
+    num_results: int = 25,
 ) -> list[News]:
     """Search Exa for news results and return raw payload items."""
     end_published_date = format_iso_z(datetime.now(UTC))

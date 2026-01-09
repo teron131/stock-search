@@ -20,7 +20,7 @@ load_dotenv()
 def get_news_newsapi(
     query: str,
     n_days: int = 3,
-    max_results: int = 10,
+    max_results: int = 25,
 ) -> list[News]:
     """Get financial news using NewsAPI."""
     # NewsAPI expects dates in YYYY-MM-DD (UTC)
