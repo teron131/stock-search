@@ -55,12 +55,14 @@ Choose the best category for the primary focus:
 {content}"""
 
 
-def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
+def _analyze_news(
+    ticker: str,
+    news_list: list[News],
+) -> list[NewsAnalysis]:
     """Run LLM analysis over article URLs using docling web loader."""
     if not news_list:
         return []
 
-    batch_size = 5
     failed = NewsAnalysis(summary="[FAILED TO FETCH]")
     results: list[NewsAnalysis] = [failed] * len(news_list)
 
@@ -96,25 +98,19 @@ def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
 
     print(f"[analyze_news] Analyzing {len(prompts)} articles")
 
-    # Batch prompts for parallel processing
-    batches = [prompts[i : i + batch_size] for i in range(0, len(prompts), batch_size)]
+    def _process_prompt(prompt: str) -> NewsAnalysis:
+        return llm.invoke(prompt)
 
-    def _process_batch(batch_inputs: list[str]) -> list[NewsAnalysis]:
-        return llm.batch(batch_inputs, config={"max_concurrency": min(len(batch_inputs), 5)})
-
-    # Run batches in parallel
-    responses: list[NewsAnalysis] = []
-    max_workers = min(os.cpu_count(), len(batches), 10)
-    total_batches = len(batches)
+    max_workers = min(len(prompts), 500)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for batch_results in tqdm(
-            executor.map(_process_batch, batches),
-            total=total_batches,
-            desc="[analyze_news] batches",
-        ):
-            responses.extend(batch_results)
+        responses = list(
+            tqdm(
+                executor.map(_process_prompt, prompts),
+                total=len(prompts),
+                desc="[analyze_news] items",
+            ),
+        )
 
-    # Map responses back to original indices
     for (idx, _), analysis in zip(successes, responses, strict=True):
         results[idx] = analysis
 
