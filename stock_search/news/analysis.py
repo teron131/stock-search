@@ -4,7 +4,10 @@ Follow a fallback strategy.
 CAUTION: Web search is not reliable for getting specific content from a URL.
 """
 
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
+import math
 import os
 
 from langchain_core.prompts import PromptTemplate
@@ -25,56 +28,49 @@ FALLBACK_SUMMARIES = (
     "[FAILED TO FETCH]",
 )
 
-ANALYSIS_PROMPT = """Describe the news with details and numbers mentioned clearly and concretely.
-No meta-language.
-Exclude garbage and ads.
-Set relevancy by how directly it impacts {ticker}:
-- high = directly about {ticker} (earnings, guidance, major product, regulation)
-- medium = same sector/competitors/macro with indirect impact
-- low = general market noise; subjective analyst opinions without objective new facts
-Relevancy rules:
-- high only if {ticker} is the primary subject (headline + article focus)
-- market wraps and broad sector commentary default to low unless {ticker} is a primary driver
-Sentiment:
-- bullish if clearly positive for {ticker}
-- bearish if clearly negative
-- neutral if mixed or unclear; insider selling is neutral unless unusually large, illegal, or clearly adverse
-Subjective analysis/opinion defaults to neutral sentiment unless objective new facts clearly support a direction.
-If the article text does not mention {ticker}, set relevancy to low, sentiment to neutral, and summary to a brief note that no relevant content was found.
-Choose the best category for the primary focus:
-- company_news: directly about the company
-- earnings: financial results and guidance
-- analyst_rating: changes in analyst coverage/targets
-- industry_news: sector-wide news
-- market_news: general stock market updates
-- macro_economics: economic data and policy
-- analysis: deep dives or opinion pieces
-- other: anything else
+ANALYSIS_PROMPT = """Summarize with concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate. Prefer facts over opinions.
 
-{title}
-{content}"""
+Relevancy to {ticker}: high = primary subject; medium = indirect sector/competitors/macro; low = market noise or subjective opinions without new facts. High only if {ticker} is primary; market wraps default low unless {ticker} is a driver.
+
+Sentiment toward {ticker}: bullish/ bearish if clearly positive/negative; neutral if mixed/unclear (insider selling neutral unless unusually large/illegal/clearly adverse). Subjective opinion defaults neutral unless objective facts clearly support a direction.
+
+If {ticker} not mentioned: relevancy=low, sentiment=neutral, summary notes no relevant content.
+
+Category: company_news, earnings, analyst_rating, industry_news, market_news, macro_economics, analysis, other.
+
+Title: {title}
+Content: {content}"""
 
 
 def _balance_domain(items: list[News]) -> list[News]:
+    """Limit items per domain to ensure source diversity."""
     if not items:
         return []
 
     domains = [extract_domain(item.url) for item in items if item.url]
+    domains = [domain for domain in domains if domain]
     if not domains:
         return items
 
-    cap = int(-(-len(items) / len(set(domains)) // 1))
+    cap = math.ceil(len(items) / len(set(domains)))
+    counts: dict[str, int] = defaultdict(int)
     kept: list[News] = []
-    counts: dict[str, int] = {}
     for item in items:
         domain = extract_domain(item.url) if item.url else ""
-        if not domain:
-            kept.append(item)
-            continue
-        if counts.get(domain, 0) < cap:
-            counts[domain] = counts.get(domain, 0) + 1
+        if not domain or counts[domain] < cap:
+            if domain:
+                counts[domain] += 1
             kept.append(item)
     return kept
+
+
+def _dedupe_news(items: list[News]) -> list[News]:
+    """Deduplicate news by normalized URL or title."""
+    seen: dict[str, News] = {}
+    for item in items:
+        key = normalize_url(item.url) if item.url else item.title
+        seen.setdefault(key, item)
+    return list(seen.values())
 
 
 def _analyze_news(
@@ -82,7 +78,7 @@ def _analyze_news(
     news_list: list[News],
 ) -> list[NewsAnalysis]:
     """Run LLM analysis over article URLs using docling web loader."""
-    failed = NewsAnalysis(summary="[FAILED TO FETCH]")
+    failed = NewsAnalysis(summary=FALLBACK_SUMMARIES[1])
     results: list[NewsAnalysis] = [failed] * len(news_list)
 
     llm = ChatOpenRouter(
@@ -99,7 +95,6 @@ def _analyze_news(
     # Fetch article content
     urls = [news.url for news in news_list]
     content_list = webloader_docling(urls)
-    print(f"[analyze_news] Docling completed: {len(content_list)} urls")
 
     # Identify successful fetches and build prompts
     successes = [(i, content) for i, content in enumerate(content_list) if content]
@@ -109,15 +104,11 @@ def _analyze_news(
     prompts = [prompt_template.format(ticker=ticker, title=news_list[i].title, content=content) for i, content in successes]
 
     print(f"[analyze_news] Analyzing {len(prompts)} articles")
-
-    def _process_prompt(prompt: str) -> NewsAnalysis:
-        return llm.invoke(prompt)
-
     max_workers = min(len(prompts), 500)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         responses = list(
             tqdm(
-                executor.map(_process_prompt, prompts),
+                executor.map(llm.invoke, prompts),
                 total=len(prompts),
                 desc="[analyze_news] items",
             ),
@@ -143,33 +134,20 @@ def get_news(
         lambda: get_news_newsapi(query=ticker, n_days=n_days, max_results=max_results),
     )
 
-    sources: list[News] = []
+    news_list: list[News] = []
     for fetch_fn in providers:
-        try:
-            sources.extend(fetch_fn())
-        except Exception:
-            continue
+        with suppress(Exception):
+            news_list.extend(fetch_fn())
 
-    deduped: dict[str, News] = {}
-    for item in sources:
-        key = normalize_url(item.url) if item.url else item.title
-        if key not in deduped:
-            deduped[key] = item
-    news_list = list(deduped.values())
-
+    # Preprocess
+    news_list = _dedupe_news(news_list)
     news_list = _balance_domain(news_list)
 
     analyses = _analyze_news(ticker, news_list)
 
-    results: list[News] = []
-    for news, analysis in zip(news_list, analyses, strict=True):
-        updated = news.model_copy(update=analysis.model_dump())
-
-        # Post processing
-        if updated.summary.startswith(FALLBACK_SUMMARIES):
-            continue
-        if updated.relevancy == "low":
-            continue
-        results.append(updated)
-
-    return results
+    return [
+        news.model_copy(update=analysis.model_dump())
+        for news, analysis in zip(news_list, analyses, strict=True)
+        # Postprocess
+        if not analysis.summary.startswith(FALLBACK_SUMMARIES) and analysis.relevancy != "low"
+    ]

@@ -37,7 +37,10 @@ def normalize_url(url: str) -> str:
 
 def extract_domain(url: str) -> str:
     """Extract the normalized domain from a URL."""
-    return urlparse(normalize_url(url)).netloc.removeprefix("www.")
+    try:
+        return urlparse(normalize_url(url)).netloc.removeprefix("www.")
+    except Exception:
+        return url
 
 
 def parse_query(ticker_or_query: str) -> str:
