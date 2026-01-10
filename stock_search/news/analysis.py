@@ -82,7 +82,7 @@ def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
     if successful:
         prompts = [prompt_template.format(ticker=ticker, title=news.title, text=text) for _, news, text in successful]
 
-        max_concurrency = min(len(prompts), os.cpu_count())
+        max_concurrency = min(len(prompts), os.cpu_count() * 3, 100)
         responses = llm.batch(
             prompts,
             config={"max_concurrency": max_concurrency},
@@ -129,9 +129,12 @@ def get_news(
     results: list[News] = []
     for news, analysis in zip(news_list, analyses, strict=True):
         updated = news.model_copy(update=analysis.model_dump())
+
+        # Post processing
         if updated.summary.startswith(FALLBACK_SUMMARIES):
             continue
         if updated.relevancy == "low":
             continue
         results.append(updated)
+
     return results
