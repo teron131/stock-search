@@ -4,9 +4,11 @@ Follow a fallback strategy.
 CAUTION: Web search is not reliable for getting specific content from a URL.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import os
 
 from langchain_core.prompts import PromptTemplate
+from tqdm import tqdm
 
 from ..openrouter import ChatOpenRouter, webloader_docling
 from ..schema import News, NewsAnalysis
@@ -50,11 +52,18 @@ Choose the best category for the primary focus:
 - other: anything else
 
 {title}
-{text}"""
+{content}"""
 
 
 def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
-    """Run LLM analysis over article URLs, preferring docling web loader."""
+    """Run LLM analysis over article URLs using docling web loader."""
+    if not news_list:
+        return []
+
+    batch_size = 5
+    failed = NewsAnalysis(summary="[FAILED TO FETCH]")
+    results: list[NewsAnalysis] = [failed] * len(news_list)
+
     llm = ChatOpenRouter(
         model=FAST_LLM,
         temperature=0,
@@ -63,32 +72,51 @@ def _analyze_news(ticker: str, news_list: list[News]) -> list[NewsAnalysis]:
 
     prompt_template = PromptTemplate(
         template=ANALYSIS_PROMPT,
-        input_variables=["ticker", "title", "text"],
+        input_variables=["ticker", "title", "content"],
     )
 
+    # Fetch article content
     urls = [news.url for news in news_list]
-    documents = webloader_docling(urls)
+    content_list = webloader_docling(urls)
+    print(f"[analyze_news] Docling completed: {len(content_list)} urls")
 
-    successful = [
-        (idx, news, text)
-        for idx, (news, text) in enumerate(
-            zip(news_list, documents, strict=True),
+    # Identify successful fetches and build prompts
+    successes = [(i, content) for i, content in enumerate(content_list) if content]
+    if not successes:
+        return results
+
+    prompts = [
+        prompt_template.format(
+            ticker=ticker,
+            title=news_list[i].title,
+            content=content,
         )
-        if text
+        for i, content in successes
     ]
 
-    results: list[NewsAnalysis] = [NewsAnalysis(summary="[FAILED TO FETCH]")] * len(news_list)
+    print(f"[analyze_news] Analyzing {len(prompts)} articles")
 
-    if successful:
-        prompts = [prompt_template.format(ticker=ticker, title=news.title, text=text) for _, news, text in successful]
+    # Batch prompts for parallel processing
+    batches = [prompts[i : i + batch_size] for i in range(0, len(prompts), batch_size)]
 
-        max_concurrency = min(len(prompts), os.cpu_count() * 3, 100)
-        responses = llm.batch(
-            prompts,
-            config={"max_concurrency": max_concurrency},
-        )
-        for (idx, _, _), response in zip(successful, responses, strict=True):
-            results[idx] = response
+    def _process_batch(batch_inputs: list[str]) -> list[NewsAnalysis]:
+        return llm.batch(batch_inputs, config={"max_concurrency": min(len(batch_inputs), 5)})
+
+    # Run batches in parallel
+    responses: list[NewsAnalysis] = []
+    max_workers = min(os.cpu_count(), len(batches), 10)
+    total_batches = len(batches)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for batch_results in tqdm(
+            executor.map(_process_batch, batches),
+            total=total_batches,
+            desc="[analyze_news] batches",
+        ):
+            responses.extend(batch_results)
+
+    # Map responses back to original indices
+    for (idx, _), analysis in zip(successes, responses, strict=True):
+        results[idx] = analysis
 
     return results
 

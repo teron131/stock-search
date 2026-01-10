@@ -151,6 +151,6 @@ def webloader_docling(urls: list[str]) -> list[str | None]:
         except Exception:
             return None
 
-    max_workers = min(len(urls), os.cpu_count())
+    max_workers = min(len(urls), os.cpu_count(), 10)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(_convert, urls))
