@@ -35,6 +35,11 @@ def normalize_url(url: str) -> str:
     return urlunparse(p._replace(netloc=p.netloc.lower(), path=p.path.rstrip("/"), query=query))
 
 
+def extract_domain(url: str) -> str:
+    """Extract the normalized domain from a URL."""
+    return urlparse(normalize_url(url)).netloc.removeprefix("www.")
+
+
 def parse_query(ticker_or_query: str) -> str:
     """Return the display name for a ticker, falling back to the ticker itself."""
     ticker_or_query = ticker_or_query.strip().upper()

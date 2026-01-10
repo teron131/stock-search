@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from ..openrouter import ChatOpenRouter, webloader_docling
 from ..schema import News, NewsAnalysis
-from ..utils import normalize_url
+from ..utils import extract_domain, normalize_url
 from .exa import get_news_exa
 from .massive import get_news_massive
 from .newsapi import get_news_newsapi
@@ -55,14 +55,33 @@ Choose the best category for the primary focus:
 {content}"""
 
 
+def _balance_domain(items: list[News]) -> list[News]:
+    if not items:
+        return []
+
+    domains = [extract_domain(item.url) for item in items if item.url]
+    if not domains:
+        return items
+
+    cap = int(-(-len(items) / len(set(domains)) // 1))
+    kept: list[News] = []
+    counts: dict[str, int] = {}
+    for item in items:
+        domain = extract_domain(item.url) if item.url else ""
+        if not domain:
+            kept.append(item)
+            continue
+        if counts.get(domain, 0) < cap:
+            counts[domain] = counts.get(domain, 0) + 1
+            kept.append(item)
+    return kept
+
+
 def _analyze_news(
     ticker: str,
     news_list: list[News],
 ) -> list[NewsAnalysis]:
     """Run LLM analysis over article URLs using docling web loader."""
-    if not news_list:
-        return []
-
     failed = NewsAnalysis(summary="[FAILED TO FETCH]")
     results: list[NewsAnalysis] = [failed] * len(news_list)
 
@@ -87,14 +106,7 @@ def _analyze_news(
     if not successes:
         return results
 
-    prompts = [
-        prompt_template.format(
-            ticker=ticker,
-            title=news_list[i].title,
-            content=content,
-        )
-        for i, content in successes
-    ]
+    prompts = [prompt_template.format(ticker=ticker, title=news_list[i].title, content=content) for i, content in successes]
 
     print(f"[analyze_news] Analyzing {len(prompts)} articles")
 
@@ -145,8 +157,7 @@ def get_news(
             deduped[key] = item
     news_list = list(deduped.values())
 
-    if not news_list:
-        return []
+    news_list = _balance_domain(news_list)
 
     analyses = _analyze_news(ticker, news_list)
 
