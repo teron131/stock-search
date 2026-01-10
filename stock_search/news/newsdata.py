@@ -39,18 +39,18 @@ def get_news_newsdata(
         timeout=60,
     )
     response.raise_for_status()
-    news_list = response.json().get("results", [])
+    results = response.json().get("results", [])
 
-    results = []
-    for news in news_list:
-        dt = parse_date(news["pubDate"])
-        results.append(
+    news_list = []
+    for result in results:
+        dt = parse_date(result["pubDate"])
+        news_list.append(
             News(
-                title=news["title"],
-                url=news["link"],
+                title=result["title"],
+                url=result["link"],
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
-                summary=f"[TRUNCATED] {news['description']}",
+                summary=f"[TRUNCATED] {result['description']}",
             )
         )
-    return results
+    return news_list

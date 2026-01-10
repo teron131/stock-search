@@ -40,18 +40,18 @@ def get_news_exa(
         timeout=60,
     )
     response.raise_for_status()
-    news_list = response.json().get("results", [])
+    results = response.json().get("results", [])
 
-    results = []
-    for news in news_list:
-        dt = parse_date(news["publishedDate"])
-        results.append(
+    news_list = []
+    for result in results:
+        dt = parse_date(result["publishedDate"])
+        news_list.append(
             News(
-                title=news["title"],
-                url=news["url"],
+                title=result["title"],
+                url=result["url"],
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
                 summary="[FAILED TO FETCH]",
             )
         )
-    return results
+    return news_list

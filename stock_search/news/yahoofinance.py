@@ -14,20 +14,21 @@ def get_news_yfinance(
     max_results: int = 25,
 ) -> list[News]:
     """Get news about a given stock ticker using Yahoo Finance."""
-    raw_news = yf.Search(query=ticker, max_results=max_results).news
-    if not raw_news:
+    results = yf.Search(query=ticker, max_results=max_results).news
+    if not results:
         return []
 
-    results = []
-    for item in raw_news:
+    news_list = []
+    for result in results:
         # yfinance returns UNIX timestamp
-        dt = parse_date(item["providerPublishTime"])
-        results.append(
+        dt = parse_date(result["providerPublishTime"])
+        news_list.append(
             News(
-                title=item["title"],
-                url=item["link"],
+                title=result["title"],
+                url=result["link"],
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
+                summary=result.get("description", "[FAILED TO FETCH]"),
             )
         )
-    return results
+    return news_list

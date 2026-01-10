@@ -42,21 +42,21 @@ def get_news_massive(
         timeout=60,
     )
     response.raise_for_status()
-    news_list = response.json().get("results", [])
+    results = response.json().get("results", [])
 
-    results = []
-    for news in news_list:
-        dt = parse_date(news["published_utc"])
-        insights = news.get("insights", [{}])
+    news_list = []
+    for result in results:
+        dt = parse_date(result["published_utc"])
+        insights = result.get("insights", [{}])
         sentiment = SENTIMENT_MAP.get(insights[0].get("sentiment"), "neutral")
-        results.append(
+        news_list.append(
             News(
-                title=news["title"],
-                url=news["article_url"],
+                title=result["title"],
+                url=result["article_url"],
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
-                summary=news.get("description", "[FAILED TO FETCH]"),
+                summary=result.get("description", "[FAILED TO FETCH]"),
                 sentiment=sentiment,
             )
         )
-    return results
+    return news_list
