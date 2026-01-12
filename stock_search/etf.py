@@ -1,6 +1,8 @@
 from dotenv import load_dotenv
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage
 
-from .openrouter import ChatOpenRouter
+from .llm import ChatOpenRouter, webloader_tool
 from .schema import ETF
 
 load_dotenv()
@@ -8,20 +10,23 @@ load_dotenv()
 
 def get_etf_data(
     etf_ticker: str,
-    n=10,
 ) -> ETF:
     """Get the ETF data for a given ETF ticker.
 
     Uses OpenRouter web search to extract holdings and sector weights.
     """
-    llm = ChatOpenRouter(
-        model="google/gemini-3-flash-preview",
+    model = ChatOpenRouter(
+        model="google/gemini-2.5-flash-lite-preview-09-2025",
         temperature=0,
         reasoning_effort="low",
-        web_search=True,
-        web_search_max_results=5,
-    ).with_structured_output(ETF)
+    )
 
-    prompt = f"Find the top {n} ETF holdings and sector weightings from the provided web content. For holdings, extract the ticker, full company name, and weight percentage. For sectors, extract the sector name and weight percentage. Only include data you can clearly identify from the content. Standardize sectors to the list: Technology, Materials, Financials, Healthcare, Industrials, Real Estate, Energy, Utilities, Consumer Discretionary, Communication Services, Consumer Staples. ETF ticker: {etf_ticker}"
+    agent = create_agent(
+        model=model,
+        tools=[webloader_tool],
+        system_prompt="Find the top ETF holdings and sector weightings from the provided web content. For holdings, extract the ticker, full company name, and weight percentage. For sectors, extract the sector name and weight percentage. Only include data you can clearly identify from the content. Standardize sectors to the list: Technology, Materials, Financials, Healthcare, Industrials, Real Estate, Energy, Utilities, Consumer Discretionary, Communication Services, Consumer Staples. https://stockanalysis.com/etf/[TICKER]/holdings/ where [TICKER] is the ETF ticker.",
+        response_format=ETF,
+    )
 
-    return llm.invoke(prompt)
+    input = {"messages": [HumanMessage(content=etf_ticker)]}
+    return agent.invoke(input).get("structured_response")

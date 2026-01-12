@@ -13,7 +13,7 @@ import os
 from langchain_core.prompts import PromptTemplate
 from tqdm import tqdm
 
-from ..openrouter import ChatOpenRouter, webloader_docling
+from ..llm import ChatOpenRouter, webloader
 from ..schema import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
 from .exa import get_news_exa
@@ -94,7 +94,7 @@ def _analyze_news(
 
     # Fetch article content
     urls = [news.url for news in news_list]
-    content_list = webloader_docling(urls)
+    content_list = webloader(urls)
 
     # Identify successful fetches and build prompts
     successes = [(i, content) for i, content in enumerate(content_list) if content]
