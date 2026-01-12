@@ -11,11 +11,6 @@ from .tools import webloader_tool
 ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 
 
-def _resolve_model(model: str | None) -> str | None:
-    """Resolve model from argument or FAST_LLM env var."""
-    return model or os.getenv("FAST_LLM")
-
-
 class WebSearchAgent:
     """Agent that uses web search capabilities to find and process information."""
 
@@ -40,7 +35,7 @@ class WebSearchAgent:
             web_search_max_results: Maximum number of search results to retrieve
             **model_kwargs: Additional arguments passed to ChatOpenRouter
         """
-        model = _resolve_model(model)
+        model = model or os.getenv("FAST_LLM")
         self.system_prompt = system_prompt
         self.response_format = response_format
         self.model = ChatOpenRouter(
@@ -84,7 +79,7 @@ class WebLoaderAgent:
             response_format: Optional Pydantic model for structured output
             **model_kwargs: Additional arguments passed to ChatOpenRouter
         """
-        model = _resolve_model(model)
+        model = model or os.getenv("FAST_LLM")
         self.system_prompt = system_prompt
         self.response_format = response_format
         self.model = ChatOpenRouter(
