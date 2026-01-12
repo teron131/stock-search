@@ -8,6 +8,13 @@ import yfinance as yf
 from stock_search.indicators import StockIndicator
 from stock_search.schema import Evaluation
 
+BILLION = 1e9
+TRILLION = 1e12
+MARKET_CAP_MIN = 10 * BILLION
+MARKET_CAP_MAX_FALLBACK = 4.5 * TRILLION
+UPSIDE_MAX_PCT = 50
+UPSIDE_PLACEHOLDER = 5.0
+
 
 @dataclass(frozen=True)
 class EvaluationResult:
@@ -39,7 +46,7 @@ def build_inputs(ticker: str) -> Evaluation:
     quality_score = _quality_score(indicator.info)
     valuation_score = _valuation_score(indicator.info)
     upside_score = _upside_score(indicator.median_upside, indicator.ratings)
-    moat_score = _moat_score(size_score if size_score is not None else 5.0, quality_score)
+    moat_score = _moat_score(_score_or_default(size_score), quality_score)
     bull_score, bear_score = _direction_scores(
         indicator.change_percent,
         indicator.twenty_day_change_percent,
@@ -125,41 +132,16 @@ def evaluate_tickers(tickers: list[str]) -> list[EvaluationResult]:
     return [evaluate_asset(build_inputs(ticker), ticker=ticker) for ticker in tickers]
 
 
-def _elo_delta(p_up: float) -> float | None:
-    if p_up <= 0 or p_up >= 1:
-        return None
-    return 400 * math.log10(p_up / (1 - p_up))
-
-
-def _elo_delta_dir(p_up: float, p_down: float) -> float | None:
-    if p_up <= 0 or p_down <= 0:
-        return None
-    return 400 * math.log10(p_up / p_down)
-
-
-def _elo_delta_exp(p_up: float, p_flat: float) -> float | None:
-    expected = p_up + 0.5 * p_flat
-    return _elo_delta(expected)
-
-
-def _game_tier(bull: float) -> str:
-    if bull >= 6.8:
-        return "rare dislocation-level"
-    if 6.3 <= bull <= 6.7:
-        return "smurfing"
-    if 5.9 <= bull <= 6.2:
-        return "very high"
-    if 5.5 <= bull <= 5.8:
-        return "already high edge"
-    return "normal"
-
-
 def _score_or_default(value: float | None, default: float = 5.0) -> float:
     return value if value is not None else default
 
 
 def _prob_or_default(value: float | None, default: float = 0.0) -> float:
     return value if value is not None else default
+
+
+def _moat_score(size_score: float, quality_score: float) -> float:
+    return _clamp_score(0.6 * size_score + 0.4 * quality_score)
 
 
 def _quality_score(info: dict) -> float:
@@ -194,17 +176,14 @@ def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
     market_cap = info.get("marketCap")
     if not market_cap:
         return None
-    B = 1e9
-    T = 1e12
-    min_cap = 10 * B
-    max_cap = yf.Ticker("NVDA").info.get("marketCap") or 4.5 * T
-    if market_cap <= min_cap:
+    max_cap = yf.Ticker("NVDA").info.get("marketCap") or MARKET_CAP_MAX_FALLBACK
+    if market_cap <= MARKET_CAP_MIN:
         return 0.0
     if market_cap >= max_cap:
         return 10.0
-    log_cap = math.log10(market_cap / B)
-    log_min = math.log10(min_cap / B)
-    log_max = math.log10(max_cap / B)
+    log_cap = math.log10(market_cap / BILLION)
+    log_min = math.log10(MARKET_CAP_MIN / BILLION)
+    log_max = math.log10(max_cap / BILLION)
     score = 10 * (log_cap - log_min) / (log_max - log_min)
     return _clamp_score(score)
 
@@ -237,23 +216,18 @@ def _upside_score(median_upside: float | None, ratings: list[dict] | None) -> fl
     if median_upside is not None:
         if median_upside <= 0:
             upside_score = 0.0
-        elif median_upside >= 50:
+        elif median_upside >= UPSIDE_MAX_PCT:
             upside_score = 10.0
         else:
-            upside_score = _clamp_score((median_upside / 50) * 10)
+            upside_score = _clamp_score((median_upside / UPSIDE_MAX_PCT) * 10)
 
     rating_score = _rating_score(ratings)
 
     if upside_score is None and rating_score is None:
         return None
-    placeholder_score = 5.0
-    upside_value = upside_score if upside_score is not None else placeholder_score
-    rating_value = rating_score if rating_score is not None else placeholder_score
-    return _clamp_score((upside_value + rating_value + placeholder_score) / 3)
-
-
-def _moat_score(size_score: float, quality_score: float) -> float:
-    return _clamp_score(0.6 * size_score + 0.4 * quality_score)
+    upside_value = upside_score if upside_score is not None else UPSIDE_PLACEHOLDER
+    rating_value = rating_score if rating_score is not None else UPSIDE_PLACEHOLDER
+    return _clamp_score((upside_value + rating_value + UPSIDE_PLACEHOLDER) / 3)
 
 
 def _direction_scores(*changes: float | None) -> tuple[float, float]:
@@ -264,6 +238,35 @@ def _direction_scores(*changes: float | None) -> tuple[float, float]:
     bull_score = _clamp_score(5 + average_change / 10)
     bear_score = _clamp_score(5 - average_change / 10)
     return bull_score, bear_score
+
+
+def _elo_delta(p_up: float) -> float | None:
+    if p_up <= 0 or p_up >= 1:
+        return None
+    return 400 * math.log10(p_up / (1 - p_up))
+
+
+def _elo_delta_dir(p_up: float, p_down: float) -> float | None:
+    if p_up <= 0 or p_down <= 0:
+        return None
+    return 400 * math.log10(p_up / p_down)
+
+
+def _elo_delta_exp(p_up: float, p_flat: float) -> float | None:
+    expected = p_up + 0.5 * p_flat
+    return _elo_delta(expected)
+
+
+def _game_tier(bull: float) -> str:
+    if bull >= 6.8:
+        return "rare dislocation-level"
+    if 6.3 <= bull <= 6.7:
+        return "smurfing"
+    if 5.9 <= bull <= 6.2:
+        return "very high"
+    if 5.5 <= bull <= 5.8:
+        return "already high edge"
+    return "normal"
 
 
 def _clamp_score(value: float) -> float:
