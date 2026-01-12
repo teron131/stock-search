@@ -17,13 +17,13 @@ from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_q
 def get_news_exa(
     query: str,
     n_days: int = 3,
-    num_results: int = 25,
+    max_results: int = 25,
 ) -> list[News]:
     """Search Exa for news results and return raw payload items."""
     payload = {
         "query": parse_query(query),
         "category": "news",
-        "num_results": num_results,
+        "num_results": max_results,
         "start_published_date": format_iso_z(datetime.now(UTC) - timedelta(days=n_days)),
         "end_published_date": format_iso_z(datetime.now(UTC)),
         "type": "auto",

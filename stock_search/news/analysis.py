@@ -126,25 +126,38 @@ def get_news(
     providers = (
         lambda: get_news_newsdata(query=ticker),
         lambda: get_news_massive(ticker=ticker, n_days=n_days, max_results=max_results),
-        lambda: get_news_exa(query=ticker, n_days=n_days, num_results=max_results),
+        lambda: get_news_exa(query=ticker, n_days=n_days, max_results=max_results),
         lambda: get_news_yfinance(ticker=ticker, max_results=max_results),
         lambda: get_news_newsapi(query=ticker, n_days=n_days, max_results=max_results),
     )
 
-    news_list: list[News] = []
+    # Fetch from all providers
+    raw_news_list: list[News] = []
     for fetch_fn in providers:
         with suppress(Exception):
-            news_list.extend(fetch_fn())
+            raw_news_list.extend(fetch_fn())
 
-    # Preprocess
-    news_list = _dedupe_news(news_list)
+    # Dedupe and analyze
+    raw_news_list = _dedupe_news(raw_news_list)
+    news_analysis_list = _analyze_news(ticker, raw_news_list)
+
+    # Merge analysis into news objects
+    news_list = [
+        news.model_copy(
+            update=analysis.model_dump(),
+        )
+        for news, analysis in zip(raw_news_list, news_analysis_list, strict=True)
+    ]
+
+    # Balance domains
     news_list = _balance_domain(news_list)
 
-    analyses = _analyze_news(ticker, news_list)
-
+    # Filter out fallback summaries and low relevancy
     return [
-        news.model_copy(update=analysis.model_dump())
-        for news, analysis in zip(news_list, analyses, strict=True)
-        # Postprocess
-        if not analysis.summary.startswith(FALLBACK_SUMMARIES) and analysis.relevancy != "low"
+        news
+        for news in news_list
+        if not news.summary.startswith(
+            FALLBACK_SUMMARIES,
+        )
+        and news.relevancy != "low"
     ]
