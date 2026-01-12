@@ -30,31 +30,6 @@ class EvaluationResult:
     game_tier: str
 
 
-def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
-    """Map Yahoo market cap to a 1-10 score using log-linear scaling."""
-    normalized = _normalize_yahoo_ticker(ticker)
-    info = info or (yf.Ticker(normalized).info or {})
-    quote_type = info.get("quoteType")
-    if quote_type == "ETF":
-        return None
-    market_cap = info.get("marketCap")
-    if not market_cap:
-        return None
-    B = 1e9
-    T = 1e12
-    min_cap = 10 * B
-    max_cap = yf.Ticker("NVDA").info.get("marketCap") or 4.5 * T
-    if market_cap <= min_cap:
-        return 0.0
-    if market_cap >= max_cap:
-        return 10.0
-    log_cap = math.log10(market_cap / B)
-    log_min = math.log10(min_cap / B)
-    log_max = math.log10(max_cap / B)
-    score = 10 * (log_cap - log_min) / (log_max - log_min)
-    return _clamp_score(score)
-
-
 def build_inputs(ticker: str) -> Evaluation:
     """Create evaluation inputs from available indicator metrics."""
     normalized = _normalize_yahoo_ticker(ticker)
@@ -209,30 +184,52 @@ def _quality_score(info: dict) -> float:
     return 2.0
 
 
-def _valuation_score(info: dict) -> float:
+def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
+    """Map Yahoo market cap to a 1-10 score using log-linear scaling."""
+    normalized = _normalize_yahoo_ticker(ticker)
+    info = info or (yf.Ticker(normalized).info or {})
+    quote_type = info.get("quoteType")
+    if quote_type == "ETF":
+        return None
+    market_cap = info.get("marketCap")
+    if not market_cap:
+        return None
+    B = 1e9
+    T = 1e12
+    min_cap = 10 * B
+    max_cap = yf.Ticker("NVDA").info.get("marketCap") or 4.5 * T
+    if market_cap <= min_cap:
+        return 0.0
+    if market_cap >= max_cap:
+        return 10.0
+    log_cap = math.log10(market_cap / B)
+    log_min = math.log10(min_cap / B)
+    log_max = math.log10(max_cap / B)
+    score = 10 * (log_cap - log_min) / (log_max - log_min)
+    return _clamp_score(score)
+
+
+def _valuation_score(info: dict) -> float | None:
     peg = info.get("trailingPegRatio")
     pe = info.get("trailingPE")
-    if isinstance(peg, (int, float)):
-        if peg <= 1:
-            return 10.0
-        if peg <= 1.5:
-            return 8.0
-        if peg <= 2:
-            return 6.0
-        if peg <= 3:
-            return 4.0
-        return 2.0
-    if isinstance(pe, (int, float)):
-        if pe <= 12:
-            return 9.0
-        if pe <= 18:
-            return 7.0
-        if pe <= 25:
-            return 5.0
-        if pe <= 35:
-            return 3.0
-        return 2.0
-    return 5.0
+    pe_forward = info.get("forwardPE")
+    growth = info.get("earningsGrowth")
+
+    scores: list[tuple[float, float]] = []
+    if peg is not None:
+        scores.append((_peg_score(peg), 0.55))
+    if pe is not None:
+        scores.append((_pe_score(pe), 0.2))
+    if pe_forward is not None:
+        scores.append((_pe_score(pe_forward), 0.15))
+    if growth is not None:
+        scores.append((_growth_score(growth), 0.1))
+
+    if not scores:
+        return None
+    weight_total = sum(weight for _, weight in scores)
+    weighted = sum(score * weight for score, weight in scores) / weight_total
+    return _clamp_score(weighted)
 
 
 def _upside_score(median_upside: float | None) -> float:
@@ -271,6 +268,46 @@ def _clamp_score(value: float) -> float:
     if value > 10:
         return 10.0
     return round(value, 2)
+
+
+def _peg_score(peg: float) -> float:
+    if peg <= 0.8:
+        return 10.0
+    if peg <= 1.0:
+        return 9.0
+    if peg <= 1.5:
+        return 7.0
+    if peg <= 2.0:
+        return 6.0
+    if peg <= 3.0:
+        return 4.0
+    return 2.0
+
+
+def _pe_score(pe: float) -> float:
+    if pe <= 12:
+        return 9.0
+    if pe <= 18:
+        return 7.0
+    if pe <= 25:
+        return 5.0
+    if pe <= 35:
+        return 3.0
+    return 2.0
+
+
+def _growth_score(growth: float) -> float:
+    if growth >= 0.3:
+        return 9.0
+    if growth >= 0.2:
+        return 8.0
+    if growth >= 0.1:
+        return 6.0
+    if growth >= 0.05:
+        return 4.0
+    if growth >= 0:
+        return 3.0
+    return 2.0
 
 
 def _normalize_yahoo_ticker(ticker: str) -> str:

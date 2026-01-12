@@ -20,12 +20,6 @@ class Quote(BaseModel):
 
 
 class Evaluation(BaseModel):
-    market_cap: float | None = Field(
-        default=None,
-        description="Market-cap size score (1-10) via log-linear scaling from 10B->1 to NVDA market cap->10 (ETFs are excluded).",
-        ge=0,
-        le=10,
-    )
     moat: float | None = Field(
         default=None,
         description="Moat (1-10): replaceability under real constraints (10 near-monopoly/lock-in, 5 attackable, 1 commodity).",
@@ -38,9 +32,15 @@ class Evaluation(BaseModel):
         ge=0,
         le=10,
     )
+    market_cap: float | None = Field(
+        default=None,
+        description="Market-cap size score (0-10) via log-linear scaling from 10B->0 to NVDA market cap->10 (ETFs are excluded).",
+        ge=0,
+        le=10,
+    )
     valuation: float | None = Field(
         default=None,
-        description="Valuation (1-10): cheapness vs durability + growth (10 cheap, 5 fair, 1 priced for perfection).",
+        description="Valuation (1-10): PEG-first weighted mean with PE/forward-PE/growth; PEG dominates.",
         ge=0,
         le=10,
     )
