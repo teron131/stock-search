@@ -22,13 +22,13 @@ class Quote(BaseModel):
 class Evaluation(BaseModel):
     moat: float | None = Field(
         default=None,
-        description="Moat (1-10): replaceability under real constraints (10 near-monopoly/lock-in, 5 attackable, 1 commodity).",
+        description="Moat (1-10): replaceability under constraints; consider switching costs, regulatory barriers, integration depth, ecosystem gravity, and supply/physics constraints (commodity can be >1 if rare).",
         ge=0,
         le=10,
     )
     quality: float | None = Field(
         default=None,
-        description="Quality (1-10): durability of business economics/cashflows (10 durable + pricing power, 5 cyclical, 1 fragile).",
+        description="Quality (1-10): ability to turn advantage into durable economics; margins/FCF durability, pricing power, retention, discipline, resilience.",
         ge=0,
         le=10,
     )
@@ -40,13 +40,13 @@ class Evaluation(BaseModel):
     )
     valuation: float | None = Field(
         default=None,
-        description="Valuation (1-10): PEG-first weighted mean with PE/forward-PE/growth; PEG dominates.",
+        description="Valuation (1-10): what the market pays today; PEG-first weighted mean with PE/forward-PE/growth; can swing without changing moat.",
         ge=0,
         le=10,
     )
     upside: float | None = Field(
         default=None,
-        description="Upside (1-10): derived from median analyst target upside (last 90 days) plus rating sentiment.",
+        description="Upside (1-10): equal blend of median analyst target upside, analyst rating sentiment, and forward guidance outlook.",
         ge=0,
         le=10,
     )
