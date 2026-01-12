@@ -22,7 +22,7 @@ class Quote(BaseModel):
 class Evaluation(BaseModel):
     market_cap: float | None = Field(
         default=None,
-        description="Market-cap size score (1-10) from discrete scale: 10>=4T, 9=2T-4T, 8=1T-2T, 7=500B-1T, 6=300B-500B, 5=200B-300B, 4=100B-200B, 3=50B-100B, 2=10B-50B, 1<10B.",
+        description="Market-cap size score (1-10) via log-linear scaling from 10B->1 to NVDA market cap->10 (ETFs are excluded).",
         ge=0,
         le=10,
     )

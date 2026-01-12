@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+import yfinance as yf
+
 from stock_search.indicators import StockIndicator
 from stock_search.schema import Evaluation
 
@@ -28,34 +30,36 @@ class EvaluationResult:
     game_tier: str
 
 
-def market_cap_score(indicator: StockIndicator) -> int | None:
-    """Map Yahoo market cap to a 1-10 size bucket."""
-    market_cap = indicator.info.get("marketCap")
-    if not isinstance(market_cap, (int, float)):
+def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
+    """Map Yahoo market cap to a 1-10 score using log-linear scaling."""
+    normalized = _normalize_yahoo_ticker(ticker)
+    info = info or (yf.Ticker(normalized).info or {})
+    quote_type = info.get("quoteType")
+    if quote_type == "ETF":
+        return None
+    market_cap = info.get("marketCap")
+    if not market_cap:
         return None
     B = 1e9
     T = 1e12
-    thresholds = [
-        (10, 4.0 * T),
-        (9, 2.0 * T),
-        (8, 1.0 * T),
-        (7, 500 * B),
-        (6, 300 * B),
-        (5, 200 * B),
-        (4, 100 * B),
-        (3, 50 * B),
-        (2, 10 * B),
-    ]
-    for score, cutoff in thresholds:
-        if market_cap >= cutoff:
-            return score
-    return 1
+    min_cap = 10 * B
+    max_cap = yf.Ticker("NVDA").info.get("marketCap") or 4.5 * T
+    if market_cap <= min_cap:
+        return 0.0
+    if market_cap >= max_cap:
+        return 10.0
+    log_cap = math.log10(market_cap / B)
+    log_min = math.log10(min_cap / B)
+    log_max = math.log10(max_cap / B)
+    score = 10 * (log_cap - log_min) / (log_max - log_min)
+    return _clamp_score(score)
 
 
 def build_inputs(ticker: str) -> Evaluation:
     """Create evaluation inputs from available indicator metrics."""
-    indicator = StockIndicator(ticker)
-    size_score = market_cap_score(indicator)
+    normalized = _normalize_yahoo_ticker(ticker)
+    indicator = StockIndicator(normalized)
+    size_score = market_cap_score(normalized, indicator.info)
 
     quality_score = _quality_score(indicator.info)
     valuation_score = _valuation_score(indicator.info)
@@ -262,8 +266,12 @@ def _direction_scores(*changes: float | None) -> tuple[float, float]:
 
 
 def _clamp_score(value: float) -> float:
-    if value < 1:
-        return 1.0
+    if value < 0:
+        return 0.0
     if value > 10:
         return 10.0
     return round(value, 2)
+
+
+def _normalize_yahoo_ticker(ticker: str) -> str:
+    return ticker.replace(" ", "-").replace(".", "-")
