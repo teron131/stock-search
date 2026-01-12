@@ -107,11 +107,7 @@ def _analyze_news(
     max_workers = min(len(prompts), 500)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         responses = list(
-            tqdm(
-                executor.map(llm.invoke, prompts),
-                total=len(prompts),
-                desc="[analyze_news] items",
-            ),
+            tqdm(executor.map(llm.invoke, prompts), total=len(prompts), desc="[analyze_news] items"),
         )
 
     for (idx, _), analysis in zip(successes, responses, strict=True):
