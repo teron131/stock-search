@@ -3,6 +3,7 @@ uv.lock
 *.json
 *.ipynb
 *test*
+AGENTS.md
 
 
 # Python-generated files
