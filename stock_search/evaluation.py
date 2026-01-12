@@ -4,23 +4,13 @@ from dataclasses import dataclass
 import math
 
 from stock_search.indicators import StockIndicator
-
-
-@dataclass(frozen=True)
-class EvaluationInputs:
-    ticker: str
-    moat: float
-    quality: float
-    valuation: float
-    upside: float
-    size: float
-    bull: float
-    bear: float
+from stock_search.schema import Evaluation
 
 
 @dataclass(frozen=True)
 class EvaluationResult:
-    inputs: EvaluationInputs
+    inputs: Evaluation
+    ticker: str | None
     p_up: float
     p_down: float
     p_flat: float
@@ -38,39 +28,39 @@ class EvaluationResult:
     game_tier: str
 
 
-def market_cap_score(market_cap: float) -> int:
-    """Map market cap to a 1-10 size bucket."""
-    if market_cap >= 3e12:
-        return 10
-    if market_cap >= 1e12:
-        return 9
-    if market_cap >= 3e11:
-        return 8
-    if market_cap >= 1e11:
-        return 7
-    if market_cap >= 3e10:
-        return 6
-    if market_cap >= 1e10:
-        return 5
-    if market_cap >= 3e9:
-        return 4
-    if market_cap >= 1e9:
-        return 3
-    if market_cap >= 3e8:
-        return 2
+def market_cap_score(indicator: StockIndicator) -> int | None:
+    """Map Yahoo market cap to a 1-10 size bucket."""
+    market_cap = indicator.info.get("marketCap")
+    if not isinstance(market_cap, (int, float)):
+        return None
+    B = 1e9
+    T = 1e12
+    thresholds = [
+        (10, 4.0 * T),
+        (9, 2.0 * T),
+        (8, 1.0 * T),
+        (7, 500 * B),
+        (6, 300 * B),
+        (5, 200 * B),
+        (4, 100 * B),
+        (3, 50 * B),
+        (2, 10 * B),
+    ]
+    for score, cutoff in thresholds:
+        if market_cap >= cutoff:
+            return score
     return 1
 
 
-def build_inputs(ticker: str) -> EvaluationInputs:
+def build_inputs(ticker: str) -> Evaluation:
     """Create evaluation inputs from available indicator metrics."""
     indicator = StockIndicator(ticker)
-    market_cap_value = indicator.info.get("marketCap")
-    size_score = market_cap_score(market_cap_value) if market_cap_value else 1
+    size_score = market_cap_score(indicator)
 
     quality_score = _quality_score(indicator.info)
     valuation_score = _valuation_score(indicator.info)
     upside_score = _upside_score(indicator.median_upside)
-    moat_score = _moat_score(size_score, quality_score)
+    moat_score = _moat_score(size_score if size_score is not None else 5.0, quality_score)
     bull_score, bear_score = _direction_scores(
         indicator.change_percent,
         indicator.twenty_day_change_percent,
@@ -78,71 +68,56 @@ def build_inputs(ticker: str) -> EvaluationInputs:
         indicator.two_hundred_day_change_percent,
     )
 
-    return EvaluationInputs(
-        ticker=ticker,
+    return Evaluation(
         moat=moat_score,
         quality=quality_score,
         valuation=valuation_score,
         upside=upside_score,
-        size=float(size_score),
-        bull=bull_score,
-        bear=bear_score,
+        market_cap=float(size_score) if size_score is not None else None,
+        bull_probability=round(bull_score / 10, 4),
+        bear_probability=round(bear_score / 10, 4),
     )
 
 
-def evaluate_asset(inputs: EvaluationInputs) -> EvaluationResult:
+def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationResult:
     """Compute evaluation metrics for a single asset.
 
     Args:
-        inputs: Core and direction scores on a 1-10 scale.
+        inputs: Core scores on a 1-10 scale and direction probabilities on a 0-1 scale.
 
     Returns:
         EvaluationResult with derived probabilities, Elo deltas, and indices.
     """
-    p_up = inputs.bull / 10
-    p_down = inputs.bear / 10
+    p_up = _prob_or_default(inputs.bull_probability)
+    p_down = _prob_or_default(inputs.bear_probability)
     p_flat = max(0.0, 1 - p_up - p_down)
 
-    edge = inputs.bull - inputs.bear
+    bull_score = p_up * 10
+    bear_score = p_down * 10
+    edge = bull_score - bear_score
     confidence = abs(edge)
-    overall = (inputs.moat + inputs.quality + inputs.valuation + inputs.upside) / 4
+    moat = _score_or_default(inputs.moat)
+    quality = _score_or_default(inputs.quality)
+    valuation = _score_or_default(inputs.valuation)
+    upside = _score_or_default(inputs.upside)
+    size = _score_or_default(inputs.market_cap)
+    overall = (moat + quality + valuation + upside) / 4
 
     elo_delta = _elo_delta(p_up)
     elo_delta_dir = _elo_delta_dir(p_up, p_down)
     elo_delta_exp = _elo_delta_exp(p_up, p_flat)
 
-    core_index = (
-        0.35 * inputs.moat
-        + 0.35 * inputs.quality
-        + 0.15 * inputs.valuation
-        + 0.10 * inputs.size
-        + 0.05 * (5 + 0.5 * edge)
-    )
-    satellite_index = (
-        0.30 * inputs.moat
-        + 0.25 * inputs.quality
-        + 0.25 * inputs.upside
-        + 0.10 * inputs.valuation
-        + 0.10 * (5 + 0.5 * edge)
-    )
-    speculative_index = (
-        0.45 * inputs.upside
-        + 0.20 * (10 - inputs.quality)
-        + 0.20 * (10 - inputs.moat)
-        + 0.15 * (10 - inputs.valuation)
-    )
-    diversifier_index = (
-        0.45 * inputs.quality
-        + 0.25 * inputs.valuation
-        + 0.20 * inputs.size
-        + 0.10 * (10 - inputs.upside)
-    )
+    core_index = 0.35 * moat + 0.35 * quality + 0.15 * valuation + 0.10 * size + 0.05 * (5 + 0.5 * edge)
+    satellite_index = 0.30 * moat + 0.25 * quality + 0.25 * upside + 0.10 * valuation + 0.10 * (5 + 0.5 * edge)
+    speculative_index = 0.45 * upside + 0.20 * (10 - quality) + 0.20 * (10 - moat) + 0.15 * (10 - valuation)
+    diversifier_index = 0.45 * quality + 0.25 * valuation + 0.20 * size + 0.10 * (10 - upside)
 
-    fomo_flag = inputs.valuation <= 3.0 and inputs.upside >= 8.0 and inputs.bull <= 5.8
-    game_tier = _game_tier(inputs.bull)
+    fomo_flag = valuation <= 3.0 and upside >= 8.0 and bull_score <= 5.8
+    game_tier = _game_tier(bull_score)
 
     return EvaluationResult(
         inputs=inputs,
+        ticker=ticker,
         p_up=p_up,
         p_down=p_down,
         p_flat=p_flat,
@@ -161,14 +136,14 @@ def evaluate_asset(inputs: EvaluationInputs) -> EvaluationResult:
     )
 
 
-def evaluate_assets(inputs: list[EvaluationInputs]) -> list[EvaluationResult]:
+def evaluate_assets(inputs: list[Evaluation]) -> list[EvaluationResult]:
     """Evaluate a batch of assets."""
     return [evaluate_asset(item) for item in inputs]
 
 
 def evaluate_tickers(tickers: list[str]) -> list[EvaluationResult]:
     """Evaluate a batch of tickers using available indicators."""
-    return [evaluate_asset(build_inputs(ticker)) for ticker in tickers]
+    return [evaluate_asset(build_inputs(ticker), ticker=ticker) for ticker in tickers]
 
 
 def _elo_delta(p_up: float) -> float | None:
@@ -198,6 +173,14 @@ def _game_tier(bull: float) -> str:
     if 5.5 <= bull <= 5.8:
         return "already high edge"
     return "normal"
+
+
+def _score_or_default(value: float | None, default: float = 5.0) -> float:
+    return value if value is not None else default
+
+
+def _prob_or_default(value: float | None, default: float = 0.0) -> float:
+    return value if value is not None else default
 
 
 def _quality_score(info: dict) -> float:

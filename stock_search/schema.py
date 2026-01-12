@@ -19,6 +19,57 @@ class Quote(BaseModel):
     realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percent")
 
 
+class Evaluation(BaseModel):
+    market_cap: float | None = Field(
+        default=None,
+        description="Market-cap size score (1-10) from discrete scale: 10>=4T, 9=2T-4T, 8=1T-2T, 7=500B-1T, 6=300B-500B, 5=200B-300B, 4=100B-200B, 3=50B-100B, 2=10B-50B, 1<10B.",
+        ge=0,
+        le=10,
+    )
+    moat: float | None = Field(
+        default=None,
+        description="Moat (1-10): replaceability under real constraints (10 near-monopoly/lock-in, 5 attackable, 1 commodity).",
+        ge=0,
+        le=10,
+    )
+    quality: float | None = Field(
+        default=None,
+        description="Quality (1-10): durability of business economics/cashflows (10 durable + pricing power, 5 cyclical, 1 fragile).",
+        ge=0,
+        le=10,
+    )
+    valuation: float | None = Field(
+        default=None,
+        description="Valuation (1-10): cheapness vs durability + growth (10 cheap, 5 fair, 1 priced for perfection).",
+        ge=0,
+        le=10,
+    )
+    upside: float | None = Field(
+        default=None,
+        description="Upside (1-10): convexity/magnitude of potential (10 multi-leg optionality, 5 normal, 1 limited).",
+        ge=0,
+        le=10,
+    )
+    bull_probability: float | None = Field(
+        default=None,
+        description="Bull probability (0-1): pseudo-probability of being up in ~12 months.",
+        ge=0,
+        le=1,
+    )
+    bear_probability: float | None = Field(
+        default=None,
+        description="Bear probability (0-1): pseudo-probability of being down in ~12 months.",
+        ge=0,
+        le=1,
+    )
+    flat_probability: float | None = Field(
+        default=None,
+        description="Flat probability (0-1): computed as max(0, 1 - bull_probability - bear_probability).",
+        ge=0,
+        le=1,
+    )
+
+
 class Holding(BaseModel):
     """A single holding within an ETF."""
 
