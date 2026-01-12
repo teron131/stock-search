@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Any, Literal
 
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -8,68 +8,90 @@ from pydantic import BaseModel
 from .openrouter import ChatOpenRouter
 from .tools import webloader_tool
 
+ReasoningEffort = Literal["minimal", "low", "medium", "high"]
 
-class BaseAgent:
-    """Base agent class with common initialization and configuration."""
+
+def _resolve_model(model: str | None) -> str | None:
+    """Resolve model from argument or FAST_LLM env var."""
+    return model or os.getenv("FAST_LLM")
+
+
+class WebSearchAgent:
+    """Agent that uses web search capabilities to find and process information."""
 
     def __init__(
         self,
         model: str | None = None,
-        reasoning_effort: Literal["minimal", "low", "medium", "high"] = "medium",
+        temperature: float = 0,
+        reasoning_effort: ReasoningEffort = "medium",
         system_prompt: str | None = None,
-        response_format: BaseModel | None = None,
-        **model_kwargs,
+        response_format: type[BaseModel] | None = None,
+        web_search_max_results: int = 5,
+        **model_kwargs: Any,
     ):
-        self.model = ChatOpenRouter(
-            model=model or os.getenv("FAST_LLM"),
-            temperature=0,
-            reasoning_effort=reasoning_effort,
-            **model_kwargs,
-        )
+        """Initialize web search agent.
+
+        Args:
+            model: Model identifier (defaults to FAST_LLM env var)
+            temperature: Sampling temperature for generation
+            reasoning_effort: Level of reasoning effort for the model
+            system_prompt: Optional system prompt to guide behavior
+            response_format: Optional Pydantic model for structured output
+            web_search_max_results: Maximum number of search results to retrieve
+            **model_kwargs: Additional arguments passed to ChatOpenRouter
+        """
+        model = _resolve_model(model)
         self.system_prompt = system_prompt
         self.response_format = response_format
-
-
-class WebSearchAgent(BaseAgent):
-    """Agent that uses the web search tool to search the web and then uses the model to process the content."""
-
-    def __init__(
-        self,
-        model: str | None = None,
-        system_prompt: str | None = None,
-        response_format: BaseModel | None = None,
-    ):
-        super().__init__(
+        self.model = ChatOpenRouter(
             model=model,
-            system_prompt=system_prompt,
-            response_format=response_format,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
             web_search=True,
-            web_search_max_results=5,
+            web_search_max_results=web_search_max_results,
+            **model_kwargs,
         )
 
     def invoke(self, user_input: str) -> BaseModel | str:
+        """Execute web search and process results."""
         messages = []
         if self.system_prompt:
             messages.append(SystemMessage(content=self.system_prompt))
         messages.append(HumanMessage(content=user_input))
-
         response = self.model.invoke(messages)
         return response if self.response_format else response.content
 
 
-class WebLoaderAgent(BaseAgent):
-    """Agent that uses the webloader tool to load web content and then uses the model to process the content."""
+class WebLoaderAgent:
+    """Agent that loads web content from URLs and processes it using tools."""
 
     def __init__(
         self,
         model: str | None = None,
+        temperature: float = 0,
+        reasoning_effort: ReasoningEffort = "medium",
         system_prompt: str | None = None,
-        response_format: BaseModel | None = None,
+        response_format: type[BaseModel] | None = None,
+        **model_kwargs: Any,
     ):
-        super().__init__(
+        """Initialize web loader agent with tool capabilities.
+
+        Args:
+            model: Model identifier (defaults to FAST_LLM env var)
+            temperature: Sampling temperature for generation
+            reasoning_effort: Level of reasoning effort for the model
+            system_prompt: Optional system prompt to guide behavior
+            response_format: Optional Pydantic model for structured output
+            **model_kwargs: Additional arguments passed to ChatOpenRouter
+        """
+        model = _resolve_model(model)
+        self.system_prompt = system_prompt
+        self.response_format = response_format
+        self.model = ChatOpenRouter(
             model=model,
-            system_prompt=system_prompt,
-            response_format=response_format,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
+            **model_kwargs,
         )
         self.agent = create_agent(
             model=self.model,
@@ -79,11 +101,10 @@ class WebLoaderAgent(BaseAgent):
         )
 
     def invoke(self, user_input: str) -> BaseModel | str:
+        """Load and process web content based on user input."""
         response = self.agent.invoke(
-            {
-                "messages": [HumanMessage(content=user_input)],
-            }
+            {"messages": [HumanMessage(content=user_input)]},
         )
         if self.response_format:
             return response.get("structured_response")
-        return response.get("messages")[-1].content  # Last message content
+        return response.get("messages")[-1].content
