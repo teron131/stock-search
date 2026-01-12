@@ -153,11 +153,16 @@ def get_news(
     news_list = _balance_domain(news_list)
 
     # Filter out fallback summaries and low relevancy
-    return [
-        news
-        for news in news_list
-        if not news.summary.startswith(
-            FALLBACK_SUMMARIES,
-        )
-        and news.relevancy != "low"
-    ]
+    filtered_news_list = []
+    for news in news_list:
+        if not news.summary.startswith(FALLBACK_SUMMARIES) and news.relevancy != "low":
+            filtered_news_list.append(news)
+
+    def sort_key(x: News) -> tuple[float, int]:
+        days = x.days_ago if x.days_ago is not None else float("inf")
+        relevancy_order = {"high": 0, "medium": 1, "low": 2}
+        return (days, relevancy_order[x.relevancy])
+
+    sorted_news_list = sorted(filtered_news_list, key=sort_key)
+
+    return sorted_news_list
