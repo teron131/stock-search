@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 import math
 import os
@@ -7,10 +5,10 @@ import os
 from pydantic import BaseModel, Field
 import yfinance as yf
 
-from stock_search.indicators import StockIndicator
-from stock_search.llm.agents import WebSearchAgent
-from stock_search.schema import Evaluation
-from stock_search.utils import parse_query
+from .indicators import StockIndicator
+from .llm.agents import WebSearchAgent
+from .schema import Evaluation
+from .utils import parse_query
 
 # Market cap constants
 BILLION = 1e9
