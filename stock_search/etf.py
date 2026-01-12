@@ -10,5 +10,4 @@ def get_etf_data(etf_ticker: str) -> ETF:
         system_prompt=ETF_SYSTEM_PROMPT,
         response_format=ETF,
     )
-
     return agent.invoke(etf_ticker)
