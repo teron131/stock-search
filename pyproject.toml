@@ -20,6 +20,7 @@ dependencies = [
     "rich>=14.0.0",
     "tavily-python>=0.7.10",
     "tqdm>=4.67.1",
+    "uvicorn>=0.40.0",
     "yfinance>=0.2.65",
 ]
 

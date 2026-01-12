@@ -1,0 +1,1 @@
+uv run python -m uvicorn stock_search.server:app --reload
