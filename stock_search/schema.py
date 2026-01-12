@@ -46,7 +46,7 @@ class Evaluation(BaseModel):
     )
     upside: float | None = Field(
         default=None,
-        description="Upside (1-10): convexity/magnitude of potential (10 multi-leg optionality, 5 normal, 1 limited).",
+        description="Upside (1-10): derived from median analyst target upside (last 90 days) plus rating sentiment.",
         ge=0,
         le=10,
     )

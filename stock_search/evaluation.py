@@ -38,7 +38,7 @@ def build_inputs(ticker: str) -> Evaluation:
 
     quality_score = _quality_score(indicator.info)
     valuation_score = _valuation_score(indicator.info)
-    upside_score = _upside_score(indicator.median_upside)
+    upside_score = _upside_score(indicator.median_upside, indicator.ratings)
     moat_score = _moat_score(size_score if size_score is not None else 5.0, quality_score)
     bull_score, bear_score = _direction_scores(
         indicator.change_percent,
@@ -232,20 +232,24 @@ def _valuation_score(info: dict) -> float | None:
     return _clamp_score(weighted)
 
 
-def _upside_score(median_upside: float | None) -> float:
-    if median_upside is None:
-        return 5.0
-    if median_upside >= 50:
-        return 10.0
-    if median_upside >= 30:
-        return 8.0
-    if median_upside >= 15:
-        return 6.0
-    if median_upside >= 5:
-        return 4.0
-    if median_upside >= 0:
-        return 3.0
-    return 2.0
+def _upside_score(median_upside: float | None, ratings: list[dict] | None) -> float | None:
+    upside_score = None
+    if median_upside is not None:
+        if median_upside <= 0:
+            upside_score = 0.0
+        elif median_upside >= 50:
+            upside_score = 10.0
+        else:
+            upside_score = _clamp_score((median_upside / 50) * 10)
+
+    rating_score = _rating_score(ratings)
+
+    if upside_score is None and rating_score is None:
+        return None
+    placeholder_score = 5.0
+    upside_value = upside_score if upside_score is not None else placeholder_score
+    rating_value = rating_score if rating_score is not None else placeholder_score
+    return _clamp_score((upside_value + rating_value + placeholder_score) / 3)
 
 
 def _moat_score(size_score: float, quality_score: float) -> float:
@@ -308,6 +312,32 @@ def _growth_score(growth: float) -> float:
     if growth >= 0:
         return 3.0
     return 2.0
+
+
+def _rating_score(ratings: list[dict] | None) -> float | None:
+    if not ratings:
+        return None
+    scores: list[float] = []
+    for rating in ratings:
+        grade = rating.get("toGrade") or rating.get("rating") or rating.get("grade")
+        if not isinstance(grade, str):
+            continue
+        text = grade.lower()
+        if "strong" in text and "buy" in text:
+            scores.append(9.5)
+        elif "buy" in text:
+            scores.append(8.5)
+        elif "overweight" in text or "outperform" in text:
+            scores.append(7.5)
+        elif "hold" in text or "neutral" in text:
+            scores.append(5.0)
+        elif "underperform" in text or "underweight" in text:
+            scores.append(3.0)
+        elif "sell" in text:
+            scores.append(1.0)
+    if not scores:
+        return None
+    return round(sum(scores) / len(scores), 2)
 
 
 def _normalize_yahoo_ticker(ticker: str) -> str:

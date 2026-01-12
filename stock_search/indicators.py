@@ -390,6 +390,12 @@ class StockIndicator:
         return ratings.get("median_upside_pct") if ratings else None
 
     @property
+    def ratings(self) -> list[dict] | None:
+        """Raw analyst rating records from recent upgrades/downgrades (last 90 days)."""
+        ratings = parse_ratings(self.ticker)
+        return ratings.get("ratings") if ratings else None
+
+    @property
     def median_upside_str(self) -> str | None:
         """String representation of median upside with percent sign."""
         return _format_with_sign(self.median_upside, "%")
