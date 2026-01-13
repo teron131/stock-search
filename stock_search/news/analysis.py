@@ -13,8 +13,7 @@ import os
 from langchain_core.prompts import PromptTemplate
 from tqdm import tqdm
 
-from ..llm.openrouter import ChatOpenRouter
-from ..llm.tools import webloader
+from ..llm import ChatOpenRouter, webloader
 from ..schema import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
 from .exa import get_news_exa
