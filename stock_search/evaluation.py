@@ -7,7 +7,7 @@ import yfinance as yf
 
 from .indicators import StockIndicator
 from .llm.agents import WebSearchAgent
-from .schema import Evaluation, FutureOutlook, ScoredReason
+from .schema import Evaluation, FutureOutlook, ResearchEvaluation
 from .utils import parse_query
 
 # Market cap constants
@@ -98,6 +98,10 @@ QUALITY_DEFINITION = """Quality (0-10): ability to turn advantage into durable e
 Profitability belongs here along with resilience. Consider margins / FCF durability across cycles,
 pricing power & customer retention, operating discipline, and delivery reliability."""
 
+RESEARCH_DEFINITION = f"""Evaluate the company's Moat and Quality on a 0-10 scale.
+{MOAT_DEFINITION}
+{QUALITY_DEFINITION}"""
+
 FUTURE_OUTLOOK_DEFINITION = """Future outlook (0-10): based on foreseeable company guidance and credible near-term signals.
 Score how strong the forward setup looks over ~12 months. Estimate bull/bear probabilities (0-1) for up/down in 12 months.
 Reason should be a short bullet list."""
@@ -111,8 +115,7 @@ def build_inputs(ticker: str) -> Evaluation:
     size_score = market_cap_score(normalized, indicator.info)
     outlook = _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
 
-    quality_def = f"Use web search to score a company on a 0-10 scale. {QUALITY_DEFINITION}"
-    quality_resp = _run_llm_evaluation(ticker, quality_def, ScoredReason)
+    research = _run_llm_evaluation(ticker, RESEARCH_DEFINITION, ResearchEvaluation)
 
     valuation_score = _valuation_score(indicator.info)
     upside_score = _upside_score(
@@ -120,9 +123,6 @@ def build_inputs(ticker: str) -> Evaluation:
         indicator.ratings,
         outlook.score if outlook else None,
     )
-
-    moat_def = f"Use web search to score a company on a 0-10 scale. {MOAT_DEFINITION}"
-    moat_resp = _run_llm_evaluation(ticker, moat_def, ScoredReason)
 
     if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
         bull_score = _clamp_score(outlook.bull_probability * 10.0)
@@ -139,16 +139,22 @@ def build_inputs(ticker: str) -> Evaluation:
     p_down = round(bear_score / 10.0, 4) if bear_score is not None else None
     p_flat = max(0.0, round(1.0 - p_up - p_down, 4)) if p_up is not None and p_down is not None else None
 
-    return Evaluation(
-        moat=moat_resp,
-        quality=quality_resp,
-        valuation=valuation_score,
-        upside=upside_score,
-        market_cap=float(size_score) if size_score is not None else None,
-        bull_probability=p_up,
-        bear_probability=p_down,
-        flat_probability=p_flat,
-    )
+    # Merge outlook and research fields into Evaluation
+    eval_kwargs = {
+        "valuation": valuation_score,
+        "upside": upside_score,
+        "market_cap": float(size_score) if size_score is not None else None,
+        "bull_probability": p_up,
+        "bear_probability": p_down,
+        "flat_probability": p_flat,
+    }
+
+    if outlook:
+        eval_kwargs.update(outlook.model_dump(exclude={"bull_probability", "bear_probability"}))
+    if research:
+        eval_kwargs.update(research.model_dump())
+
+    return Evaluation(**eval_kwargs)
 
 
 @dataclass(frozen=True)
