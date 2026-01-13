@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from ..llm_harness import ChatOpenRouter, webloader
 from ..prompts import NEWS_ANALYSIS_PROMPT
-from ..schema import News, NewsAnalysis
+from ..schemas import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
 from .exa import get_news_exa
 from .massive import get_news_massive
