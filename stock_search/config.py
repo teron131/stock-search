@@ -1,12 +1,18 @@
+B = 1e9
+T = 1e12
+
+
 class MarketCapConfig:
-    B = 1e9
-    T = 1e12
+    """Configuration for mapping market capitalization values (Log-S-curve)."""
+
     MIN = 10 * B
     MEDIAN = 800 * B
     MAX = 4.5 * T
 
 
 class CalibrationConfig:
+    """Calibration ranges for mapping various financial metrics to 0-10 scores."""
+
     PEG_RANGE = (0.5, 1.5, 3.0)
     PE_RANGE = (10.0, 28.0, 50.0)
     GROWTH_RANGE = (0.1, 0.3, 0.5)
@@ -16,6 +22,8 @@ class CalibrationConfig:
 
 
 class ValuationWeights:
+    """Weights used for blending PEG, P/E, and Growth into a valuation score."""
+
     PEG = 0.55
     PE = 0.2
     PE_FORWARD = 0.15
@@ -23,6 +31,8 @@ class ValuationWeights:
 
 
 class CoreEngineWeights:
+    """Strategy weights for 'Core' portfolio bucket (Quality & Moat focused)."""
+
     MOAT = 0.35
     QUALITY = 0.35
     VALUATION = 0.15
@@ -31,6 +41,8 @@ class CoreEngineWeights:
 
 
 class SatelliteWeights:
+    """Strategy weights for 'Satellite' portfolio bucket (Growth & Upside focused)."""
+
     MOAT = 0.30
     QUALITY = 0.25
     UPSIDE = 0.25
@@ -39,6 +51,8 @@ class SatelliteWeights:
 
 
 class SpeculativeWeights:
+    """Strategy weights for 'Speculative' portfolio bucket (High upside, lower core)."""
+
     UPSIDE = 0.45
     QUALITY = 0.20
     MOAT = 0.20
@@ -46,6 +60,8 @@ class SpeculativeWeights:
 
 
 class DiversifierWeights:
+    """Strategy weights for 'Diversifier' portfolio bucket (Balanced defensive)."""
+
     QUALITY = 0.45
     VALUATION = 0.25
     SIZE = 0.20
@@ -53,6 +69,8 @@ class DiversifierWeights:
 
 
 class ThresholdConfig:
+    """Various thresholds and parameters for signal detection and LLM behavior."""
+
     UPSIDE_MAX_PCT = 50
     FOMO_VALUATION = 3.0
     FOMO_UPSIDE = 8.0
@@ -63,6 +81,8 @@ class ThresholdConfig:
 
 
 class GameTierThresholds:
+    """Thresholds for categorizing the 'Edge' level (conviction) of a setup."""
+
     RARE_DISLOCATION = 6.8
     SMURFING_MIN = 6.3
     SMURFING_MAX = 6.7
