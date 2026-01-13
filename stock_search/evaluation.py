@@ -2,12 +2,12 @@ from dataclasses import dataclass
 import math
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import yfinance as yf
 
 from .indicators import StockIndicator
 from .llm.agents import WebSearchAgent
-from .schema import Evaluation
+from .schema import Evaluation, FutureOutlook, ScoredReason
 from .utils import parse_query
 
 # Market cap constants
@@ -103,16 +103,52 @@ Score how strong the forward setup looks over ~12 months. Estimate bull/bear pro
 Reason should be a short bullet list."""
 
 
-class ScoredReason(BaseModel):
-    score: float = Field(description="Score on a 0-10 scale.", ge=0, le=10)
-    reason: str = Field(description="Bullet list string explaining the score.")
+def build_inputs(ticker: str) -> Evaluation:
+    """Create evaluation inputs from available indicator metrics."""
+    normalized = _normalize_yahoo_ticker(ticker)
+    indicator = StockIndicator(normalized)
 
+    size_score = market_cap_score(normalized, indicator.info)
+    outlook = _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
 
-class FutureOutlook(BaseModel):
-    score: float = Field(description="Score on a 0-10 scale.", ge=0, le=10)
-    bull_probability: float = Field(description="Bull probability (0-1) for 12-month up move.", ge=0, le=1)
-    bear_probability: float = Field(description="Bear probability (0-1) for 12-month down move.", ge=0, le=1)
-    reason: str = Field(description="Bullet list string explaining the outlook.")
+    quality_def = f"Use web search to score a company on a 0-10 scale. {QUALITY_DEFINITION}"
+    quality_resp = _run_llm_evaluation(ticker, quality_def, ScoredReason)
+
+    valuation_score = _valuation_score(indicator.info)
+    upside_score = _upside_score(
+        indicator.median_upside,
+        indicator.ratings,
+        outlook.score if outlook else None,
+    )
+
+    moat_def = f"Use web search to score a company on a 0-10 scale. {MOAT_DEFINITION}"
+    moat_resp = _run_llm_evaluation(ticker, moat_def, ScoredReason)
+
+    if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
+        bull_score = _clamp_score(outlook.bull_probability * 10.0)
+        bear_score = _clamp_score(outlook.bear_probability * 10.0)
+    else:
+        bull_score, bear_score = _direction_scores(
+            indicator.change_percent,
+            indicator.twenty_day_change_percent,
+            indicator.fifty_day_change_percent,
+            indicator.two_hundred_day_change_percent,
+        )
+
+    p_up = round(bull_score / 10.0, 4) if bull_score is not None else None
+    p_down = round(bear_score / 10.0, 4) if bear_score is not None else None
+    p_flat = max(0.0, round(1.0 - p_up - p_down, 4)) if p_up is not None and p_down is not None else None
+
+    return Evaluation(
+        moat=moat_resp,
+        quality=quality_resp,
+        valuation=valuation_score,
+        upside=upside_score,
+        market_cap=float(size_score) if size_score is not None else None,
+        bull_probability=p_up,
+        bear_probability=p_down,
+        flat_probability=p_flat,
+    )
 
 
 @dataclass(frozen=True)
@@ -136,51 +172,6 @@ class EvaluationResult:
     game_tier: str
 
 
-def build_inputs(ticker: str) -> Evaluation:
-    """Create evaluation inputs from available indicator metrics."""
-    normalized = _normalize_yahoo_ticker(ticker)
-    indicator = StockIndicator(normalized)
-
-    size_score = market_cap_score(normalized, indicator.info)
-    outlook = _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
-
-    quality_def = f"Use web search to score a company on a 0-10 scale. {QUALITY_DEFINITION}"
-    quality_resp = _run_llm_evaluation(ticker, quality_def, ScoredReason)
-    quality_score = _clamp_score(quality_resp.score) if quality_resp else None
-
-    valuation_score = _valuation_score(indicator.info)
-    upside_score = _upside_score(
-        indicator.median_upside,
-        indicator.ratings,
-        outlook.score if outlook else None,
-    )
-
-    moat_def = f"Use web search to score a company on a 0-10 scale. {MOAT_DEFINITION}"
-    moat_resp = _run_llm_evaluation(ticker, moat_def, ScoredReason)
-    moat_score = _clamp_score(moat_resp.score) if moat_resp else None
-
-    if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
-        bull_score = _clamp_score(outlook.bull_probability * 10.0)
-        bear_score = _clamp_score(outlook.bear_probability * 10.0)
-    else:
-        bull_score, bear_score = _direction_scores(
-            indicator.change_percent,
-            indicator.twenty_day_change_percent,
-            indicator.fifty_day_change_percent,
-            indicator.two_hundred_day_change_percent,
-        )
-
-    return Evaluation(
-        moat=moat_score,
-        quality=quality_score,
-        valuation=valuation_score,
-        upside=upside_score,
-        market_cap=float(size_score) if size_score is not None else None,
-        bull_probability=round(bull_score / 10.0, 4) if bull_score is not None else None,
-        bear_probability=round(bear_score / 10.0, 4) if bear_score is not None else None,
-    )
-
-
 def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationResult:
     """Compute evaluation metrics for a single asset.
 
@@ -193,7 +184,7 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     """
     p_up = inputs.bull_probability if inputs.bull_probability is not None else DEFAULT_PROBABILITY
     p_down = inputs.bear_probability if inputs.bear_probability is not None else DEFAULT_PROBABILITY
-    p_flat = max(0.0, 1 - p_up - p_down)
+    p_flat = inputs.flat_probability if inputs.flat_probability is not None else max(0.0, 1 - p_up - p_down)
 
     bull_score = p_up * 10.0
     bear_score = p_down * 10.0
@@ -201,8 +192,8 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     confidence = abs(edge)
 
     scores = {
-        "moat": inputs.moat,
-        "quality": inputs.quality,
+        "moat": inputs.moat.score if inputs.moat else None,
+        "quality": inputs.quality.score if inputs.quality else None,
         "valuation": inputs.valuation,
         "upside": inputs.upside,
         "size": inputs.market_cap,

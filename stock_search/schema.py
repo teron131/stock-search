@@ -19,55 +19,41 @@ class Quote(BaseModel):
     realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percent")
 
 
-class Evaluation(BaseModel):
-    moat: float | None = Field(
-        default=None,
-        description="Moat (1-10): replaceability under constraints; consider switching costs, regulatory barriers, integration depth, ecosystem gravity, and supply/physics constraints (commodity can be >1 if rare).",
-        ge=0,
-        le=10,
-    )
-    quality: float | None = Field(
-        default=None,
-        description="Quality (1-10): ability to turn advantage into durable economics; margins/FCF durability, pricing power, retention, discipline, resilience.",
-        ge=0,
-        le=10,
-    )
+class ScoredReason(BaseModel):
+    score: float = Field(description="Score on a 0-10 scale.", ge=0, le=10)
+    reasons: list[str] = Field(description="Bullet list string explaining the score.")
+
+
+class MetricsEvaluation(BaseModel):
     market_cap: float | None = Field(
-        default=None,
-        description="Market-cap size score (0-10) via log-linear scaling from 10B->0 to NVDA market cap->10 (ETFs are excluded).",
-        ge=0,
-        le=10,
+        default=None, description="Market-cap size score (0-10) via log-linear scaling from 10B->0 to NVDA market cap->10 (ETFs are excluded).", ge=0, le=10
     )
     valuation: float | None = Field(
-        default=None,
-        description="Valuation (1-10): what the market pays today; PEG-first weighted mean with PE/forward-PE/growth; can swing without changing moat.",
-        ge=0,
-        le=10,
+        default=None, description="Valuation (1-10): what the market pays today; PEG-first weighted mean with PE/forward-PE/growth; can swing without changing moat.", ge=0, le=10
     )
     upside: float | None = Field(
-        default=None,
-        description="Upside (1-10): equal blend of median analyst target upside, analyst rating sentiment, and forward guidance outlook.",
-        ge=0,
-        le=10,
+        default=None, description="Upside (1-10): equal blend of median analyst target upside, analyst rating sentiment, and forward guidance outlook.", ge=0, le=10
     )
-    bull_probability: float | None = Field(
+
+
+class ResearchEvaluation(BaseModel):
+    moat: ScoredReason | None = Field(
         default=None,
-        description="Bull probability (0-1): pseudo-probability of being up in ~12 months.",
-        ge=0,
-        le=1,
+        description="Moat (1-10): replaceability under constraints; consider switching costs, regulatory barriers, integration depth, ecosystem gravity, and supply/physics constraints (commodity can be >1 if rare).",
     )
-    bear_probability: float | None = Field(
+    quality: ScoredReason | None = Field(
         default=None,
-        description="Bear probability (0-1): pseudo-probability of being down in ~12 months.",
-        ge=0,
-        le=1,
+        description="Quality (1-10): ability to turn advantage into durable economics; margins/FCF durability, pricing power, retention, discipline, resilience.",
     )
-    flat_probability: float | None = Field(
-        default=None,
-        description="Flat probability (0-1): computed as max(0, 1 - bull_probability - bear_probability).",
-        ge=0,
-        le=1,
-    )
+
+
+class FutureOutlook(ScoredReason):
+    bull_probability: float | None = Field(default=None, description="Bull probability (0-1) for 12-month up move.", ge=0, le=1)
+    bear_probability: float | None = Field(default=None, description="Bear probability (0-1) for 12-month down move.", ge=0, le=1)
+
+
+class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
+    flat_probability: float | None = Field(default=None, description="Flat probability (0-1): computed as max(0, 1 - bull_probability - bear_probability).", ge=0, le=1)
 
 
 class Holding(BaseModel):
