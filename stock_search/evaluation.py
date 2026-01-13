@@ -18,7 +18,7 @@ from .config import (
     ValuationWeights,
 )
 from .indicators import StockIndicator
-from .llm.agents import WebSearchAgent
+from .llm_harness.agents import WebSearchAgent
 from .prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from .schema import Evaluation, FutureOutlook, ResearchEvaluation
 from .utils import parse_ticker

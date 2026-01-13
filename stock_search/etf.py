@@ -1,4 +1,4 @@
-from .llm import WebLoaderAgent
+from .llm_harness import WebLoaderAgent
 from .prompts import ETF_SYSTEM_PROMPT
 from .schema import ETF
 

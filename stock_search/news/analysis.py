@@ -13,7 +13,7 @@ import os
 from langchain_core.prompts import PromptTemplate
 from tqdm import tqdm
 
-from ..llm import ChatOpenRouter, webloader
+from ..llm_harness import ChatOpenRouter, webloader
 from ..prompts import NEWS_ANALYSIS_PROMPT
 from ..schema import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
@@ -69,7 +69,7 @@ def _analyze_news(
     failed = NewsAnalysis(summary=FALLBACK_SUMMARIES[1])
     results: list[NewsAnalysis] = [failed] * len(news_list)
 
-    llm = ChatOpenRouter(
+    model = ChatOpenRouter(
         model=FAST_LLM,
         temperature=0,
         reasoning_effort="low",
@@ -95,7 +95,7 @@ def _analyze_news(
     max_workers = min(len(prompts), 500)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         responses = list(
-            tqdm(executor.map(llm.invoke, prompts), total=len(prompts), desc="[analyze_news] items"),
+            tqdm(executor.map(model.invoke, prompts), total=len(prompts), desc="[analyze_news] items"),
         )
 
     for (idx, _), analysis in zip(successes, responses, strict=True):
