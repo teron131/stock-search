@@ -3,14 +3,16 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 # Common Fields
-Ticker = Annotated[str, Field(description="Ticker")]
-Weight = Annotated[float, Field(description="Weight as a percentage (0-100)")]
+Ticker = Annotated[str, Field(description="Ticker symbol")]
+Weight = Annotated[float, Field(description="Weight as a percentage (0-100)", ge=0, le=100)]
+Score = Annotated[float, Field(description="Score on a 0-10 scale", ge=0, le=10)]
+Probability = Annotated[float, Field(description="Probability (0-1)", ge=0, le=1)]
 
 
 class Quote(BaseModel):
     """Real-time and regular market quotes."""
 
-    ticker: Ticker = Field(description="Ticker symbol")
+    ticker: Ticker
     regular_price: float | None = Field(default=None, description="Regular market price")
     regular_change: float | None = Field(default=None, description="Regular market price change")
     regular_change_percent: float | None = Field(default=None, description="Regular market price change percent")
@@ -20,40 +22,46 @@ class Quote(BaseModel):
 
 
 class ScoredReason(BaseModel):
-    score: float = Field(description="Score on a 0-10 scale.", ge=0, le=10)
-    reasons: list[str] = Field(description="Bullet list string explaining the score.")
+    score: Score
+    reasons: list[str] = Field(description="Bullet list explaining the score.")
 
 
 class MetricsEvaluation(BaseModel):
-    market_cap: float | None = Field(
-        default=None, description="Market-cap size score (0-10) via log-linear scaling from 10B->0 to NVDA market cap->10 (ETFs are excluded).", ge=0, le=10
+    market_cap: Score | None = Field(
+        default=None,
+        description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
     )
-    valuation: float | None = Field(
-        default=None, description="Valuation (1-10): what the market pays today; PEG-first weighted mean with PE/forward-PE/growth; can swing without changing moat.", ge=0, le=10
+    valuation: Score | None = Field(
+        default=None,
+        description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
     )
-    upside: float | None = Field(
-        default=None, description="Upside (1-10): equal blend of median analyst target upside, analyst rating sentiment, and forward guidance outlook.", ge=0, le=10
+    upside: Score | None = Field(
+        default=None,
+        description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
     )
 
 
 class ResearchEvaluation(BaseModel):
     moat: ScoredReason | None = Field(
         default=None,
-        description="Moat (1-10): replaceability under constraints; consider switching costs, regulatory barriers, integration depth, ecosystem gravity, and supply/physics constraints (commodity can be >1 if rare).",
+        description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
     )
     quality: ScoredReason | None = Field(
         default=None,
-        description="Quality (1-10): ability to turn advantage into durable economics; margins/FCF durability, pricing power, retention, discipline, resilience.",
+        description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
     )
 
 
 class FutureOutlook(ScoredReason):
-    bull_probability: float | None = Field(default=None, description="Bull probability (0-1) for 12-month up move.", ge=0, le=1)
-    bear_probability: float | None = Field(default=None, description="Bear probability (0-1) for 12-month down move.", ge=0, le=1)
+    bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
+    bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
 
 
 class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
-    flat_probability: float | None = Field(default=None, description="Flat probability (0-1): computed as max(0, 1 - bull_probability - bear_probability).", ge=0, le=1)
+    flat_probability: Probability | None = Field(
+        default=None,
+        description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
+    )
 
 
 class Holding(BaseModel):
@@ -93,43 +101,20 @@ class ETF(BaseModel):
 class NewsAnalysis(BaseModel):
     """Structured analysis of a financial news article."""
 
-    summary: str = Field(
-        default="",
-        description="Detailed summary; exclude noise/ads and meta-language.",
+    summary: str = Field(default="", description="Summary excluding noise/meta-language.")
+    relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
+    category: Literal["macro_economics", "industry_news", "market_news", "company_news", "earnings", "analyst_rating", "analysis", "other"] = Field(
+        default="other", description="News category."
     )
-    relevancy: Literal["high", "medium", "low"] = Field(
-        default="low",
-        description="How relevant the news is to the target ticker.",
-    )
-    category: Literal[
-        "macro_economics",
-        "industry_news",
-        "market_news",
-        "company_news",
-        "earnings",
-        "analyst_rating",
-        "analysis",
-        "other",
-    ] = Field(
-        default="other",
-        description="Category of the news.",
-    )
-    sentiment: Literal[
-        "bullish",
-        "neutral",
-        "bearish",
-    ] = Field(
-        default="neutral",
-        description="Market sentiment from the news.",
-    )
+    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
 
 
 class News(NewsAnalysis):
     """Full news article data including analysis results."""
 
-    title: str = Field(description="Headline")
     url: str = Field(description="Source URL")
-    date: str = Field(description="Publication date (YYYY-MM-DD)")
+    title: str | None = Field(default=None, description="Headline")
+    date: str | None = Field(default=None, description="Publication date (YYYY-MM-DD)")
     days_ago: int | None = Field(default=None, description="Days since publication")
 
 
@@ -140,7 +125,7 @@ class PortfolioPosition(BaseModel):
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
     delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
     current_price: float | None = Field(default=None, description="Current market price")
-    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Portfolio strategy bucket")
+    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Strategy bucket")
 
 
 class Portfolio(BaseModel):
