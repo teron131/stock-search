@@ -7,14 +7,14 @@ from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation
 from ..utils import parse_ticker
 from .research import _run_llm_evaluation
 from .scores import (
-    _calculate_combined_upside_score,
-    _calculate_elo_delta,
-    _calculate_strategy_indices,
-    _calculate_valuation_score,
-    _check_fomo_conditions,
-    _get_game_tier,
-    _model_probabilities,
+    calculate_combined_upside_score,
+    calculate_elo_delta,
+    calculate_strategy_indices,
+    calculate_valuation_score,
+    check_fomo_conditions,
+    get_game_tier,
     market_cap_score,
+    model_probabilities,
 )
 
 
@@ -61,15 +61,15 @@ def build_inputs(ticker: str) -> Evaluation:
 
     # 2. Market Metrics
     size_score = market_cap_score(normalized, indicator.info)
-    valuation_score = _calculate_valuation_score(indicator.info)
-    upside_score = _calculate_combined_upside_score(
+    valuation_score = calculate_valuation_score(indicator.info)
+    upside_score = calculate_combined_upside_score(
         indicator.median_upside,
         indicator.ratings,
         outlook.score if outlook else None,
     )
 
     # 3. Probability Modeling
-    bull_score, bear_score = _model_probabilities(indicator, outlook)
+    bull_score, bear_score = model_probabilities(indicator, outlook)
 
     p_up = round(bull_score / 10.0, 4) if bull_score is not None else None
     p_down = round(bear_score / 10.0, 4) if bear_score is not None else None
@@ -125,8 +125,8 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     req = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
     overall = sum(req) / 4 if all(v is not None for v in req) else None
 
-    indices = _calculate_strategy_indices(scores, edge)
-    fomo_flag = _check_fomo_conditions(scores, bull_score)
+    indices = calculate_strategy_indices(scores, edge)
+    fomo_flag = check_fomo_conditions(scores, bull_score)
 
     return EvaluationResult(
         inputs=inputs,
@@ -137,13 +137,13 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         edge=edge,
         confidence=abs(edge) if edge is not None else None,
         overall=overall,
-        elo_delta=_calculate_elo_delta(p_up),
+        elo_delta=calculate_elo_delta(p_up),
         elo_delta_dir=400 * math.log10(p_up / p_down) if p_up is not None and p_down is not None and p_up > 0 and p_down > 0 else None,
-        elo_delta_exp=_calculate_elo_delta(p_up + 0.5 * p_flat) if p_up is not None and p_flat is not None else None,
+        elo_delta_exp=calculate_elo_delta(p_up + 0.5 * p_flat) if p_up is not None and p_flat is not None else None,
         core_index=indices.get("core"),
         satellite_index=indices.get("satellite"),
         speculative_index=indices.get("speculative"),
         diversifier_index=indices.get("diversifier"),
         fomo_flag=fomo_flag,
-        game_tier=_get_game_tier(bull_score),
+        game_tier=get_game_tier(bull_score),
     )

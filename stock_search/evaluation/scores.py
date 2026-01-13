@@ -34,7 +34,7 @@ def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
     )
 
 
-def _calculate_valuation_score(info: dict) -> float | None:
+def calculate_valuation_score(info: dict) -> float | None:
     """Compute weighted valuation score from PEG, PE, and Growth."""
     configs = [
         (
@@ -83,7 +83,7 @@ def _calculate_valuation_score(info: dict) -> float | None:
     return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
 
 
-def _calculate_combined_upside_score(median_upside: float | None, ratings: list[dict] | None, outlook_score: float | None) -> float | None:
+def calculate_combined_upside_score(median_upside: float | None, ratings: list[dict] | None, outlook_score: float | None) -> float | None:
     """Blend analyst upside, current ratings, and LLM outlook into a single score."""
     i_min, i_med, i_max = CalibrationConfig.UPSIDE_RANGE
     u_score = None
@@ -95,13 +95,13 @@ def _calculate_combined_upside_score(median_upside: float | None, ratings: list[
             in_median=i_med,
         )
 
-    r_score = _calculate_rating_score(ratings)
+    r_score = calculate_rating_score(ratings)
 
     values = [v for v in (u_score, r_score, outlook_score) if v is not None]
     return clamp_score(sum(values) / len(values)) if values else None
 
 
-def _calculate_rating_score(ratings: list[dict] | None) -> float | None:
+def calculate_rating_score(ratings: list[dict] | None) -> float | None:
     """Map list of analyst ratings to 0-10 engine score."""
     if not ratings:
         return None
@@ -143,12 +143,12 @@ def _parse_rating_grade(text: str) -> float | None:
     return None
 
 
-def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | None) -> tuple[float | None, float | None]:
+def model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | None) -> tuple[float | None, float | None]:
     """Derive calibrated bull/bear scores from LLM and/or Historical momentum."""
     p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
 
     # momentum: Historical momentum scores (0-10) derived from average of moving averages
-    bull_momentum_raw, bear_momentum_raw = _calculate_historical_momentum_scores(indicator)
+    bull_momentum_raw, bear_momentum_raw = calculate_historical_momentum_scores(indicator)
     bull_momentum = z_score_map(bull_momentum_raw / 10.0, p_min, p_max, p_med) if bull_momentum_raw is not None else None
     bear_momentum = z_score_map(bear_momentum_raw / 10.0, p_min, p_max, p_med) if bear_momentum_raw is not None else None
 
@@ -167,7 +167,7 @@ def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | Non
     return bull_momentum, bear_momentum
 
 
-def _calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[float | None, float | None]:
+def calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[float | None, float | None]:
     """Average recent price changes into a 0-10 momentum score."""
     changes = [
         indicator.change_percent,
@@ -186,7 +186,7 @@ def _calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[fl
     )
 
 
-def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | None) -> dict[str, float | None]:
+def calculate_strategy_indices(scores: dict[str, float | None], edge: float | None) -> dict[str, float | None]:
     """Apply strategy weights to core scores to find suitable portfolio buckets."""
     edge_comp = (5.0 + 0.5 * edge) if edge is not None else None
 
@@ -244,7 +244,7 @@ def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | N
     return indices
 
 
-def _check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
+def check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
     """Return True if an asset looks like a 'chase' opportunity."""
     v, u = scores.get("valuation"), scores.get("upside")
     if v is None or u is None or bull_score is None:
@@ -252,14 +252,14 @@ def _check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
     return v <= ThresholdConfig.FOMO_VALUATION and u >= ThresholdConfig.FOMO_UPSIDE and bull_score <= ThresholdConfig.FOMO_BULL
 
 
-def _calculate_elo_delta(p: float | None) -> float | None:
+def calculate_elo_delta(p: float | None) -> float | None:
     """Calculate Elo delta based on success probability."""
     if p is None or not (0 < p < 1):
         return None
     return 400 * math.log10(p / (1 - p))
 
 
-def _get_game_tier(bull: float | None) -> str:
+def get_game_tier(bull: float | None) -> str:
     """Categorize the 'edge' level of the setup."""
     if bull is None:
         return "normal"
