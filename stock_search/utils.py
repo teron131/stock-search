@@ -43,9 +43,14 @@ def extract_domain(url: str) -> str:
         return url
 
 
-def parse_query(ticker_or_query: str) -> str:
+def _normalize_ticker(ticker: str) -> str:
+    """Normalize common ticker variants for Yahoo Finance compatibility."""
+    return ticker.replace(" ", "-").replace(".", "-")
+
+
+def parse_ticker(ticker_or_query: str) -> str:
     """Return the display name for a ticker, falling back to the ticker itself."""
-    ticker_or_query = ticker_or_query.strip().upper()
+    ticker_or_query = _normalize_ticker(ticker_or_query.strip().upper())
     if re.match(r"^[A-Z]{1,4}$", ticker_or_query):
         return yf.Ticker(ticker_or_query).info.get("displayName", ticker_or_query)
     return ticker_or_query

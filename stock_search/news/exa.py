@@ -11,7 +11,7 @@ import os
 import requests
 
 from ..schema import News
-from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_query
+from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
 
 def get_news_exa(
@@ -21,7 +21,7 @@ def get_news_exa(
 ) -> list[News]:
     """Search Exa for news results and return raw payload items."""
     payload = {
-        "query": parse_query(query),
+        "query": parse_ticker(query),
         "category": "news",
         "num_results": max_results,
         "start_published_date": format_iso_z(datetime.now(UTC) - timedelta(days=n_days)),

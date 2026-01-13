@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, get_days_ago, parse_date, parse_query
+from ..utils import format_date, get_days_ago, parse_date, parse_ticker
 
 load_dotenv()
 
@@ -24,7 +24,7 @@ def get_news_newsdata(
     """Get the last 48 hours of financial news using NewsData."""
     params = {
         "apikey": os.getenv("NEWSDATA_API_KEY"),
-        "q": parse_query(query),
+        "q": parse_ticker(query),
         "country": "us",
         "language": "en",
         "category": "business,breaking,politics,technology,top",

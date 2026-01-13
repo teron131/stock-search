@@ -6,94 +6,22 @@ from typing import Any
 from pydantic import BaseModel
 import yfinance as yf
 
+from .config import (
+    CalibrationConfig,
+    CoreEngineWeights,
+    DiversifierWeights,
+    GameTierThresholds,
+    MarketCapConfig,
+    SatelliteWeights,
+    SpeculativeWeights,
+    ThresholdConfig,
+    ValuationWeights,
+)
 from .indicators import StockIndicator
 from .llm.agents import WebSearchAgent
+from .prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from .schema import Evaluation, FutureOutlook, ResearchEvaluation
-from .utils import parse_query
-
-# --- Constants ---
-
-# Market cap configuration
-B = 1e9
-T = 1e12
-MARKET_CAP_MIN = 10 * B
-MARKET_CAP_MEDIAN = 800 * B
-MARKET_CAP_MAX = 4.5 * T
-
-# Calibration Ranges (min, median, max)
-PEG_RANGE = (0.5, 1.5, 3.0)
-PE_RANGE = (10.0, 28.0, 50.0)
-GROWTH_RANGE = (0.1, 0.3, 0.5)
-UPSIDE_RANGE = (0.0, 15.0, 50.0)
-PROB_RANGE = (0.5, 0.55, 0.6)
-RATING_RANGE = (1.0, 3.5, 5.0)
-
-# Valuation weights
-PEG_WEIGHT = 0.55
-PE_WEIGHT = 0.2
-PE_FORWARD_WEIGHT = 0.15
-GROWTH_WEIGHT = 0.1
-
-# Index calculation weights: Core Engine
-CORE_MOAT_WEIGHT = 0.35
-CORE_QUALITY_WEIGHT = 0.35
-CORE_VALUATION_WEIGHT = 0.15
-CORE_SIZE_WEIGHT = 0.10
-CORE_EDGE_WEIGHT = 0.05
-
-# Index calculation weights: Core Satellite
-SATELLITE_MOAT_WEIGHT = 0.30
-SATELLITE_QUALITY_WEIGHT = 0.25
-SATELLITE_UPSIDE_WEIGHT = 0.25
-SATELLITE_VALUATION_WEIGHT = 0.10
-SATELLITE_EDGE_WEIGHT = 0.10
-
-# Index calculation weights: Speculative (Inverse metrics used for some)
-SPECULATIVE_UPSIDE_WEIGHT = 0.45
-SPECULATIVE_QUALITY_INVERSE_WEIGHT = 0.20
-SPECULATIVE_MOAT_INVERSE_WEIGHT = 0.20
-SPECULATIVE_VALUATION_INVERSE_WEIGHT = 0.15
-
-# Index calculation weights: Diversifier
-DIVERSIFIER_QUALITY_WEIGHT = 0.45
-DIVERSIFIER_VALUATION_WEIGHT = 0.25
-DIVERSIFIER_SIZE_WEIGHT = 0.20
-DIVERSIFIER_UPSIDE_INVERSE_WEIGHT = 0.10
-
-# Thresholds & Misc
-UPSIDE_MAX_PCT = 50
-FOMO_VALUATION_THRESHOLD = 3.0
-FOMO_UPSIDE_THRESHOLD = 8.0
-FOMO_BULL_THRESHOLD = 5.8
-WEB_SEARCH_MAX_RESULTS = 15
-DIRECTION_CHANGE_DIVISOR = 10
-DIRECTION_BASE_SCORE = 5.0
-
-# Game Tier Thresholds
-TIER_RARE_DISLOCATION = 6.8
-TIER_SMURFING_MIN = 6.3
-TIER_SMURFING_MAX = 6.7
-TIER_VERY_HIGH_MIN = 5.9
-TIER_VERY_HIGH_MAX = 6.2
-TIER_HIGH_EDGE_MIN = 5.5
-TIER_HIGH_EDGE_MAX = 5.8
-
-# LLM Prompts
-MOAT_DEFINITION = """Moat (0-10): replaceability under constraints.
-How hard is it for a capable competitor (or customer) to replicate, displace, or route around this in the real world?
-Barriers include switching costs / lock-in; regulatory + security + procurement barriers; integration depth + operational
-workflow embedding; ecosystem/tooling gravity; and unique supply-chain/physics constraints (ASML-style).
-Note: commodity does not always mean 0; consider rarity or supply constraints."""
-
-QUALITY_DEFINITION = """Quality (0-10): ability to turn advantage into durable economics.
-Profitability belongs here along with resilience. Consider margins / FCF durability across cycles,
-pricing power & customer retention, operating discipline, and delivery reliability."""
-
-RESEARCH_DEFINITION = f"Evaluate the company's Moat and Quality on a 0-10 scale.\n{MOAT_DEFINITION}\n{QUALITY_DEFINITION}"
-
-FUTURE_OUTLOOK_DEFINITION = """Future outlook (0-10): based on foreseeable company guidance and credible near-term signals.
-Score how strong the forward setup looks over ~12 months. Estimate bull/bear probabilities (0-1) for up/down in 12 months.
-Reason should be a short bullet list."""
+from .utils import parse_ticker
 
 
 @dataclass(frozen=True)
@@ -122,17 +50,29 @@ class EvaluationResult:
 
 def build_inputs(ticker: str) -> Evaluation:
     """Fetch metrics and run LLM evaluations to build the Evaluation input model."""
-    normalized = _normalize_yahoo_ticker(ticker)
+    normalized = parse_ticker(ticker)
     indicator = StockIndicator(normalized)
 
     # 1. Qualitative Evaluation (LLM)
-    outlook: FutureOutlook = _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
-    research: ResearchEvaluation = _run_llm_evaluation(ticker, RESEARCH_DEFINITION, ResearchEvaluation)
+    outlook: FutureOutlook = _run_llm_evaluation(
+        ticker,
+        FUTURE_OUTLOOK_DEFINITION,
+        FutureOutlook,
+    )
+    research: ResearchEvaluation = _run_llm_evaluation(
+        ticker,
+        RESEARCH_DEFINITION,
+        ResearchEvaluation,
+    )
 
     # 2. Market Metrics
     size_score = market_cap_score(normalized, indicator.info)
     valuation_score = _calculate_valuation_score(indicator.info)
-    upside_score = _calculate_combined_upside_score(indicator.median_upside, indicator.ratings, outlook.score if outlook else None)
+    upside_score = _calculate_combined_upside_score(
+        indicator.median_upside,
+        indicator.ratings,
+        outlook.score if outlook else None,
+    )
 
     # 3. Probability Modeling
     bull_score, bear_score = _model_probabilities(indicator, outlook)
@@ -156,7 +96,11 @@ def build_inputs(ticker: str) -> Evaluation:
     }
 
     if outlook:
-        eval_data.update(outlook.model_dump(exclude={"bull_probability", "bear_probability"}))
+        eval_data.update(
+            outlook.model_dump(
+                exclude={"bull_probability", "bear_probability"},
+            )
+        )
     if research:
         eval_data.update(research.model_dump())
 
@@ -277,21 +221,46 @@ def z_score_map(
 
 def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
     """Map market cap to 1-10 using a Log-S-curve."""
-    info = info or (yf.Ticker(_normalize_yahoo_ticker(ticker)).info or {})
+    info = info or (yf.Ticker(parse_ticker(ticker)).info or {})
     mcap = info.get("marketCap")
     if info.get("quoteType") == "ETF" or not mcap:
         return None
 
-    return z_score_map(math.log10(mcap), in_min=math.log10(MARKET_CAP_MIN), in_median=math.log10(MARKET_CAP_MEDIAN), in_max=math.log10(MARKET_CAP_MAX))
+    return z_score_map(
+        math.log10(mcap),
+        in_min=math.log10(MarketCapConfig.MIN),
+        in_median=math.log10(MarketCapConfig.MEDIAN),
+        in_max=math.log10(MarketCapConfig.MAX),
+    )
 
 
 def _calculate_valuation_score(info: dict) -> float | None:
     """Compute weighted valuation score from PEG, PE, and Growth."""
     configs = [
-        ("trailingPegRatio", PEG_RANGE, PEG_WEIGHT, True),  # True = inverse
-        ("trailingPE", PE_RANGE, PE_WEIGHT, True),
-        ("forwardPE", PE_RANGE, PE_FORWARD_WEIGHT, True),
-        ("earningsGrowth", GROWTH_RANGE, GROWTH_WEIGHT, False),
+        (
+            "trailingPegRatio",
+            CalibrationConfig.PEG_RANGE,
+            ValuationWeights.PEG,
+            True,
+        ),  # True = inverse
+        (
+            "trailingPE",
+            CalibrationConfig.PE_RANGE,
+            ValuationWeights.PE,
+            True,
+        ),
+        (
+            "forwardPE",
+            CalibrationConfig.PE_RANGE,
+            ValuationWeights.PE_FORWARD,
+            True,
+        ),
+        (
+            "earningsGrowth",
+            CalibrationConfig.GROWTH_RANGE,
+            ValuationWeights.GROWTH,
+            False,
+        ),
     ]
 
     weighted_scores = []
@@ -300,7 +269,15 @@ def _calculate_valuation_score(info: dict) -> float | None:
     for key, range_val, weight, inverse in configs:
         if (val := info.get(key)) is not None:
             i_min, i_med, i_max = range_val
-            score = piecewise_map(val, in_min=i_min, in_max=i_max, in_median=i_med, out_min=10.0 if inverse else 0.0, out_max=0.0 if inverse else 10.0, out_median=5.0)
+            score = piecewise_map(
+                val,
+                in_min=i_min,
+                in_max=i_max,
+                in_median=i_med,
+                out_min=10.0 if inverse else 0.0,
+                out_max=0.0 if inverse else 10.0,
+                out_median=5.0,
+            )
             weighted_scores.append(score * weight)
             total_w += weight
 
@@ -309,10 +286,15 @@ def _calculate_valuation_score(info: dict) -> float | None:
 
 def _calculate_combined_upside_score(median_upside: float | None, ratings: list[dict] | None, outlook_score: float | None) -> float | None:
     """Blend analyst upside, current ratings, and LLM outlook into a single score."""
-    i_min, i_med, i_max = UPSIDE_RANGE
+    i_min, i_med, i_max = CalibrationConfig.UPSIDE_RANGE
     u_score = None
     if median_upside is not None:
-        u_score = piecewise_map(median_upside, in_min=i_min, in_max=i_max, in_median=i_med)
+        u_score = piecewise_map(
+            median_upside,
+            in_min=i_min,
+            in_max=i_max,
+            in_median=i_med,
+        )
 
     r_score = _calculate_rating_score(ratings)
 
@@ -336,7 +318,7 @@ def _calculate_rating_score(ratings: list[dict] | None) -> float | None:
     if not scores:
         return None
 
-    i_min, i_med, i_max = RATING_RANGE
+    i_min, i_med, i_max = CalibrationConfig.RATING_RANGE
     return piecewise_map(sum(scores) / len(scores), in_min=i_min, in_max=i_max, in_median=i_med)
 
 
@@ -364,28 +346,42 @@ def _parse_rating_grade(text: str) -> float | None:
 
 def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | None) -> tuple[float | None, float | None]:
     """Derive calibrated bull/bear scores from LLM or Historical momentum."""
-    p_min, p_med, p_max = PROB_RANGE
+    p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
 
     if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
-        return (piecewise_map(outlook.bull_probability, p_min, p_max, p_med), piecewise_map(outlook.bear_probability, p_min, p_max, p_med))
+        return (
+            piecewise_map(outlook.bull_probability, p_min, p_max, p_med),
+            piecewise_map(outlook.bear_probability, p_min, p_max, p_med),
+        )
 
     # Momentum fallback
     b_raw, r_raw = _calculate_historical_momentum_scores(indicator)
     if b_raw is None or r_raw is None:
         return None, None
 
-    return (piecewise_map(b_raw / 10.0, p_min, p_max, p_med), piecewise_map(r_raw / 10.0, p_min, p_max, p_med))
+    return (
+        piecewise_map(b_raw / 10.0, p_min, p_max, p_med),
+        piecewise_map(r_raw / 10.0, p_min, p_max, p_med),
+    )
 
 
 def _calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[float | None, float | None]:
     """Average recent price changes into a 0-10 momentum score."""
-    changes = [indicator.change_percent, indicator.twenty_day_change_percent, indicator.fifty_day_change_percent, indicator.two_hundred_day_change_percent]
+    changes = [
+        indicator.change_percent,
+        indicator.twenty_day_change_percent,
+        indicator.fifty_day_change_percent,
+        indicator.two_hundred_day_change_percent,
+    ]
     valid = [v for v in changes if isinstance(v, (int, float))]
     if not valid:
         return None, None
 
     avg = sum(valid) / len(valid)
-    return (clamp_score(DIRECTION_BASE_SCORE + avg / DIRECTION_CHANGE_DIVISOR), clamp_score(DIRECTION_BASE_SCORE - avg / DIRECTION_CHANGE_DIVISOR))
+    return (
+        clamp_score(ThresholdConfig.DIRECTION_BASE_SCORE + avg / ThresholdConfig.DIRECTION_CHANGE_DIVISOR),
+        clamp_score(ThresholdConfig.DIRECTION_BASE_SCORE - avg / ThresholdConfig.DIRECTION_CHANGE_DIVISOR),
+    )
 
 
 def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | None) -> dict[str, float | None]:
@@ -395,22 +391,22 @@ def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | N
     bucket_configs = {
         "core": {
             "keys": ("moat", "quality", "valuation", "size"),
-            "weights": (CORE_MOAT_WEIGHT, CORE_QUALITY_WEIGHT, CORE_VALUATION_WEIGHT, CORE_SIZE_WEIGHT),
-            "edge": CORE_EDGE_WEIGHT,
+            "weights": (CoreEngineWeights.MOAT, CoreEngineWeights.QUALITY, CoreEngineWeights.VALUATION, CoreEngineWeights.SIZE),
+            "edge": CoreEngineWeights.EDGE,
         },
         "satellite": {
             "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (SATELLITE_MOAT_WEIGHT, SATELLITE_QUALITY_WEIGHT, SATELLITE_VALUATION_WEIGHT, SATELLITE_UPSIDE_WEIGHT),
-            "edge": SATELLITE_EDGE_WEIGHT,
+            "weights": (SatelliteWeights.MOAT, SatelliteWeights.QUALITY, SatelliteWeights.VALUATION, SatelliteWeights.UPSIDE),
+            "edge": SatelliteWeights.EDGE,
         },
         "speculative": {
             "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (SPECULATIVE_MOAT_INVERSE_WEIGHT, SPECULATIVE_QUALITY_INVERSE_WEIGHT, SPECULATIVE_VALUATION_INVERSE_WEIGHT, SPECULATIVE_UPSIDE_WEIGHT),
+            "weights": (SpeculativeWeights.MOAT_INVERSE, SpeculativeWeights.QUALITY_INVERSE, SpeculativeWeights.VALUATION_INVERSE, SpeculativeWeights.UPSIDE),
             "edge": 0.0,
         },
         "diversifier": {
             "keys": ("quality", "valuation", "size", "upside"),
-            "weights": (DIVERSIFIER_QUALITY_WEIGHT, DIVERSIFIER_VALUATION_WEIGHT, DIVERSIFIER_SIZE_WEIGHT, DIVERSIFIER_UPSIDE_INVERSE_WEIGHT),
+            "weights": (DiversifierWeights.QUALITY, DiversifierWeights.VALUATION, DiversifierWeights.SIZE, DiversifierWeights.UPSIDE_INVERSE),
             "edge": 0.0,
         },
     }
@@ -436,9 +432,14 @@ def _run_llm_evaluation(ticker: str, system_prompt: str, response_format: type[B
         return None
 
     agent = WebSearchAgent(
-        model=model, temperature=0, reasoning_effort="high", response_format=response_format, system_prompt=system_prompt, web_search_max_results=WEB_SEARCH_MAX_RESULTS
+        model=model,
+        temperature=0,
+        reasoning_effort="high",
+        response_format=response_format,
+        system_prompt=system_prompt,
+        web_search_max_results=ThresholdConfig.WEB_SEARCH_MAX_RESULTS,
     )
-    return agent.invoke(f"Ticker: {ticker}. Name:{parse_query(ticker)}.")
+    return agent.invoke(f"Ticker: {ticker}. Name:{parse_ticker(ticker)}.")
 
 
 def _check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
@@ -446,7 +447,7 @@ def _check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
     v, u = scores.get("valuation"), scores.get("upside")
     if v is None or u is None or bull_score is None:
         return False
-    return v <= FOMO_VALUATION_THRESHOLD and u >= FOMO_UPSIDE_THRESHOLD and bull_score <= FOMO_BULL_THRESHOLD
+    return v <= ThresholdConfig.FOMO_VALUATION and u >= ThresholdConfig.FOMO_UPSIDE and bull_score <= ThresholdConfig.FOMO_BULL
 
 
 def _calculate_elo_delta(p: float | None) -> float | None:
@@ -460,17 +461,12 @@ def _get_game_tier(bull: float | None) -> str:
     """Categorize the 'edge' level of the setup."""
     if bull is None:
         return "normal"
-    if bull >= TIER_RARE_DISLOCATION:
+    if bull >= GameTierThresholds.RARE_DISLOCATION:
         return "rare dislocation-level"
-    if TIER_SMURFING_MIN <= bull <= TIER_SMURFING_MAX:
+    if GameTierThresholds.SMURFING_MIN <= bull <= GameTierThresholds.SMURFING_MAX:
         return "smurfing"
-    if TIER_VERY_HIGH_MIN <= bull <= TIER_VERY_HIGH_MAX:
+    if GameTierThresholds.VERY_HIGH_MIN <= bull <= GameTierThresholds.VERY_HIGH_MAX:
         return "very high"
-    if TIER_HIGH_EDGE_MIN <= bull <= TIER_HIGH_EDGE_MAX:
+    if GameTierThresholds.HIGH_EDGE_MIN <= bull <= GameTierThresholds.HIGH_EDGE_MAX:
         return "already high edge"
     return "normal"
-
-
-def _normalize_yahoo_ticker(ticker: str) -> str:
-    """Normalize common ticker variants for Yahoo Finance compatibility."""
-    return ticker.replace(" ", "-").replace(".", "-")

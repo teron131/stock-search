@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 import requests
 
 from ..schema import News
-from ..utils import format_date, get_days_ago, parse_date, parse_query
+from ..utils import format_date, get_days_ago, parse_date, parse_ticker
 
 load_dotenv()
 
@@ -25,7 +25,7 @@ def get_news_newsapi(
     """Get financial news using NewsAPI."""
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
-        "q": parse_query(query),
+        "q": parse_ticker(query),
         "from": (datetime.now(UTC) - timedelta(days=n_days)).strftime("%Y-%m-%d"),
         "to": (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d"),
         "language": "en",

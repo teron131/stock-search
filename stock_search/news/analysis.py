@@ -14,6 +14,7 @@ from langchain_core.prompts import PromptTemplate
 from tqdm import tqdm
 
 from ..llm import ChatOpenRouter, webloader
+from ..prompts import NEWS_ANALYSIS_PROMPT
 from ..schema import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
 from .exa import get_news_exa
@@ -27,19 +28,6 @@ FALLBACK_SUMMARIES = (
     "[TRUNCATED]",
     "[FAILED TO FETCH]",
 )
-
-ANALYSIS_PROMPT = """Summarize with concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate. Prefer facts over opinions.
-
-Relevancy to {ticker}: high = primary subject; medium = indirect sector/competitors/macro; low = market noise or subjective opinions without new facts. High only if {ticker} is primary; market wraps default low unless {ticker} is a driver.
-
-Sentiment toward {ticker}: bullish/ bearish if clearly positive/negative; neutral if mixed/unclear (insider selling neutral unless unusually large/illegal/clearly adverse). Subjective opinion defaults neutral unless objective facts clearly support a direction.
-
-If {ticker} not mentioned: relevancy=low, sentiment=neutral, summary notes no relevant content.
-
-Category: company_news, earnings, analyst_rating, industry_news, market_news, macro_economics, analysis, other.
-
-Title: {title}
-Content: {content}"""
 
 
 def _balance_domain(items: list[News]) -> list[News]:
@@ -88,7 +76,7 @@ def _analyze_news(
     ).with_structured_output(NewsAnalysis)
 
     prompt_template = PromptTemplate(
-        template=ANALYSIS_PROMPT,
+        template=NEWS_ANALYSIS_PROMPT,
         input_variables=["ticker", "title", "content"],
     )
 
