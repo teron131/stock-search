@@ -18,11 +18,7 @@ MARKET_CAP_MAX_FALLBACK = 4.5 * TRILLION
 
 # Scoring constants
 UPSIDE_MAX_PCT = 50
-UPSIDE_PLACEHOLDER = 5.0
-DEFAULT_SCORE = 5.0
 DEFAULT_PROBABILITY = 0.0
-SCORE_MIN = 0.0
-SCORE_MAX = 10.0
 
 # LLM configuration
 QUALITY_MODEL_ENV = "QUALITY_MODEL"
@@ -128,14 +124,14 @@ class EvaluationResult:
     p_flat: float
     edge: float
     confidence: float
-    overall: float
+    overall: float | None
     elo_delta: float | None
     elo_delta_dir: float | None
     elo_delta_exp: float | None
-    core_index: float
-    satellite_index: float
-    speculative_index: float
-    diversifier_index: float
+    core_index: float | None
+    satellite_index: float | None
+    speculative_index: float | None
+    diversifier_index: float | None
     fomo_flag: bool
     game_tier: str
 
@@ -146,23 +142,33 @@ def build_inputs(ticker: str) -> Evaluation:
     indicator = StockIndicator(normalized)
 
     size_score = market_cap_score(normalized, indicator.info)
-    outlook = _future_outlook_scores(ticker)
-    quality_score = _quality_score(normalized)
+    outlook = _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
+
+    quality_def = f"Use web search to score a company on a 0-10 scale. {QUALITY_DEFINITION}"
+    quality_resp = _run_llm_evaluation(ticker, quality_def, ScoredReason)
+    quality_score = _clamp_score(quality_resp.score) if quality_resp else None
+
     valuation_score = _valuation_score(indicator.info)
     upside_score = _upside_score(
         indicator.median_upside,
         indicator.ratings,
         outlook.score if outlook else None,
     )
-    moat_score = _moat_score(normalized)
 
-    bull_score, bear_score = _calculate_direction_scores(
-        outlook,
-        indicator.change_percent,
-        indicator.twenty_day_change_percent,
-        indicator.fifty_day_change_percent,
-        indicator.two_hundred_day_change_percent,
-    )
+    moat_def = f"Use web search to score a company on a 0-10 scale. {MOAT_DEFINITION}"
+    moat_resp = _run_llm_evaluation(ticker, moat_def, ScoredReason)
+    moat_score = _clamp_score(moat_resp.score) if moat_resp else None
+
+    if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
+        bull_score = _clamp_score(outlook.bull_probability * 10.0)
+        bear_score = _clamp_score(outlook.bear_probability * 10.0)
+    else:
+        bull_score, bear_score = _direction_scores(
+            indicator.change_percent,
+            indicator.twenty_day_change_percent,
+            indicator.fifty_day_change_percent,
+            indicator.two_hundred_day_change_percent,
+        )
 
     return Evaluation(
         moat=moat_score,
@@ -170,21 +176,9 @@ def build_inputs(ticker: str) -> Evaluation:
         valuation=valuation_score,
         upside=upside_score,
         market_cap=float(size_score) if size_score is not None else None,
-        bull_probability=round(bull_score / SCORE_MAX, 4) if bull_score is not None else None,
-        bear_probability=round(bear_score / SCORE_MAX, 4) if bear_score is not None else None,
+        bull_probability=round(bull_score / 10.0, 4) if bull_score is not None else None,
+        bear_probability=round(bear_score / 10.0, 4) if bear_score is not None else None,
     )
-
-
-def _calculate_direction_scores(
-    outlook: FutureOutlook | None,
-    *changes: float | None,
-) -> tuple[float | None, float | None]:
-    """Calculate bull/bear scores from outlook or price changes."""
-    if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
-        bull_score = _clamp_score(outlook.bull_probability * SCORE_MAX)
-        bear_score = _clamp_score(outlook.bear_probability * SCORE_MAX)
-        return bull_score, bear_score
-    return _direction_scores(*changes)
 
 
 def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationResult:
@@ -197,22 +191,39 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     Returns:
         EvaluationResult with derived probabilities, Elo deltas, and indices.
     """
-    p_up = _or_default(inputs.bull_probability, DEFAULT_PROBABILITY)
-    p_down = _or_default(inputs.bear_probability, DEFAULT_PROBABILITY)
+    p_up = inputs.bull_probability if inputs.bull_probability is not None else DEFAULT_PROBABILITY
+    p_down = inputs.bear_probability if inputs.bear_probability is not None else DEFAULT_PROBABILITY
     p_flat = max(0.0, 1 - p_up - p_down)
 
-    bull_score = p_up * SCORE_MAX
-    bear_score = p_down * SCORE_MAX
+    bull_score = p_up * 10.0
+    bear_score = p_down * 10.0
     edge = bull_score - bear_score
     confidence = abs(edge)
 
-    scores = _extract_scores(inputs)
-    overall = _calculate_overall_score(scores)
+    scores = {
+        "moat": inputs.moat,
+        "quality": inputs.quality,
+        "valuation": inputs.valuation,
+        "upside": inputs.upside,
+        "size": inputs.market_cap,
+    }
 
-    elo_metrics = _calculate_elo_metrics(p_up, p_down, p_flat)
+    req = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
+    overall = sum(req) / 4 if all(v is not None for v in req) else None
+
+    # Elo metrics
+    expected = p_up + 0.5 * p_flat
+    elo_delta = _elo_delta(p_up)
+    elo_delta_dir = 400 * math.log10(p_up / p_down) if p_up > 0 and p_down > 0 else None
+    elo_delta_exp = _elo_delta(expected)
+
     indices = _calculate_indices(scores, edge)
 
-    fomo_flag = _check_fomo_flag(scores["valuation"], scores["upside"], bull_score)
+    fomo_flag = (
+        scores["valuation"] <= FOMO_VALUATION_THRESHOLD and scores["upside"] >= FOMO_UPSIDE_THRESHOLD and bull_score <= FOMO_BULL_THRESHOLD
+        if scores["valuation"] is not None and scores["upside"] is not None
+        else False
+    )
     game_tier = _game_tier(bull_score)
 
     return EvaluationResult(
@@ -224,9 +235,9 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         edge=edge,
         confidence=confidence,
         overall=overall,
-        elo_delta=elo_metrics["delta"],
-        elo_delta_dir=elo_metrics["delta_dir"],
-        elo_delta_exp=elo_metrics["delta_exp"],
+        elo_delta=elo_delta,
+        elo_delta_dir=elo_delta_dir,
+        elo_delta_exp=elo_delta_exp,
         core_index=indices["core"],
         satellite_index=indices["satellite"],
         speculative_index=indices["speculative"],
@@ -236,40 +247,14 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     )
 
 
-def _extract_scores(inputs: Evaluation) -> dict[str, float]:
-    """Extract and normalize all scores from inputs."""
-    return {
-        "moat": _or_default(inputs.moat, DEFAULT_SCORE),
-        "quality": _or_default(inputs.quality, DEFAULT_SCORE),
-        "valuation": _or_default(inputs.valuation, DEFAULT_SCORE),
-        "upside": _or_default(inputs.upside, DEFAULT_SCORE),
-        "size": _or_default(inputs.market_cap, DEFAULT_SCORE),
-    }
-
-
-def _calculate_overall_score(scores: dict[str, float]) -> float:
-    """Calculate overall score as average of core metrics."""
-    return (scores["moat"] + scores["quality"] + scores["valuation"] + scores["upside"]) / 4
-
-
-def _calculate_elo_metrics(p_up: float, p_down: float, p_flat: float) -> dict[str, float | None]:
-    """Calculate all Elo delta metrics."""
-    return {
-        "delta": _elo_delta(p_up),
-        "delta_dir": _elo_delta_dir(p_up, p_down),
-        "delta_exp": _elo_delta_exp(p_up, p_flat),
-    }
-
-
-def _calculate_indices(scores: dict[str, float], edge: float) -> dict[str, float]:
+def _calculate_indices(scores: dict[str, float | None], edge: float) -> dict[str, float | None]:
     """Calculate all portfolio strategy indices."""
-    edge_component = DEFAULT_SCORE + 0.5 * edge
+    edge_component = 5.0 + 0.5 * edge
 
-    # Pre-calculate inverse scores for clarity
-    inv_quality = SCORE_MAX - scores["quality"]
-    inv_moat = SCORE_MAX - scores["moat"]
-    inv_valuation = SCORE_MAX - scores["valuation"]
-    inv_upside = SCORE_MAX - scores["upside"]
+    core_required = (scores["moat"], scores["quality"], scores["valuation"], scores["size"])
+    satellite_required = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
+    speculative_required = (scores["upside"], scores["quality"], scores["moat"], scores["valuation"])
+    diversifier_required = (scores["quality"], scores["valuation"], scores["size"], scores["upside"])
 
     indices = {
         "core": (
@@ -278,6 +263,8 @@ def _calculate_indices(scores: dict[str, float], edge: float) -> dict[str, float
             + CORE_VALUATION_WEIGHT * scores["valuation"]
             + CORE_SIZE_WEIGHT * scores["size"]
             + CORE_EDGE_WEIGHT * edge_component
+            if all(value is not None for value in core_required)
+            else None
         ),
         "satellite": (
             SATELLITE_MOAT_WEIGHT * scores["moat"]
@@ -285,42 +272,28 @@ def _calculate_indices(scores: dict[str, float], edge: float) -> dict[str, float
             + SATELLITE_UPSIDE_WEIGHT * scores["upside"]
             + SATELLITE_VALUATION_WEIGHT * scores["valuation"]
             + SATELLITE_EDGE_WEIGHT * edge_component
+            if all(value is not None for value in satellite_required)
+            else None
         ),
         "speculative": (
             SPECULATIVE_UPSIDE_WEIGHT * scores["upside"]
-            + SPECULATIVE_QUALITY_INVERSE_WEIGHT * inv_quality
-            + SPECULATIVE_MOAT_INVERSE_WEIGHT * inv_moat
-            + SPECULATIVE_VALUATION_INVERSE_WEIGHT * inv_valuation
+            + SPECULATIVE_QUALITY_INVERSE_WEIGHT * scores["quality"]
+            + SPECULATIVE_MOAT_INVERSE_WEIGHT * scores["moat"]
+            + SPECULATIVE_VALUATION_INVERSE_WEIGHT * scores["valuation"]
+            if all(value is not None for value in speculative_required)
+            else None
         ),
         "diversifier": (
             DIVERSIFIER_QUALITY_WEIGHT * scores["quality"]
             + DIVERSIFIER_VALUATION_WEIGHT * scores["valuation"]
             + DIVERSIFIER_SIZE_WEIGHT * scores["size"]
-            + DIVERSIFIER_UPSIDE_INVERSE_WEIGHT * inv_upside
+            + DIVERSIFIER_UPSIDE_INVERSE_WEIGHT * scores["upside"]
+            if all(value is not None for value in diversifier_required)
+            else None
         ),
     }
 
     return indices
-
-
-def _check_fomo_flag(valuation: float, upside: float, bull_score: float) -> bool:
-    """Check if asset meets FOMO criteria."""
-    return valuation <= FOMO_VALUATION_THRESHOLD and upside >= FOMO_UPSIDE_THRESHOLD and bull_score <= FOMO_BULL_THRESHOLD
-
-
-def evaluate_assets(inputs: list[Evaluation]) -> list[EvaluationResult]:
-    """Evaluate a batch of assets."""
-    return [evaluate_asset(item) for item in inputs]
-
-
-def evaluate_tickers(tickers: list[str]) -> list[EvaluationResult]:
-    """Evaluate a batch of tickers using available indicators."""
-    return [evaluate_asset(build_inputs(ticker), ticker=ticker) for ticker in tickers]
-
-
-def _or_default(value: float | None, default: float) -> float:
-    """Return value if not None, else default."""
-    return value if value is not None else default
 
 
 def _create_llm_agent(
@@ -358,25 +331,6 @@ def _run_llm_evaluation(
     return response
 
 
-def _moat_score(ticker: str) -> float | None:
-    """Score company moat using LLM."""
-    definition = f"Use web search to score a company on a 0-10 scale. {MOAT_DEFINITION}"
-    response = _run_llm_evaluation(ticker, definition, ScoredReason)
-    return _clamp_score(response.score) if response else None
-
-
-def _quality_score(ticker: str) -> float | None:
-    """Score company quality using LLM."""
-    definition = f"Use web search to score a company on a 0-10 scale. {QUALITY_DEFINITION}"
-    response = _run_llm_evaluation(ticker, definition, ScoredReason)
-    return _clamp_score(response.score) if response else None
-
-
-def _future_outlook_scores(ticker: str) -> FutureOutlook | None:
-    """Get future outlook scores using LLM."""
-    return _run_llm_evaluation(ticker, FUTURE_OUTLOOK_DEFINITION, FutureOutlook)
-
-
 def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
     """Map Yahoo market cap to a 1-10 score using log-linear scaling."""
     normalized = _normalize_yahoo_ticker(ticker)
@@ -396,15 +350,15 @@ def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
 def _log_scale_score(value: float, min_val: float, max_val: float) -> float:
     """Calculate a 0-10 score using log-linear scaling."""
     if value <= min_val:
-        return SCORE_MIN
+        return 0.0
     if value >= max_val:
-        return SCORE_MAX
+        return 10.0
 
     log_val = math.log10(value)
     log_min = math.log10(min_val)
     log_max = math.log10(max_val)
 
-    score = SCORE_MAX * (log_val - log_min) / (log_max - log_min)
+    score = 10.0 * (log_val - log_min) / (log_max - log_min)
     return _clamp_score(score)
 
 
@@ -439,15 +393,10 @@ def _upside_score(
     upside_score = _calculate_median_upside_score(median_upside)
     rating_score = _rating_score(ratings)
 
-    if upside_score is None and rating_score is None and outlook_score is None:
+    values = [value for value in (upside_score, rating_score, outlook_score) if value is not None]
+    if not values:
         return None
-
-    # Use placeholder for missing components to avoid skewing the average
-    upside_val = _or_default(upside_score, UPSIDE_PLACEHOLDER)
-    rating_val = _or_default(rating_score, UPSIDE_PLACEHOLDER)
-    outlook_val = _or_default(outlook_score, UPSIDE_PLACEHOLDER)
-
-    return _clamp_score((upside_val + rating_val + outlook_val) / 3)
+    return _clamp_score(sum(values) / len(values))
 
 
 def _calculate_median_upside_score(median_upside: float | None) -> float | None:
@@ -455,17 +404,17 @@ def _calculate_median_upside_score(median_upside: float | None) -> float | None:
     if median_upside is None:
         return None
     if median_upside <= 0:
-        return SCORE_MIN
+        return 0.0
     if median_upside >= UPSIDE_MAX_PCT:
-        return SCORE_MAX
-    return _clamp_score((median_upside / UPSIDE_MAX_PCT) * SCORE_MAX)
+        return 10.0
+    return _clamp_score((median_upside / UPSIDE_MAX_PCT) * 10.0)
 
 
-def _direction_scores(*changes: float | None) -> tuple[float, float]:
+def _direction_scores(*changes: float | None) -> tuple[float | None, float | None]:
     """Calculate bull/bear scores from price change percentages."""
     valid = [value for value in changes if isinstance(value, (int, float))]
     if not valid:
-        return DEFAULT_SCORE, DEFAULT_SCORE
+        return None, None
     average_change = sum(valid) / len(valid)
     bull_score = _clamp_score(DIRECTION_BASE_SCORE + average_change / DIRECTION_CHANGE_DIVISOR)
     bear_score = _clamp_score(DIRECTION_BASE_SCORE - average_change / DIRECTION_CHANGE_DIVISOR)
@@ -476,17 +425,6 @@ def _elo_delta(p_up: float) -> float | None:
     if p_up <= 0 or p_up >= 1:
         return None
     return 400 * math.log10(p_up / (1 - p_up))
-
-
-def _elo_delta_dir(p_up: float, p_down: float) -> float | None:
-    if p_up <= 0 or p_down <= 0:
-        return None
-    return 400 * math.log10(p_up / p_down)
-
-
-def _elo_delta_exp(p_up: float, p_flat: float) -> float | None:
-    expected = p_up + 0.5 * p_flat
-    return _elo_delta(expected)
 
 
 def _game_tier(bull: float) -> str:
@@ -504,17 +442,17 @@ def _game_tier(bull: float) -> str:
 
 def _clamp_score(value: float) -> float:
     """Clamp score to valid range [0, 10] and round to 2 decimals."""
-    if value < SCORE_MIN:
-        return SCORE_MIN
-    if value > SCORE_MAX:
-        return SCORE_MAX
+    if value < 0.0:
+        return 0.0
+    if value > 10.0:
+        return 10.0
     return round(value, 2)
 
 
 def _peg_score(peg: float) -> float:
     """Score PEG ratio (lower is better)."""
     if peg <= PEG_EXCELLENT:
-        return SCORE_MAX
+        return 10.0
     if peg <= PEG_GOOD:
         return 9.0
     if peg <= PEG_FAIR:
@@ -533,7 +471,7 @@ def _pe_score(pe: float) -> float:
     if pe <= PE_GOOD:
         return 7.0
     if pe <= PE_FAIR:
-        return DEFAULT_SCORE
+        return 5.0
     if pe <= PE_MODERATE:
         return 3.0
     return 2.0
@@ -584,8 +522,8 @@ def _parse_rating_grade(text: str) -> float | None:
         "buy": 8.5,
         "overweight": 7.5,
         "outperform": 7.5,
-        "hold": DEFAULT_SCORE,
-        "neutral": DEFAULT_SCORE,
+        "hold": 5.0,
+        "neutral": 5.0,
         "underperform": 3.0,
         "underweight": 3.0,
         "sell": 1.0,
