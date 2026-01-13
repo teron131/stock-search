@@ -167,33 +167,6 @@ def clamp_score(value: float) -> float:
     return round(value, 2)
 
 
-def piecewise_map(
-    value: float,
-    in_min: float,
-    in_max: float,
-    in_median: float,
-    out_min: float = 0.0,
-    out_max: float = 10.0,
-    out_median: float = 5.0,
-) -> float:
-    """Map a value through two linear stages (min->median, median->max)."""
-    if value <= in_min:
-        return out_min
-    if value >= in_max:
-        return out_max
-
-    if value <= in_median:
-        if in_median == in_min:
-            return out_median
-        ratio = (value - in_min) / (in_median - in_min)
-        return clamp_score(out_min + ratio * (out_median - out_min))
-    else:
-        if in_max == in_median:
-            return out_max
-        ratio = (value - in_median) / (in_max - in_median)
-        return clamp_score(out_median + ratio * (out_max - out_median))
-
-
 def z_score_map(
     value: float,
     in_min: float,
@@ -269,14 +242,13 @@ def _calculate_valuation_score(info: dict) -> float | None:
     for key, range_val, weight, inverse in configs:
         if (val := info.get(key)) is not None:
             i_min, i_med, i_max = range_val
-            score = piecewise_map(
+            score = z_score_map(
                 val,
                 in_min=i_min,
                 in_max=i_max,
                 in_median=i_med,
                 out_min=10.0 if inverse else 0.0,
                 out_max=0.0 if inverse else 10.0,
-                out_median=5.0,
             )
             weighted_scores.append(score * weight)
             total_w += weight
@@ -289,7 +261,7 @@ def _calculate_combined_upside_score(median_upside: float | None, ratings: list[
     i_min, i_med, i_max = CalibrationConfig.UPSIDE_RANGE
     u_score = None
     if median_upside is not None:
-        u_score = piecewise_map(
+        u_score = z_score_map(
             median_upside,
             in_min=i_min,
             in_max=i_max,
@@ -319,7 +291,7 @@ def _calculate_rating_score(ratings: list[dict] | None) -> float | None:
         return None
 
     i_min, i_med, i_max = CalibrationConfig.RATING_RANGE
-    return piecewise_map(sum(scores) / len(scores), in_min=i_min, in_max=i_max, in_median=i_med)
+    return z_score_map(sum(scores) / len(scores), in_min=i_min, in_max=i_max, in_median=i_med)
 
 
 def _parse_rating_grade(text: str) -> float | None:
@@ -350,8 +322,8 @@ def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | Non
 
     if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
         return (
-            piecewise_map(outlook.bull_probability, p_min, p_max, p_med),
-            piecewise_map(outlook.bear_probability, p_min, p_max, p_med),
+            z_score_map(outlook.bull_probability, p_min, p_max, p_med),
+            z_score_map(outlook.bear_probability, p_min, p_max, p_med),
         )
 
     # Momentum fallback
@@ -360,8 +332,8 @@ def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | Non
         return None, None
 
     return (
-        piecewise_map(b_raw / 10.0, p_min, p_max, p_med),
-        piecewise_map(r_raw / 10.0, p_min, p_max, p_med),
+        z_score_map(b_raw / 10.0, p_min, p_max, p_med),
+        z_score_map(r_raw / 10.0, p_min, p_max, p_med),
     )
 
 
@@ -391,22 +363,42 @@ def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | N
     bucket_configs = {
         "core": {
             "keys": ("moat", "quality", "valuation", "size"),
-            "weights": (CoreEngineWeights.MOAT, CoreEngineWeights.QUALITY, CoreEngineWeights.VALUATION, CoreEngineWeights.SIZE),
+            "weights": (
+                CoreEngineWeights.MOAT,
+                CoreEngineWeights.QUALITY,
+                CoreEngineWeights.VALUATION,
+                CoreEngineWeights.SIZE,
+            ),
             "edge": CoreEngineWeights.EDGE,
         },
         "satellite": {
             "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (SatelliteWeights.MOAT, SatelliteWeights.QUALITY, SatelliteWeights.VALUATION, SatelliteWeights.UPSIDE),
+            "weights": (
+                SatelliteWeights.MOAT,
+                SatelliteWeights.QUALITY,
+                SatelliteWeights.VALUATION,
+                SatelliteWeights.UPSIDE,
+            ),
             "edge": SatelliteWeights.EDGE,
         },
         "speculative": {
             "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (SpeculativeWeights.MOAT_INVERSE, SpeculativeWeights.QUALITY_INVERSE, SpeculativeWeights.VALUATION_INVERSE, SpeculativeWeights.UPSIDE),
+            "weights": (
+                SpeculativeWeights.MOAT,
+                SpeculativeWeights.QUALITY,
+                SpeculativeWeights.VALUATION,
+                SpeculativeWeights.UPSIDE,
+            ),
             "edge": 0.0,
         },
         "diversifier": {
             "keys": ("quality", "valuation", "size", "upside"),
-            "weights": (DiversifierWeights.QUALITY, DiversifierWeights.VALUATION, DiversifierWeights.SIZE, DiversifierWeights.UPSIDE_INVERSE),
+            "weights": (
+                DiversifierWeights.QUALITY,
+                DiversifierWeights.VALUATION,
+                DiversifierWeights.SIZE,
+                DiversifierWeights.UPSIDE,
+            ),
             "edge": 0.0,
         },
     }

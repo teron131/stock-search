@@ -40,16 +40,16 @@ class SatelliteWeights:
 
 class SpeculativeWeights:
     UPSIDE = 0.45
-    QUALITY_INVERSE = 0.20
-    MOAT_INVERSE = 0.20
-    VALUATION_INVERSE = 0.15
+    QUALITY = 0.20
+    MOAT = 0.20
+    VALUATION = 0.15
 
 
 class DiversifierWeights:
     QUALITY = 0.45
     VALUATION = 0.25
     SIZE = 0.20
-    UPSIDE_INVERSE = 0.10
+    UPSIDE = 0.10
 
 
 class ThresholdConfig:
