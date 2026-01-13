@@ -62,7 +62,6 @@ DIVERSIFIER_UPSIDE_INVERSE_WEIGHT = 0.10
 
 # Thresholds & Misc
 UPSIDE_MAX_PCT = 50
-DEFAULT_PROBABILITY = 0.0
 FOMO_VALUATION_THRESHOLD = 3.0
 FOMO_UPSIDE_THRESHOLD = 8.0
 FOMO_BULL_THRESHOLD = 5.8
@@ -101,11 +100,11 @@ Reason should be a short bullet list."""
 class EvaluationResult:
     inputs: Evaluation
     ticker: str | None
-    p_up: float
-    p_down: float
-    p_flat: float
-    edge: float
-    confidence: float
+    p_up: float | None
+    p_down: float | None
+    p_flat: float | None
+    edge: float | None
+    confidence: float | None
     overall: float | None
     elo_delta: float | None
     elo_delta_dir: float | None
@@ -166,13 +165,15 @@ def build_inputs(ticker: str) -> Evaluation:
 
 def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationResult:
     """Process an Evaluation model into a final EvaluationResult with indices and deltas."""
-    p_up = inputs.bull_probability if inputs.bull_probability is not None else DEFAULT_PROBABILITY
-    p_down = inputs.bear_probability if inputs.bear_probability is not None else DEFAULT_PROBABILITY
-    p_flat = inputs.flat_probability if inputs.flat_probability is not None else max(0.0, 1 - p_up - p_down)
+    p_up = inputs.bull_probability
+    p_down = inputs.bear_probability
+    p_flat = inputs.flat_probability
+    if p_flat is None and p_up is not None and p_down is not None:
+        p_flat = max(0.0, 1 - p_up - p_down)
 
-    bull_score = p_up * 10.0
-    bear_score = p_down * 10.0
-    edge = bull_score - bear_score
+    bull_score = p_up * 10.0 if p_up is not None else None
+    bear_score = p_down * 10.0 if p_down is not None else None
+    edge = bull_score - bear_score if bull_score is not None and bear_score is not None else None
 
     scores = {
         "moat": inputs.moat.score if inputs.moat else None,
@@ -196,11 +197,11 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         p_down=p_down,
         p_flat=p_flat,
         edge=edge,
-        confidence=abs(edge),
+        confidence=abs(edge) if edge is not None else None,
         overall=overall,
         elo_delta=_calculate_elo_delta(p_up),
-        elo_delta_dir=400 * math.log10(p_up / p_down) if p_up > 0 and p_down > 0 else None,
-        elo_delta_exp=_calculate_elo_delta(p_up + 0.5 * p_flat),
+        elo_delta_dir=400 * math.log10(p_up / p_down) if p_up is not None and p_down is not None and p_up > 0 and p_down > 0 else None,
+        elo_delta_exp=_calculate_elo_delta(p_up + 0.5 * p_flat) if p_up is not None and p_flat is not None else None,
         core_index=indices.get("core"),
         satellite_index=indices.get("satellite"),
         speculative_index=indices.get("speculative"),
@@ -387,9 +388,9 @@ def _calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[fl
     return (clamp_score(DIRECTION_BASE_SCORE + avg / DIRECTION_CHANGE_DIVISOR), clamp_score(DIRECTION_BASE_SCORE - avg / DIRECTION_CHANGE_DIVISOR))
 
 
-def _calculate_strategy_indices(scores: dict[str, float | None], edge: float) -> dict[str, float | None]:
+def _calculate_strategy_indices(scores: dict[str, float | None], edge: float | None) -> dict[str, float | None]:
     """Apply strategy weights to core scores to find suitable portfolio buckets."""
-    edge_comp = 5.0 + 0.5 * edge
+    edge_comp = (5.0 + 0.5 * edge) if edge is not None else None
 
     bucket_configs = {
         "core": {
@@ -417,9 +418,9 @@ def _calculate_strategy_indices(scores: dict[str, float | None], edge: float) ->
     indices = {}
     for name, cfg in bucket_configs.items():
         vals = [scores[k] for k in cfg["keys"]]
-        if all(v is not None for v in vals):
+        if all(v is not None for v in vals) and (cfg["edge"] == 0 or edge_comp is not None):
             weighted = sum(v * w for v, w in zip(vals, cfg["weights"], strict=False))
-            indices[name] = weighted + (cfg["edge"] * edge_comp)
+            indices[name] = weighted + (cfg["edge"] * (edge_comp or 0))
         else:
             indices[name] = None
     return indices
@@ -440,21 +441,25 @@ def _run_llm_evaluation(ticker: str, system_prompt: str, response_format: type[B
     return agent.invoke(f"Ticker: {ticker}. Name:{parse_query(ticker)}.")
 
 
-def _check_fomo_conditions(scores: dict, bull_score: float) -> bool:
+def _check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
     """Return True if an asset looks like a 'chase' opportunity."""
     v, u = scores.get("valuation"), scores.get("upside")
-    if v is None or u is None:
+    if v is None or u is None or bull_score is None:
         return False
     return v <= FOMO_VALUATION_THRESHOLD and u >= FOMO_UPSIDE_THRESHOLD and bull_score <= FOMO_BULL_THRESHOLD
 
 
-def _calculate_elo_delta(p: float) -> float | None:
+def _calculate_elo_delta(p: float | None) -> float | None:
     """Calculate Elo delta based on success probability."""
-    return 400 * math.log10(p / (1 - p)) if 0 < p < 1 else None
+    if p is None or not (0 < p < 1):
+        return None
+    return 400 * math.log10(p / (1 - p))
 
 
-def _get_game_tier(bull: float) -> str:
+def _get_game_tier(bull: float | None) -> str:
     """Categorize the 'edge' level of the setup."""
+    if bull is None:
+        return "normal"
     if bull >= TIER_RARE_DISLOCATION:
         return "rare dislocation-level"
     if TIER_SMURFING_MIN <= bull <= TIER_SMURFING_MAX:
