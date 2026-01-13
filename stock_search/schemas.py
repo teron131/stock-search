@@ -122,10 +122,11 @@ class PortfolioPosition(BaseModel):
     """A single portfolio position with notional exposure metrics."""
 
     ticker: Ticker
+    name: str | None = Field(default=None, description="Company name")
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
     delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
     current_price: float | None = Field(default=None, description="Current market price")
-    bucket: Literal["core_engine", "core_satellite", "fomo", "defensive"] = Field(description="Strategy bucket")
+    bucket: Literal["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"] = Field(description="Strategy bucket")
 
 
 class Portfolio(BaseModel):

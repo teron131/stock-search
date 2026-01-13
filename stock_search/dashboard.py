@@ -9,7 +9,7 @@ from rich.table import Table
 
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
-from stock_search.schema import Portfolio, PortfolioPosition
+from stock_search.schemas import Portfolio, PortfolioPosition
 
 
 def _load_portfolio(path: str | Path) -> Portfolio:
@@ -25,6 +25,7 @@ def _build_row(position: PortfolioPosition) -> dict:
 
     return {
         "ticker": position.ticker,
+        "name": position.name,
         "quantity": position.quantity,
         "delta": position.delta,
         "current_price": current_price,
