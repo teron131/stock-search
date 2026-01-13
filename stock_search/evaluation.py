@@ -317,24 +317,27 @@ def _parse_rating_grade(text: str) -> float | None:
 
 
 def _model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | None) -> tuple[float | None, float | None]:
-    """Derive calibrated bull/bear scores from LLM or Historical momentum."""
+    """Derive calibrated bull/bear scores from LLM and/or Historical momentum."""
     p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
 
+    # momentum: Historical momentum scores (0-10) derived from average of moving averages
+    bull_momentum_raw, bear_momentum_raw = _calculate_historical_momentum_scores(indicator)
+    bull_momentum = z_score_map(bull_momentum_raw / 10.0, p_min, p_max, p_med) if bull_momentum_raw is not None else None
+    bear_momentum = z_score_map(bear_momentum_raw / 10.0, p_min, p_max, p_med) if bear_momentum_raw is not None else None
+
+    # LLM: LLM results (0-10)
+    bull_llm, bear_llm = None, None
     if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
-        return (
-            z_score_map(outlook.bull_probability, p_min, p_max, p_med),
-            z_score_map(outlook.bear_probability, p_min, p_max, p_med),
-        )
+        bull_llm = z_score_map(outlook.bull_probability, p_min, p_max, p_med)
+        bear_llm = z_score_map(outlook.bear_probability, p_min, p_max, p_med)
 
-    # Momentum fallback
-    b_raw, r_raw = _calculate_historical_momentum_scores(indicator)
-    if b_raw is None or r_raw is None:
-        return None, None
+    # Blending logic: If LLM exists, return mean(LLM, momentum), else return momentum
+    if bull_llm is not None and bear_llm is not None:
+        if bull_momentum is not None and bear_momentum is not None:
+            return (bull_llm + bull_momentum) / 2, (bear_llm + bear_momentum) / 2
+        return bull_llm, bear_llm
 
-    return (
-        z_score_map(b_raw / 10.0, p_min, p_max, p_med),
-        z_score_map(r_raw / 10.0, p_min, p_max, p_med),
-    )
+    return bull_momentum, bear_momentum
 
 
 def _calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[float | None, float | None]:
