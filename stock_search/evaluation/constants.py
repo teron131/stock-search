@@ -77,7 +77,7 @@ class ThresholdConfig:
     FOMO_VALUATION: Final[float] = 3.0
     FOMO_UPSIDE: Final[float] = 8.0
     FOMO_BULL: Final[float] = 5.8
-    WEB_SEARCH_MAX_RESULTS: Final[int] = 15
+    WEB_SEARCH_MAX_RESULTS: Final[int] = 5
     DIRECTION_CHANGE_DIVISOR: Final[float] = 10.0
     DIRECTION_BASE_SCORE: Final[float] = 5.0
 

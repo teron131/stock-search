@@ -4,6 +4,7 @@ uv.lock
 *.ipynb
 *test*
 AGENTS.md
+*.png
 
 
 # Python-generated files

@@ -5,7 +5,7 @@ from ..indicators import StockIndicator
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation
 from ..utils import parse_ticker
-from .research import _run_llm_evaluation
+from .research import run_llm_evaluation
 from .scores import (
     calculate_combined_upside_score,
     calculate_elo_delta,
@@ -48,12 +48,12 @@ def build_inputs(ticker: str) -> Evaluation:
     indicator = StockIndicator(normalized)
 
     # 1. Qualitative Evaluation (LLM)
-    outlook: FutureOutlook = _run_llm_evaluation(
+    outlook: FutureOutlook = run_llm_evaluation(
         ticker,
         FUTURE_OUTLOOK_DEFINITION,
         FutureOutlook,
     )
-    research: ResearchEvaluation = _run_llm_evaluation(
+    research: ResearchEvaluation = run_llm_evaluation(
         ticker,
         RESEARCH_DEFINITION,
         ResearchEvaluation,
