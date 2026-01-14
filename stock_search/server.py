@@ -10,16 +10,24 @@ import pandas as pd
 
 from stock_search.dashboard import _load_portfolio, get_dashboard
 from stock_search.indicators import StockIndicator
-from stock_search.schemas import PortfolioPosition
+from stock_search.schemas import Portfolio, PortfolioPosition
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR.parent / "ui"
 INDEX_FILE = UI_DIR / "index.html"
-PORTFOLIO_PATH = BASE_DIR.parent / "data" / "portfolio.json"
+DATA_DIR = BASE_DIR.parent / "data"
+PORTFOLIO_PATH = DATA_DIR / "portfolio.json"
+EVAL_PATH = DATA_DIR / "eval.json"
 
 app = FastAPI(title="Stock Search Dashboard")
 
 app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
+
+
+def _save_portfolio(portfolio: Portfolio, path: Path = PORTFOLIO_PATH) -> None:
+    """Save portfolio data to JSON file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(portfolio.model_dump_json(indent=2))
 
 
 @app.get("/")
@@ -39,11 +47,9 @@ def dashboard_api() -> dict:
 
 @app.get("/api/eval")
 def eval_api() -> list[dict]:
-    eval_path = BASE_DIR.parent / "data" / "eval.json"
-    if not eval_path.exists():
+    if not EVAL_PATH.exists():
         return []
-    with open(eval_path) as f:
-        return json.load(f)
+    return json.loads(EVAL_PATH.read_text())
 
 
 @app.get("/api/news/{ticker}")
@@ -94,30 +100,28 @@ def evaluate_ticker_api(ticker: str) -> dict:
 
 @app.post("/api/portfolio/position")
 def add_position(position: PortfolioPosition):
-    # Validate ticker
     indicator = StockIndicator(position.ticker)
     if indicator.price is None:
         raise HTTPException(status_code=400, detail=f"Invalid ticker: {position.ticker}")
 
     portfolio = _load_portfolio(PORTFOLIO_PATH)
+    ticker_upper = position.ticker.upper()
 
-    # Check if exists
     for i, p in enumerate(portfolio.positions):
-        if p.ticker.upper() == position.ticker.upper():
+        if p.ticker.upper() == ticker_upper:
             portfolio.positions[i] = position
             break
     else:
         portfolio.positions.append(position)
 
-    with open(PORTFOLIO_PATH, "w") as f:
-        f.write(portfolio.model_dump_json(indent=2))
+    _save_portfolio(portfolio)
     return {"status": "ok"}
 
 
 @app.delete("/api/portfolio/position/{ticker}")
 def remove_position(ticker: str):
     portfolio = _load_portfolio(PORTFOLIO_PATH)
-    portfolio.positions = [p for p in portfolio.positions if p.ticker.upper() != ticker.upper()]
-    with open(PORTFOLIO_PATH, "w") as f:
-        f.write(portfolio.model_dump_json(indent=2))
+    ticker_upper = ticker.upper()
+    portfolio.positions = [p for p in portfolio.positions if p.ticker.upper() != ticker_upper]
+    _save_portfolio(portfolio)
     return {"status": "ok"}

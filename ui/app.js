@@ -14,6 +14,15 @@ const STATE = {
 
 // --- Configuration ---
 
+const API_ENDPOINTS = {
+  dashboard: '/api/dashboard',
+  eval: '/api/eval',
+  portfolio: '/api/portfolio/position',
+};
+
+const ANIMATION_DELAY_MS = 30;
+const DEFAULT_BUCKET = 'Tactical Opportunities';
+
 const COLS = {
   holdings: [
     { key: "ticker", label: "TICKER" },
@@ -71,6 +80,12 @@ const el = {
     toggle: document.getElementById('sidebar-toggle')
   }
 };
+
+// --- Utilities ---
+
+function normalizeTicker(ticker) {
+  return ticker.replace('-', '.').toUpperCase();
+}
 
 // --- Formatters ---
 const fmt = {
@@ -151,6 +166,26 @@ function switchTab(tabName) {
 }
 
 // --- Data Logic ---
+
+function mergePortfolioAndEvalData(dashData, evalData) {
+  const portfolioMap = new Map((dashData.rows || []).map(r => [normalizeTicker(r.ticker), r]));
+  const evalMap = new Map(evalData.map(e => [normalizeTicker(e.ticker), e]));
+  const allTickers = new Set([...portfolioMap.keys(), ...evalMap.keys()]);
+
+  return Array.from(allTickers).map(ticker => {
+    const p = portfolioMap.get(ticker) || {};
+    const e = evalMap.get(ticker) || {};
+    const safeTicker = p.ticker || e.ticker || ticker;
+
+    return {
+      ...p,
+      ...e,
+      ticker: safeTicker,
+      name: p.name || e.name || safeTicker,
+    };
+  });
+}
+
 async function loadData() {
   if (STATE.isLoading) return;
   STATE.isLoading = true;
@@ -158,8 +193,8 @@ async function loadData() {
 
   try {
     const [dashRes, evalRes] = await Promise.all([
-      fetch('/api/dashboard'),
-      fetch('/api/eval')
+      fetch(API_ENDPOINTS.dashboard),
+      fetch(API_ENDPOINTS.eval),
     ]);
 
     if (!dashRes.ok || !evalRes.ok) throw new Error('System Error: API Failure');
@@ -167,31 +202,9 @@ async function loadData() {
     const dashData = await dashRes.json();
     const evalData = await evalRes.json();
 
-    // Full Join Logic
-    const portfolioMap = new Map((dashData.rows || []).map(r => [r.ticker.replace("-", ".").toUpperCase(), r]));
-    const evalMap = new Map(evalData.map(e => [e.ticker.replace("-", ".").toUpperCase(), e]));
-    
-    // Get all unique tickers from both sources
-    const allTickers = new Set([...portfolioMap.keys(), ...evalMap.keys()]);
-
-    STATE.data = Array.from(allTickers).map(ticker => {
-      const p = portfolioMap.get(ticker) || {};
-      const e = evalMap.get(ticker) || {};
-      
-      // Ensure we have a valid ticker if it was missing in one of the maps
-      const safeTicker = p.ticker || e.ticker || ticker;
-
-      return {
-        ...p, // Spread portfolio data first
-        ...e, // Spread eval data second
-        ticker: safeTicker,
-        name: p.name || e.name || safeTicker
-      };
-    });
-
+    STATE.data = mergePortfolioAndEvalData(dashData, evalData);
     updateStats();
     renderTable();
-
   } catch (err) {
     console.error(err);
     alert('SYSTEM ERROR: Could not fetch data.');
@@ -201,69 +214,70 @@ async function loadData() {
   }
 }
 
+function calculateWeightedChange(data, totalVal) {
+  if (totalVal <= 0) return 0;
+  return data.reduce((acc, r) => acc + ((r.change_percent || 0) * (r.notional || 0)), 0) / totalVal;
+}
+
 function updateStats() {
-  // Total Positions
   el.stats.positions.textContent = STATE.data.length;
 
-  // Total Value
   const totalVal = STATE.data.reduce((acc, r) => acc + (r.notional || 0), 0);
   el.stats.value.textContent = fmt.currency(totalVal);
-  
-  // Day Change (Approximate based on weights if not provided directly)
-  // Assuming 'change_percent' is available for each
-  // This is a rough weighted average for the portfolio change
-  let weightedChange = 0;
-  if (totalVal > 0) {
-    weightedChange = STATE.data.reduce((acc, r) => {
-      return acc + ((r.change_percent || 0) * (r.notional || 0));
-    }, 0) / totalVal;
-  }
-  
+
+  const weightedChange = calculateWeightedChange(STATE.data, totalVal);
   el.stats.change.textContent = fmt.percent(weightedChange);
   el.stats.change.className = `stat-trend ${weightedChange >= 0 ? 'positive' : 'negative'}`;
 }
 
 // --- Table Rendering ---
-function renderTable() {
-  const cols = COLS[STATE.currentTab];
-  
-  // Sort
-  const sorted = [...STATE.data].sort((a, b) => {
-    let valA = a[STATE.sortCol];
-    let valB = b[STATE.sortCol];
-    
-    // Handle nulls
+
+function compareValues(a, b, sortDir) {
+  if (a < b) return sortDir === 'asc' ? -1 : 1;
+  if (a > b) return sortDir === 'asc' ? 1 : -1;
+  return 0;
+}
+
+function sortData(data, sortCol, sortDir) {
+  return [...data].sort((a, b) => {
+    let valA = a[sortCol];
+    let valB = b[sortCol];
+
     if (valA == null) return 1;
     if (valB == null) return -1;
-    
+
     if (typeof valA === 'string') {
       valA = valA.toLowerCase();
       valB = valB.toLowerCase();
     }
-    
-    if (valA < valB) return STATE.sortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return STATE.sortDir === 'asc' ? 1 : -1;
-    return 0;
-  });
 
-  // Render Head
-  let theadHTML = '<tr>';
+    return compareValues(valA, valB, sortDir);
+  });
+}
+
+function renderTableHead(cols) {
+  let html = '<tr>';
   cols.forEach(col => {
     if (col.key === 'remove') {
-      theadHTML += '<th></th>';
+      html += '<th></th>';
     } else {
-      let classList = [];
+      const classList = [];
       if (STATE.sortCol === col.key) {
-        classList.push('sorted');
-        classList.push(STATE.sortDir); // 'asc' or 'desc'
+        classList.push('sorted', STATE.sortDir);
       }
-      theadHTML += `<th data-sort="${col.key}" class="${classList.join(' ')}">${col.label}</th>`;
+      html += `<th data-sort="${col.key}" class="${classList.join(' ')}">${col.label}</th>`;
     }
   });
-  theadHTML += '</tr>';
-  el.table.head.innerHTML = theadHTML;
+  html += '</tr>';
+  el.table.head.innerHTML = html;
+}
 
-  // Render Body
+function renderTable() {
+  const cols = COLS[STATE.currentTab];
+  const sorted = sortData(STATE.data, STATE.sortCol, STATE.sortDir);
+
+  renderTableHead(cols);
+
   const fragment = document.createDocumentFragment();
   sorted.forEach((row, i) => {
     const tr = createRow(row, cols, i);
@@ -273,50 +287,68 @@ function renderTable() {
   el.table.body.appendChild(fragment);
 }
 
+function createBadge(content, className) {
+  const span = document.createElement('span');
+  span.className = className;
+  span.textContent = content;
+  return span;
+}
+
+function createPercentBadge(val, content) {
+  return createBadge(content, `badge ${val >= 0 ? 'positive' : 'negative'}`);
+}
+
+function createScoreBadge(val, content) {
+  let scoreClass = 'score-mid';
+  if (val >= 8) scoreClass = 'score-high';
+  if (val <= 4) scoreClass = 'score-low';
+  return createBadge(content, scoreClass);
+}
+
+function formatCellValue(row, col) {
+  const val = row[col.key];
+  if (col.format && fmt[col.format]) {
+    return fmt[col.format](val);
+  }
+  return fmt.default(val);
+}
+
+function createCell(row, col) {
+  const td = document.createElement('td');
+  const val = row[col.key];
+
+  if (col.key === 'remove') {
+    const btn = document.createElement('button');
+    btn.className = 'btn-remove-cell';
+    btn.innerHTML = '&times;';
+    btn.dataset.ticker = row.ticker;
+    td.appendChild(btn);
+  } else if (col.key === 'ticker') {
+    td.textContent = val;
+  } else {
+    const content = formatCellValue(row, col);
+
+    if (col.format === 'percent' && val != null) {
+      td.appendChild(createPercentBadge(val, content));
+    } else if (col.format === 'score' && val != null) {
+      td.appendChild(createScoreBadge(val, content));
+    } else {
+      td.textContent = content;
+    }
+  }
+
+  return td;
+}
+
 function createRow(row, cols, index) {
   const tr = document.createElement('tr');
-  tr.style.animationDelay = `${index * 30}ms`;
+  tr.style.animationDelay = `${index * ANIMATION_DELAY_MS}ms`;
   tr.classList.add('animate-in');
-  
+
   cols.forEach(col => {
-    const td = document.createElement('td');
-    const val = row[col.key];
-
-    if (col.key === 'remove') {
-      const btn = document.createElement('button');
-      btn.className = 'btn-remove-cell';
-      btn.innerHTML = '&times;';
-      btn.dataset.ticker = row.ticker; // Store ticker for delegation
-      td.appendChild(btn);
-    } else if (col.key === 'ticker') {
-      td.textContent = val;
-    } else {
-      // Formatting
-      let content = fmt.default(val);
-      if (col.format && fmt[col.format]) {
-        content = fmt[col.format](val);
-      }
-
-      // Styling Badges
-      if (col.format === 'percent' && val != null) {
-        const span = document.createElement('span');
-        span.className = `badge ${val >= 0 ? 'positive' : 'negative'}`;
-        span.textContent = content;
-        td.appendChild(span);
-      } else if (col.format === 'score' && val != null) {
-        const span = document.createElement('span');
-        let scoreClass = 'score-mid';
-        if (val >= 8) scoreClass = 'score-high';
-        if (val <= 4) scoreClass = 'score-low';
-        span.className = scoreClass;
-        span.textContent = content;
-        td.appendChild(span);
-      } else {
-        td.textContent = content;
-      }
-    }
-    tr.appendChild(td);
+    tr.appendChild(createCell(row, col));
   });
+
   return tr;
 }
 
@@ -344,7 +376,7 @@ function handleTableClick(e) {
 async function handleRemove(ticker) {
   if (!confirm(`CONFIRM: Eliminate ${ticker} from portfolio?`)) return;
   try {
-    const res = await fetch(`/api/portfolio/position/${ticker}`, { method: 'DELETE' });
+    const res = await fetch(`${API_ENDPOINTS.portfolio}/${ticker}`, { method: 'DELETE' });
     if (res.ok) await loadData();
   } catch (err) {
     console.error(err);
@@ -358,25 +390,25 @@ async function handleAddTicker(e) {
   const quantity = parseFloat(el.quickAdd.qty.value);
 
   const existing = STATE.data.find(d => d.ticker.toUpperCase() === ticker);
-  const bucket = existing ? existing.bucket : "Tactical Opportunities";
+  const bucket = existing ? existing.bucket : DEFAULT_BUCKET;
   const name = existing ? existing.name : ticker;
 
-  const payload = { 
-    ticker, 
-    name, 
-    quantity, 
-    bucket, 
-    delta: 1.0, 
-    current_price: 0.0 
+  const payload = {
+    ticker,
+    name,
+    quantity,
+    bucket,
+    delta: 1.0,
+    current_price: 0.0,
   };
 
   try {
-    const res = await fetch('/api/portfolio/position', {
+    const res = await fetch(API_ENDPOINTS.portfolio, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
-    
+
     if (res.ok) {
       el.quickAdd.form.reset();
       await loadData();
