@@ -65,6 +65,7 @@ const el = {
     qty: document.getElementById('input-qty')
   },
   refreshBtn: document.getElementById('refresh-btn'),
+  viewTitle: document.getElementById('view-title'),
   sidebar: {
     el: document.getElementById('sidebar'),
     toggle: document.getElementById('sidebar-toggle')
@@ -122,6 +123,11 @@ function switchView(viewName) {
   
   // Update Nav
   el.navItems.forEach(n => n.classList.toggle('active', n.dataset.view === viewName));
+  
+  // Update Breadcrumbs
+  if (el.viewTitle) {
+    el.viewTitle.textContent = viewName === 'dashboard' ? 'DASHBOARD' : 'MARKET MAP';
+  }
   
   // Toggle Visibility
   if (viewName === 'dashboard') {

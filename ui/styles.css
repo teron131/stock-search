@@ -605,7 +605,19 @@ td:first-child:hover {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   width: 80px;
+  height: 28px; /* Fixed height to match button */
   transition: all 0.2s;
+}
+
+/* Hide number spinners */
+.quick-add-compact input::-webkit-outer-spin-button,
+.quick-add-compact input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.quick-add-compact input[type=number] {
+  -moz-appearance: textfield;
 }
 
 .quick-add-compact input:focus {
@@ -618,12 +630,22 @@ td:first-child:hover {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  box-shadow: none;
+  background: rgba(246, 242, 234, 0.05);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
 }
 
 .quick-add-compact .btn-add-mini:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
   transform: scale(1.1);
-  box-shadow: 0 0 10px rgba(217, 255, 63, 0.3);
 }
 
 /* Heatmap Section */
