@@ -68,6 +68,7 @@ const el = {
     value: document.getElementById('total-notional'),
     change: document.getElementById('portfolio-change')
   },
+  marketSummary: document.getElementById('market-summary-widget'),
   quickAdd: {
     form: document.getElementById('quick-add-form'),
     ticker: document.getElementById('input-ticker'),
@@ -204,6 +205,7 @@ async function loadData() {
 
     STATE.data = mergePortfolioAndEvalData(dashData, evalData);
     updateStats();
+    updateMarketSummary();
     renderTable();
   } catch (err) {
     console.error(err);
@@ -228,6 +230,38 @@ function updateStats() {
   const weightedChange = calculateWeightedChange(STATE.data, totalVal);
   el.stats.change.textContent = fmt.percent(weightedChange);
   el.stats.change.className = `stat-trend ${weightedChange >= 0 ? 'positive' : 'negative'}`;
+}
+
+function updateMarketSummary() {
+  if (!el.marketSummary || !STATE.data.length) return;
+
+  // Sort by weight descending, then extract unique tickers
+  const sortedData = [...STATE.data].sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0));
+  
+  const tickers = [];
+  const seen = new Set();
+  
+  for (const item of sortedData) {
+    const t = normalizeTicker(item.ticker);
+    if (t && t.length > 0 && t.length < 10 && !seen.has(t)) {
+      tickers.push(t);
+      seen.add(t);
+    }
+    if (tickers.length >= 15) break;
+  }
+
+  const symbolSectors = [
+    {
+      sectionName: "Stocks",
+      symbols: tickers
+    },
+    {
+      sectionName: "Indices",
+      symbols: []
+    }
+  ];
+
+  el.marketSummary.setAttribute('symbol-sectors', JSON.stringify(symbolSectors));
 }
 
 // --- Table Rendering ---

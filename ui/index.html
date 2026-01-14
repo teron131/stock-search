@@ -13,6 +13,7 @@
       rel="stylesheet"
     />
     
+    <script type="module" src="https://widgets.tradingview-widget.com/w/en/tv-market-summary.js"></script>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
@@ -78,6 +79,20 @@
                 <span class="meta-value" id="total-positions">--</span>
               </div>
             </div>
+          </div>
+          
+          <!-- Market Summary Widget -->
+          <div class="market-summary-container" id="market-summary-view">
+            <tv-market-summary 
+              id="market-summary-widget"
+              symbol-sectors='[{"sectionName":"Stocks","symbols":[]},{"sectionName":"Indices","symbols":[]}]' 
+              time-frame="7D" 
+              show-time-range 
+              direction="horizontal" 
+              item-size="compact" 
+              mode="custom" 
+              transparent>
+            </tv-market-summary>
           </div>
 
           <!-- Tabs -->
