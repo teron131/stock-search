@@ -1,21 +1,20 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
-import json
-from pydantic import BaseModel
 
-from stock_search.dashboard import get_dashboard, _load_portfolio
-from stock_search.schemas import Portfolio, PortfolioPosition, News, NewsAnalysis
+from stock_search.dashboard import _load_portfolio, get_dashboard
+from stock_search.schemas import PortfolioPosition
 
 BASE_DIR = Path(__file__).resolve().parent
 UI_DIR = BASE_DIR.parent / "ui"
 INDEX_FILE = UI_DIR / "index.html"
-PORTFOLIO_PATH = BASE_DIR.parent / "portfolio.json"
+PORTFOLIO_PATH = BASE_DIR.parent / "data" / "portfolio.json"
 
 app = FastAPI(title="Stock Search Dashboard")
 
@@ -28,7 +27,7 @@ def serve_index() -> FileResponse:
 
 
 @app.get("/api/dashboard")
-def dashboard_api(portfolio_path: str = "portfolio.json") -> dict:
+def dashboard_api(portfolio_path: str = "data/portfolio.json") -> dict:
     df = get_dashboard(portfolio_path)
     df = df.where(pd.notna(df), None)
     return {
@@ -39,10 +38,10 @@ def dashboard_api(portfolio_path: str = "portfolio.json") -> dict:
 
 @app.get("/api/eval")
 def eval_api() -> list[dict]:
-    eval_path = BASE_DIR.parent / "eval.json"
+    eval_path = BASE_DIR.parent / "data" / "eval.json"
     if not eval_path.exists():
         return []
-    with open(eval_path, "r") as f:
+    with open(eval_path) as f:
         return json.load(f)
 
 
@@ -56,7 +55,7 @@ def news_api(ticker: str) -> list[dict]:
             "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
             "relevancy": "high",
             "category": "company_news",
-            "sentiment": "bullish"
+            "sentiment": "bullish",
         },
         {
             "title": f"Market trends affecting {ticker}",
@@ -64,8 +63,8 @@ def news_api(ticker: str) -> list[dict]:
             "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
             "relevancy": "medium",
             "category": "market_news",
-            "sentiment": "neutral"
-        }
+            "sentiment": "neutral",
+        },
     ]
 
 
@@ -73,8 +72,9 @@ def news_api(ticker: str) -> list[dict]:
 def evaluate_ticker_api(ticker: str) -> dict:
     """Return dummy evaluation metrics combining real prices with dummy research."""
     from stock_search.indicators import StockIndicator
+
     indicator = StockIndicator(ticker)
-    
+
     # Combined dummy research with real indicator data
     return {
         "ticker": ticker.upper(),
@@ -89,14 +89,14 @@ def evaluate_ticker_api(ticker: str) -> dict:
         "bear": 0.2,
         "current_price": indicator.price,
         "change_percent": indicator.change_percent,
-        "rsi": indicator.rsi
+        "rsi": indicator.rsi,
     }
 
 
 @app.post("/api/portfolio/position")
 def add_position(position: PortfolioPosition):
     portfolio = _load_portfolio(PORTFOLIO_PATH)
-    
+
     # Check if exists
     for i, p in enumerate(portfolio.positions):
         if p.ticker.upper() == position.ticker.upper():
@@ -104,7 +104,7 @@ def add_position(position: PortfolioPosition):
             break
     else:
         portfolio.positions.append(position)
-        
+
     with open(PORTFOLIO_PATH, "w") as f:
         f.write(portfolio.model_dump_json(indent=2))
     return {"status": "ok"}

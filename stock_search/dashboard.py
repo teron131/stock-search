@@ -45,7 +45,7 @@ def _build_row(position: PortfolioPosition) -> dict:
     }
 
 
-def get_dashboard(portfolio_path: str | Path = "portfolio.json") -> pd.DataFrame:
+def get_dashboard(portfolio_path: str | Path = "data/portfolio.json") -> pd.DataFrame:
     """Return a raw portfolio table as a DataFrame."""
     portfolio = _load_portfolio(portfolio_path)
     with ThreadPoolExecutor() as executor:
@@ -59,7 +59,7 @@ def get_dashboard(portfolio_path: str | Path = "portfolio.json") -> pd.DataFrame
     return df
 
 
-def display_dashboard(portfolio_path: str | Path = "portfolio.json") -> None:
+def display_dashboard(portfolio_path: str | Path = "data/portfolio.json") -> None:
     """Display the portfolio dashboard using Rich."""
     df = get_dashboard(portfolio_path)
 
