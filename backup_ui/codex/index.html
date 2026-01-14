@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stock Search</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">SS</div>
+          <div>
+            <div class="brand-title">Stock Search</div>
+            <div class="brand-subtitle">Signals, holdings, and conviction in one view.</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="btn-refresh" id="refresh">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 2v6h-6"></path>
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+              <path d="M3 22v-6h6"></path>
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+            </svg>
+            Refresh Data
+          </button>
+        </div>
+      </header>
+
+      <section class="control-panel">
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-label">Positions</div>
+            <div class="stat-value" id="total-positions">--</div>
+            <div class="stat-meta">Active holdings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Notional</div>
+            <div class="stat-value" id="total-notional">--</div>
+            <div class="stat-meta">Total portfolio value</div>
+          </div>
+          <div class="stat-card stat-card--accent">
+            <div class="stat-label">Focus</div>
+            <div class="stat-value">Signal + Risk</div>
+            <div class="stat-meta">Momentum + quality blend</div>
+          </div>
+        </div>
+        <form id="quick-add-form" class="quick-add-form">
+          <div class="quick-add-title">Quick Add</div>
+          <label class="field">
+            <span>Ticker</span>
+            <input type="text" id="quick-ticker" placeholder="AAPL" required />
+          </label>
+          <label class="field">
+            <span>Qty</span>
+            <input type="number" id="quick-qty" placeholder="10" step="any" required />
+          </label>
+          <button type="submit" class="btn-add-inline">Add Position</button>
+        </form>
+      </section>
+
+      <main class="content">
+        <section class="panel table-panel">
+          <div class="panel-header tabs-header">
+            <div class="tabs">
+              <button class="tab-btn active" data-tab="holdings">Holdings</button>
+              <button class="tab-btn" data-tab="evaluations">Evaluations</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table id="main-table">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel heatmap">
+          <div class="panel-header">
+            <div>
+              <h2>Market Heatmap</h2>
+              <p>Sector flow, pressure zones, and momentum clusters.</p>
+            </div>
+            <div class="panel-pill">SPX500</div>
+          </div>
+          <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container__widget"></div>
+            <script
+              src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js"
+              async
+            >
+              {
+                "dataSource": "SPX500",
+                "blockSize": "market_cap_basic",
+                "blockColor": "change",
+                "grouping": "sector",
+                "locale": "en",
+                "symbolUrl": "",
+                "colorTheme": "dark",
+                "hasTopBar": false,
+                "isDataSetEnabled": true,
+                "isZoomEnabled": true,
+                "hasSymbolTooltip": true,
+                "width": "100%",
+                "height": 520
+              }
+            </script>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
