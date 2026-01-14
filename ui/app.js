@@ -106,6 +106,10 @@ function setupEventListeners() {
 
   // Sidebar Toggle
   el.sidebar.toggle.addEventListener('click', toggleSidebar);
+
+  // Table Delegation (Sort + Remove)
+  el.table.head.addEventListener('click', handleTableClick);
+  el.table.body.addEventListener('click', handleTableClick);
 }
 
 function toggleSidebar() {
@@ -168,13 +172,14 @@ async function loadData() {
       const p = portfolioMap.get(ticker) || {};
       const e = evalMap.get(ticker) || {};
       
+      // Ensure we have a valid ticker if it was missing in one of the maps
+      const safeTicker = p.ticker || e.ticker || ticker;
+
       return {
-        ticker: ticker,
-        name: p.name || e.name || ticker,
         ...p, // Spread portfolio data first
-        ...e, // Spread eval data second (might overwrite some overlapping keys if any)
-        // Explicitly ensure ticker is set correctly
-        ticker: ticker
+        ...e, // Spread eval data second
+        ticker: safeTicker,
+        name: p.name || e.name || safeTicker
       };
     });
 
@@ -246,7 +251,7 @@ function renderTable() {
         classList.push('sorted');
         classList.push(STATE.sortDir); // 'asc' or 'desc'
       }
-      theadHTML += `<th onclick="handleSort('${col.key}')" class="${classList.join(' ')}">${col.label}</th>`;
+      theadHTML += `<th data-sort="${col.key}" class="${classList.join(' ')}">${col.label}</th>`;
     }
   });
   theadHTML += '</tr>';
@@ -255,57 +260,82 @@ function renderTable() {
   // Render Body
   const fragment = document.createDocumentFragment();
   sorted.forEach((row, i) => {
-    const tr = document.createElement('tr');
-    tr.style.animationDelay = `${i * 30}ms`;
-    tr.classList.add('animate-in');
-    
-    cols.forEach(col => {
-      const td = document.createElement('td');
-      const val = row[col.key];
-
-      if (col.key === 'remove') {
-        td.innerHTML = `<button class="btn-remove-cell" onclick="handleRemove('${row.ticker}')">&times;</button>`;
-      } else if (col.key === 'ticker') {
-        td.textContent = val;
-      } else {
-        // Formatting
-        let content = fmt.default(val);
-        if (col.format && fmt[col.format]) {
-          content = fmt[col.format](val);
-        }
-
-        // Styling Badges
-        if (col.format === 'percent' && val != null) {
-          td.innerHTML = `<span class="badge ${val >= 0 ? 'positive' : 'negative'}">${content}</span>`;
-        } else if (col.format === 'score' && val != null) {
-          let scoreClass = 'score-mid';
-          if (val >= 8) scoreClass = 'score-high';
-          if (val <= 4) scoreClass = 'score-low';
-          td.innerHTML = `<span class="${scoreClass}">${content}</span>`;
-        } else {
-          td.textContent = content;
-        }
-      }
-      tr.appendChild(td);
-    });
+    const tr = createRow(row, cols, i);
     fragment.appendChild(tr);
   });
   el.table.body.innerHTML = '';
   el.table.body.appendChild(fragment);
 }
 
-// --- Interaction Handlers ---
-window.handleSort = (key) => {
-  if (STATE.sortCol === key) {
-    STATE.sortDir = STATE.sortDir === 'asc' ? 'desc' : 'asc';
-  } else {
-    STATE.sortCol = key;
-    STATE.sortDir = 'desc';
-  }
-  renderTable();
-};
+function createRow(row, cols, index) {
+  const tr = document.createElement('tr');
+  tr.style.animationDelay = `${index * 30}ms`;
+  tr.classList.add('animate-in');
+  
+  cols.forEach(col => {
+    const td = document.createElement('td');
+    const val = row[col.key];
 
-window.handleRemove = async (ticker) => {
+    if (col.key === 'remove') {
+      const btn = document.createElement('button');
+      btn.className = 'btn-remove-cell';
+      btn.innerHTML = '&times;';
+      btn.dataset.ticker = row.ticker; // Store ticker for delegation
+      td.appendChild(btn);
+    } else if (col.key === 'ticker') {
+      td.textContent = val;
+    } else {
+      // Formatting
+      let content = fmt.default(val);
+      if (col.format && fmt[col.format]) {
+        content = fmt[col.format](val);
+      }
+
+      // Styling Badges
+      if (col.format === 'percent' && val != null) {
+        const span = document.createElement('span');
+        span.className = `badge ${val >= 0 ? 'positive' : 'negative'}`;
+        span.textContent = content;
+        td.appendChild(span);
+      } else if (col.format === 'score' && val != null) {
+        const span = document.createElement('span');
+        let scoreClass = 'score-mid';
+        if (val >= 8) scoreClass = 'score-high';
+        if (val <= 4) scoreClass = 'score-low';
+        span.className = scoreClass;
+        span.textContent = content;
+        td.appendChild(span);
+      } else {
+        td.textContent = content;
+      }
+    }
+    tr.appendChild(td);
+  });
+  return tr;
+}
+
+// --- Interaction Handlers ---
+function handleTableClick(e) {
+  // Sort Handling
+  if (e.target.tagName === 'TH' && e.target.dataset.sort) {
+    const key = e.target.dataset.sort;
+    if (STATE.sortCol === key) {
+      STATE.sortDir = STATE.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      STATE.sortCol = key;
+      STATE.sortDir = 'desc';
+    }
+    renderTable();
+  }
+
+  // Remove Handling
+  if (e.target.classList.contains('btn-remove-cell')) {
+    const ticker = e.target.dataset.ticker;
+    handleRemove(ticker);
+  }
+}
+
+async function handleRemove(ticker) {
   if (!confirm(`CONFIRM: Eliminate ${ticker} from portfolio?`)) return;
   try {
     const res = await fetch(`/api/portfolio/position/${ticker}`, { method: 'DELETE' });
@@ -314,7 +344,7 @@ window.handleRemove = async (ticker) => {
     console.error(err);
     alert('Failed to remove asset.');
   }
-};
+}
 
 async function handleAddTicker(e) {
   e.preventDefault();
