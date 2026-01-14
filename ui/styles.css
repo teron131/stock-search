@@ -563,6 +563,12 @@ th {
   white-space: nowrap;
 }
 
+th:first-child {
+  left: 0;
+  z-index: 10;
+  background: var(--panel);
+}
+
 th:hover {
   color: var(--ink);
 }
@@ -605,7 +611,15 @@ tr:hover td {
   background: rgba(246, 242, 234, 0.03);
 }
 
+tr:hover td:first-child {
+  background: color-mix(in srgb, var(--panel), var(--ink) 3%);
+}
+
 td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--panel);
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--ink);
