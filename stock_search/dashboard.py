@@ -14,7 +14,10 @@ from stock_search.schemas import Portfolio, PortfolioPosition
 
 def _load_portfolio(path: str | Path) -> Portfolio:
     """Load portfolio data from a JSON file."""
-    data = json.loads(Path(path).read_text())
+    path = Path(path)
+    if not path.exists():
+        return Portfolio(positions=[])
+    data = json.loads(path.read_text())
     return Portfolio.model_validate(data)
 
 

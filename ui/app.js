@@ -61,16 +61,10 @@ const el = {
     topTicker: document.getElementById('top-gainer-ticker'),
     topValue: document.getElementById('top-gainer-value')
   },
-  modal: {
-    overlay: document.getElementById('add-modal'),
-    form: document.getElementById('add-ticker-form'),
-    closeBtn: document.getElementById('close-modal'),
-    cancelBtn: document.getElementById('cancel-modal'),
-    openBtn: document.getElementById('add-ticker-btn'),
-    inputs: {
-      ticker: document.getElementById('input-ticker'),
-      qty: document.getElementById('input-qty')
-    }
+  quickAdd: {
+    form: document.getElementById('quick-add-form'),
+    ticker: document.getElementById('input-ticker'),
+    qty: document.getElementById('input-qty')
   },
   refreshBtn: document.getElementById('refresh-btn')
 };
@@ -102,14 +96,8 @@ function setupEventListeners() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // Modal
-  el.modal.openBtn.addEventListener('click', openModal);
-  el.modal.closeBtn.addEventListener('click', closeModal);
-  el.modal.cancelBtn.addEventListener('click', closeModal);
-  el.modal.overlay.addEventListener('click', (e) => {
-    if (e.target === el.modal.overlay) closeModal();
-  });
-  el.modal.form.addEventListener('submit', handleAddTicker);
+  // Quick Add
+  el.quickAdd.form.addEventListener('submit', handleAddTicker);
 
   // Refresh
   el.refreshBtn.addEventListener('click', loadData);
@@ -315,21 +303,10 @@ window.handleRemove = async (ticker) => {
   }
 };
 
-// --- Modal Handlers ---
-function openModal() {
-  el.modal.overlay.classList.add('open');
-  el.modal.inputs.ticker.focus();
-}
-
-function closeModal() {
-  el.modal.overlay.classList.remove('open');
-  el.modal.form.reset();
-}
-
 async function handleAddTicker(e) {
   e.preventDefault();
-  const ticker = el.modal.inputs.ticker.value.toUpperCase();
-  const quantity = parseFloat(el.modal.inputs.qty.value);
+  const ticker = el.quickAdd.ticker.value.toUpperCase();
+  const quantity = parseFloat(el.quickAdd.qty.value);
 
   const existing = STATE.data.find(d => d.ticker.toUpperCase() === ticker);
   const bucket = existing ? existing.bucket : "Tactical Opportunities";
@@ -352,7 +329,7 @@ async function handleAddTicker(e) {
     });
     
     if (res.ok) {
-      closeModal();
+      el.quickAdd.form.reset();
       await loadData();
     } else {
       throw new Error('API Error');

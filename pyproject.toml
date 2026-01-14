@@ -23,6 +23,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "uvicorn>=0.40.0",
     "yfinance>=0.2.65",
+    "pandas>=2.2.3",
 ]
 
 [build-system]

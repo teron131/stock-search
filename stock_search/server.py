@@ -27,8 +27,8 @@ def serve_index() -> FileResponse:
 
 
 @app.get("/api/dashboard")
-def dashboard_api(portfolio_path: str = "data/portfolio.json") -> dict:
-    df = get_dashboard(portfolio_path)
+def dashboard_api() -> dict:
+    df = get_dashboard(PORTFOLIO_PATH)
     df = df.where(pd.notna(df), None)
     return {
         "columns": list(df.columns),
