@@ -16,7 +16,7 @@ const STATE = {
 
 const COLS = {
   holdings: [
-    { key: "ticker", label: "ASSET" },
+    { key: "ticker", label: "TICKER" },
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE", format: "percent" },
@@ -27,7 +27,7 @@ const COLS = {
     { key: "remove", label: "", format: "action" }
   ],
   evaluations: [
-    { key: "ticker", label: "ASSET" },
+    { key: "ticker", label: "TICKER" },
     { key: "rank", label: "RANK" },
     { key: "overall", label: "SCORE", format: "score" },
     { key: "quality", label: "QUALITY", format: "score" },
@@ -66,7 +66,11 @@ const el = {
     ticker: document.getElementById('input-ticker'),
     qty: document.getElementById('input-qty')
   },
-  refreshBtn: document.getElementById('refresh-btn')
+  refreshBtn: document.getElementById('refresh-btn'),
+  sidebar: {
+    el: document.getElementById('sidebar'),
+    toggle: document.getElementById('sidebar-toggle')
+  }
 };
 
 // --- Formatters ---
@@ -101,6 +105,13 @@ function setupEventListeners() {
 
   // Refresh
   el.refreshBtn.addEventListener('click', loadData);
+
+  // Sidebar Toggle
+  el.sidebar.toggle.addEventListener('click', toggleSidebar);
+}
+
+function toggleSidebar() {
+  el.sidebar.el.classList.toggle('collapsed');
 }
 
 // --- View Logic ---
@@ -148,13 +159,25 @@ async function loadData() {
     const dashData = await dashRes.json();
     const evalData = await evalRes.json();
 
-    // Merge logic
+    // Full Join Logic
+    const portfolioMap = new Map((dashData.rows || []).map(r => [r.ticker.replace("-", ".").toUpperCase(), r]));
     const evalMap = new Map(evalData.map(e => [e.ticker.replace("-", ".").toUpperCase(), e]));
     
-    STATE.data = (dashData.rows || []).map(row => {
-      const key = row.ticker.replace("-", ".").toUpperCase();
-      const evalInfo = evalMap.get(key) || {};
-      return { ...row, ...evalInfo, name: row.name || evalInfo.name || row.ticker };
+    // Get all unique tickers from both sources
+    const allTickers = new Set([...portfolioMap.keys(), ...evalMap.keys()]);
+
+    STATE.data = Array.from(allTickers).map(ticker => {
+      const p = portfolioMap.get(ticker) || {};
+      const e = evalMap.get(ticker) || {};
+      
+      return {
+        ticker: ticker,
+        name: p.name || e.name || ticker,
+        ...p, // Spread portfolio data first
+        ...e, // Spread eval data second (might overwrite some overlapping keys if any)
+        // Explicitly ensure ticker is set correctly
+        ticker: ticker
+      };
     });
 
     updateStats();
@@ -232,8 +255,12 @@ function renderTable() {
     if (col.key === 'remove') {
       theadHTML += '<th></th>';
     } else {
-      const activeClass = STATE.sortCol === col.key ? 'active' : '';
-      theadHTML += `<th onclick="handleSort('${col.key}')" class="${activeClass}">${col.label}</th>`;
+      let classList = [];
+      if (STATE.sortCol === col.key) {
+        classList.push('sorted');
+        classList.push(STATE.sortDir); // 'asc' or 'desc'
+      }
+      theadHTML += `<th onclick="handleSort('${col.key}')" class="${classList.join(' ')}">${col.label}</th>`;
     }
   });
   theadHTML += '</tr>';
