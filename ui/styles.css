@@ -319,7 +319,16 @@ body::after {
 
 .actions {
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.last-update {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Buttons */
@@ -735,8 +744,18 @@ td:first-child:hover {
   border: 1px solid var(--border);
   border-radius: 24px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   padding: 1px;
   box-shadow: var(--shadow);
+}
+
+.heatmap-container .tabs-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.heatmap-container .tradingview-widget-container {
+  flex: 1;
 }
 
 .calendar-container {

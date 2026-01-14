@@ -80,6 +80,11 @@ const el = {
   sidebar: {
     el: document.getElementById('sidebar'),
     toggle: document.getElementById('sidebar-toggle')
+  },
+  lastUpdate: document.getElementById('last-update'),
+  heatmap: {
+    tabs: document.querySelectorAll('#heatmap-section .tab-btn'),
+    container: document.getElementById('heatmap-widget-container')
   }
 };
 
@@ -124,6 +129,11 @@ function setupEventListeners() {
 
   // Sidebar Toggle
   el.sidebar.toggle.addEventListener('click', toggleSidebar);
+
+  // Heatmap Source Switching
+  el.heatmap.tabs.forEach(tab => {
+    tab.addEventListener('click', () => switchHeatmapSource(tab.dataset.source));
+  });
 
   // Table Delegation (Sort + Remove)
   el.table.head.addEventListener('click', handleTableClick);
@@ -176,6 +186,40 @@ function switchTab(tabName) {
   renderTable();
 }
 
+function switchHeatmapSource(source) {
+  // Update UI
+  el.heatmap.tabs.forEach(t => t.classList.toggle('active', t.dataset.source === source));
+  
+  // Re-inject TradingView Widget with new source
+  // The widget script reads the config inside it when it's appended to the DOM
+  const container = el.heatmap.container;
+  container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+  
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js';
+  script.async = true;
+  script.innerHTML = JSON.stringify({
+    "dataSource": source,
+    "blockSize": "Value.Traded|1W",
+    "blockColor": "change",
+    "grouping": "sector",
+    "locale": "en",
+    "symbolUrl": "",
+    "colorTheme": "dark",
+    "exchanges": ["NYSE", "NASDAQ"],
+    "hasTopBar": true,
+    "isDataSetEnabled": false,
+    "isZoomEnabled": true,
+    "hasSymbolTooltip": true,
+    "isMonoSize": false,
+    "width": "100%",
+    "height": "100%"
+  });
+  
+  container.appendChild(script);
+}
+
 // --- Data Logic ---
 
 function mergePortfolioAndEvalData(dashData, evalData) {
@@ -217,6 +261,7 @@ async function loadData() {
     updateStats();
     updateTickerTape();
     renderTable();
+    updateTimestamp();
   } catch (err) {
     console.error(err);
     alert('SYSTEM ERROR: Could not fetch data.');
@@ -240,6 +285,14 @@ function updateStats() {
   const weightedChange = calculateWeightedChange(STATE.data, totalVal);
   el.stats.change.textContent = fmt.percent(weightedChange);
   el.stats.change.className = `stat-trend ${weightedChange >= 0 ? 'positive' : 'negative'}`;
+}
+
+function updateTimestamp() {
+  if (!el.lastUpdate) return;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.lastUpdate.textContent = `LAST UPDATED: ${dateStr} ${timeStr}`;
 }
 
 function updateTickerTape() {

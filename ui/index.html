@@ -59,6 +59,7 @@
           <div class="breadcrumbs">PORTFOLIO / <span class="current-section" id="view-title">DASHBOARD</span></div>
           
           <div class="actions">
+            <span class="last-update" id="last-update">--</span>
             <button class="btn btn-secondary" id="refresh-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
               SYNC
@@ -123,19 +124,27 @@
 
           <!-- Heatmap Section (Initially Hidden via CSS or below fold) -->
           <div id="heatmap-section" class="heatmap-container" style="display: none;">
-            <div class="tradingview-widget-container">
+            <div class="tabs-header">
+              <button class="tab-btn active" data-source="SPX500">S&P 500</button>
+              <button class="tab-btn" data-source="NASDAQ100">NASDAQ 100</button>
+            </div>
+            <div class="tradingview-widget-container" id="heatmap-widget-container">
               <div class="tradingview-widget-container__widget"></div>
               <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js" async>
               {
                 "dataSource": "SPX500",
-                "blockSize": "market_cap_basic",
+                "blockSize": "Value.Traded|1W",
                 "blockColor": "change",
                 "grouping": "sector",
                 "locale": "en",
                 "symbolUrl": "",
                 "colorTheme": "dark",
-                "hasTopBar": false,
-                "isDataSetEnabled": true,
+                "exchanges": [
+                  "NYSE",
+                  "NASDAQ"
+                ],
+                "hasTopBar": true,
+                "isDataSetEnabled": false,
                 "isZoomEnabled": true,
                 "hasSymbolTooltip": true,
                 "isMonoSize": false,
