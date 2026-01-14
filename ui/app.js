@@ -358,7 +358,14 @@ function createCell(row, col) {
     btn.dataset.ticker = row.ticker;
     td.appendChild(btn);
   } else if (col.key === 'ticker') {
-    td.textContent = val;
+    const tag = document.createElement('tv-ticker-tag');
+    tag.setAttribute('symbol', val);
+    tag.setAttribute('preserve-text', '');
+    tag.setAttribute('hide-change', '');
+    tag.setAttribute('hide-background', '');
+    tag.setAttribute('transparent', '');
+    tag.textContent = val; // Fallback text
+    td.appendChild(tag);
   } else {
     const content = formatCellValue(row, col);
 
