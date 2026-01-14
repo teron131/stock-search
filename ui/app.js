@@ -45,7 +45,7 @@ const el = {
   navItems: document.querySelectorAll('.nav-item'),
   views: {
     dashboard: document.querySelector('.content-area'), // wrapper
-    stats: document.querySelector('.stats-grid'),
+    stats: document.querySelector('.overview-panel'),
     tabs: document.querySelector('.tabs-container'),
     heatmap: document.getElementById('heatmap-section')
   },
@@ -131,7 +131,7 @@ function switchView(viewName) {
   
   // Toggle Visibility
   if (viewName === 'dashboard') {
-    el.views.stats.style.display = 'grid';
+    el.views.stats.style.display = 'flex';
     el.views.tabs.style.display = 'flex';
     el.views.heatmap.style.display = 'none';
   } else {

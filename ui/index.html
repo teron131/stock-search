@@ -63,22 +63,20 @@
         <!-- Scrollable Content -->
         <div class="content-area">
           
-          <!-- Stats Grid -->
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-label">Total Positions</div>
-              <div class="stat-value" id="total-positions">--</div>
-              <div class="stat-trend neutral">--</div>
+          <!-- Overview Panel -->
+          <div class="overview-panel">
+            <div class="overview-main">
+              <div class="stat-label">PORTFOLIO VALUE</div>
+              <div class="stat-value-row">
+                <div class="stat-value" id="total-notional">--</div>
+                <div class="stat-trend" id="portfolio-change">--</div>
+              </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-label">Portfolio Value</div>
-              <div class="stat-value" id="total-notional">--</div>
-              <div class="stat-trend" id="portfolio-change">--</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-label">Market Status</div>
-              <div class="stat-value status-ok">OPEN</div>
-              <div class="stat-trend neutral">NYSE / NASDAQ</div>
+            <div class="overview-meta">
+              <div class="meta-item">
+                <span class="meta-label">POSITIONS</span>
+                <span class="meta-value" id="total-positions">--</span>
+              </div>
             </div>
           </div>
 
