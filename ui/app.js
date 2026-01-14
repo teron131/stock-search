@@ -56,7 +56,8 @@ const el = {
     dashboard: document.querySelector('.content-area'), // wrapper
     stats: document.querySelector('.overview-panel'),
     tabs: document.querySelector('.tabs-container'),
-    heatmap: document.getElementById('heatmap-section')
+    heatmap: document.getElementById('heatmap-section'),
+    calendar: document.getElementById('calendar-section')
   },
   tabs: document.querySelectorAll('.tab-btn'),
   table: {
@@ -142,7 +143,9 @@ function switchView(viewName) {
   
   // Update Breadcrumbs
   if (el.viewTitle) {
-    el.viewTitle.textContent = viewName === 'dashboard' ? 'DASHBOARD' : 'MARKET MAP';
+    if (viewName === 'dashboard') el.viewTitle.textContent = 'DASHBOARD';
+    else if (viewName === 'heatmap') el.viewTitle.textContent = 'MARKET MAP';
+    else if (viewName === 'calendar') el.viewTitle.textContent = 'ECONOMIC CALENDAR';
   }
   
   // Toggle Visibility
@@ -150,10 +153,17 @@ function switchView(viewName) {
     el.views.stats.style.display = 'flex';
     el.views.tabs.style.display = 'flex';
     el.views.heatmap.style.display = 'none';
-  } else {
+    el.views.calendar.style.display = 'none';
+  } else if (viewName === 'heatmap') {
     el.views.stats.style.display = 'none';
     el.views.tabs.style.display = 'none';
     el.views.heatmap.style.display = 'block';
+    el.views.calendar.style.display = 'none';
+  } else if (viewName === 'calendar') {
+    el.views.stats.style.display = 'none';
+    el.views.tabs.style.display = 'none';
+    el.views.heatmap.style.display = 'none';
+    el.views.calendar.style.display = 'block';
   }
 }
 
