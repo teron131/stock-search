@@ -69,7 +69,7 @@ const el = {
     value: document.getElementById('total-notional'),
     change: document.getElementById('portfolio-change')
   },
-  marketSummary: document.getElementById('market-summary-widget'),
+  tickerTape: document.getElementById('ticker-tape-widget'),
   quickAdd: {
     form: document.getElementById('quick-add-form'),
     ticker: document.getElementById('input-ticker'),
@@ -215,7 +215,7 @@ async function loadData() {
 
     STATE.data = mergePortfolioAndEvalData(dashData, evalData);
     updateStats();
-    updateMarketSummary();
+    updateTickerTape();
     renderTable();
   } catch (err) {
     console.error(err);
@@ -242,8 +242,8 @@ function updateStats() {
   el.stats.change.className = `stat-trend ${weightedChange >= 0 ? 'positive' : 'negative'}`;
 }
 
-function updateMarketSummary() {
-  if (!el.marketSummary || !STATE.data.length) return;
+function updateTickerTape() {
+  if (!el.tickerTape || !STATE.data.length) return;
 
   // Sort by weight descending, then extract unique tickers
   const sortedData = [...STATE.data].sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0));
@@ -257,21 +257,11 @@ function updateMarketSummary() {
       tickers.push(t);
       seen.add(t);
     }
-    if (tickers.length >= 15) break;
+    if (tickers.length >= 20) break;
   }
 
-  const symbolSectors = [
-    {
-      sectionName: "Stocks",
-      symbols: tickers
-    },
-    {
-      sectionName: "Indices",
-      symbols: []
-    }
-  ];
-
-  el.marketSummary.setAttribute('symbol-sectors', JSON.stringify(symbolSectors));
+  // Format as comma-separated string: "NVDA,GOOGL,TSM,..."
+  el.tickerTape.setAttribute('symbols', tickers.join(','));
 }
 
 // --- Table Rendering ---
