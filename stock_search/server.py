@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
 
 from stock_search.dashboard import _load_portfolio, get_dashboard
+from stock_search.indicators import StockIndicator
 from stock_search.schemas import PortfolioPosition
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -71,8 +72,6 @@ def news_api(ticker: str) -> list[dict]:
 @app.get("/api/evaluate/{ticker}")
 def evaluate_ticker_api(ticker: str) -> dict:
     """Return dummy evaluation metrics combining real prices with dummy research."""
-    from stock_search.indicators import StockIndicator
-
     indicator = StockIndicator(ticker)
 
     # Combined dummy research with real indicator data
@@ -95,6 +94,11 @@ def evaluate_ticker_api(ticker: str) -> dict:
 
 @app.post("/api/portfolio/position")
 def add_position(position: PortfolioPosition):
+    # Validate ticker
+    indicator = StockIndicator(position.ticker)
+    if indicator.price is None:
+        raise HTTPException(status_code=400, detail=f"Invalid ticker: {position.ticker}")
+
     portfolio = _load_portfolio(PORTFOLIO_PATH)
 
     # Check if exists

@@ -588,56 +588,42 @@ td:first-child:hover {
 .score-high { color: var(--positive); font-weight: 700; }
 .score-low { color: var(--negative); font-weight: 700; }
 
-/* Quick Add Inline */
-.quick-add-card {
+/* Quick Add Inline (Table Header) */
+.quick-add-compact {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.quick-add-inputs {
-  display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 0.5rem;
+  margin-left: auto; /* Push to right */
 }
 
-.quick-add-inputs input {
+.quick-add-compact input {
   background: rgba(246, 242, 234, 0.05);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 99px;
   color: var(--ink);
-  padding: 0.6rem 0.75rem;
+  padding: 0.4rem 0.8rem;
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-  width: 100%;
-  min-width: 0;
+  font-size: 0.75rem;
+  width: 80px;
   transition: all 0.2s;
 }
 
-.quick-add-inputs input:focus {
+.quick-add-compact input:focus {
   border-color: var(--accent);
   background: rgba(246, 242, 234, 0.08);
+  width: 100px;
 }
 
-.btn-add-mini {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: none;
-  border-radius: 10px;
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 12px rgba(217, 255, 63, 0.2);
+.quick-add-compact .btn-add-mini {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: none;
 }
 
-.btn-add-mini:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(217, 255, 63, 0.3);
+.quick-add-compact .btn-add-mini:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(217, 255, 63, 0.3);
 }
 
 /* Heatmap Section */

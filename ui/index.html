@@ -76,22 +76,10 @@
               <div class="stat-trend" id="portfolio-change">--</div>
             </div>
             <div class="stat-card">
-              <div class="stat-label">Top Performer</div>
-              <div class="stat-value" id="top-gainer-ticker">--</div>
-              <div class="stat-trend positive" id="top-gainer-value">--</div>
+              <div class="stat-label">Market Status</div>
+              <div class="stat-value status-ok">OPEN</div>
+              <div class="stat-trend neutral">NYSE / NASDAQ</div>
             </div>
-            
-            <!-- Quick Add Card -->
-            <form id="quick-add-form" class="stat-card quick-add-card">
-              <div class="stat-label">QUICK ADD</div>
-              <div class="quick-add-inputs">
-                <input type="text" id="input-ticker" placeholder="TICKER" required autocomplete="off" />
-                <input type="number" id="input-qty" placeholder="QTY" step="any" required />
-                <button type="submit" class="btn-add-mini">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                </button>
-              </div>
-            </form>
           </div>
 
           <!-- Tabs -->
@@ -99,6 +87,15 @@
             <div class="tabs-header">
               <button class="tab-btn active" data-tab="holdings">ASSETS</button>
               <button class="tab-btn" data-tab="evaluations">INTELLIGENCE</button>
+              
+              <!-- Compact Quick Add -->
+              <form id="quick-add-form" class="quick-add-compact">
+                <input type="text" id="input-ticker" placeholder="TICKER" required autocomplete="off" />
+                <input type="number" id="input-qty" placeholder="QTY" step="any" required />
+                <button type="submit" class="btn-add-mini">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </form>
             </div>
             <div class="table-wrapper">
               <table id="main-table">

@@ -57,9 +57,7 @@ const el = {
   stats: {
     positions: document.getElementById('total-positions'),
     value: document.getElementById('total-notional'),
-    change: document.getElementById('portfolio-change'),
-    topTicker: document.getElementById('top-gainer-ticker'),
-    topValue: document.getElementById('top-gainer-value')
+    change: document.getElementById('portfolio-change')
   },
   quickAdd: {
     form: document.getElementById('quick-add-form'),
@@ -212,18 +210,6 @@ function updateStats() {
   
   el.stats.change.textContent = fmt.percent(weightedChange);
   el.stats.change.className = `stat-trend ${weightedChange >= 0 ? 'positive' : 'negative'}`;
-
-  // Top Gainer
-  const sortedByChange = [...STATE.data].sort((a, b) => (b.change_percent || 0) - (a.change_percent || 0));
-  const winner = sortedByChange[0];
-  if (winner) {
-    el.stats.topTicker.textContent = winner.ticker;
-    el.stats.topValue.textContent = fmt.percent(winner.change_percent || 0);
-    el.stats.topValue.className = `stat-trend ${winner.change_percent >= 0 ? 'positive' : 'negative'}`;
-  } else {
-    el.stats.topTicker.textContent = '--';
-    el.stats.topValue.textContent = '--';
-  }
 }
 
 // --- Table Rendering ---
