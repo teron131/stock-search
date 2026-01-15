@@ -318,18 +318,27 @@ const Data = {
       if (!dashRes.ok || !evalRes.ok) throw new Error(`Data missing in ${basePath}`);
       return { dashData: await dashRes.json(), evalData: await evalRes.json() };
     };
+    const hasUsableData = (dashData, evalData) => {
+      const rows = Array.isArray(dashData?.rows) ? dashData.rows : [];
+      const evalRows = Array.isArray(evalData) ? evalData : [];
+      return rows.length > 0 && evalRows.length > 0;
+    };
 
     try {
-      // 1. Try 'data/' first
       const { dashData, evalData } = await tryLoad('data');
+      if (!hasUsableData(dashData, evalData)) {
+        throw new Error('Data empty in data/');
+      }
       STATE.data = Utils.mergeData(dashData, evalData);
       Data.refreshUI(dashData.generated_at);
       console.log("Demo Mode: Data loaded from data/");
     } catch (err) {
-      console.warn("data/ not found, falling back to sample_data/", err);
+      console.warn("data/ not found or empty, falling back to sample_data/", err);
       try {
-        // 2. Fallback to 'sample_data/'
         const { dashData, evalData } = await tryLoad('sample_data');
+        if (!hasUsableData(dashData, evalData)) {
+          throw new Error('Data empty in sample_data/');
+        }
         STATE.data = Utils.mergeData(dashData, evalData);
         Data.refreshUI(dashData.generated_at);
         console.log("Demo Mode: Sample data loaded from sample_data/");
