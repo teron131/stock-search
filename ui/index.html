@@ -13,45 +13,46 @@
       rel="stylesheet"
     />
     
+    <!-- TradingView Widgets -->
     <script type="module" src="https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js"></script>
     <script type="module" src="https://widgets.tradingview-widget.com/w/en/tv-ticker-tag.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- System Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay" style="display: none;">
       <div class="loader"></div>
       <div class="loading-text">SYNCHRONIZING TERMINAL...</div>
     </div>
+
     <div class="app-layout">
       <!-- Sidebar / Navigation -->
       <aside class="sidebar collapsed" id="sidebar">
-        <button class="sidebar-toggle-btn" id="sidebar-toggle">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
-        </button>
-        <div class="brand">
+        <!-- Sidebar Toggle is now the brand element -->
+        <div class="brand" id="sidebar-toggle" title="Toggle Sidebar">
           <div class="logo-icon">SN</div>
-          <span class="logo-text">TERMINAL</span>
+          <span class="logo-text">STOCK_SEARCH</span>
         </div>
         
         <nav class="main-nav">
           <button class="nav-item active" data-view="dashboard">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            <span>Dashboard</span>
+            <span>DASHBOARD</span>
           </button>
           <button class="nav-item" data-view="heatmap">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <span>Market Map</span>
+            <span>MARKET_MAP</span>
           </button>
           <button class="nav-item" data-view="calendar">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            <span>Calendar</span>
+            <span>CALENDAR</span>
           </button>
         </nav>
 
         <div class="sidebar-footer">
           <div class="system-status">
             <span class="status-dot"></span>
-            <span class="status-text">SYSTEM ONLINE</span>
+            <span class="status-text">SYSTEM_ONLINE</span>
           </div>
         </div>
       </aside>
@@ -60,7 +61,7 @@
       <main class="main-content">
         <!-- Top Header -->
         <header class="top-bar">
-          <div class="breadcrumbs">PORTFOLIO / <span class="current-section" id="view-title">DASHBOARD</span></div>
+          <div class="breadcrumbs">TERMINAL / <span class="current-section" id="view-title">DASHBOARD</span></div>
           
           <div class="actions">
             <span class="last-update" id="last-update">--</span>
@@ -71,13 +72,13 @@
           </div>
         </header>
 
-        <!-- Scrollable Content -->
+        <!-- Content Area -->
         <div class="content-area">
           
-          <!-- Overview Panel -->
+          <!-- Portfolio Overview Panel -->
           <div class="overview-panel">
             <div class="overview-main">
-              <div class="stat-label">PORTFOLIO VALUE</div>
+              <div class="stat-label">TOTAL_NOTIONAL_VALUE</div>
               <div class="stat-value-row">
                 <div class="stat-value" id="total-notional">--</div>
                 <div class="stat-trend" id="portfolio-change">--</div>
@@ -85,13 +86,13 @@
             </div>
             <div class="overview-meta">
               <div class="meta-item">
-                <span class="meta-label">POSITIONS</span>
+                <span class="meta-label">POSITIONS_COUNT</span>
                 <span class="meta-value" id="total-positions">--</span>
               </div>
             </div>
           </div>
           
-          <!-- Ticker Tape Widget -->
+          <!-- Ticker Tape Widget Section -->
           <div class="ticker-tape-container" id="ticker-tape-view">
             <tv-ticker-tape 
               id="ticker-tape-widget"
@@ -104,21 +105,24 @@
             </tv-ticker-tape>
           </div>
 
-          <!-- Tabs -->
-          <div class="tabs-container">
+          <!-- Main Dashboard Section -->
+          <div class="tabs-container" id="dashboard-tables">
             <div class="tabs-header">
-              <button class="tab-btn active" data-tab="holdings">HOLDINGS</button>
-              <button class="tab-btn" data-tab="evaluations">EVALUATION</button>
+              <div class="tab-group">
+                <button class="tab-btn active" data-tab="holdings">HOLDINGS</button>
+                <button class="tab-btn" data-tab="evaluations">EVALUATION</button>
+              </div>
               
-              <!-- Compact Quick Add -->
+              <!-- Quick Add Input -->
               <form id="quick-add-form" class="quick-add-compact">
                 <input type="text" id="input-ticker" placeholder="TICKER" required autocomplete="off" />
                 <input type="number" id="input-qty" placeholder="QTY" step="any" required />
-                <button type="submit" class="btn-add-mini">
+                <button type="submit" class="btn-add-mini" title="Add Position">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </form>
             </div>
+            
             <div class="table-wrapper">
               <table id="main-table">
                 <thead></thead>
@@ -127,11 +131,13 @@
             </div>
           </div>
 
-          <!-- Heatmap Section (Initially Hidden via CSS or below fold) -->
+          <!-- Heatmap Section -->
           <div id="heatmap-section" class="heatmap-container" style="display: none;">
             <div class="tabs-header">
-              <button class="tab-btn active" data-source="SPX500">S&P 500</button>
-              <button class="tab-btn" data-source="NASDAQ100">NASDAQ 100</button>
+              <div class="tab-group">
+                <button class="tab-btn active" data-source="SPX500">S&P_500</button>
+                <button class="tab-btn" data-source="NASDAQ100">NASDAQ_100</button>
+              </div>
             </div>
             <div class="tradingview-widget-container" id="heatmap-widget-container">
               <div class="tradingview-widget-container__widget"></div>
@@ -182,6 +188,7 @@
       </main>
     </div>
 
+    <!-- Application Script -->
     <script src="app.js"></script>
   </body>
 </html>
