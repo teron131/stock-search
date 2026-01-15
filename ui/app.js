@@ -251,7 +251,7 @@ const UI = {
         if (col.key === 'remove') {
           td.innerHTML = `<button class="btn-remove-cell" data-ticker="${row.ticker}">&times;</button>`;
         } else if (col.key === 'ticker') {
-          td.innerHTML = `<tv-ticker-tag symbol="${val}" theme="dark" preserve-text hide-change hide-background theme="light" transparent>${val}</tv-ticker-tag>`;
+          td.innerHTML = `<tv-ticker-tag symbol="${val}" theme="light" preserve-text hide-change hide-background transparent>${val}</tv-ticker-tag>`;
         } else {
           const content = col.format && Utils.format[col.format] ? Utils.format[col.format](val) : Utils.format.default(val);
           if (col.format === 'percent' && val != null) {
@@ -309,23 +309,35 @@ const Data = {
 
   loadDemo: async () => {
     STATE.isUsingDemoData = true;
-    try {
+    
+    const tryLoad = async (basePath) => {
       const [dashRes, evalRes] = await Promise.all([
-        fetch('sample_data/dashboard.json'),
-        fetch('sample_data/eval.json')
+        fetch(`${basePath}/dashboard.json`),
+        fetch(`${basePath}/eval.json`)
       ]);
-      
-      if (!dashRes.ok || !evalRes.ok) throw new Error('Sample data files missing');
+      if (!dashRes.ok || !evalRes.ok) throw new Error(`Data missing in ${basePath}`);
+      return { dashData: await dashRes.json(), evalData: await evalRes.json() };
+    };
 
-      const dashData = await dashRes.json();
-      const evalData = await evalRes.json();
+    try {
+      // 1. Try 'data/' first
+      const { dashData, evalData } = await tryLoad('data');
       STATE.data = Utils.mergeData(dashData, evalData);
       Data.refreshUI(dashData.generated_at);
-      console.log("Demo Mode: Sample data loaded from ui/sample_data/");
+      console.log("Demo Mode: Data loaded from data/");
     } catch (err) {
-      console.error("Static demo failed, no data to display.", err);
-      STATE.data = [];
-      Data.refreshUI();
+      console.warn("data/ not found, falling back to sample_data/", err);
+      try {
+        // 2. Fallback to 'sample_data/'
+        const { dashData, evalData } = await tryLoad('sample_data');
+        STATE.data = Utils.mergeData(dashData, evalData);
+        Data.refreshUI(dashData.generated_at);
+        console.log("Demo Mode: Sample data loaded from sample_data/");
+      } catch (fallbackErr) {
+        console.error("All data sources failed.", fallbackErr);
+        STATE.data = [];
+        Data.refreshUI();
+      }
     }
   },
 
