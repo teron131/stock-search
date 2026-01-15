@@ -640,6 +640,11 @@ td:first-child:hover {
   color: var(--accent);
 }
 
+td:last-child {
+  text-align: right;
+  padding-right: 2rem;
+}
+
 ::selection {
   background: var(--accent);
   color: var(--accent-ink);
@@ -675,6 +680,30 @@ td:first-child:hover {
 
 .score-high { color: var(--positive); font-weight: 700; }
 .score-low { color: var(--negative); font-weight: 700; }
+
+.btn-remove-cell {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(246, 242, 234, 0.05);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.btn-remove-cell:hover {
+  background: var(--negative);
+  color: white;
+  border-color: var(--negative);
+  transform: scale(1.1);
+}
 
 /* Quick Add Inline (Table Header) */
 .quick-add-compact {
