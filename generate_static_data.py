@@ -80,7 +80,7 @@ def generate_sample_data():
                     "current_price": round(price, 2),
                     "change_percent": round(change, 2),
                     "notional": round(qty * price, 2),
-                    "bucket": random.choice(["Core Growth", "Tactical Opportunities", "High Volatility"]),
+                    "bucket": random.choice(["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]),
                     "rsi": rsi,
                     "weight_pct": 0,
                 }

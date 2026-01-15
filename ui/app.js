@@ -152,6 +152,11 @@ const UI = {
     el.views.tabs.style.display = isDash ? 'flex' : 'none';
     el.views.heatmap.style.display = viewName === 'heatmap' ? 'block' : 'none';
     el.views.calendar.style.display = viewName === 'calendar' ? 'block' : 'none';
+    
+    // Ensure ticker tape theme is always dark
+    if (el.tickerTape) {
+      el.tickerTape.setAttribute('theme', 'dark');
+    }
   },
 
   switchTab: (tabName) => {
@@ -246,7 +251,7 @@ const UI = {
         if (col.key === 'remove') {
           td.innerHTML = `<button class="btn-remove-cell" data-ticker="${row.ticker}">&times;</button>`;
         } else if (col.key === 'ticker') {
-          td.innerHTML = `<tv-ticker-tag symbol="${val}" preserve-text hide-change hide-background transparent>${val}</tv-ticker-tag>`;
+          td.innerHTML = `<tv-ticker-tag symbol="${val}" theme="dark" preserve-text hide-change hide-background transparent>${val}</tv-ticker-tag>`;
         } else {
           const content = col.format && Utils.format[col.format] ? Utils.format[col.format](val) : Utils.format.default(val);
           if (col.format === 'percent' && val != null) {

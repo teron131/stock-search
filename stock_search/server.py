@@ -21,8 +21,6 @@ EVAL_PATH = DATA_DIR / "eval.json"
 
 app = FastAPI(title="Stock Search Dashboard")
 
-app.mount("/static", StaticFiles(directory=UI_DIR), name="static")
-
 
 def _save_portfolio(portfolio: Portfolio, path: Path = PORTFOLIO_PATH) -> None:
     """Save portfolio data to JSON file."""
@@ -125,3 +123,7 @@ def remove_position(ticker: str):
     portfolio.positions = [p for p in portfolio.positions if p.ticker.upper() != ticker_upper]
     _save_portfolio(portfolio)
     return {"status": "ok"}
+
+
+# Mount UI last so it doesn't shadow the API routes
+app.mount("/", StaticFiles(directory=UI_DIR), name="ui")
