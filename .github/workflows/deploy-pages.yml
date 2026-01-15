@@ -24,9 +24,6 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Generate Static Data
-        run: uv run generate_static_data.py
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
