@@ -2,6 +2,7 @@
 uv.lock
 *.json
 data/
+!*/sample_data/*.json
 *.ipynb
 *test*
 AGENTS.md

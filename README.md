@@ -1,5 +1,7 @@
 # Stock News / Stock Search
 
+**Static Demo**: https://teron131.github.io/stock-news
+
 Many “premium” finance APIs are expensive. This project is designed to prefer **free/low-cost sources first**, and then **fall back** to other providers when data is missing, blocked, or unreliable.
 
 ## Data Providers (Fallback Strategy)
