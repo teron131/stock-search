@@ -33,13 +33,15 @@ def serve_index() -> FileResponse:
     return FileResponse(INDEX_FILE)
 
 
-@app.get("/api/dashboard")
-def dashboard_api() -> dict:
+@app.get("/api/portfolio")
+def portfolio_api() -> dict:
+    """Get current portfolio with live prices and indicators."""
     df = get_dashboard(PORTFOLIO_PATH)
     df = df.where(pd.notna(df), None)
     return {
         "columns": list(df.columns),
         "rows": df.to_dict(orient="records"),
+        "generated_at": None,
     }
 
 

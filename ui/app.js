@@ -8,10 +8,29 @@ const CONFIG = {
   isDemoMode: window.location.hostname.includes('github.io') || new URLSearchParams(window.location.search).get('demo') === 'true',
   animationDelayMs: 30,
   defaultBucket: 'Tactical Opportunities',
+  maxTickerLength: 10,
+  maxTickerTapeCount: 20,
+  scoreThresholds: { high: 8, low: 4 },
   endpoints: {
-    dashboard: '/api/dashboard',
+    portfolio: '/api/portfolio',
     eval: '/api/eval',
-    portfolio: '/api/portfolio/position',
+    position: '/api/portfolio/position',
+  },
+  heatmapWidget: {
+    blockSize: "Value.Traded|1W",
+    blockColor: "change",
+    grouping: "sector",
+    locale: "en",
+    symbolUrl: "",
+    colorTheme: "dark",
+    exchanges: ["NYSE", "NASDAQ"],
+    hasTopBar: true,
+    isDataSetEnabled: false,
+    isZoomEnabled: true,
+    hasSymbolTooltip: true,
+    isMonoSize: false,
+    width: "100%",
+    height: "100%"
   }
 };
 
@@ -204,21 +223,43 @@ const UI = {
     const tickers = [...STATE.data]
       .sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0))
       .map(item => Utils.normalizeTicker(item.ticker))
-      .filter((t, i, self) => t && t.length < 10 && self.indexOf(t) === i)
-      .slice(0, 20);
+      .filter((t, i, self) => t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i)
+      .slice(0, CONFIG.maxTickerTapeCount);
 
     el.tickerTape.setAttribute('symbols', tickers.join(','));
   },
 
-  renderTable: () => {
-    const cols = COLS[STATE.currentTab];
-    const sorted = [...STATE.data].sort((a, b) => {
-      let valA = a[STATE.sortCol], valB = b[STATE.sortCol];
+  sortData: (data, col, dir) => {
+    return [...data].sort((a, b) => {
+      let valA = a[col];
+      let valB = b[col];
+      
       if (valA == null) return 1;
       if (valB == null) return -1;
-      if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
-      return valA < valB ? (STATE.sortDir === 'asc' ? -1 : 1) : (STATE.sortDir === 'asc' ? 1 : -1);
+      
+      if (typeof valA === 'string') {
+        valA = valA.toLowerCase();
+        valB = valB.toLowerCase();
+      }
+      
+      const comparison = valA < valB ? -1 : valA > valB ? 1 : 0;
+      return dir === 'asc' ? comparison : -comparison;
     });
+  },
+
+  renderTable: () => {
+    const cols = COLS[STATE.currentTab];
+    
+    // Filter rows based on current tab
+    const filtered = STATE.data.filter(row => {
+      if (STATE.currentTab === 'holdings') {
+        return row.quantity != null && row.notional != null;
+      } else {
+        return row.overall != null || row.rank != null;
+      }
+    });
+    
+    const sorted = UI.sortData(filtered, STATE.sortCol, STATE.sortDir);
 
     // Render Head
     let headHtml = '<tr>';
@@ -234,7 +275,8 @@ const UI = {
     // Render Body
     el.table.body.innerHTML = '';
     if (sorted.length === 0) {
-      el.table.body.innerHTML = `<tr><td colspan="${cols.length}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">NO ACTIVE POSITIONS FOUND</td></tr>`;
+      const emptyMsg = STATE.currentTab === 'holdings' ? 'NO ACTIVE POSITIONS FOUND' : 'NO EVALUATIONS FOUND';
+      el.table.body.innerHTML = `<tr><td colspan="${cols.length}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${emptyMsg}</td></tr>`;
       return;
     }
 
@@ -251,13 +293,13 @@ const UI = {
         if (col.key === 'remove') {
           td.innerHTML = `<button class="btn-remove-cell" data-ticker="${row.ticker}">&times;</button>`;
         } else if (col.key === 'ticker') {
-          td.innerHTML = `<tv-ticker-tag symbol="${val}"preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`;
+          td.innerHTML = `<tv-ticker-tag symbol="${val}" preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`;
         } else {
           const content = col.format && Utils.format[col.format] ? Utils.format[col.format](val) : Utils.format.default(val);
           if (col.format === 'percent' && val != null) {
             td.innerHTML = `<span class="badge ${val >= 0 ? 'positive' : 'negative'}">${content}</span>`;
           } else if (col.format === 'score' && val != null) {
-            const cls = val >= 8 ? 'score-high' : (val <= 4 ? 'score-low' : 'score-mid');
+            const cls = val >= CONFIG.scoreThresholds.high ? 'score-high' : (val <= CONFIG.scoreThresholds.low ? 'score-low' : 'score-mid');
             td.innerHTML = `<span class="${cls}">${content}</span>`;
           } else {
             td.textContent = content;
@@ -289,7 +331,7 @@ const Data = {
     el.refreshBtn.style.opacity = '0.5';
 
     try {
-      const [dashRes, evalRes] = await Promise.all([fetch(CONFIG.endpoints.dashboard), fetch(CONFIG.endpoints.eval)]);
+      const [dashRes, evalRes] = await Promise.all([fetch(CONFIG.endpoints.portfolio), fetch(CONFIG.endpoints.eval)]);
       if (!dashRes.ok || !evalRes.ok) throw new Error('API Failure');
 
       const dashData = await dashRes.json();
@@ -310,43 +352,40 @@ const Data = {
   loadDemo: async () => {
     STATE.isUsingDemoData = true;
     
-    const tryLoad = async (basePath) => {
-      const [dashRes, evalRes] = await Promise.all([
-        fetch(`${basePath}/dashboard.json`),
-        fetch(`${basePath}/eval.json`)
-      ]);
-      if (!dashRes.ok || !evalRes.ok) throw new Error(`Data missing in ${basePath}`);
-      return { dashData: await dashRes.json(), evalData: await evalRes.json() };
-    };
-    const hasUsableData = (dashData, evalData) => {
-      const rows = Array.isArray(dashData?.rows) ? dashData.rows : [];
-      const evalRows = Array.isArray(evalData) ? evalData : [];
-      return rows.length > 0 && evalRows.length > 0;
-    };
+    // Determine which data source to use
+    let basePath = 'sample_data';
+    try {
+      const testRes = await fetch('data/portfolio.json');
+      if (testRes.ok) basePath = 'data';
+    } catch (err) {
+      console.log('data/ not found, using sample_data/');
+    }
 
     try {
-      const { dashData, evalData } = await tryLoad('data');
-      if (!hasUsableData(dashData, evalData)) {
-        throw new Error('Data empty in data/');
+      const [dashRes, evalRes] = await Promise.all([
+        fetch(`${basePath}/portfolio.json`),
+        fetch(`${basePath}/eval.json`)
+      ]);
+      
+      if (!dashRes.ok || !evalRes.ok) throw new Error(`Data missing in ${basePath}`);
+      
+      const dashData = await dashRes.json();
+      const evalData = await evalRes.json();
+      
+      const rows = Array.isArray(dashData?.rows) ? dashData.rows : [];
+      const evalRows = Array.isArray(evalData) ? evalData : [];
+      
+      if (rows.length === 0 || evalRows.length === 0) {
+        throw new Error(`Data empty in ${basePath}`);
       }
+      
       STATE.data = Utils.mergeData(dashData, evalData);
       Data.refreshUI(dashData.generated_at);
-      console.log("Demo Mode: Data loaded from data/");
+      console.log(`Demo Mode: Data loaded from ${basePath}/`);
     } catch (err) {
-      console.warn("data/ not found or empty, falling back to sample_data/", err);
-      try {
-        const { dashData, evalData } = await tryLoad('sample_data');
-        if (!hasUsableData(dashData, evalData)) {
-          throw new Error('Data empty in sample_data/');
-        }
-        STATE.data = Utils.mergeData(dashData, evalData);
-        Data.refreshUI(dashData.generated_at);
-        console.log("Demo Mode: Sample data loaded from sample_data/");
-      } catch (fallbackErr) {
-        console.error("All data sources failed.", fallbackErr);
-        STATE.data = [];
-        Data.refreshUI();
-      }
+      console.error("Data loading failed:", err);
+      STATE.data = [];
+      Data.refreshUI();
     }
   },
 
@@ -362,7 +401,7 @@ const Data = {
     if (!confirm(`CONFIRM: Eliminate ${ticker} from portfolio?`)) return;
     if (STATE.isUsingDemoData) return UI.showToast("Demo Mode: Changes not saved.");
     try {
-      const res = await fetch(`${CONFIG.endpoints.portfolio}/${ticker}`, { method: 'DELETE' });
+      const res = await fetch(`${CONFIG.endpoints.position}/${ticker}`, { method: 'DELETE' });
       if (res.ok) Data.load();
     } catch (err) { alert('Failed to remove asset.'); }
   },
@@ -378,7 +417,7 @@ const Data = {
     const payload = { ticker, name: existing?.name || ticker, quantity, bucket: existing?.bucket || CONFIG.defaultBucket, delta: 1.0, current_price: 0.0 };
 
     try {
-      const res = await fetch(CONFIG.endpoints.portfolio, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch(CONFIG.endpoints.position, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) { el.quickAdd.form.reset(); Data.load(); }
     } catch (err) { alert('Failed to add asset.'); }
   }
@@ -410,8 +449,10 @@ function init() {
     el.heatmap.tabs.forEach(t => t.classList.toggle('active', t.dataset.source === source));
     el.heatmap.container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
     const s = document.createElement('script');
-    s.type = 'text/javascript'; s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js'; s.async = true;
-    s.innerHTML = JSON.stringify({ "dataSource": source, "blockSize": "Value.Traded|1W", "blockColor": "change", "grouping": "sector", "locale": "en", "symbolUrl": "", "colorTheme": "dark", "exchanges": ["NYSE", "NASDAQ"], "hasTopBar": true, "isDataSetEnabled": false, "isZoomEnabled": true, "hasSymbolTooltip": true, "isMonoSize": false, "width": "100%", "height": "100%" });
+    s.type = 'text/javascript';
+    s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js';
+    s.async = true;
+    s.innerHTML = JSON.stringify({ ...CONFIG.heatmapWidget, dataSource: source });
     el.heatmap.container.appendChild(s);
   }));
 
