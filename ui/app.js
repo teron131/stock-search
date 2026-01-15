@@ -76,82 +76,17 @@ const COLS = {
   ]
 };
 
-const VIEW_TITLES = {
-  dashboard: 'DASHBOARD',
-  heatmap: 'MARKET MAP',
-  calendar: 'ECONOMIC CALENDAR'
-};
-
-const EMPTY_TABLE_MESSAGES = {
-  holdings: 'NO ACTIVE POSITIONS FOUND',
-  evaluations: 'NO EVALUATIONS FOUND'
-};
-
-const VIEW_NAMES = {
-  dashboard: 'dashboard',
-  heatmap: 'heatmap',
-  calendar: 'calendar'
-};
-
-const TAB_NAMES = {
-  holdings: 'holdings',
-  evaluations: 'evaluations'
-};
-
-const SORT_DIRECTIONS = {
-  asc: 'asc',
-  desc: 'desc'
-};
-
 const DEFAULT_SORT_COLS = {
   holdings: 'weight_pct',
   evaluations: 'overall'
 };
 
-const DEMO_MESSAGES = {
-  changesNotSaved: 'Demo Mode: Changes not saved.',
-  usingPath: (path) => `Demo Mode: Using ${path}/`
-};
-
-const CONFIRMATION_MESSAGES = {
-  removePosition: (ticker) => `CONFIRM: Eliminate ${ticker} from portfolio?`
-};
-
-const ERROR_MESSAGES = {
-  apiFailure: 'API Failure',
-  dataEmpty: (path) => `Data empty in ${path}`,
-  removeFailed: 'Failed to remove asset.',
-  addFailed: 'Failed to add asset.'
-};
-
-const TOAST_STYLES = {
-  position: 'fixed',
-  bottom: '20px',
-  right: '20px',
-  background: '#333',
-  color: '#fff',
-  padding: '12px 24px',
-  borderRadius: '4px',
-  borderLeft: '4px solid #00f2fe',
-  zIndex: '10000',
-  fontFamily: 'var(--font-mono)',
-  fontSize: '12px',
-  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-  animation: 'fadeIn 0.3s ease-out'
-};
-
-const TOAST_DURATION_MS = 3000;
-const TOAST_FADE_DURATION_MS = 500;
-
-const DATE_FORMAT_OPTIONS = { month: 'short', day: '2-digit' };
-const TIME_FORMAT_OPTIONS = { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
-
 // --- Application State ---
 const STATE = {
-  currentView: VIEW_NAMES.dashboard,
-  currentTab: TAB_NAMES.holdings,
+  currentView: 'dashboard',
+  currentTab: 'holdings',
   sortCol: DEFAULT_SORT_COLS.holdings,
-  sortDir: SORT_DIRECTIONS.desc,
+  sortDir: 'desc',
   data: [],
   isLoading: false,
   isUsingDemoData: false
@@ -269,11 +204,11 @@ const CellRenderers = {
 // --- UI Logic ---
 const UI = {
   updateViewVisibility: (viewName) => {
-    const isDashboard = viewName === VIEW_NAMES.dashboard;
+    const isDashboard = viewName === 'dashboard';
     DOM.views.stats.style.display = isDashboard ? 'flex' : 'none';
     DOM.views.tabs.style.display = isDashboard ? 'flex' : 'none';
-    DOM.views.heatmap.style.display = viewName === VIEW_NAMES.heatmap ? 'block' : 'none';
-    DOM.views.calendar.style.display = viewName === VIEW_NAMES.calendar ? 'block' : 'none';
+    DOM.views.heatmap.style.display = viewName === 'heatmap' ? 'block' : 'none';
+    DOM.views.calendar.style.display = viewName === 'calendar' ? 'block' : 'none';
   },
 
   switchView: (viewName) => {
@@ -281,7 +216,11 @@ const UI = {
     DOM.navItems.forEach(n => n.classList.toggle(CSS_CLASSES.active, n.dataset.view === viewName));
     
     if (DOM.viewTitle) {
-      DOM.viewTitle.textContent = VIEW_TITLES[viewName] || 'TERMINAL';
+      DOM.viewTitle.textContent = ({
+        dashboard: 'DASHBOARD',
+        heatmap: 'MARKET MAP',
+        calendar: 'ECONOMIC CALENDAR'
+      })[viewName] || 'TERMINAL';
     }
     
     UI.updateViewVisibility(viewName);
@@ -294,7 +233,7 @@ const UI = {
   switchTab: (tabName) => {
     STATE.currentTab = tabName;
     STATE.sortCol = DEFAULT_SORT_COLS[tabName] || DEFAULT_SORT_COLS.holdings;
-    STATE.sortDir = SORT_DIRECTIONS.desc;
+    STATE.sortDir = 'desc';
     DOM.tabs.forEach(t => t.classList.toggle(CSS_CLASSES.active, t.dataset.tab === tabName));
     UI.renderTable();
   },
@@ -313,16 +252,20 @@ const UI = {
 
     const change = Utils.calculateWeightedChange(STATE.data, computedTotal);
     DOM.stats.change.textContent = computedTotal > 0 ? Utils.format.percent(change) : '--';
-    
-    const trendClass = UI.getTrendClass(change, computedTotal);
-    DOM.stats.change.className = `stat-trend ${trendClass}`;
+
+    DOM.stats.change.className = `stat-trend ${UI.getTrendClass(change, computedTotal)}`;
   },
 
   updateTimestamp: (customTime) => {
     if (!DOM.lastUpdate) return;
     const time = customTime ? new Date(customTime) : new Date();
-    const dateStr = time.toLocaleDateString('en-US', DATE_FORMAT_OPTIONS);
-    const timeStr = time.toLocaleTimeString('en-US', TIME_FORMAT_OPTIONS);
+    const dateStr = time.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+    const timeStr = time.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
     const modeText = STATE.isUsingDemoData ? " [DEMO]" : "";
     DOM.lastUpdate.textContent = `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`;
   },
@@ -336,13 +279,12 @@ const UI = {
     }
 
     DOM.tickerTapeContainer.style.display = 'block';
-    const tickers = [...STATE.data]
+    DOM.tickerTape.setAttribute('symbols', [...STATE.data]
       .sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0))
       .map(item => Utils.normalizeTicker(item.ticker))
       .filter((t, i, self) => t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i)
-      .slice(0, CONFIG.maxTickerTapeCount);
-
-    DOM.tickerTape.setAttribute('symbols', tickers.join(','));
+      .slice(0, CONFIG.maxTickerTapeCount)
+      .join(','));
   },
 
   sortData: (data, col, dir) => {
@@ -358,40 +300,36 @@ const UI = {
       
       if (normalizedA === normalizedB) return 0;
       
-      const comparison = normalizedA < normalizedB ? -1 : 1;
-      return dir === SORT_DIRECTIONS.asc ? comparison : -comparison;
+      return dir === 'asc'
+        ? (normalizedA < normalizedB ? -1 : 1)
+        : (normalizedA < normalizedB ? 1 : -1);
     });
   },
 
   getFilteredRows: () => {
-    const isHoldingsTab = STATE.currentTab === TAB_NAMES.holdings;
     const hasHolding = (row) => row.quantity != null && row.notional != null;
     const hasEvaluation = (row) => row.overall != null || row.rank != null;
-    return STATE.data.filter(isHoldingsTab ? hasHolding : hasEvaluation);
+    return STATE.data.filter(STATE.currentTab === 'holdings' ? hasHolding : hasEvaluation);
   },
 
   buildTableHead: (cols) => {
-    const headCells = cols.map(col => {
+    DOM.table.head.innerHTML = `<tr>${cols.map(col => {
       if (col.key === 'remove') return '<th></th>';
       const sortedClass = STATE.sortCol === col.key ? `${CSS_CLASSES.sorted} ${STATE.sortDir}` : '';
       return `<th data-sort="${col.key}" class="${sortedClass}">${col.label}</th>`;
-    }).join('');
-    DOM.table.head.innerHTML = `<tr>${headCells}</tr>`;
+    }).join('')}</tr>`;
   },
 
   buildTableCell: (row, col) => {
     const td = document.createElement('td');
-    const val = row[col.key];
 
     // Lookup order: specific column renderer (e.g., 'ticker', 'remove') → format renderer → default
     const renderer = CellRenderers[col.key] || CellRenderers[col.format] || CellRenderers.default;
-    const formatter = Utils.format[col.format] || Utils.format.default;
 
-    const content = renderer(row, val, formatter);
+    const content = renderer(row, row[col.key], Utils.format[col.format] || Utils.format.default);
     // Use innerHTML for custom renderers that return HTML (all except default text renderer)
-    const needsHtmlParsing = renderer !== CellRenderers.default;
     
-    if (needsHtmlParsing) {
+    if (renderer !== CellRenderers.default) {
       td.innerHTML = content;
     } else {
       td.textContent = content;
@@ -413,15 +351,13 @@ const UI = {
   },
 
   renderEmptyTable: (colSpan) => {
-    const emptyMsg = EMPTY_TABLE_MESSAGES[STATE.currentTab] || 'NO DATA FOUND';
-    DOM.table.body.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${emptyMsg}</td></tr>`;
+    DOM.table.body.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${STATE.currentTab === 'holdings' ? 'NO ACTIVE POSITIONS FOUND' : STATE.currentTab === 'evaluations' ? 'NO EVALUATIONS FOUND' : 'NO DATA FOUND'}</td></tr>`;
   },
 
   renderTable: () => {
     const cols = COLS[STATE.currentTab];
     
-    const filtered = UI.getFilteredRows();
-    const sorted = UI.sortData(filtered, STATE.sortCol, STATE.sortDir);
+    const sorted = UI.sortData(UI.getFilteredRows(), STATE.sortCol, STATE.sortDir);
     UI.buildTableHead(cols);
 
     // Render Body
@@ -440,15 +376,14 @@ const UI = {
 
   showToast: (message) => {
     const toast = document.createElement('div');
-    Object.assign(toast.style, TOAST_STYLES);
+    toast.className = 'toast';
     toast.textContent = message;
     document.body.appendChild(toast);
     
     setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transition = `opacity ${TOAST_FADE_DURATION_MS}ms`;
-      setTimeout(() => toast.remove(), TOAST_FADE_DURATION_MS);
-    }, TOAST_DURATION_MS);
+      toast.classList.add('toast-fade');
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
   }
 };
 
@@ -460,7 +395,7 @@ const Data = {
       fetch(endpoints.eval)
     ]);
     
-    if (!dashRes.ok || !evalRes.ok) throw new Error(ERROR_MESSAGES.apiFailure);
+    if (!dashRes.ok || !evalRes.ok) throw new Error('API Failure');
     
     return {
       dashData: await dashRes.json(),
@@ -485,16 +420,15 @@ const Data = {
   fetchDemoData: async () => {
     STATE.isUsingDemoData = true;
     const basePath = await Data.determineDemoPath();
-    console.log(DEMO_MESSAGES.usingPath(basePath));
+    console.log(`Demo Mode: Using ${basePath}/`);
     
-    const data = await Data.fetchPortfolioData({
+    const { dashData, evalData } = await Data.fetchPortfolioData({
       portfolio: `${basePath}/portfolio.json`,
       eval: `${basePath}/eval.json`
     });
-    const { dashData, evalData } = data;
 
     if ((!dashData.rows || dashData.rows.length === 0) && (!evalData || evalData.length === 0)) {
-       throw new Error(ERROR_MESSAGES.dataEmpty(basePath));
+       throw new Error(`Data empty in ${basePath}`);
     }
 
     return { dashData, evalData };
@@ -510,8 +444,9 @@ const Data = {
     Data.setLoading(true);
 
     try {
-      const data = CONFIG.isDemoMode ? await Data.fetchDemoData() : await Data.fetchLiveData();
-      const { dashData, evalData } = data;
+      const { dashData, evalData } = CONFIG.isDemoMode
+        ? await Data.fetchDemoData()
+        : await Data.fetchLiveData();
 
       STATE.data = Utils.mergeData(dashData, evalData);
       Data.refreshUI(dashData.generated_at);
@@ -534,10 +469,10 @@ const Data = {
   },
 
   handleRemove: async (ticker) => {
-    if (!confirm(CONFIRMATION_MESSAGES.removePosition(ticker))) return;
+    if (!confirm(`CONFIRM: Eliminate ${ticker} from portfolio?`)) return;
     
     if (STATE.isUsingDemoData) {
-      UI.showToast(DEMO_MESSAGES.changesNotSaved);
+      UI.showToast('Demo Mode: Changes not saved.');
       return;
     }
     
@@ -548,7 +483,7 @@ const Data = {
       }
     } catch (err) {
       console.warn('Remove position failed:', err);
-      UI.showToast(ERROR_MESSAGES.removeFailed);
+      UI.showToast('Failed to remove asset.');
     }
   },
 
@@ -556,7 +491,7 @@ const Data = {
     e.preventDefault();
     
     if (STATE.isUsingDemoData) {
-      UI.showToast(DEMO_MESSAGES.changesNotSaved);
+      UI.showToast('Demo Mode: Changes not saved.');
       DOM.quickAdd.form.reset();
       return;
     }
@@ -565,20 +500,18 @@ const Data = {
     const quantity = parseFloat(DOM.quickAdd.qty.value);
     const existing = STATE.data.find(d => d.ticker.toUpperCase() === ticker);
     
-    const payload = {
-      ticker,
-      name: existing?.name || ticker,
-      quantity,
-      bucket: existing?.bucket || CONFIG.defaultBucket,
-      delta: 1.0,
-      current_price: 0.0
-    };
-
     try {
       const res = await fetch(CONFIG.endpoints.position, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          ticker,
+          name: existing?.name || ticker,
+          quantity,
+          bucket: existing?.bucket || CONFIG.defaultBucket,
+          delta: 1.0,
+          current_price: 0.0
+        })
       });
       
       if (res.ok) {
@@ -587,7 +520,7 @@ const Data = {
       }
     } catch (err) {
       console.warn('Add position failed:', err);
-      UI.showToast(ERROR_MESSAGES.addFailed);
+      UI.showToast('Failed to add asset.');
     }
   }
 };
@@ -611,9 +544,9 @@ function initTable() {
     
     const key = e.target.dataset.sort;
     const isSameColumn = STATE.sortCol === key;
-    STATE.sortDir = (isSameColumn && STATE.sortDir === SORT_DIRECTIONS.asc) 
-      ? SORT_DIRECTIONS.desc 
-      : SORT_DIRECTIONS.asc;
+    STATE.sortDir = (isSameColumn && STATE.sortDir === 'asc') 
+      ? 'desc' 
+      : 'asc';
     STATE.sortCol = key;
     UI.renderTable();
   });

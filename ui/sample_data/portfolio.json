@@ -1,244 +1,534 @@
 {
   "rows": [
     {
-      "ticker": "NVDA",
-      "quantity": 65,
-      "current_price": 183.14,
-      "change_percent": -1.44,
-      "notional": 11904.1,
-      "bucket": "Growth Satellites",
-      "rsi": 35.01,
-      "weight_pct": 2.5
-    },
-    {
-      "ticker": "GOOGL",
-      "quantity": 64,
-      "current_price": 335.84,
-      "change_percent": -0.04,
-      "notional": 21493.76,
-      "bucket": "Growth Satellites",
-      "rsi": 86.39,
-      "weight_pct": 4.52
-    },
-    {
-      "ticker": "TSM",
-      "quantity": 72,
-      "current_price": 327.11,
-      "change_percent": -1.24,
-      "notional": 23551.92,
-      "bucket": "Strategic Core",
-      "rsi": 73.26,
-      "weight_pct": 4.95
-    },
-    {
       "ticker": "AAPL",
-      "quantity": 65,
+      "quantity": 70,
       "current_price": 259.96,
       "change_percent": -0.42,
-      "notional": 16897.4,
-      "bucket": "Strategic Core",
+      "notional": 18197.2,
+      "bucket": "Risk Mitigation",
       "rsi": 19.06,
-      "weight_pct": 3.55
+      "weight_pct": 1.76
+    },
+    {
+      "ticker": "ABNB",
+      "quantity": 61,
+      "current_price": 132.79,
+      "change_percent": -5.2,
+      "notional": 8100.19,
+      "bucket": "Tactical Opportunities",
+      "rsi": 41.79,
+      "weight_pct": 0.78
+    },
+    {
+      "ticker": "ADP",
+      "quantity": 66,
+      "current_price": 258.5,
+      "change_percent": 0.56,
+      "notional": 17061.0,
+      "bucket": "Strategic Core",
+      "rsi": 52.27,
+      "weight_pct": 1.65
+    },
+    {
+      "ticker": "ADBE",
+      "quantity": 80,
+      "current_price": 304.44,
+      "change_percent": -1.77,
+      "notional": 24355.2,
+      "bucket": "Growth Satellites",
+      "rsi": 13.49,
+      "weight_pct": 2.36
+    },
+    {
+      "ticker": "AFRM",
+      "quantity": 79,
+      "current_price": 72.61,
+      "change_percent": -4.42,
+      "notional": 5736.19,
+      "bucket": "Risk Mitigation",
+      "rsi": 43.36,
+      "weight_pct": 0.56
+    },
+    {
+      "ticker": "AMRS",
+      "quantity": 67,
+      "current_price": 0.0,
+      "change_percent": 0.0,
+      "notional": 0.0,
+      "bucket": "Risk Mitigation",
+      "rsi": 50.0,
+      "weight_pct": 0.0
+    },
+    {
+      "ticker": "AMZN",
+      "quantity": 54,
+      "current_price": 236.65,
+      "change_percent": -2.45,
+      "notional": 12779.1,
+      "bucket": "Growth Satellites",
+      "rsi": 55.79,
+      "weight_pct": 1.24
     },
     {
       "ticker": "AMD",
-      "quantity": 76,
+      "quantity": 57,
       "current_price": 223.6,
       "change_percent": 1.19,
-      "notional": 16993.6,
+      "notional": 12745.2,
       "bucket": "Growth Satellites",
       "rsi": 58.32,
-      "weight_pct": 3.57
+      "weight_pct": 1.23
+    },
+    {
+      "ticker": "ARKK",
+      "quantity": 90,
+      "current_price": 83.2,
+      "change_percent": -0.01,
+      "notional": 7488.0,
+      "bucket": "Growth Satellites",
+      "rsi": 60.11,
+      "weight_pct": 0.73
+    },
+    {
+      "ticker": "AVGO",
+      "quantity": 51,
+      "current_price": 339.89,
+      "change_percent": -4.15,
+      "notional": 17334.39,
+      "bucket": "Strategic Core",
+      "rsi": 42.63,
+      "weight_pct": 1.68
+    },
+    {
+      "ticker": "BBAI",
+      "quantity": 53,
+      "current_price": 6.26,
+      "change_percent": 2.79,
+      "notional": 331.78,
+      "bucket": "Tactical Opportunities",
+      "rsi": 52.45,
+      "weight_pct": 0.03
+    },
+    {
+      "ticker": "BITB",
+      "quantity": 94,
+      "current_price": 53.08,
+      "change_percent": 3.39,
+      "notional": 4989.52,
+      "bucket": "Tactical Opportunities",
+      "rsi": 74.62,
+      "weight_pct": 0.48
     },
     {
       "ticker": "BMNR",
-      "quantity": 87,
+      "quantity": 95,
       "current_price": 32.66,
       "change_percent": 4.61,
-      "notional": 2841.42,
-      "bucket": "Tactical Opportunities",
+      "notional": 3102.7,
+      "bucket": "Growth Satellites",
       "rsi": 58.46,
-      "weight_pct": 0.6
+      "weight_pct": 0.3
     },
     {
-      "ticker": "SOXX",
-      "quantity": 55,
-      "current_price": 331.9,
-      "change_percent": -0.42,
-      "notional": 18254.5,
+      "ticker": "CIFR",
+      "quantity": 97,
+      "current_price": 18.13,
+      "change_percent": -0.66,
+      "notional": 1758.61,
       "bucket": "Growth Satellites",
-      "rsi": 73.52,
-      "weight_pct": 3.84
+      "rsi": 61.23,
+      "weight_pct": 0.17
     },
     {
-      "ticker": "TSLA",
-      "quantity": 93,
-      "current_price": 439.2,
-      "change_percent": -1.79,
-      "notional": 40845.6,
+      "ticker": "CLSK",
+      "quantity": 81,
+      "current_price": 13.34,
+      "change_percent": 6.29,
+      "notional": 1080.54,
       "bucket": "Growth Satellites",
-      "rsi": 28.67,
-      "weight_pct": 8.58
+      "rsi": 64.98,
+      "weight_pct": 0.1
     },
     {
-      "ticker": "VOO",
-      "quantity": 92,
-      "current_price": 634.94,
-      "change_percent": -0.48,
-      "notional": 58414.48,
-      "bucket": "Growth Satellites",
-      "rsi": 53.69,
-      "weight_pct": 12.28
+      "ticker": "COIN",
+      "quantity": 56,
+      "current_price": 255.86,
+      "change_percent": 1.25,
+      "notional": 14328.16,
+      "bucket": "Risk Mitigation",
+      "rsi": 59.14,
+      "weight_pct": 1.39
     },
     {
-      "ticker": "JPM",
+      "ticker": "COST",
+      "quantity": 52,
+      "current_price": 950.98,
+      "change_percent": 0.96,
+      "notional": 49450.96,
+      "bucket": "Tactical Opportunities",
+      "rsi": 82.23,
+      "weight_pct": 4.79
+    },
+    {
+      "ticker": "CRM",
+      "quantity": 80,
+      "current_price": 239.57,
+      "change_percent": -0.62,
+      "notional": 19165.6,
+      "bucket": "Strategic Core",
+      "rsi": 28.09,
+      "weight_pct": 1.86
+    },
+    {
+      "ticker": "CRWD",
+      "quantity": 74,
+      "current_price": 460.7,
+      "change_percent": -1.56,
+      "notional": 34091.8,
+      "bucket": "Tactical Opportunities",
+      "rsi": 40.19,
+      "weight_pct": 3.3
+    },
+    {
+      "ticker": "CSCO",
       "quantity": 71,
-      "current_price": 307.87,
-      "change_percent": -0.97,
-      "notional": 21858.77,
+      "current_price": 74.41,
+      "change_percent": -1.4,
+      "notional": 5283.11,
+      "bucket": "Strategic Core",
+      "rsi": 25.99,
+      "weight_pct": 0.51
+    },
+    {
+      "ticker": "DASH",
+      "quantity": 80,
+      "current_price": 213.13,
+      "change_percent": -1.96,
+      "notional": 17050.4,
+      "bucket": "Risk Mitigation",
+      "rsi": 30.38,
+      "weight_pct": 1.65
+    },
+    {
+      "ticker": "DDOG",
+      "quantity": 62,
+      "current_price": 122.41,
+      "change_percent": -2.46,
+      "notional": 7589.42,
+      "bucket": "Strategic Core",
+      "rsi": 24.66,
+      "weight_pct": 0.74
+    },
+    {
+      "ticker": "DOCN",
+      "quantity": 63,
+      "current_price": 52.7,
+      "change_percent": -3.11,
+      "notional": 3320.1,
       "bucket": "Growth Satellites",
-      "rsi": 35.27,
-      "weight_pct": 4.59
+      "rsi": 62.64,
+      "weight_pct": 0.32
+    },
+    {
+      "ticker": "ETSY",
+      "quantity": 96,
+      "current_price": 61.58,
+      "change_percent": 0.02,
+      "notional": 5911.68,
+      "bucket": "Risk Mitigation",
+      "rsi": 74.26,
+      "weight_pct": 0.57
+    },
+    {
+      "ticker": "FTNT",
+      "quantity": 91,
+      "current_price": 76.39,
+      "change_percent": -2.48,
+      "notional": 6951.49,
+      "bucket": "Growth Satellites",
+      "rsi": 33.18,
+      "weight_pct": 0.67
     },
     {
       "ticker": "GE",
-      "quantity": 68,
+      "quantity": 88,
       "current_price": 318.88,
       "change_percent": -2.55,
-      "notional": 21683.84,
-      "bucket": "Strategic Core",
-      "rsi": 52.91,
-      "weight_pct": 4.56
-    },
-    {
-      "ticker": "RTX",
-      "quantity": 69,
-      "current_price": 198.84,
-      "change_percent": 2.45,
-      "notional": 13719.96,
+      "notional": 28061.44,
       "bucket": "Tactical Opportunities",
-      "rsi": 73.04,
-      "weight_pct": 2.88
+      "rsi": 52.91,
+      "weight_pct": 2.72
     },
     {
-      "ticker": "SOFI",
-      "quantity": 92,
-      "current_price": 26.67,
-      "change_percent": -1.68,
-      "notional": 2453.64,
-      "bucket": "Strategic Core",
-      "rsi": 47.36,
-      "weight_pct": 0.52
-    },
-    {
-      "ticker": "HOOD",
-      "quantity": 75,
-      "current_price": 119.67,
-      "change_percent": -0.47,
-      "notional": 8975.25,
+      "ticker": "GEVO",
+      "quantity": 87,
+      "current_price": 2.06,
+      "change_percent": 1.48,
+      "notional": 179.22,
       "bucket": "Risk Mitigation",
-      "rsi": 49.09,
-      "weight_pct": 1.89
+      "rsi": 41.67,
+      "weight_pct": 0.02
     },
     {
       "ticker": "GLD",
-      "quantity": 51,
+      "quantity": 94,
       "current_price": 425.94,
       "change_percent": 1.02,
-      "notional": 21722.94,
+      "notional": 40038.36,
       "bucket": "Tactical Opportunities",
       "rsi": 59.28,
-      "weight_pct": 4.57
+      "weight_pct": 3.88
     },
     {
-      "ticker": "SLV",
-      "quantity": 86,
-      "current_price": 84.56,
-      "change_percent": 7.58,
-      "notional": 7272.16,
-      "bucket": "Growth Satellites",
-      "rsi": 70.95,
-      "weight_pct": 1.53
-    },
-    {
-      "ticker": "UNH",
-      "quantity": 77,
-      "current_price": 334.96,
-      "change_percent": 0.31,
-      "notional": 25791.92,
-      "bucket": "Risk Mitigation",
-      "rsi": 58.41,
-      "weight_pct": 5.42
-    },
-    {
-      "ticker": "MAGS",
-      "quantity": 51,
-      "current_price": 64.98,
-      "change_percent": -1.53,
-      "notional": 3313.98,
-      "bucket": "Risk Mitigation",
-      "rsi": 27.47,
-      "weight_pct": 0.7
-    },
-    {
-      "ticker": "ITA",
-      "quantity": 60,
-      "current_price": 239.16,
-      "change_percent": 0.68,
-      "notional": 14349.6,
-      "bucket": "Strategic Core",
-      "rsi": 75.56,
-      "weight_pct": 3.02
-    },
-    {
-      "ticker": "PLTR",
-      "quantity": 64,
-      "current_price": 178.4,
-      "change_percent": -0.31,
-      "notional": 11417.6,
-      "bucket": "Strategic Core",
-      "rsi": 33.8,
-      "weight_pct": 2.4
-    },
-    {
-      "ticker": "MU",
-      "quantity": 91,
-      "current_price": 333.35,
-      "change_percent": -1.41,
-      "notional": 30334.85,
-      "bucket": "Growth Satellites",
-      "rsi": 69.96,
-      "weight_pct": 6.38
-    },
-    {
-      "ticker": "XOM",
-      "quantity": 78,
-      "current_price": 130.2,
-      "change_percent": 2.89,
-      "notional": 10155.6,
-      "bucket": "Risk Mitigation",
-      "rsi": 69.53,
-      "weight_pct": 2.13
+      "ticker": "GOOGL",
+      "quantity": 56,
+      "current_price": 335.84,
+      "change_percent": -0.04,
+      "notional": 18807.04,
+      "bucket": "Tactical Opportunities",
+      "rsi": 86.39,
+      "weight_pct": 1.82
     },
     {
       "ticker": "GS",
-      "quantity": 54,
+      "quantity": 63,
       "current_price": 932.67,
       "change_percent": -0.58,
-      "notional": 50364.18,
-      "bucket": "Growth Satellites",
+      "notional": 58758.21,
+      "bucket": "Strategic Core",
       "rsi": 59.13,
-      "weight_pct": 10.59
+      "weight_pct": 5.69
+    },
+    {
+      "ticker": "HOOD",
+      "quantity": 55,
+      "current_price": 119.67,
+      "change_percent": -0.47,
+      "notional": 6581.85,
+      "bucket": "Risk Mitigation",
+      "rsi": 49.09,
+      "weight_pct": 0.64
+    },
+    {
+      "ticker": "IBM",
+      "quantity": 55,
+      "current_price": 309.03,
+      "change_percent": 1.94,
+      "notional": 16996.65,
+      "bucket": "Tactical Opportunities",
+      "rsi": 54.15,
+      "weight_pct": 1.65
+    },
+    {
+      "ticker": "INTC",
+      "quantity": 68,
+      "current_price": 48.72,
+      "change_percent": 3.02,
+      "notional": 3312.96,
+      "bucket": "Tactical Opportunities",
+      "rsi": 81.57,
+      "weight_pct": 0.32
+    },
+    {
+      "ticker": "ITA",
+      "quantity": 77,
+      "current_price": 239.16,
+      "change_percent": 0.68,
+      "notional": 18415.32,
+      "bucket": "Growth Satellites",
+      "rsi": 75.56,
+      "weight_pct": 1.78
+    },
+    {
+      "ticker": "JPM",
+      "quantity": 69,
+      "current_price": 307.87,
+      "change_percent": -0.97,
+      "notional": 21243.03,
+      "bucket": "Strategic Core",
+      "rsi": 35.27,
+      "weight_pct": 2.06
+    },
+    {
+      "ticker": "MAGS",
+      "quantity": 85,
+      "current_price": 64.98,
+      "change_percent": -1.53,
+      "notional": 5523.3,
+      "bucket": "Growth Satellites",
+      "rsi": 27.47,
+      "weight_pct": 0.53
+    },
+    {
+      "ticker": "MARA",
+      "quantity": 66,
+      "current_price": 11.11,
+      "change_percent": 1.46,
+      "notional": 733.26,
+      "bucket": "Strategic Core",
+      "rsi": 63.5,
+      "weight_pct": 0.07
+    },
+    {
+      "ticker": "META",
+      "quantity": 56,
+      "current_price": 615.52,
+      "change_percent": -2.47,
+      "notional": 34469.12,
+      "bucket": "Strategic Core",
+      "rsi": 26.14,
+      "weight_pct": 3.34
+    },
+    {
+      "ticker": "MSTR",
+      "quantity": 98,
+      "current_price": 179.33,
+      "change_percent": 3.66,
+      "notional": 17574.34,
+      "bucket": "Growth Satellites",
+      "rsi": 65.68,
+      "weight_pct": 1.7
+    },
+    {
+      "ticker": "MSFT",
+      "quantity": 69,
+      "current_price": 459.38,
+      "change_percent": -2.4,
+      "notional": 31697.22,
+      "bucket": "Growth Satellites",
+      "rsi": 24.64,
+      "weight_pct": 3.07
     },
     {
       "ticker": "MS",
-      "quantity": 77,
+      "quantity": 82,
       "current_price": 180.78,
       "change_percent": -1.08,
-      "notional": 13920.06,
-      "bucket": "Growth Satellites",
+      "notional": 14823.96,
+      "bucket": "Risk Mitigation",
       "rsi": 52.31,
-      "weight_pct": 2.93
+      "weight_pct": 1.44
+    },
+    {
+      "ticker": "MU",
+      "quantity": 63,
+      "current_price": 333.35,
+      "change_percent": -1.41,
+      "notional": 21001.05,
+      "bucket": "Tactical Opportunities",
+      "rsi": 69.96,
+      "weight_pct": 2.03
+    },
+    {
+      "ticker": "NFLX",
+      "quantity": 57,
+      "current_price": 88.55,
+      "change_percent": -1.96,
+      "notional": 5047.35,
+      "bucket": "Growth Satellites",
+      "rsi": 24.77,
+      "weight_pct": 0.49
+    },
+    {
+      "ticker": "NOW",
+      "quantity": 64,
+      "current_price": 134.61,
+      "change_percent": -2.59,
+      "notional": 8615.04,
+      "bucket": "Risk Mitigation",
+      "rsi": 19.44,
+      "weight_pct": 0.83
+    },
+    {
+      "ticker": "NVDA",
+      "quantity": 92,
+      "current_price": 183.14,
+      "change_percent": -1.44,
+      "notional": 16848.88,
+      "bucket": "Growth Satellites",
+      "rsi": 35.01,
+      "weight_pct": 1.63
+    },
+    {
+      "ticker": "NVAX",
+      "quantity": 73,
+      "current_price": 8.19,
+      "change_percent": -5.54,
+      "notional": 597.87,
+      "bucket": "Tactical Opportunities",
+      "rsi": 69.91,
+      "weight_pct": 0.06
+    },
+    {
+      "ticker": "ORCL",
+      "quantity": 50,
+      "current_price": 193.61,
+      "change_percent": -4.29,
+      "notional": 9680.5,
+      "bucket": "Tactical Opportunities",
+      "rsi": 48.65,
+      "weight_pct": 0.94
+    },
+    {
+      "ticker": "PANW",
+      "quantity": 79,
+      "current_price": 190.93,
+      "change_percent": 0.04,
+      "notional": 15083.47,
+      "bucket": "Strategic Core",
+      "rsi": 54.28,
+      "weight_pct": 1.46
+    },
+    {
+      "ticker": "PINS",
+      "quantity": 63,
+      "current_price": 27.07,
+      "change_percent": -1.81,
+      "notional": 1705.41,
+      "bucket": "Tactical Opportunities",
+      "rsi": 60.52,
+      "weight_pct": 0.17
+    },
+    {
+      "ticker": "PLTR",
+      "quantity": 66,
+      "current_price": 178.4,
+      "change_percent": -0.31,
+      "notional": 11774.4,
+      "bucket": "Strategic Core",
+      "rsi": 33.8,
+      "weight_pct": 1.14
+    },
+    {
+      "ticker": "PYPL",
+      "quantity": 83,
+      "current_price": 57.66,
+      "change_percent": 1.94,
+      "notional": 4785.78,
+      "bucket": "Risk Mitigation",
+      "rsi": 39.77,
+      "weight_pct": 0.46
+    },
+    {
+      "ticker": "QCOM",
+      "quantity": 96,
+      "current_price": 164.54,
+      "change_percent": -0.45,
+      "notional": 15795.84,
+      "bucket": "Risk Mitigation",
+      "rsi": 36.18,
+      "weight_pct": 1.53
+    },
+    {
+      "ticker": "RIOT",
+      "quantity": 79,
+      "current_price": 17.31,
+      "change_percent": 3.34,
+      "notional": 1367.49,
+      "bucket": "Tactical Opportunities",
+      "rsi": 78.35,
+      "weight_pct": 0.13
     },
     {
       "ticker": "RKLB",
@@ -246,10 +536,210 @@
       "current_price": 91.8,
       "change_percent": 6.03,
       "notional": 7252.2,
-      "bucket": "Growth Satellites",
+      "bucket": "Risk Mitigation",
       "rsi": 68.91,
-      "weight_pct": 1.52
+      "weight_pct": 0.7
+    },
+    {
+      "ticker": "ROKU",
+      "quantity": 59,
+      "current_price": 107.55,
+      "change_percent": -2.68,
+      "notional": 6345.45,
+      "bucket": "Tactical Opportunities",
+      "rsi": 43.98,
+      "weight_pct": 0.61
+    },
+    {
+      "ticker": "RTX",
+      "quantity": 61,
+      "current_price": 198.84,
+      "change_percent": 2.45,
+      "notional": 12129.24,
+      "bucket": "Growth Satellites",
+      "rsi": 73.04,
+      "weight_pct": 1.17
+    },
+    {
+      "ticker": "SARK",
+      "quantity": 76,
+      "current_price": 27.89,
+      "change_percent": 0.19,
+      "notional": 2119.64,
+      "bucket": "Strategic Core",
+      "rsi": 40.03,
+      "weight_pct": 0.21
+    },
+    {
+      "ticker": "SHOP",
+      "quantity": 98,
+      "current_price": 157.51,
+      "change_percent": -5.93,
+      "notional": 15435.98,
+      "bucket": "Tactical Opportunities",
+      "rsi": 37.28,
+      "weight_pct": 1.49
+    },
+    {
+      "ticker": "SLV",
+      "quantity": 66,
+      "current_price": 84.56,
+      "change_percent": 7.58,
+      "notional": 5580.96,
+      "bucket": "Strategic Core",
+      "rsi": 70.95,
+      "weight_pct": 0.54
+    },
+    {
+      "ticker": "SNAP",
+      "quantity": 75,
+      "current_price": 7.9,
+      "change_percent": -1.13,
+      "notional": 592.5,
+      "bucket": "Risk Mitigation",
+      "rsi": 52.41,
+      "weight_pct": 0.06
+    },
+    {
+      "ticker": "SNOW",
+      "quantity": 96,
+      "current_price": 206.16,
+      "change_percent": -1.54,
+      "notional": 19791.36,
+      "bucket": "Strategic Core",
+      "rsi": 34.44,
+      "weight_pct": 1.92
+    },
+    {
+      "ticker": "SOFI",
+      "quantity": 62,
+      "current_price": 26.67,
+      "change_percent": -1.68,
+      "notional": 1653.54,
+      "bucket": "Tactical Opportunities",
+      "rsi": 47.36,
+      "weight_pct": 0.16
+    },
+    {
+      "ticker": "SOXX",
+      "quantity": 100,
+      "current_price": 331.9,
+      "change_percent": -0.42,
+      "notional": 33190.0,
+      "bucket": "Strategic Core",
+      "rsi": 73.52,
+      "weight_pct": 3.21
+    },
+    {
+      "ticker": "SPOT",
+      "quantity": 63,
+      "current_price": 528.92,
+      "change_percent": -1.07,
+      "notional": 33321.96,
+      "bucket": "Risk Mitigation",
+      "rsi": 28.79,
+      "weight_pct": 3.23
+    },
+    {
+      "ticker": "SQ",
+      "quantity": 93,
+      "current_price": 0.0,
+      "change_percent": 0.0,
+      "notional": 0.0,
+      "bucket": "Growth Satellites",
+      "rsi": 50.0,
+      "weight_pct": 0.0
+    },
+    {
+      "ticker": "TSLA",
+      "quantity": 58,
+      "current_price": 439.2,
+      "change_percent": -1.79,
+      "notional": 25473.6,
+      "bucket": "Growth Satellites",
+      "rsi": 28.67,
+      "weight_pct": 2.47
+    },
+    {
+      "ticker": "TSM",
+      "quantity": 79,
+      "current_price": 327.11,
+      "change_percent": -1.24,
+      "notional": 25841.69,
+      "bucket": "Growth Satellites",
+      "rsi": 73.26,
+      "weight_pct": 2.5
+    },
+    {
+      "ticker": "UBER",
+      "quantity": 84,
+      "current_price": 84.65,
+      "change_percent": -0.89,
+      "notional": 7110.6,
+      "bucket": "Strategic Core",
+      "rsi": 61.43,
+      "weight_pct": 0.69
+    },
+    {
+      "ticker": "UNH",
+      "quantity": 62,
+      "current_price": 334.96,
+      "change_percent": 0.31,
+      "notional": 20767.52,
+      "bucket": "Strategic Core",
+      "rsi": 58.41,
+      "weight_pct": 2.01
+    },
+    {
+      "ticker": "UPST",
+      "quantity": 70,
+      "current_price": 46.45,
+      "change_percent": -1.38,
+      "notional": 3251.5,
+      "bucket": "Tactical Opportunities",
+      "rsi": 44.06,
+      "weight_pct": 0.31
+    },
+    {
+      "ticker": "VOO",
+      "quantity": 84,
+      "current_price": 634.94,
+      "change_percent": -0.48,
+      "notional": 53334.96,
+      "bucket": "Growth Satellites",
+      "rsi": 53.69,
+      "weight_pct": 5.17
+    },
+    {
+      "ticker": "WDAY",
+      "quantity": 93,
+      "current_price": 193.99,
+      "change_percent": -2.79,
+      "notional": 18041.07,
+      "bucket": "Strategic Core",
+      "rsi": 25.69,
+      "weight_pct": 1.75
+    },
+    {
+      "ticker": "XOM",
+      "quantity": 69,
+      "current_price": 130.2,
+      "change_percent": 2.89,
+      "notional": 8983.8,
+      "bucket": "Strategic Core",
+      "rsi": 69.53,
+      "weight_pct": 0.87
+    },
+    {
+      "ticker": "ZM",
+      "quantity": 56,
+      "current_price": 82.76,
+      "change_percent": -0.52,
+      "notional": 4634.56,
+      "bucket": "Growth Satellites",
+      "rsi": 37.4,
+      "weight_pct": 0.45
     }
   ],
-  "generated_at": "2026-01-15T04:21:04Z"
+  "generated_at": "2026-01-15T05:46:16Z"
 }
