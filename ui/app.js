@@ -16,6 +16,10 @@ const CONFIG = {
     eval: '/api/eval',
     position: '/api/portfolio/position',
   },
+  demoPaths: {
+    primary: 'data',
+    fallback: 'sample_data'
+  },
   heatmapWidget: {
     blockSize: "Value.Traded|1W",
     blockColor: "change",
@@ -32,6 +36,18 @@ const CONFIG = {
     width: "100%",
     height: "100%"
   }
+};
+
+const CSS_CLASSES = {
+  active: 'active',
+  sorted: 'sorted',
+  positive: 'positive',
+  negative: 'negative',
+  neutral: 'neutral',
+  collapsed: 'collapsed',
+  btnRemove: 'btn-remove-cell',
+  badge: 'badge',
+  animateIn: 'animate-in'
 };
 
 const COLS = {
@@ -60,19 +76,89 @@ const COLS = {
   ]
 };
 
+const VIEW_TITLES = {
+  dashboard: 'DASHBOARD',
+  heatmap: 'MARKET MAP',
+  calendar: 'ECONOMIC CALENDAR'
+};
+
+const EMPTY_TABLE_MESSAGES = {
+  holdings: 'NO ACTIVE POSITIONS FOUND',
+  evaluations: 'NO EVALUATIONS FOUND'
+};
+
+const VIEW_NAMES = {
+  dashboard: 'dashboard',
+  heatmap: 'heatmap',
+  calendar: 'calendar'
+};
+
+const TAB_NAMES = {
+  holdings: 'holdings',
+  evaluations: 'evaluations'
+};
+
+const SORT_DIRECTIONS = {
+  asc: 'asc',
+  desc: 'desc'
+};
+
+const DEFAULT_SORT_COLS = {
+  holdings: 'weight_pct',
+  evaluations: 'overall'
+};
+
+const DEMO_MESSAGES = {
+  changesNotSaved: 'Demo Mode: Changes not saved.',
+  usingPath: (path) => `Demo Mode: Using ${path}/`
+};
+
+const CONFIRMATION_MESSAGES = {
+  removePosition: (ticker) => `CONFIRM: Eliminate ${ticker} from portfolio?`
+};
+
+const ERROR_MESSAGES = {
+  apiFailure: 'API Failure',
+  dataEmpty: (path) => `Data empty in ${path}`,
+  removeFailed: 'Failed to remove asset.',
+  addFailed: 'Failed to add asset.'
+};
+
+const TOAST_STYLES = {
+  position: 'fixed',
+  bottom: '20px',
+  right: '20px',
+  background: '#333',
+  color: '#fff',
+  padding: '12px 24px',
+  borderRadius: '4px',
+  borderLeft: '4px solid #00f2fe',
+  zIndex: '10000',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '12px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+  animation: 'fadeIn 0.3s ease-out'
+};
+
+const TOAST_DURATION_MS = 3000;
+const TOAST_FADE_DURATION_MS = 500;
+
+const DATE_FORMAT_OPTIONS = { month: 'short', day: '2-digit' };
+const TIME_FORMAT_OPTIONS = { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
 // --- Application State ---
 const STATE = {
-  currentView: 'dashboard',
-  currentTab: 'holdings',
-  sortCol: 'weight_pct',
-  sortDir: 'desc',
+  currentView: VIEW_NAMES.dashboard,
+  currentTab: TAB_NAMES.holdings,
+  sortCol: DEFAULT_SORT_COLS.holdings,
+  sortDir: SORT_DIRECTIONS.desc,
   data: [],
   isLoading: false,
   isUsingDemoData: false
 };
 
 // --- DOM References ---
-const el = {
+const DOM = {
   navItems: document.querySelectorAll('.nav-item'),
   views: {
     dashboard: document.querySelector('.content-area'),
@@ -113,15 +199,18 @@ const el = {
 
 // --- Utilities ---
 const Utils = {
-  normalizeTicker: (t) => t.replace('-', '.').toUpperCase(),
+  normalizeTicker: (ticker) => ticker.replace('-', '.').toUpperCase(),
   
   format: {
-    currency: (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v),
-    percent: (v) => `${v > 0 ? '+' : ''}${Number(v).toFixed(2)}%`,
-    number: (v) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v),
-    score: (v) => Number(v).toFixed(1),
-    prob: (v) => `${(v * 100).toFixed(0)}%`,
-    default: (v) => String(v || '--')
+    currency: (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value),
+    percent: (value) => {
+      const sign = value > 0 ? '+' : '';
+      return `${sign}${Number(value).toFixed(2)}%`;
+    },
+    number: (value) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value),
+    score: (value) => Number(value).toFixed(1),
+    prob: (value) => `${(value * 100).toFixed(0)}%`,
+    default: (value) => String(value || '--')
   },
 
   calculateWeightedChange: (data, totalVal) => {
@@ -146,316 +235,424 @@ const Utils = {
     });
   },
 
-  calculateWeights: (data) => {
+  /**
+   * Calculates portfolio weights for each row (mutates data in place).
+   * Returns the total portfolio value.
+   */
+  calculateAndAssignWeights: (data) => {
     const totalVal = data.reduce((acc, r) => acc + (r.notional || 0), 0);
-    data.forEach(row => {
-      if (totalVal > 0) row.weight_pct = (row.notional / totalVal) * 100;
-    });
+    if (totalVal > 0) {
+      data.forEach(row => {
+        row.weight_pct = (row.notional / totalVal) * 100;
+      });
+    }
     return totalVal;
   }
 };
 
+const CellRenderers = {
+  remove: (row) => `<button class="${CSS_CLASSES.btnRemove}" data-ticker="${row.ticker}">&times;</button>`,
+  ticker: (row, val) => `<tv-ticker-tag symbol="${val}" preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`,
+  percent: (row, val, formatter) => {
+    const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
+    return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${formatter(val)}</span>`;
+  },
+  score: (row, val, formatter) => {
+    const { high, low } = CONFIG.scoreThresholds;
+    const scoreClass = val >= high ? 'score-high' : val <= low ? 'score-low' : 'score-mid';
+    return `<span class="${scoreClass}">${formatter(val)}</span>`;
+  },
+  default: (row, val, formatter) => formatter(val)
+};
+
+
 // --- UI Logic ---
 const UI = {
+  updateViewVisibility: (viewName) => {
+    const isDashboard = viewName === VIEW_NAMES.dashboard;
+    DOM.views.stats.style.display = isDashboard ? 'flex' : 'none';
+    DOM.views.tabs.style.display = isDashboard ? 'flex' : 'none';
+    DOM.views.heatmap.style.display = viewName === VIEW_NAMES.heatmap ? 'block' : 'none';
+    DOM.views.calendar.style.display = viewName === VIEW_NAMES.calendar ? 'block' : 'none';
+  },
+
   switchView: (viewName) => {
     STATE.currentView = viewName;
-    el.navItems.forEach(n => n.classList.toggle('active', n.dataset.view === viewName));
+    DOM.navItems.forEach(n => n.classList.toggle(CSS_CLASSES.active, n.dataset.view === viewName));
     
-    if (el.viewTitle) {
-      const titles = { dashboard: 'DASHBOARD', heatmap: 'MARKET MAP', calendar: 'ECONOMIC CALENDAR' };
-      el.viewTitle.textContent = titles[viewName] || 'TERMINAL';
+    if (DOM.viewTitle) {
+      DOM.viewTitle.textContent = VIEW_TITLES[viewName] || 'TERMINAL';
     }
     
-    const isDash = viewName === 'dashboard';
-    el.views.stats.style.display = isDash ? 'flex' : 'none';
-    el.views.tabs.style.display = isDash ? 'flex' : 'none';
-    el.views.heatmap.style.display = viewName === 'heatmap' ? 'block' : 'none';
-    el.views.calendar.style.display = viewName === 'calendar' ? 'block' : 'none';
+    UI.updateViewVisibility(viewName);
     
-    // Ensure ticker tape theme is always dark
-    if (el.tickerTape) {
-      el.tickerTape.setAttribute('theme', 'dark');
+    if (DOM.tickerTape) {
+      DOM.tickerTape.setAttribute('theme', 'dark');
     }
   },
 
   switchTab: (tabName) => {
     STATE.currentTab = tabName;
-    STATE.sortCol = tabName === 'holdings' ? 'weight_pct' : 'overall';
-    STATE.sortDir = 'desc';
-    el.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    STATE.sortCol = DEFAULT_SORT_COLS[tabName] || DEFAULT_SORT_COLS.holdings;
+    STATE.sortDir = SORT_DIRECTIONS.desc;
+    DOM.tabs.forEach(t => t.classList.toggle(CSS_CLASSES.active, t.dataset.tab === tabName));
     UI.renderTable();
   },
 
-  updateStats: () => {
-    el.stats.positions.textContent = STATE.data.length || '--';
-    const totalVal = Utils.calculateWeights(STATE.data);
-    el.stats.value.textContent = totalVal > 0 ? Utils.format.currency(totalVal) : '--';
+  getTrendClass: (change, totalVal) => {
+    if (totalVal <= 0) return CSS_CLASSES.neutral;
+    if (change > 0) return CSS_CLASSES.positive;
+    if (change < 0) return CSS_CLASSES.negative;
+    return CSS_CLASSES.neutral;
+  },
 
-    const change = Utils.calculateWeightedChange(STATE.data, totalVal);
-    el.stats.change.textContent = totalVal > 0 ? Utils.format.percent(change) : '--';
+  updateStats: (totalVal) => {
+    DOM.stats.positions.textContent = STATE.data.length || '--';
+    const computedTotal = totalVal == null ? Utils.calculateAndAssignWeights(STATE.data) : totalVal;
+    DOM.stats.value.textContent = computedTotal > 0 ? Utils.format.currency(computedTotal) : '--';
+
+    const change = Utils.calculateWeightedChange(STATE.data, computedTotal);
+    DOM.stats.change.textContent = computedTotal > 0 ? Utils.format.percent(change) : '--';
     
-    let trendClass = 'neutral';
-    if (totalVal > 0) {
-      if (change > 0) trendClass = 'positive';
-      else if (change < 0) trendClass = 'negative';
-    }
-    el.stats.change.className = `stat-trend ${trendClass}`;
+    const trendClass = UI.getTrendClass(change, computedTotal);
+    DOM.stats.change.className = `stat-trend ${trendClass}`;
   },
 
   updateTimestamp: (customTime) => {
-    if (!el.lastUpdate) return;
+    if (!DOM.lastUpdate) return;
     const time = customTime ? new Date(customTime) : new Date();
-    const dateStr = time.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-    const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = time.toLocaleDateString('en-US', DATE_FORMAT_OPTIONS);
+    const timeStr = time.toLocaleTimeString('en-US', TIME_FORMAT_OPTIONS);
     const modeText = STATE.isUsingDemoData ? " [DEMO]" : "";
-    el.lastUpdate.textContent = `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`;
+    DOM.lastUpdate.textContent = `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`;
   },
 
   updateTickerTape: () => {
-    if (!el.tickerTape) return;
+    if (!DOM.tickerTape) return;
     if (!STATE.data.length) {
-      el.tickerTape.setAttribute('symbols', '');
-      el.tickerTapeContainer.style.display = 'none';
+      DOM.tickerTape.setAttribute('symbols', '');
+      DOM.tickerTapeContainer.style.display = 'none';
       return;
     }
 
-    el.tickerTapeContainer.style.display = 'block';
+    DOM.tickerTapeContainer.style.display = 'block';
     const tickers = [...STATE.data]
       .sort((a, b) => (b.weight_pct || 0) - (a.weight_pct || 0))
       .map(item => Utils.normalizeTicker(item.ticker))
       .filter((t, i, self) => t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i)
       .slice(0, CONFIG.maxTickerTapeCount);
 
-    el.tickerTape.setAttribute('symbols', tickers.join(','));
+    DOM.tickerTape.setAttribute('symbols', tickers.join(','));
   },
 
   sortData: (data, col, dir) => {
     return [...data].sort((a, b) => {
-      let valA = a[col];
-      let valB = b[col];
+      const valA = a[col];
+      const valB = b[col];
       
       if (valA == null) return 1;
       if (valB == null) return -1;
       
-      if (typeof valA === 'string') {
-        valA = valA.toLowerCase();
-        valB = valB.toLowerCase();
-      }
+      const normalizedA = typeof valA === 'string' ? valA.toLowerCase() : valA;
+      const normalizedB = typeof valB === 'string' ? valB.toLowerCase() : valB;
       
-      const comparison = valA < valB ? -1 : valA > valB ? 1 : 0;
-      return dir === 'asc' ? comparison : -comparison;
+      if (normalizedA === normalizedB) return 0;
+      
+      const comparison = normalizedA < normalizedB ? -1 : 1;
+      return dir === SORT_DIRECTIONS.asc ? comparison : -comparison;
     });
+  },
+
+  getFilteredRows: () => {
+    const isHoldingsTab = STATE.currentTab === TAB_NAMES.holdings;
+    const hasHolding = (row) => row.quantity != null && row.notional != null;
+    const hasEvaluation = (row) => row.overall != null || row.rank != null;
+    return STATE.data.filter(isHoldingsTab ? hasHolding : hasEvaluation);
+  },
+
+  buildTableHead: (cols) => {
+    const headCells = cols.map(col => {
+      if (col.key === 'remove') return '<th></th>';
+      const sortedClass = STATE.sortCol === col.key ? `${CSS_CLASSES.sorted} ${STATE.sortDir}` : '';
+      return `<th data-sort="${col.key}" class="${sortedClass}">${col.label}</th>`;
+    }).join('');
+    DOM.table.head.innerHTML = `<tr>${headCells}</tr>`;
+  },
+
+  buildTableCell: (row, col) => {
+    const td = document.createElement('td');
+    const val = row[col.key];
+
+    // Lookup order: specific column renderer (e.g., 'ticker', 'remove') → format renderer → default
+    const renderer = CellRenderers[col.key] || CellRenderers[col.format] || CellRenderers.default;
+    const formatter = Utils.format[col.format] || Utils.format.default;
+
+    const content = renderer(row, val, formatter);
+    // Use innerHTML for custom renderers that return HTML (all except default text renderer)
+    const needsHtmlParsing = renderer !== CellRenderers.default;
+    
+    if (needsHtmlParsing) {
+      td.innerHTML = content;
+    } else {
+      td.textContent = content;
+    }
+    
+    return td;
+  },
+
+  buildTableRow: (row, cols, rowIndex) => {
+    const tr = document.createElement('tr');
+    tr.style.animationDelay = `${rowIndex * CONFIG.animationDelayMs}ms`;
+    tr.classList.add(CSS_CLASSES.animateIn);
+
+    cols.forEach(col => {
+      tr.appendChild(UI.buildTableCell(row, col));
+    });
+
+    return tr;
+  },
+
+  renderEmptyTable: (colSpan) => {
+    const emptyMsg = EMPTY_TABLE_MESSAGES[STATE.currentTab] || 'NO DATA FOUND';
+    DOM.table.body.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${emptyMsg}</td></tr>`;
   },
 
   renderTable: () => {
     const cols = COLS[STATE.currentTab];
     
-    // Filter rows based on current tab
-    const filtered = STATE.data.filter(row => {
-      if (STATE.currentTab === 'holdings') {
-        return row.quantity != null && row.notional != null;
-      } else {
-        return row.overall != null || row.rank != null;
-      }
-    });
-    
+    const filtered = UI.getFilteredRows();
     const sorted = UI.sortData(filtered, STATE.sortCol, STATE.sortDir);
-
-    // Render Head
-    let headHtml = '<tr>';
-    cols.forEach(col => {
-      if (col.key === 'remove') headHtml += '<th></th>';
-      else {
-        const sortedClass = STATE.sortCol === col.key ? `sorted ${STATE.sortDir}` : '';
-        headHtml += `<th data-sort="${col.key}" class="${sortedClass}">${col.label}</th>`;
-      }
-    });
-    el.table.head.innerHTML = headHtml + '</tr>';
+    UI.buildTableHead(cols);
 
     // Render Body
-    el.table.body.innerHTML = '';
+    DOM.table.body.innerHTML = '';
     if (sorted.length === 0) {
-      const emptyMsg = STATE.currentTab === 'holdings' ? 'NO ACTIVE POSITIONS FOUND' : 'NO EVALUATIONS FOUND';
-      el.table.body.innerHTML = `<tr><td colspan="${cols.length}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${emptyMsg}</td></tr>`;
+      UI.renderEmptyTable(cols.length);
       return;
     }
 
     const fragment = document.createDocumentFragment();
     sorted.forEach((row, i) => {
-      const tr = document.createElement('tr');
-      tr.style.animationDelay = `${i * CONFIG.animationDelayMs}ms`;
-      tr.classList.add('animate-in');
-      
-      cols.forEach(col => {
-        const td = document.createElement('td');
-        const val = row[col.key];
-        
-        if (col.key === 'remove') {
-          td.innerHTML = `<button class="btn-remove-cell" data-ticker="${row.ticker}">&times;</button>`;
-        } else if (col.key === 'ticker') {
-          td.innerHTML = `<tv-ticker-tag symbol="${val}" preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`;
-        } else {
-          const content = col.format && Utils.format[col.format] ? Utils.format[col.format](val) : Utils.format.default(val);
-          if (col.format === 'percent' && val != null) {
-            td.innerHTML = `<span class="badge ${val >= 0 ? 'positive' : 'negative'}">${content}</span>`;
-          } else if (col.format === 'score' && val != null) {
-            const cls = val >= CONFIG.scoreThresholds.high ? 'score-high' : (val <= CONFIG.scoreThresholds.low ? 'score-low' : 'score-mid');
-            td.innerHTML = `<span class="${cls}">${content}</span>`;
-          } else {
-            td.textContent = content;
-          }
-        }
-        tr.appendChild(td);
-      });
-      fragment.appendChild(tr);
+      fragment.appendChild(UI.buildTableRow(row, cols, i));
     });
-    el.table.body.appendChild(fragment);
+    DOM.table.body.appendChild(fragment);
   },
 
   showToast: (message) => {
     const toast = document.createElement('div');
-    toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 12px 24px; border-radius: 4px; border-left: 4px solid #00f2fe; z-index: 10000; font-family: var(--font-mono); font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); animation: fadeIn 0.3s ease-out;`;
+    Object.assign(toast.style, TOAST_STYLES);
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
+    
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = `opacity ${TOAST_FADE_DURATION_MS}ms`;
+      setTimeout(() => toast.remove(), TOAST_FADE_DURATION_MS);
+    }, TOAST_DURATION_MS);
   }
 };
 
 // --- Data Logic ---
 const Data = {
+  fetchPortfolioData: async (endpoints) => {
+    const [dashRes, evalRes] = await Promise.all([
+      fetch(endpoints.portfolio),
+      fetch(endpoints.eval)
+    ]);
+    
+    if (!dashRes.ok || !evalRes.ok) throw new Error(ERROR_MESSAGES.apiFailure);
+    
+    return {
+      dashData: await dashRes.json(),
+      evalData: await evalRes.json()
+    };
+  },
+
+  determineDemoPath: async () => {
+    try {
+      const testRes = await fetch(`${CONFIG.demoPaths.primary}/portfolio.json`);
+      return testRes.ok ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
+    } catch {
+      return CONFIG.demoPaths.fallback;
+    }
+  },
+
+  setLoading: (isLoading) => {
+    STATE.isLoading = isLoading;
+    DOM.refreshBtn.style.opacity = isLoading ? '0.5' : '1';
+  },
+
+  fetchDemoData: async () => {
+    STATE.isUsingDemoData = true;
+    const basePath = await Data.determineDemoPath();
+    console.log(DEMO_MESSAGES.usingPath(basePath));
+    
+    const data = await Data.fetchPortfolioData({
+      portfolio: `${basePath}/portfolio.json`,
+      eval: `${basePath}/eval.json`
+    });
+    const { dashData, evalData } = data;
+
+    if ((!dashData.rows || dashData.rows.length === 0) && (!evalData || evalData.length === 0)) {
+       throw new Error(ERROR_MESSAGES.dataEmpty(basePath));
+    }
+
+    return { dashData, evalData };
+  },
+
+  fetchLiveData: async () => {
+    STATE.isUsingDemoData = false;
+    return Data.fetchPortfolioData(CONFIG.endpoints);
+  },
+
   load: async () => {
     if (STATE.isLoading) return;
-    if (CONFIG.isDemoMode) return Data.loadDemo();
-
-    STATE.isLoading = true;
-    el.refreshBtn.style.opacity = '0.5';
+    Data.setLoading(true);
 
     try {
-      const [dashRes, evalRes] = await Promise.all([fetch(CONFIG.endpoints.portfolio), fetch(CONFIG.endpoints.eval)]);
-      if (!dashRes.ok || !evalRes.ok) throw new Error('API Failure');
+      const data = CONFIG.isDemoMode ? await Data.fetchDemoData() : await Data.fetchLiveData();
+      const { dashData, evalData } = data;
 
-      const dashData = await dashRes.json();
-      const evalData = await evalRes.json();
       STATE.data = Utils.mergeData(dashData, evalData);
-      STATE.isUsingDemoData = false;
-      Data.refreshUI();
+      Data.refreshUI(dashData.generated_at);
+
     } catch (err) {
       console.warn("API Failure or No Data:", err);
       STATE.data = [];
       Data.refreshUI();
     } finally {
-      STATE.isLoading = false;
-      el.refreshBtn.style.opacity = '1';
-    }
-  },
-
-  loadDemo: async () => {
-    STATE.isUsingDemoData = true;
-    
-    // Determine which data source to use
-    let basePath = 'sample_data';
-    try {
-      const testRes = await fetch('data/portfolio.json');
-      if (testRes.ok) basePath = 'data';
-    } catch (err) {
-      console.log('data/ not found, using sample_data/');
-    }
-
-    try {
-      const [dashRes, evalRes] = await Promise.all([
-        fetch(`${basePath}/portfolio.json`),
-        fetch(`${basePath}/eval.json`)
-      ]);
-      
-      if (!dashRes.ok || !evalRes.ok) throw new Error(`Data missing in ${basePath}`);
-      
-      const dashData = await dashRes.json();
-      const evalData = await evalRes.json();
-      
-      const rows = Array.isArray(dashData?.rows) ? dashData.rows : [];
-      const evalRows = Array.isArray(evalData) ? evalData : [];
-      
-      if (rows.length === 0 || evalRows.length === 0) {
-        throw new Error(`Data empty in ${basePath}`);
-      }
-      
-      STATE.data = Utils.mergeData(dashData, evalData);
-      Data.refreshUI(dashData.generated_at);
-      console.log(`Demo Mode: Data loaded from ${basePath}/`);
-    } catch (err) {
-      console.error("Data loading failed:", err);
-      STATE.data = [];
-      Data.refreshUI();
+      Data.setLoading(false);
     }
   },
 
   refreshUI: (customTime) => {
-    Utils.calculateWeights(STATE.data);
-    UI.updateStats();
+    const totalVal = Utils.calculateAndAssignWeights(STATE.data);
+    UI.updateStats(totalVal);
     UI.updateTickerTape();
     UI.renderTable();
     UI.updateTimestamp(customTime);
   },
 
   handleRemove: async (ticker) => {
-    if (!confirm(`CONFIRM: Eliminate ${ticker} from portfolio?`)) return;
-    if (STATE.isUsingDemoData) return UI.showToast("Demo Mode: Changes not saved.");
+    if (!confirm(CONFIRMATION_MESSAGES.removePosition(ticker))) return;
+    
+    if (STATE.isUsingDemoData) {
+      UI.showToast(DEMO_MESSAGES.changesNotSaved);
+      return;
+    }
+    
     try {
       const res = await fetch(`${CONFIG.endpoints.position}/${ticker}`, { method: 'DELETE' });
-      if (res.ok) Data.load();
-    } catch (err) { alert('Failed to remove asset.'); }
+      if (res.ok) {
+        Data.load();
+      }
+    } catch (err) {
+      console.warn('Remove position failed:', err);
+      UI.showToast(ERROR_MESSAGES.removeFailed);
+    }
   },
 
   handleAdd: async (e) => {
     e.preventDefault();
-    if (STATE.isUsingDemoData) { UI.showToast("Demo Mode: Changes not saved."); el.quickAdd.form.reset(); return; }
     
-    const ticker = el.quickAdd.ticker.value.toUpperCase();
-    const quantity = parseFloat(el.quickAdd.qty.value);
+    if (STATE.isUsingDemoData) {
+      UI.showToast(DEMO_MESSAGES.changesNotSaved);
+      DOM.quickAdd.form.reset();
+      return;
+    }
+    
+    const ticker = DOM.quickAdd.ticker.value.toUpperCase();
+    const quantity = parseFloat(DOM.quickAdd.qty.value);
     const existing = STATE.data.find(d => d.ticker.toUpperCase() === ticker);
     
-    const payload = { ticker, name: existing?.name || ticker, quantity, bucket: existing?.bucket || CONFIG.defaultBucket, delta: 1.0, current_price: 0.0 };
+    const payload = {
+      ticker,
+      name: existing?.name || ticker,
+      quantity,
+      bucket: existing?.bucket || CONFIG.defaultBucket,
+      delta: 1.0,
+      current_price: 0.0
+    };
 
     try {
-      const res = await fetch(CONFIG.endpoints.position, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (res.ok) { el.quickAdd.form.reset(); Data.load(); }
-    } catch (err) { alert('Failed to add asset.'); }
+      const res = await fetch(CONFIG.endpoints.position, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        DOM.quickAdd.form.reset();
+        Data.load();
+      }
+    } catch (err) {
+      console.warn('Add position failed:', err);
+      UI.showToast(ERROR_MESSAGES.addFailed);
+    }
   }
 };
 
 // --- Initialization ---
-function init() {
-  // Event Listeners
-  el.navItems.forEach(btn => btn.addEventListener('click', () => UI.switchView(btn.dataset.view)));
-  el.tabs.forEach(btn => btn.addEventListener('click', () => UI.switchTab(btn.dataset.tab)));
-  el.quickAdd.form.addEventListener('submit', Data.handleAdd);
-  el.refreshBtn.addEventListener('click', Data.load);
-  el.sidebar.toggle.addEventListener('click', () => el.sidebar.el.classList.toggle('collapsed'));
-  el.table.head.addEventListener('click', (e) => {
-    if (e.target.dataset.sort) {
-      const key = e.target.dataset.sort;
-      STATE.sortDir = (STATE.sortCol === key && STATE.sortDir === 'asc') ? 'desc' : 'asc';
-      STATE.sortCol = key;
-      UI.renderTable();
+function initNavigation() {
+  DOM.navItems.forEach(btn => 
+    btn.addEventListener('click', () => UI.switchView(btn.dataset.view))
+  );
+  DOM.tabs.forEach(btn => 
+    btn.addEventListener('click', () => UI.switchTab(btn.dataset.tab))
+  );
+  DOM.sidebar.toggle.addEventListener('click', () => 
+    DOM.sidebar.el.classList.toggle(CSS_CLASSES.collapsed)
+  );
+}
+
+function initTable() {
+  DOM.table.head.addEventListener('click', (e) => {
+    if (!e.target.dataset.sort) return;
+    
+    const key = e.target.dataset.sort;
+    const isSameColumn = STATE.sortCol === key;
+    STATE.sortDir = (isSameColumn && STATE.sortDir === SORT_DIRECTIONS.asc) 
+      ? SORT_DIRECTIONS.desc 
+      : SORT_DIRECTIONS.asc;
+    STATE.sortCol = key;
+    UI.renderTable();
+  });
+  
+  DOM.table.body.addEventListener('click', (e) => {
+    if (e.target.classList.contains(CSS_CLASSES.btnRemove)) {
+      Data.handleRemove(e.target.dataset.ticker);
     }
   });
-  el.table.body.addEventListener('click', (e) => {
-    if (e.target.classList.contains('btn-remove-cell')) Data.handleRemove(e.target.dataset.ticker);
-  });
+}
 
-  // Heatmap Source
-  el.heatmap.tabs.forEach(tab => tab.addEventListener('click', () => {
+function initForm() {
+  DOM.quickAdd.form.addEventListener('submit', Data.handleAdd);
+  DOM.refreshBtn.addEventListener('click', Data.load);
+}
+
+function createHeatmapWidget(dataSource) {
+  DOM.heatmap.container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+  const script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js';
+  script.async = true;
+  script.innerHTML = JSON.stringify({ ...CONFIG.heatmapWidget, dataSource });
+  DOM.heatmap.container.appendChild(script);
+}
+
+function initHeatmap() {
+  DOM.heatmap.tabs.forEach(tab => tab.addEventListener('click', () => {
     const source = tab.dataset.source;
-    el.heatmap.tabs.forEach(t => t.classList.toggle('active', t.dataset.source === source));
-    el.heatmap.container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
-    const s = document.createElement('script');
-    s.type = 'text/javascript';
-    s.src = 'https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js';
-    s.async = true;
-    s.innerHTML = JSON.stringify({ ...CONFIG.heatmapWidget, dataSource: source });
-    el.heatmap.container.appendChild(s);
+    DOM.heatmap.tabs.forEach(t => t.classList.toggle(CSS_CLASSES.active, t.dataset.source === source));
+    createHeatmapWidget(source);
   }));
+}
 
+function init() {
+  initNavigation();
+  initTable();
+  initForm();
+  initHeatmap();
   Data.load();
 }
 
