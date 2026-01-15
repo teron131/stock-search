@@ -251,7 +251,7 @@ const UI = {
         if (col.key === 'remove') {
           td.innerHTML = `<button class="btn-remove-cell" data-ticker="${row.ticker}">&times;</button>`;
         } else if (col.key === 'ticker') {
-          td.innerHTML = `<tv-ticker-tag symbol="${val}" theme="light" preserve-text hide-change hide-background transparent>${val}</tv-ticker-tag>`;
+          td.innerHTML = `<tv-ticker-tag symbol="${val}"preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`;
         } else {
           const content = col.format && Utils.format[col.format] ? Utils.format[col.format](val) : Utils.format.default(val);
           if (col.format === 'percent' && val != null) {
