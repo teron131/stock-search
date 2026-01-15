@@ -159,12 +159,12 @@ def generate_eval_data(tickers: list[str]) -> list[dict]:
 
 def save_sample_data(portfolio_rows: list[dict], eval_data: list[dict], generated_at: str) -> None:
     """Save generated data to JSON files."""
-    ui_data_dir = Path("ui/sample_data")
-    ui_data_dir.mkdir(parents=True, exist_ok=True)
+    sample_data_dir = Path("ui/sample_data")
+    sample_data_dir.mkdir(parents=True, exist_ok=True)
 
     dashboard = {"rows": portfolio_rows, "generated_at": generated_at}
-    (ui_data_dir / "portfolio.json").write_text(json.dumps(dashboard, indent=2))
-    (ui_data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2))
+    (sample_data_dir / "portfolio.json").write_text(json.dumps(dashboard, indent=2))
+    (sample_data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2))
 
     print(f"\nSUCCESS: Sample data generated at {generated_at} with REAL API stats.")
 
