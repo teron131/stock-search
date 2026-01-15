@@ -24,7 +24,6 @@ dependencies = [
     "uvicorn>=0.40.0",
     "yfinance>=0.2.65",
     "pandas>=2.2.3",
-    "pydoll-python>=2.15.1",
 ]
 
 [build-system]
