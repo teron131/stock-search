@@ -121,16 +121,17 @@ const DOM = {
   },
   refreshBtn: document.getElementById('refresh-btn'),
   viewTitle: document.getElementById('view-title'),
-  sidebar: {
-    el: document.getElementById('sidebar'),
-    toggle: document.getElementById('sidebar-toggle')
-  },
-  lastUpdate: document.getElementById('last-update'),
-  heatmap: {
-    tabs: document.querySelectorAll('#heatmap-section .tab-btn'),
-    container: document.getElementById('heatmap-widget-container')
-  }
-};
+    sidebar: {
+      el: document.getElementById('sidebar'),
+      toggle: document.getElementById('sidebar-toggle')
+    },
+    loadingOverlay: document.getElementById('loading-overlay'),
+    lastUpdate: document.getElementById('last-update'),
+    heatmap: {
+      tabs: document.querySelectorAll('#heatmap-section .tab-btn'),
+      container: document.getElementById('heatmap-widget-container')
+    }
+  };
 
 // --- Utilities ---
 const Utils = {
@@ -415,6 +416,9 @@ const Data = {
   setLoading: (isLoading) => {
     STATE.isLoading = isLoading;
     DOM.refreshBtn.style.opacity = isLoading ? '0.5' : '1';
+    if (DOM.loadingOverlay) {
+      DOM.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
+    }
   },
 
   fetchDemoData: async () => {
@@ -444,17 +448,22 @@ const Data = {
     Data.setLoading(true);
 
     try {
+      // Small artificial delay for "Sync" feel
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       const { dashData, evalData } = CONFIG.isDemoMode
         ? await Data.fetchDemoData()
         : await Data.fetchLiveData();
 
       STATE.data = Utils.mergeData(dashData, evalData);
       Data.refreshUI(dashData.generated_at);
+      UI.showToast('TERMINAL SYNCHRONIZED');
 
     } catch (err) {
       console.warn("API Failure or No Data:", err);
       STATE.data = [];
       Data.refreshUI();
+      UI.showToast('SYNCHRONIZATION FAILED');
     } finally {
       Data.setLoading(false);
     }
