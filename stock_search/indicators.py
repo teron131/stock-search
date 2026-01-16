@@ -70,12 +70,24 @@ class StockIndicator:
 
     @property
     def price(self) -> float | None:
-        """Get latest price in order of postMarket, preMarket, or regularMarket.
+        """Get latest price based on market state (Pre, Regular, Post).
 
         Returns:
             Price in currency units (typically USD). None if unavailable.
         """
-        price = self.info.get("postMarketPrice") or self.info.get("preMarketPrice") or self.info.get("regularMarketPrice")
+        state = self.info.get("marketState").upper()
+
+        # Priority mapping based on market state
+        if state == "PRE":
+            price = self.info.get("preMarketPrice") or self.info.get("regularMarketPrice")
+        elif state == "REGULAR":
+            price = self.info.get("regularMarketPrice") or self.info.get("preMarketPrice")
+        elif state in ("POST", "POSTPOST", "CLOSED"):
+            price = self.info.get("postMarketPrice") or self.info.get("regularMarketPrice")
+        else:
+            # Fallback for unknown states
+            price = self.info.get("regularMarketPrice") or self.info.get("postMarketPrice") or self.info.get("preMarketPrice")
+
         return _round(price)
 
     @property
@@ -84,15 +96,27 @@ class StockIndicator:
         return f"${self.price:.2f}" if self.price is not None else None
 
     def _get_previous_close(self) -> float | None:
-        """Get appropriate previous close based on current price source.
+        """Get appropriate baseline price for calculating change.
 
-        Returns:
-            Previous close price in currency units (typically USD). None if unavailable.
+        - Pre-Market: vs Regular Close (Yesterday)
+        - Regular: vs Regular Close (Yesterday)
+        - Post-Market: vs Regular Close (Today)
         """
-        if self.info.get("postMarketPrice") is not None:
+        state = self.info.get("marketState", "").upper()
+
+        if state == "PRE":
+            return _round(self.info.get("regularMarketPrice"))
+
+        elif state == "REGULAR":
             return _round(self.info.get("regularMarketPreviousClose"))
-        if self.info.get("preMarketPrice") is not None:
-            return _round(self.info.get("postMarketPrice") or self.info.get("regularMarketPreviousClose"))
+
+        elif state in ("POST", "POSTPOST", "CLOSED"):
+            # If we are displaying post-market price, baseline is today's close
+            if self.info.get("postMarketPrice"):
+                return _round(self.info.get("regularMarketPrice"))
+            # If no post-market price (fallback to regular), baseline is previous close
+            return _round(self.info.get("regularMarketPreviousClose"))
+
         return _round(self.info.get("regularMarketPreviousClose"))
 
     @property
