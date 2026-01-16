@@ -53,14 +53,24 @@ const CSS_CLASSES = {
 const COLS = {
   holdings: [
     { key: "ticker", label: "TICKER" },
-    { key: "quantity", label: "QTY", format: "number" },
+    { key: "market_cap", label: "MKT_CAP" },
+    { key: "pe", label: "PE", format: "number" },
+    { key: "pe_forward", label: "FWD_PE", format: "number" },
+    { key: "peg", label: "PEG", format: "number" },
+    { key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
+    { key: "earning_direction", label: "EARN_DIR" },
     { key: "current_price", label: "PRICE", format: "currency" },
-    { key: "change_pnl", label: "CHANGE", format: "pnl_abs" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
+    { key: "rsi", label: "RSI", format: "number" },
+    { key: "twenty_day_change_percent", label: "20D%", format: "percent" },
+    { key: "fifty_day_change_percent", label: "50D%", format: "percent" },
+    { key: "one_hundred_day_change_percent", label: "100D%", format: "percent" },
+    { key: "two_hundred_day_change_percent", label: "200D%", format: "percent" },
+    { key: "median_upside", label: "UPSIDE%", format: "percent" },
+    { key: "quantity", label: "QTY", format: "number" },
     { key: "notional", label: "VALUE", format: "currency" },
     { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
     { key: "bucket", label: "STRATEGY" },
-    { key: "rsi", label: "RSI", format: "number" },
     { key: "remove", label: "", format: "action" }
   ],
   evaluations: [
@@ -140,18 +150,44 @@ const Utils = {
   normalizeTicker: (ticker) => ticker.replace('-', '.').toUpperCase(),
   
   format: {
-    currency: (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value),
+    currency: (value) => {
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
+    },
     percent: (value) => {
-      const sign = value > 0 ? '+' : '';
-      return `${sign}${Number(value).toFixed(2)}%`;
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      const sign = numeric > 0 ? '+' : '';
+      return `${sign}${numeric.toFixed(2)}%`;
     },
     percent_neutral: (value) => {
-      return `${Number(value).toFixed(2)}%`;
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      return `${numeric.toFixed(2)}%`;
     },
-    number: (value) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value),
-    score: (value) => Number(value).toFixed(1),
-    prob: (value) => `${(value * 100).toFixed(0)}%`,
-    default: (value) => String(value || '--')
+    number: (value) => {
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(numeric);
+    },
+    score: (value) => {
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      return numeric.toFixed(1);
+    },
+    prob: (value) => {
+      if (value == null) return '--';
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) return '--';
+      return `${(numeric * 100).toFixed(0)}%`;
+    },
+    default: (value) => (value == null || value === '' ? '--' : String(value))
   },
 
   /**
@@ -206,18 +242,10 @@ const Utils = {
       const e = evalMap.get(ticker) || {};
       const safeTicker = p.ticker || e.ticker || ticker;
       
-      // Calculate individual PnL for the row
-      let change_pnl = 0;
-      if (p.notional && p.change_percent != null) {
-        // Change = CurrentValue - (CurrentValue / (1 + %change))
-        change_pnl = p.notional - (p.notional / (1 + (p.change_percent / 100)));
-      }
-
       return {
         ...p, ...e,
         ticker: safeTicker,
-        name: p.name || e.name || safeTicker,
-        change_pnl: change_pnl
+        name: p.name || e.name || safeTicker
       };
     });
   },
@@ -230,7 +258,11 @@ const Utils = {
     const totalVal = data.reduce((acc, r) => acc + (r.notional || 0), 0);
     if (totalVal > 0) {
       data.forEach(row => {
-        row.weight_pct = (row.notional / totalVal) * 100;
+        if (row.notional == null || Number.isNaN(Number(row.notional))) {
+          row.weight_pct = null;
+          return;
+        }
+        row.weight_pct = (Number(row.notional) / totalVal) * 100;
       });
     }
     return totalVal;
@@ -241,7 +273,10 @@ const CellRenderers = {
   remove: (row) => `<button class="${CSS_CLASSES.btnRemove}" data-ticker="${row.ticker}">&times;</button>`,
   ticker: (row, val) => `<tv-ticker-tag symbol="${val}" preserve-text hide-change hide-background theme="dark" transparent>${val}</tv-ticker-tag>`,
   percent: (row, val, formatter) => {
-    const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
+    if (val == null || Number.isNaN(Number(val))) {
+      return `<span class="${CSS_CLASSES.badge}">${formatter(val)}</span>`;
+    }
+    const badgeClass = Number(val) >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
     return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${formatter(val)}</span>`;
   },
   percent_neutral: (row, val, formatter) => {
@@ -456,7 +491,7 @@ const UI = {
     const BACKEND_MEDIAN_SCORE = 5.0;
     
     // Columns to colorize
-    const targetFormats = ['score', 'prob', 'percent_neutral'];
+    const targetFormats = ['score', 'prob', 'percent_neutral', 'number'];
     const targetKeys = ['rank', 'rsi']; // Specific keys to include even if format differs
 
     cols.forEach(col => {
@@ -474,8 +509,9 @@ const UI = {
             ? BACKEND_MEDIAN_SCORE 
             : Utils.median(values);
             
-          // Invert colors for Rank (Lower is better) and Bear (Lower is better)
-          const invert = col.key === 'rank' || col.key === 'bear';
+          // Invert colors for metrics where lower is better
+          // (e.g., Rank, Bear probability, valuation ratios like PE/PEG)
+          const invert = ['rank', 'bear', 'pe', 'pe_forward', 'peg'].includes(col.key);
           
           metadata[col.key] = {
             median,
