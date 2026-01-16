@@ -317,6 +317,9 @@ const UI = {
       .filter((t, i, self) => t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i)
       .slice(0, CONFIG.maxTickerTapeCount)
       .join(','));
+    
+    // Ensure height is not constrained
+    DOM.tickerTape.style.height = 'auto';
   },
 
   sortData: (data, col, dir) => {

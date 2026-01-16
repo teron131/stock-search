@@ -555,10 +555,17 @@ body::after {
 .ticker-tape-container {
   border: 1px solid var(--border);
   background: var(--bg-surface);
-  padding: 1px;
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--card-radius);
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+#ticker-tape-widget {
+  width: 100% !important;
+  height: auto !important;
 }
 
 /* Tabs & Table */
