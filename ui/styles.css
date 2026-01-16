@@ -22,6 +22,7 @@
 --sidebar-collapsed-width: 60px;
 --header-height: 60px;
   --row-height: 60px;
+  --table-visible-rows: 10;
   --card-radius: 12px;
   --panel-glow: 0 18px 40px rgba(0, 0, 0, 0.6);
   
@@ -635,8 +636,9 @@ body::after {
   overflow-y: auto;
   overflow-x: auto;
   flex: 1;
-  min-height: 400px;
-  max-height: calc(100vh - 380px);
+  height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
+  min-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
+  max-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
   scroll-snap-type: y mandatory;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
