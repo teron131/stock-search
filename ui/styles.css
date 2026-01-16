@@ -757,18 +757,20 @@ td:first-child {
 }
 
 /* Numeric columns refinement */
-td:nth-child(n+2) {
-  font-family: var(--font-mono);
-}
+/* td:nth-child(n+2) rule removed to allow Sans-Serif default */
 
 /* Custom renderers */
+.cell-weight {
+  font-weight: 700;
+  font-size: 13px; /* Ensure it matches regular text size, unlike badge */
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 20px;
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-size: 13px;
   font-weight: 700;
   border: none;
   background: transparent;

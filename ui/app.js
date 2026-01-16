@@ -210,7 +210,7 @@ const CellRenderers = {
     return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${formatter(val)}</span>`;
   },
   percent_neutral: (row, val, formatter) => {
-    return `<span class="${CSS_CLASSES.badge} ${CSS_CLASSES.neutral}">${formatter(val)}</span>`;
+    return `<span class="cell-weight">${formatter(val)}</span>`;
   },
   pnl_abs: (row, val, formatter) => {
     const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
