@@ -8,6 +8,8 @@ https://stockanalysis.com/etf/{ticker}/holdings
 https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
 https://www.tradingview.com/symbols/{ticker}/holdings
 
+Holdings: ticker symbol, name, weight percentage.
+
 Exclude the exchange prefix from the ticker symbol if it is in the US.
 Only include the exchange prefix from the ticker symbol if it is not in the US, such as 'EPA:HO', '1329.T'."""
 
