@@ -17,10 +17,10 @@
   --positive: #00ff85;
   --negative: #ff3e3e;
   
-  /* Spatial */
-  --sidebar-width: 240px;
-  --sidebar-collapsed-width: 80px;
-  --header-height: 72px;
+/* Spatial */
+--sidebar-width: 200px;
+--sidebar-collapsed-width: 60px;
+--header-height: 60px;
   --row-height: 60px;
   --card-radius: 12px;
   --panel-glow: 0 18px 40px rgba(0, 0, 0, 0.6);
@@ -107,7 +107,7 @@ body::after {
   padding: 0;
   flex-shrink: 0;
   position: relative;
-  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   z-index: 100;
 }
@@ -116,27 +116,88 @@ body::after {
   width: var(--sidebar-collapsed-width);
 }
 
-/* Sidebar Toggle Button Removed - Replaced by .brand click */
-
 .brand {
   height: var(--header-height);
   display: flex;
   align-items: center;
-  padding: 0 1.5rem;
-  border-bottom: 1px solid var(--border);
-  gap: 1rem;
+  padding: 0;
+  justify-content: center;
   overflow: hidden;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.2s, box-shadow 0.2s;
+  transition: background-color 0.2s;
+  position: relative;
 }
 
 .brand:hover {
   background-color: var(--bg-hover);
 }
 
-.brand:hover .logo-text {
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--accent-text);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+}
+
+.sidebar-toggle-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+}
+
+.brand:hover .logo-icon {
+  opacity: 0;
+}
+
+.brand:hover .sidebar-toggle-btn {
+  opacity: 1;
+}
+
+.sidebar:not(.collapsed) .brand {
+  padding: 0 1rem;
+  justify-content: space-between;
+}
+
+.sidebar:not(.collapsed) .logo-icon {
+  opacity: 1;
+  display: grid;
+}
+
+.sidebar:not(.collapsed) .sidebar-toggle-btn {
+  position: static;
+  transform: none;
+  opacity: 1;
+}
+
+.sidebar:not(.collapsed) .brand:hover .logo-icon {
+  opacity: 1;
+}
+
+.sidebar:not(.collapsed) .brand:hover .sidebar-toggle-btn {
   color: var(--accent);
+}
+
+.logo-text {
+  display: none;
 }
 
 .sidebar.collapsed .brand {
@@ -144,56 +205,24 @@ body::after {
   justify-content: center;
 }
 
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: var(--accent-text);
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  flex-shrink: 0;
-}
-
-.logo-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
-.logo-text {
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  font-size: 18px;
-  color: var(--ink);
-  text-transform: uppercase;
-  transition: color 0.2s;
-}
-
-.sidebar.collapsed .logo-text {
-  display: none;
-}
-
 .main-nav {
   display: flex;
   flex-direction: column;
   flex: 1;
-  padding: 1rem 0;
+  padding: 0.5rem 0;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  padding: 0 1.5rem;
-  height: 48px;
+  gap: 1rem;
+  padding: 0 1.25rem;
+  height: 44px;
   background: transparent;
   border: none;
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -202,6 +231,11 @@ body::after {
   text-align: left;
   position: relative;
   overflow: hidden;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
 }
 
 .nav-item span {
@@ -221,9 +255,17 @@ body::after {
 }
 
 .sidebar.collapsed .nav-item span {
-  opacity: 0;
-  width: 0;
-  overflow: hidden;
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-footer .status-text {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  padding: 1rem 0;
+  display: flex;
+  justify-content: center;
 }
 
 .sidebar.collapsed .nav-item {
@@ -313,6 +355,32 @@ body::after {
   border-bottom: 1px solid var(--border);
   background: linear-gradient(90deg, rgba(12, 12, 12, 0.98), rgba(20, 20, 20, 0.98));
   z-index: 10;
+  gap: 1rem;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--bg-surface-high);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.menu-toggle:hover {
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 .breadcrumbs {
@@ -821,14 +889,66 @@ tv-ticker-tag {
 
 /* Responsive */
 @media (max-width: 1024px) {
-  /* Allow sidebar to toggle freely on smaller screens */
-  .app-layout {
-    position: relative;
+  /* Hide sidebar completely when thin/mobile */
+  .sidebar {
+    width: 0 !important;
+    border-right: none;
+    transform: translateX(-100%);
+    position: absolute;
+    height: 100%;
+    z-index: 1000;
   }
   
   .sidebar:not(.collapsed) {
-    position: absolute;
-    height: 100%;
+    width: var(--sidebar-width) !important;
+    transform: translateX(0);
     box-shadow: var(--shadow-lg);
+  }
+
+  /* Show the brand icon in the top bar on mobile since sidebar is gone */
+  .top-bar-left::before {
+    content: "";
+    width: 32px;
+    height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 7-7' /%3E%3Cpath d='M14 8h7v7' /%3E%3C/svg%3E");
+    background-size: 20px;
+    background-position: center;
+    background-repeat: no-repeat;
+    margin-right: 0.75rem;
+    cursor: pointer;
+  }
+
+  .breadcrumbs {
+    display: flex; /* Re-enable on mobile if we use logo as toggle */
+  }
+
+  .content-area {
+    padding: 1.5rem 1rem;
+  }
+
+  .overview-panel {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+
+  .overview-meta {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 1.5rem;
+  }
+
+  .stat-value {
+    font-size: 32px;
+  }
+
+  .top-bar {
+    padding: 0 1rem;
+  }
+
+  .breadcrumbs {
+    display: none;
   }
 }

@@ -121,6 +121,7 @@ const DOM = {
   },
   refreshBtn: document.getElementById('refresh-btn'),
   viewTitle: document.getElementById('view-title'),
+  menuToggle: document.getElementById('menu-toggle'),
     sidebar: {
       el: document.getElementById('sidebar'),
       toggle: document.getElementById('sidebar-toggle')
@@ -537,14 +538,28 @@ const Data = {
 // --- Initialization ---
 function initNavigation() {
   DOM.navItems.forEach(btn => 
-    btn.addEventListener('click', () => UI.switchView(btn.dataset.view))
+    btn.addEventListener('click', () => {
+      UI.switchView(btn.dataset.view);
+      // Auto-collapse sidebar on mobile after selection
+      if (window.innerWidth <= 1024) {
+        DOM.sidebar.el.classList.add(CSS_CLASSES.collapsed);
+      }
+    })
   );
   DOM.tabs.forEach(btn => 
     btn.addEventListener('click', () => UI.switchTab(btn.dataset.tab))
   );
-  DOM.sidebar.toggle.addEventListener('click', () => 
-    DOM.sidebar.el.classList.toggle(CSS_CLASSES.collapsed)
-  );
+  
+  const toggleSidebar = () => {
+    DOM.sidebar.el.classList.toggle(CSS_CLASSES.collapsed);
+  };
+  
+  if (DOM.sidebar.toggle) DOM.sidebar.toggle.addEventListener('click', toggleSidebar);
+  // On mobile, the logo icon in the top-bar acts as the menu toggle
+  if (window.innerWidth <= 1024) {
+    const topBarLeft = document.querySelector('.top-bar-left');
+    if (topBarLeft) topBarLeft.addEventListener('click', toggleSidebar);
+  }
 }
 
 function initTable() {
