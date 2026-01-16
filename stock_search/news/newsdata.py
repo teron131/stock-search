@@ -12,7 +12,7 @@ import os
 from dotenv import load_dotenv
 import requests
 
-from ..schema import News
+from ..schemas import News
 from ..utils import format_date, get_days_ago, parse_date, parse_ticker
 
 load_dotenv()

@@ -10,7 +10,7 @@ import os
 
 import requests
 
-from ..schema import News
+from ..schemas import News
 from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
 
