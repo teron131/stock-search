@@ -12,8 +12,6 @@ def get_etf_data(etf_ticker: str) -> ETF:
     ticker = etf_ticker.upper().strip()
     agent = WebLoaderAgent(
         model="openai/gpt-5-mini",
-        temperature=0,
-        reasoning_effort="medium",
         system_prompt=ETF_SYSTEM_PROMPT.format(ticker=ticker),
         response_format=ETF,
     )
