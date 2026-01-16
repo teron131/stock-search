@@ -672,7 +672,7 @@ tv-ticker-tag {
 th {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 80;
   background: var(--bg-surface-high);
   height: 48px;
   padding: 0 1.5rem;
@@ -690,19 +690,19 @@ th {
 }
 
 th:not(:first-child) {
-  z-index: 90;
+  z-index: 70;
 }
 
 th:first-child, td:first-child { 
   padding-left: 2rem; 
   position: sticky;
   left: 0;
-  z-index: 50;
+  z-index: 85;
   background-color: var(--bg-surface-high);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
 }
 th:first-child {
-  z-index: 60;
+  z-index: 95;
   background: var(--bg-surface-high);
   color: var(--accent);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
