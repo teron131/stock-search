@@ -22,7 +22,8 @@
   --sidebar-collapsed-width: 80px;
   --header-height: 72px;
   --row-height: 60px;
-  --card-radius: 0px; /* Brutalist: Sharp corners or minimal rounding */
+  --card-radius: 12px;
+  --panel-glow: 0 18px 40px rgba(0, 0, 0, 0.6);
   
   /* Typography */
   --font-display: "Fraunces", serif;
@@ -93,13 +94,14 @@ body::after {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: var(--bg-deep);
+  background: radial-gradient(circle at top right, rgba(217, 255, 63, 0.08), transparent 45%)
+    , var(--bg-deep);
 }
 
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-width);
-  background-color: var(--bg-surface);
+  background: linear-gradient(180deg, rgba(12, 12, 12, 0.95), rgba(5, 5, 5, 0.95));
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -127,7 +129,7 @@ body::after {
   overflow: hidden;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, box-shadow 0.2s;
 }
 
 .brand:hover {
@@ -144,16 +146,21 @@ body::after {
 }
 
 .logo-icon {
-  width: 32px;
-  height: 32px;
-  background-color: var(--accent);
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 10px;
   display: grid;
   place-items: center;
   color: var(--accent-text);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
+}
+
+.logo-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .logo-text {
@@ -187,10 +194,10 @@ body::after {
   border: none;
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 11px; /* Reverted to 11px for cleaner look */
+  font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
@@ -202,6 +209,16 @@ body::after {
   white-space: nowrap;
   opacity: 1;
   transition: opacity 0.2s;
+}
+
+.nav-item svg {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.nav-item:hover svg,
+.nav-item.active svg {
+  opacity: 1;
 }
 
 .sidebar.collapsed .nav-item span {
@@ -295,7 +312,7 @@ body::after {
   align-items: center;
   padding: 0 2rem;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
+  background: linear-gradient(90deg, rgba(12, 12, 12, 0.98), rgba(20, 20, 20, 0.98));
   z-index: 10;
 }
 
@@ -331,7 +348,7 @@ body::after {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0 1rem;
+  padding: 0 1.1rem;
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -340,6 +357,7 @@ body::after {
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  border-radius: 999px;
   transition: all 0.2s;
 }
 
@@ -362,9 +380,12 @@ body::after {
 /* Content Area */
 .content-area {
   flex: 1;
-  padding: 2rem;
+  padding: 2rem 2.5rem 2.5rem;
   overflow-y: auto;
   scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 /* Overview Panel */
@@ -372,10 +393,11 @@ body::after {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 2rem;
-  padding: 3rem;
-  background: var(--bg-surface);
+  padding: 2.5rem 3rem;
+  background: linear-gradient(135deg, rgba(20, 20, 20, 0.95), rgba(10, 10, 10, 0.95));
   border: 1px solid var(--border);
-  margin-bottom: 2rem;
+  border-radius: var(--card-radius);
+  box-shadow: var(--panel-glow);
   position: relative;
 }
 
@@ -383,10 +405,21 @@ body::after {
   content: "PORTFOLIO_SUMMARY";
   position: absolute;
   top: 1rem;
-  left: 1rem;
+  left: 1.5rem;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--ink-ghost);
+}
+
+.overview-panel::after {
+  content: "";
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  bottom: 0.8rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.2;
 }
 
 .stat-label {
@@ -398,9 +431,15 @@ body::after {
   margin-bottom: 1rem;
 }
 
+.stat-value-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5rem;
+}
+
 .stat-value {
   font-family: var(--font-display);
-  font-size: 64px;
+  font-size: 56px;
   line-height: 1;
   font-weight: 800;
   color: var(--ink);
@@ -438,11 +477,12 @@ body::after {
 }
 
 .ticker-tape-container {
-  margin-bottom: 2rem;
   border: 1px solid var(--border);
   background: var(--bg-surface);
   padding: 1px;
   overflow: hidden;
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Tabs & Table */
@@ -451,6 +491,9 @@ body::after {
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .tabs-header {
@@ -460,6 +503,7 @@ body::after {
   padding: 0 1.5rem;
   height: 64px;
   border-bottom: 1px solid var(--border);
+  background: rgba(12, 12, 12, 0.8);
 }
 
 .tab-group {
@@ -530,7 +574,7 @@ th {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bg-surface-high);
+  background: rgba(20, 20, 20, 0.98);
   height: 48px;
   padding: 0 1.5rem;
   text-align: left;
@@ -652,6 +696,8 @@ td:nth-child(n+2) {
   background: var(--border);
   padding: 1px;
   height: 36px;
+  border-radius: 999px;
+  overflow: hidden;
 }
 
 .quick-add-compact input {
@@ -664,6 +710,7 @@ td:nth-child(n+2) {
   height: 100%;
   width: 120px;
   outline: none;
+  transition: background 0.2s;
 }
 
 .quick-add-compact input:focus {
@@ -679,6 +726,7 @@ td:nth-child(n+2) {
   cursor: pointer;
   display: grid;
   place-items: center;
+  border-radius: 50%;
 }
 
 /* TradingView override basics */
@@ -695,6 +743,7 @@ tv-ticker-tag {
   color: var(--ink);
   padding: 1rem 1.5rem;
   border-left: 4px solid var(--accent);
+  border-radius: 12px;
   font-family: var(--font-mono);
   font-size: 11px;
   text-transform: uppercase;
@@ -766,6 +815,9 @@ tv-ticker-tag {
   background: var(--bg-surface);
   display: flex;
   flex-direction: column;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Responsive */
