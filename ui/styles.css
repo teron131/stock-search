@@ -14,8 +14,8 @@
   --border: rgba(255, 255, 255, 0.06);
   --border-bright: rgba(255, 255, 255, 0.12);
   
-  --positive: #00ff85;
-  --negative: #ff3e3e;
+  --positive: #089981; /* TradingView Green */
+  --negative: #f23645; /* TradingView Red */
   
 /* Spatial */
 --sidebar-width: 200px;
@@ -506,18 +506,27 @@ body::after {
 
 .stat-value {
   font-family: var(--font-display);
-  font-size: 56px;
-  line-height: 1;
+  font-size: 32px;
+  line-height: 1.2;
   font-weight: 800;
   color: var(--ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
-.stat-trend {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
+.stat-value.positive {
+  color: var(--positive);
+}
+
+.stat-value.negative {
+  color: var(--negative);
+}
+
+.stat-trend.positive {
+  color: var(--positive);
+}
+
+.stat-trend.negative {
+  color: var(--negative);
 }
 
 .overview-meta {
@@ -617,13 +626,18 @@ body::after {
 
 .table-wrapper {
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   flex: 1;
   min-height: 400px;
   max-height: calc(100vh - 380px);
   scroll-snap-type: y mandatory;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-bright) transparent;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }
 
 table {
@@ -711,25 +725,20 @@ td:nth-child(n+2) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
   height: 20px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  border: 1px solid transparent;
-  min-width: 54px;
+  border: none;
+  background: transparent;
 }
 
 .badge.positive {
   color: var(--positive);
-  border-color: rgba(0, 255, 133, 0.2);
-  background: rgba(0, 255, 133, 0.05);
 }
 
 .badge.negative {
   color: var(--negative);
-  border-color: rgba(255, 62, 62, 0.2);
-  background: rgba(255, 62, 62, 0.05);
 }
 
 .score-high { color: var(--positive); font-weight: 800; }

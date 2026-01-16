@@ -55,7 +55,8 @@ const COLS = {
     { key: "ticker", label: "TICKER" },
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
-    { key: "change_percent", label: "CHANGE", format: "percent" },
+    { key: "change_pnl", label: "CHANGE", format: "pnl_abs" },
+    { key: "change_percent", label: "CHANGE%", format: "percent" },
     { key: "notional", label: "VALUE", format: "currency" },
     { key: "weight_pct", label: "WEIGHT", format: "percent" },
     { key: "bucket", label: "STRATEGY" },
@@ -151,8 +152,10 @@ const Utils = {
   },
 
   calculateWeightedChange: (data, totalVal) => {
-    if (totalVal <= 0) return 0;
-    return data.reduce((acc, r) => acc + ((r.change_percent || 0) * (r.notional || 0)), 0) / totalVal;
+    if (totalVal <= 0) return { percent: 0, absolute: 0 };
+    const absolute = data.reduce((acc, r) => acc + ((r.change_percent || 0) / 100 * (r.notional || 0) / (1 + (r.change_percent || 0) / 100)), 0);
+    const percent = (absolute / (totalVal - absolute)) * 100;
+    return { percent, absolute };
   },
 
   mergeData: (dashData, evalData) => {
@@ -164,10 +167,19 @@ const Utils = {
       const p = portfolioMap.get(ticker) || {};
       const e = evalMap.get(ticker) || {};
       const safeTicker = p.ticker || e.ticker || ticker;
+      
+      // Calculate individual PnL for the row
+      let change_pnl = 0;
+      if (p.notional && p.change_percent != null) {
+        // Change = CurrentValue - (CurrentValue / (1 + %change))
+        change_pnl = p.notional - (p.notional / (1 + (p.change_percent / 100)));
+      }
+
       return {
         ...p, ...e,
         ticker: safeTicker,
         name: p.name || e.name || safeTicker,
+        change_pnl: change_pnl
       };
     });
   },
@@ -193,6 +205,11 @@ const CellRenderers = {
   percent: (row, val, formatter) => {
     const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
     return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${formatter(val)}</span>`;
+  },
+  pnl_abs: (row, val, formatter) => {
+    const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
+    const sign = val >= 0 ? '+' : '-';
+    return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${sign}${Utils.format.currency(Math.abs(val))}</span>`;
   },
   score: (row, val, formatter) => {
     const { high, low } = CONFIG.scoreThresholds;
@@ -252,10 +269,23 @@ const UI = {
     const computedTotal = totalVal == null ? Utils.calculateAndAssignWeights(STATE.data) : totalVal;
     DOM.stats.value.textContent = computedTotal > 0 ? Utils.format.currency(computedTotal) : '--';
 
-    const change = Utils.calculateWeightedChange(STATE.data, computedTotal);
-    DOM.stats.change.textContent = computedTotal > 0 ? Utils.format.percent(change) : '--';
+    const { percent, absolute } = Utils.calculateWeightedChange(STATE.data, computedTotal);
+    
+    if (computedTotal > 0) {
+      const sign = absolute >= 0 ? '+' : '';
+      const absFormatted = sign + Utils.format.currency(Math.abs(absolute));
+      const pctFormatted = Utils.format.percent(percent);
+      DOM.stats.change.textContent = `${absFormatted} (${pctFormatted})`;
+    } else {
+      DOM.stats.change.textContent = '--';
+    }
 
-    DOM.stats.change.className = `stat-trend ${UI.getTrendClass(change, computedTotal)}`;
+    const trendClass = UI.getTrendClass(percent, computedTotal);
+    DOM.stats.change.className = `stat-trend ${trendClass}`;
+    
+    if (DOM.stats.value) {
+      DOM.stats.value.classList.remove(CSS_CLASSES.positive, CSS_CLASSES.negative);
+    }
   },
 
   updateTimestamp: (customTime) => {
