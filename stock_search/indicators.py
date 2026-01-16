@@ -76,26 +76,29 @@ class StockIndicator:
     @property
     def price(self) -> float | None:
         """Get latest price based on market state (Pre, Regular, Post)."""
+        info = self.info
         state = self._market_state
         price = None
 
         if state == "PRE":
-            price = self.info.get("preMarketPrice") or self.info.get("regularMarketPrice")
+            price = info.get("preMarketPrice") or info.get("regularMarketPrice")
         elif state == "REGULAR":
-            price = self.info.get("regularMarketPrice") or self.info.get("preMarketPrice")
+            price = info.get("regularMarketPrice") or info.get("preMarketPrice")
         elif state in ("POST", "POSTPOST", "CLOSED"):
-            price = self.info.get("postMarketPrice") or self.info.get("regularMarketPrice")
+            price = info.get("postMarketPrice") or info.get("regularMarketPrice")
 
         # Fallback for unknown states or missing data
         if price is None:
-            price = self.info.get("regularMarketPrice") or self.info.get("postMarketPrice") or self.info.get("preMarketPrice")
+            price = info.get("regularMarketPrice") or info.get("postMarketPrice") or info.get("preMarketPrice")
 
         return _round(price)
 
     @property
     def price_str(self) -> str | None:
         """String representation of price with dollar sign."""
-        return f"${self.price:.2f}" if self.price is not None else None
+        if (price := self.price) is None:
+            return None
+        return f"${price:.2f}"
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change.
@@ -104,15 +107,16 @@ class StockIndicator:
         - Regular: vs Regular Close (Yesterday) -> regularMarketPreviousClose
         - Post-Market: vs Regular Close (Today) -> regularMarketPrice (if post price exists)
         """
+        info = self.info
         state = self._market_state
 
         if state == "PRE":
-            return _round(self.info.get("regularMarketPrice"))
+            return _round(info.get("regularMarketPrice"))
 
-        if state in ("POST", "POSTPOST", "CLOSED") and self.info.get("postMarketPrice"):
-            return _round(self.info.get("regularMarketPrice"))
+        if state in ("POST", "POSTPOST", "CLOSED") and info.get("postMarketPrice"):
+            return _round(info.get("regularMarketPrice"))
 
-        return _round(self.info.get("regularMarketPreviousClose"))
+        return _round(info.get("regularMarketPreviousClose"))
 
     @property
     def change(self) -> float | None:
@@ -131,11 +135,10 @@ class StockIndicator:
     @property
     def change_str(self) -> str | None:
         """String representation of change with dollar sign."""
-        if self.change is None:
+        if (change := self.change) is None:
             return None
-        if self.change >= 0:
-            return f"+${self.change:.2f}"
-        return f"-${abs(self.change):.2f}"
+        sign = "+" if change >= 0 else "-"
+        return f"{sign}${abs(change):.2f}"
 
     @property
     def change_percent(self) -> float | None:
