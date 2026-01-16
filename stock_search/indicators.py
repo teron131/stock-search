@@ -7,8 +7,25 @@ import yfinance as yf
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
+# Constants
+DEFAULT_RATINGS_LOOKBACK_DAYS = 90
+DEFAULT_RSI_PERIOD = 14
 
-def parse_ratings(ticker: str | yf.Ticker, days: int = 90) -> dict | None:
+MARKET_STATE_PRE = "PRE"
+MARKET_STATE_REGULAR = "REGULAR"
+MARKET_STATE_POST = "POST"
+MARKET_STATE_POSTPOST = "POSTPOST"
+MARKET_STATE_CLOSED = "CLOSED"
+
+MARKET_CAP_UNITS = [
+    (1e12, "T"),
+    (1e9, "B"),
+    (1e6, "M"),
+    (1e3, "K"),
+]
+
+
+def parse_ratings(ticker: str | yf.Ticker, days: int = DEFAULT_RATINGS_LOOKBACK_DAYS) -> dict | None:
     """Parse analyst ratings for a ticker and calculate upside metrics.
 
     Args:
@@ -80,11 +97,11 @@ class StockIndicator:
         state = self._market_state
         price = None
 
-        if state == "PRE":
+        if state == MARKET_STATE_PRE:
             price = info.get("preMarketPrice") or info.get("regularMarketPrice")
-        elif state == "REGULAR":
+        elif state == MARKET_STATE_REGULAR:
             price = info.get("regularMarketPrice") or info.get("preMarketPrice")
-        elif state in ("POST", "POSTPOST", "CLOSED"):
+        elif state in (MARKET_STATE_POST, MARKET_STATE_POSTPOST, MARKET_STATE_CLOSED):
             price = info.get("postMarketPrice") or info.get("regularMarketPrice")
 
         # Fallback for unknown states or missing data
@@ -92,13 +109,6 @@ class StockIndicator:
             price = info.get("regularMarketPrice") or info.get("postMarketPrice") or info.get("preMarketPrice")
 
         return _round(price)
-
-    @property
-    def price_str(self) -> str | None:
-        """String representation of price with dollar sign."""
-        if (price := self.price) is None:
-            return None
-        return f"${price:.2f}"
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change.
@@ -110,10 +120,10 @@ class StockIndicator:
         info = self.info
         state = self._market_state
 
-        if state == "PRE":
+        if state == MARKET_STATE_PRE:
             return _round(info.get("regularMarketPrice"))
 
-        if state in ("POST", "POSTPOST", "CLOSED") and info.get("postMarketPrice"):
+        if state in (MARKET_STATE_POST, MARKET_STATE_POSTPOST, MARKET_STATE_CLOSED) and info.get("postMarketPrice"):
             return _round(info.get("regularMarketPrice"))
 
         return _round(info.get("regularMarketPreviousClose"))
@@ -133,14 +143,6 @@ class StockIndicator:
         return round(current_price - previous_close, 2)
 
     @property
-    def change_str(self) -> str | None:
-        """String representation of change with dollar sign."""
-        if (change := self.change) is None:
-            return None
-        sign = "+" if change >= 0 else "-"
-        return f"{sign}${abs(change):.2f}"
-
-    @property
     def change_percent(self) -> float | None:
         """Calculate percentage change from previous close based on current price source.
 
@@ -155,11 +157,6 @@ class StockIndicator:
         return round(((current_price - previous_close) / previous_close) * 100, 2)
 
     @property
-    def change_percent_str(self) -> str | None:
-        """String representation of change percentage with percent sign."""
-        return _format_with_sign(self.change_percent, "%")
-
-    @property
     def market_cap(self) -> str | None:
         """Format market cap as T/B/M/K with appropriate precision.
 
@@ -172,15 +169,10 @@ class StockIndicator:
         """
         if (market_cap := self.info.get("marketCap")) is None:
             return None
-        for divisor, suffix in [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]:
+        for divisor, suffix in MARKET_CAP_UNITS:
             if market_cap >= divisor:
                 return f"{market_cap / divisor:.3f}{suffix}"
         return f"{market_cap:.3f}"
-
-    @property
-    def market_cap_str(self) -> str | None:
-        """String representation of market cap with dollar sign."""
-        return f"${self.market_cap}" if self.market_cap is not None else None
 
     @property
     def pe(self) -> float | None:
@@ -195,11 +187,6 @@ class StockIndicator:
         return _round(self.info.get("trailingPE"))
 
     @property
-    def pe_str(self) -> str | None:
-        """String representation of P/E ratio with percent sign."""
-        return f"{self.pe:.2f}%" if self.pe is not None else None
-
-    @property
     def pe_forward(self) -> float | None:
         """Price-to-Earnings ratio (forward P/E).
 
@@ -212,11 +199,6 @@ class StockIndicator:
         return _round(self.info.get("forwardPE"))
 
     @property
-    def pe_forward_str(self) -> str | None:
-        """String representation of P/E ratio with percent sign."""
-        return f"{self.pe_forward:.2f}%" if self.pe_forward is not None else None
-
-    @property
     def peg(self) -> float | None:
         """Price/Earnings to Growth ratio. < 2 indicates reasonable price, < 1 means undervalued. It is called 'trailing' but it is 5 years forward expected.
 
@@ -226,11 +208,6 @@ class StockIndicator:
         return _round(self.info.get("trailingPegRatio"))
 
     @property
-    def peg_str(self) -> str | None:
-        """String representation of PEG ratio."""
-        return f"{self.peg:.2f}" if self.peg is not None else None
-
-    @property
     def earning_direction(self) -> str | None:
         """Direction of expected earnings change based on P/E ratios."""
         if not (trailing_pe := self.info.get("trailingPE")) or not (forward_pe := self.info.get("forwardPE")):
@@ -238,7 +215,7 @@ class StockIndicator:
         return "Increase" if trailing_pe > forward_pe else "Decrease"
 
     @property
-    def rsi(self, days: int = 14) -> float | None:
+    def rsi(self, days: int = DEFAULT_RSI_PERIOD) -> float | None:
         """Relative Strength Index (RSI, 14-period).
 
         Calculation:
@@ -272,11 +249,6 @@ class StockIndicator:
             return None
 
     @property
-    def rsi_str(self) -> str | None:
-        """String representation of RSI."""
-        return f"{self.rsi:.2f}" if self.rsi is not None else None
-
-    @property
     def gross_margin(self) -> float | None:
         """Gross margin as a percentage.
 
@@ -288,11 +260,6 @@ class StockIndicator:
         """
         gross_margins = self.info.get("grossMargins")
         return _round(gross_margins * 100) if gross_margins is not None else None
-
-    @property
-    def gross_margin_str(self) -> str | None:
-        """String representation of gross margin with percent sign."""
-        return f"{self.gross_margin:.2f}%" if self.gross_margin is not None else None
 
     def _calculate_change_percent(self, days: int) -> float | None:
         """Calculate percentage change as (price / EMA - 1) * 100.
@@ -345,11 +312,6 @@ class StockIndicator:
         return self._get_day_change_percent(20, "twentyDayAverageChangePercent")
 
     @property
-    def twenty_day_change_percent_str(self) -> str | None:
-        """String representation of 20-day change percentage with percent sign."""
-        return _format_with_sign(self.twenty_day_change_percent, "%")
-
-    @property
     def fifty_day_change_percent(self) -> float | None:
         """50-day percentage change.
 
@@ -359,11 +321,6 @@ class StockIndicator:
             Percentage change on 0-100 scale. None if unavailable.
         """
         return self._get_day_change_percent(50, "fiftyDayAverageChangePercent")
-
-    @property
-    def fifty_day_change_percent_str(self) -> str | None:
-        """String representation of 50-day change percentage with percent sign."""
-        return _format_with_sign(self.fifty_day_change_percent, "%")
 
     @property
     def one_hundred_day_change_percent(self) -> float | None:
@@ -377,11 +334,6 @@ class StockIndicator:
         return self._get_day_change_percent(100, "oneHundredDayAverageChangePercent")
 
     @property
-    def one_hundred_day_change_percent_str(self) -> str | None:
-        """String representation of 100-day change percentage with percent sign."""
-        return _format_with_sign(self.one_hundred_day_change_percent, "%")
-
-    @property
     def two_hundred_day_change_percent(self) -> float | None:
         """200-day percentage change.
 
@@ -391,11 +343,6 @@ class StockIndicator:
             Percentage change on 0-100 scale. None if unavailable.
         """
         return self._get_day_change_percent(200, "twoHundredDayAverageChangePercent")
-
-    @property
-    def two_hundred_day_change_percent_str(self) -> str | None:
-        """String representation of 200-day change percentage with percent sign."""
-        return _format_with_sign(self.two_hundred_day_change_percent, "%")
 
     @property
     def median_upside(self) -> float | None:
@@ -417,25 +364,7 @@ class StockIndicator:
         ratings = parse_ratings(self.ticker)
         return ratings.get("ratings") if ratings else None
 
-    @property
-    def median_upside_str(self) -> str | None:
-        """String representation of median upside with percent sign."""
-        return _format_with_sign(self.median_upside, "%")
-
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
-        exclude = {"ticker", "info", "get_all_indicators", "get_all_indicators_str"}
-        return {
-            name: getattr(self, name)
-            for name in dir(self)
-            if not name.startswith("_") and not name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)
-        }
-
-    def get_all_indicators_str(self) -> dict:
-        """Get all available string-formatted indicators as a dictionary."""
-        exclude = {"ticker", "info", "get_all_indicators", "get_all_indicators_str"}
-        return {
-            name: getattr(self, name)
-            for name in dir(self)
-            if not name.startswith("_") and name.endswith("_str") and name not in exclude and isinstance(getattr(type(self), name, None), property)
-        }
+        exclude = {"ticker", "info", "get_all_indicators"}
+        return {name: getattr(self, name) for name in dir(self) if not name.startswith("_") and name not in exclude and isinstance(getattr(type(self), name, None), property)}
