@@ -3,7 +3,7 @@ from .schemas import ETF
 
 ETF_SYSTEM_PROMPT = """Extract ETF holdings and sector weightings from https://stockanalysis.com/etf/{ticker}/holdings/
 
-Holdings: ticker symbol (with any exchange prefix), company name, weight percentage.
+Holdings: ticker symbol (without any exchange prefix) weight percentage.
 Sectors: sector name and weight percentage (standardize to: Technology, Materials, Financials, Healthcare, Industrials, Real Estate, Energy, Utilities, Consumer Discretionary, Communication Services, Consumer Staples, Other)."""
 
 
