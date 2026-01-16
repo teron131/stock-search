@@ -7,9 +7,9 @@
   --accent-soft: rgba(217, 255, 63, 0.1);
   --accent-text: #000000;
   
-  --ink: #ececec;
-  --ink-dim: #888888;
-  --ink-ghost: #333333;
+  --ink: #ffffff;
+  --ink-dim: #cccccc;
+  --ink-ghost: #888888;
   
   --border: rgba(255, 255, 255, 0.06);
   --border-bright: rgba(255, 255, 255, 0.12);
@@ -61,7 +61,6 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -92,8 +91,8 @@ body::after {
 /* Layout */
 .app-layout {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  min-height: 100vh;
+  min-width: 100%;
   background: radial-gradient(circle at top right, rgba(217, 255, 63, 0.08), transparent 45%)
     , var(--bg-deep);
 }
@@ -107,7 +106,9 @@ body::after {
   flex-direction: column;
   padding: 0;
   flex-shrink: 0;
-  position: relative;
+  position: sticky;
+  top: 0;
+  height: 100vh;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   z-index: 100;
@@ -343,8 +344,8 @@ body::after {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   position: relative;
+  min-width: 0;
 }
 
 .top-bar {
@@ -352,11 +353,14 @@ body::after {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 2rem;
+  padding: 0 4rem;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(90deg, rgba(12, 12, 12, 0.98), rgba(20, 20, 20, 0.98));
   z-index: 10;
   gap: 1rem;
+  position: sticky;
+  top: 0;
+  width: 100%;
 }
 
 .top-bar-left {
@@ -447,10 +451,7 @@ body::after {
 
 /* Content Area */
 .content-area {
-  flex: 1;
-  padding: 2rem 2.5rem 2.5rem;
-  overflow-y: auto;
-  scroll-behavior: smooth;
+  padding: 2rem 4rem 4rem;
   display: flex;
   flex-direction: column;
   gap: 2rem;
@@ -476,6 +477,7 @@ body::after {
   left: 1.5rem;
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 500;
   color: var(--ink-ghost);
 }
 
@@ -493,6 +495,7 @@ body::after {
 .stat-label {
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 500;
   color: var(--ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -542,6 +545,7 @@ body::after {
 .meta-label {
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 500;
   color: var(--ink-dim);
   text-transform: uppercase;
 }
@@ -633,24 +637,14 @@ body::after {
 }
 
 .table-wrapper {
-  overflow-y: auto;
   overflow-x: auto;
-  flex: 1;
   height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
   min-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
-  max-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
-  scroll-snap-type: y mandatory;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-  -webkit-overflow-scrolling: touch;
-}
-
-.table-wrapper::-webkit-scrollbar {
-  display: none; /* Chrome, Safari and Opera */
 }
 
 table {
   width: 100%;
+  min-width: fit-content;
   border-collapse: collapse;
 }
 
@@ -680,7 +674,18 @@ th {
   white-space: nowrap;
 }
 
-th:first-child, td:first-child { padding-left: 2rem; }
+th:first-child, td:first-child { 
+  padding-left: 2rem; 
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background-color: var(--bg-deep); /* Ensure readable over other cols */
+}
+th:first-child {
+  z-index: 15; /* Higher than tbody sticky cells and other th */
+  background: rgba(20, 20, 20, 0.98); /* Match header background */
+  color: var(--accent);
+}
 th:last-child, td:last-child { padding-right: 2rem; }
 
 th:hover {
@@ -700,17 +705,10 @@ td {
 }
 
 tbody tr {
-  scroll-snap-align: start;
-  scroll-margin-top: 48px;
   transition: background 0.1s;
 }
 
 tbody tr:last-child {
-  scroll-snap-align: end;
-  scroll-margin-bottom: 0;
-}
-
-tbody tr:last-child td {
   border-bottom: none;
 }
 
@@ -721,7 +719,7 @@ tbody tr:hover {
 td:first-child {
   font-family: var(--font-mono);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 /* Numeric columns refinement */
@@ -895,7 +893,7 @@ tv-ticker-tag {
 
 /* Heatmap & Calendar */
 .heatmap-container, .calendar-container {
-  height: 100%;
+  min-height: 600px;
   border: 1px solid var(--border);
   background: var(--bg-surface);
   display: flex;
@@ -912,7 +910,9 @@ tv-ticker-tag {
     width: 0 !important;
     border-right: none;
     transform: translateX(-100%);
-    position: absolute;
+    position: fixed;
+    top: 0;
+    left: 0;
     height: 100%;
     z-index: 1000;
   }
@@ -968,5 +968,18 @@ tv-ticker-tag {
 
   .breadcrumbs {
     display: none;
+  }
+
+  /* Compact Table for Mobile */
+  th, td {
+    padding: 0 0.75rem;
+  }
+
+  th:first-child, td:first-child {
+    padding-left: 1rem;
+  }
+
+  th:last-child, td:last-child {
+    padding-right: 1rem;
   }
 }

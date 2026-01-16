@@ -58,7 +58,7 @@ const COLS = {
     { key: "change_pnl", label: "CHANGE", format: "pnl_abs" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
     { key: "notional", label: "VALUE", format: "currency" },
-    { key: "weight_pct", label: "WEIGHT", format: "percent" },
+    { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
     { key: "bucket", label: "STRATEGY" },
     { key: "rsi", label: "RSI", format: "number" },
     { key: "remove", label: "", format: "action" }
@@ -145,6 +145,9 @@ const Utils = {
       const sign = value > 0 ? '+' : '';
       return `${sign}${Number(value).toFixed(2)}%`;
     },
+    percent_neutral: (value) => {
+      return `${Number(value).toFixed(2)}%`;
+    },
     number: (value) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value),
     score: (value) => Number(value).toFixed(1),
     prob: (value) => `${(value * 100).toFixed(0)}%`,
@@ -205,6 +208,9 @@ const CellRenderers = {
   percent: (row, val, formatter) => {
     const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
     return `<span class="${CSS_CLASSES.badge} ${badgeClass}">${formatter(val)}</span>`;
+  },
+  percent_neutral: (row, val, formatter) => {
+    return `<span class="${CSS_CLASSES.badge} ${CSS_CLASSES.neutral}">${formatter(val)}</span>`;
   },
   pnl_abs: (row, val, formatter) => {
     const badgeClass = val >= 0 ? CSS_CLASSES.positive : CSS_CLASSES.negative;
