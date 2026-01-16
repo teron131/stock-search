@@ -69,23 +69,25 @@ class StockIndicator:
         return self._info
 
     @property
+    def _market_state(self) -> str:
+        """Get the standardized market state."""
+        return str(self.info.get("marketState") or "").upper()
+
+    @property
     def price(self) -> float | None:
-        """Get latest price based on market state (Pre, Regular, Post).
+        """Get latest price based on market state (Pre, Regular, Post)."""
+        state = self._market_state
+        price = None
 
-        Returns:
-            Price in currency units (typically USD). None if unavailable.
-        """
-        state = self.info.get("marketState").upper()
-
-        # Priority mapping based on market state
         if state == "PRE":
             price = self.info.get("preMarketPrice") or self.info.get("regularMarketPrice")
         elif state == "REGULAR":
             price = self.info.get("regularMarketPrice") or self.info.get("preMarketPrice")
         elif state in ("POST", "POSTPOST", "CLOSED"):
             price = self.info.get("postMarketPrice") or self.info.get("regularMarketPrice")
-        else:
-            # Fallback for unknown states
+
+        # Fallback for unknown states or missing data
+        if price is None:
             price = self.info.get("regularMarketPrice") or self.info.get("postMarketPrice") or self.info.get("preMarketPrice")
 
         return _round(price)
@@ -98,24 +100,17 @@ class StockIndicator:
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change.
 
-        - Pre-Market: vs Regular Close (Yesterday)
-        - Regular: vs Regular Close (Yesterday)
-        - Post-Market: vs Regular Close (Today)
+        - Pre-Market: vs Regular Close (Yesterday) -> regularMarketPrice
+        - Regular: vs Regular Close (Yesterday) -> regularMarketPreviousClose
+        - Post-Market: vs Regular Close (Today) -> regularMarketPrice (if post price exists)
         """
-        state = self.info.get("marketState", "").upper()
+        state = self._market_state
 
         if state == "PRE":
             return _round(self.info.get("regularMarketPrice"))
 
-        elif state == "REGULAR":
-            return _round(self.info.get("regularMarketPreviousClose"))
-
-        elif state in ("POST", "POSTPOST", "CLOSED"):
-            # If we are displaying post-market price, baseline is today's close
-            if self.info.get("postMarketPrice"):
-                return _round(self.info.get("regularMarketPrice"))
-            # If no post-market price (fallback to regular), baseline is previous close
-            return _round(self.info.get("regularMarketPreviousClose"))
+        if state in ("POST", "POSTPOST", "CLOSED") and self.info.get("postMarketPrice"):
+            return _round(self.info.get("regularMarketPrice"))
 
         return _round(self.info.get("regularMarketPreviousClose"))
 
