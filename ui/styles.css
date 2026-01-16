@@ -638,14 +638,29 @@ body::after {
 
 .table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
   height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
   min-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  isolation: isolate;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }
 
 table {
   width: 100%;
   min-width: fit-content;
   border-collapse: collapse;
+}
+
+thead {
+  background-color: var(--bg-surface-high);
 }
 
 /* Fix for widget alignment */
@@ -657,8 +672,8 @@ tv-ticker-tag {
 th {
   position: sticky;
   top: 0;
-  z-index: 10;
-  background: rgba(20, 20, 20, 0.98);
+  z-index: 100;
+  background: var(--bg-surface-high);
   height: 48px;
   padding: 0 1.5rem;
   text-align: left;
@@ -674,23 +689,29 @@ th {
   white-space: nowrap;
 }
 
+th:not(:first-child) {
+  z-index: 90;
+}
+
 th:first-child, td:first-child { 
   padding-left: 2rem; 
   position: sticky;
   left: 0;
-  z-index: 5;
-  background-color: var(--bg-deep); /* Ensure readable over other cols */
+  z-index: 50;
+  background-color: var(--bg-surface-high);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
 }
 th:first-child {
-  z-index: 15; /* Higher than tbody sticky cells and other th */
-  background: rgba(20, 20, 20, 0.98); /* Match header background */
+  z-index: 60;
+  background: var(--bg-surface-high);
   color: var(--accent);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
 }
 th:last-child, td:last-child { padding-right: 2rem; }
 
 th:hover {
   color: var(--ink);
-  background: var(--bg-hover);
+  background-color: #1a1a1a;
 }
 
 td {
@@ -702,18 +723,31 @@ td {
   color: var(--ink);
   vertical-align: middle;
   white-space: nowrap;
+  background: var(--bg-surface);
 }
 
 tbody tr {
+  scroll-snap-align: start;
+  scroll-margin-top: 48px;
   transition: background 0.1s;
 }
 
 tbody tr:last-child {
   border-bottom: none;
+  scroll-snap-align: end;
+  scroll-margin-bottom: 0;
 }
 
 tbody tr:hover {
+  background: transparent;
+}
+
+tbody tr:hover td {
   background: var(--bg-hover);
+}
+
+tbody tr:hover td:first-child {
+  background-color: rgba(20, 20, 20, 1); /* Fully opaque hover for sticky column */
 }
 
 td:first-child {
