@@ -11,6 +11,7 @@ const CONFIG = {
   maxTickerLength: 10,
   maxTickerTapeCount: 20,
   scoreThresholds: { high: 8, low: 4 },
+  colorBandFraction: 0.5,
   endpoints: {
     portfolio: '/api/portfolio',
     eval: '/api/eval',
@@ -513,15 +514,17 @@ const UI = {
           // (e.g., Rank, Bear probability, valuation ratios like PE/PEG)
           const invert = ['rank', 'bear', 'pe', 'pe_forward', 'peg'].includes(col.key);
           
+          const colorBandFraction = CONFIG.colorBandFraction;
+
           metadata[col.key] = {
             median,
             min,
             max,
             invert,
-            // Red zone (standard): Bottom 20% of the spread towards median
-            lowThreshold: min + 0.2 * (median - min),
-            // Green zone (standard): Top 20% of the spread from median
-            highThreshold: max - 0.2 * (max - median)
+            // Red zone: Bottom N% of the spread towards median
+            lowThreshold: min + colorBandFraction * (median - min),
+            // Green zone: Top N% of the spread from median
+            highThreshold: max - colorBandFraction * (max - median)
           };
         }
       }

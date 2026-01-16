@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import json
 import logging
@@ -103,6 +104,31 @@ SAMPLE_TICKERS = [
     "WDAY",
     "XOM",
     "ZM",
+    "V",
+    "MA",
+    "JNJ",
+    "PG",
+    "KO",
+    "DIS",
+    "NKE",
+    "BA",
+    "CVX",
+    "PFE",
+    "MRK",
+    "T",
+    "VZ",
+    "WMT",
+    "HD",
+    "LOW",
+    "CAT",
+    "DE",
+    "ABT",
+    "CSX",
+    "INTU",
+    "TXN",
+    "AMAT",
+    "LMT",
+    "NEE",
 ]
 
 
@@ -111,7 +137,7 @@ def calculate_rsi(ticker_obj, days=RSI_PERIOD):
     try:
         hist = ticker_obj.history(period=f"{days + RSI_HISTORY_BUFFER}d")
         if hist.empty or len(hist) < days + 1:
-            return RSI_DEFAULT
+            return None
         deltas = hist["Close"].diff()
         gains = deltas.where(deltas > 0, 0)
         losses = -deltas.where(deltas < 0, 0)
@@ -122,7 +148,7 @@ def calculate_rsi(ticker_obj, days=RSI_PERIOD):
         rs = avg_gain / avg_loss
         return round(100 - (100 / (1 + rs)), 2)
     except Exception:
-        return RSI_DEFAULT
+        return None
 
 
 def fetch_ticker_data(ticker: str) -> dict:
@@ -131,19 +157,27 @@ def fetch_ticker_data(ticker: str) -> dict:
     info = stock.info
 
     qty = random.randint(QUANTITY_MIN, QUANTITY_MAX)
-    price = info.get("regularMarketPrice") or info.get("currentPrice") or 0.0
-    change = info.get("regularMarketChangePercent") or 0.0
+
+    raw_price = info.get("regularMarketPrice") or info.get("currentPrice")
+    price = round(raw_price, 2) if raw_price is not None else None
+    if price is not None and price <= 0:
+        price = None
+
+    raw_change = info.get("regularMarketChangePercent")
+    change_percent = round(raw_change, 2) if raw_change is not None else None
+
     rsi = calculate_rsi(stock)
+    notional = round(qty * price, 2) if price is not None else None
 
     return {
         "ticker": ticker,
         "quantity": qty,
-        "current_price": round(price, 2),
-        "change_percent": round(change, 2),
-        "notional": round(qty * price, 2),
+        "current_price": price,
+        "change_percent": change_percent,
+        "notional": notional,
         "bucket": random.choice(BUCKETS),
         "rsi": rsi,
-        "weight_pct": 0,
+        "weight_pct": None,
     }
 
 
@@ -152,37 +186,42 @@ def create_fallback_row(ticker: str) -> dict:
     return {
         "ticker": ticker,
         "quantity": random.randint(QUANTITY_MIN, QUANTITY_MAX),
-        "current_price": 0.0,
-        "change_percent": 0.0,
-        "notional": 0.0,
-        "bucket": "Unknown",
-        "rsi": RSI_DEFAULT,
-        "weight_pct": 0,
+        "current_price": None,
+        "change_percent": None,
+        "notional": None,
+        "bucket": random.choice(BUCKETS),
+        "rsi": None,
+        "weight_pct": None,
     }
 
 
 def calculate_portfolio_weights(rows: list[dict]) -> None:
     """Calculate and update portfolio weights in-place."""
-    total_val = sum(r["notional"] for r in rows)
+    total_val = sum((r.get("notional") or 0) for r in rows)
+
     for r in rows:
-        if total_val > 0:
-            r["weight_pct"] = round((r["notional"] / total_val) * 100, 2)
+        notional = r.get("notional")
+        if total_val > 0 and notional is not None:
+            r["weight_pct"] = round((notional / total_val) * 100, 2)
+        else:
+            r["weight_pct"] = None
 
 
 def generate_portfolio_data(tickers: list[str]) -> tuple[list[dict], str]:
     """Generate portfolio data with live market prices."""
     generated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    rows = []
 
     print(f"Fetching real-time data for {len(tickers)} tickers...")
 
-    for ticker in tickers:
-        print(f"  > Processing {ticker}...")
+    def safe_fetch(ticker: str) -> dict:
         try:
-            rows.append(fetch_ticker_data(ticker))
+            return fetch_ticker_data(ticker)
         except Exception as e:
             print(f"    ! Error fetching {ticker}: {e}")
-            rows.append(create_fallback_row(ticker))
+            return create_fallback_row(ticker)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        rows = list(executor.map(safe_fetch, tickers))
 
     calculate_portfolio_weights(rows)
     return rows, generated_at
@@ -211,11 +250,32 @@ def save_sample_data(portfolio_rows: list[dict], eval_data: list[dict], generate
     sample_data_dir = Path("ui/sample_data")
     sample_data_dir.mkdir(parents=True, exist_ok=True)
 
-    dashboard = {"rows": portfolio_rows, "generated_at": generated_at}
-    (sample_data_dir / "portfolio.json").write_text(json.dumps(dashboard, indent=2))
-    (sample_data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2))
+    data_dir = Path("data")
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nSUCCESS: Sample data generated at {generated_at} with REAL API stats.")
+    dashboard = {"rows": portfolio_rows, "generated_at": generated_at}
+    (sample_data_dir / "portfolio.json").write_text(json.dumps(dashboard, indent=2), encoding="utf-8")
+    (sample_data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2), encoding="utf-8")
+
+    (data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2), encoding="utf-8")
+
+    positions = [
+        {
+            "ticker": row["ticker"],
+            "name": row["ticker"],
+            "quantity": float(row["quantity"]),
+            "bucket": row["bucket"],
+            "delta": 1.0,
+            "current_price": row["current_price"],
+        }
+        for row in portfolio_rows
+    ]
+
+    total_equity = sum((row.get("notional") or 0) for row in portfolio_rows)
+    portfolio_doc = {"total_equity": total_equity, "positions": positions}
+    (data_dir / "portfolio.json").write_text(json.dumps(portfolio_doc, indent=2), encoding="utf-8")
+
+    print(f"\nSUCCESS: Updated ui/sample_data and data/ at {generated_at}.")
 
 
 def generate_sample_data():
