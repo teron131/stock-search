@@ -91,11 +91,23 @@ class Sector(BaseModel):
     weight: Weight
 
 
+class ETFHoldings(BaseModel):
+    """Top holdings of an ETF."""
+
+    holdings: list[Holding] = Field(default_factory=list, description="Holdings list")
+
+
+class ETFSectors(BaseModel):
+    """Sectors of an ETF."""
+
+    sectors: list[Sector] = Field(default_factory=list, description="Sector allocation list")
+
+
 class ETF(BaseModel):
     """ETF-specific metadata including holdings and sector breakdown."""
 
-    top_holdings: list[Holding] = Field(default_factory=list, description="Top holdings list")
-    sectors: list[Sector] = Field(default_factory=list, description="Sector allocation list")
+    holdings: ETFHoldings = Field(default_factory=list, description="Top holdings list")
+    sectors: ETFSectors = Field(default_factory=list, description="Sector allocation list")
 
 
 class NewsAnalysis(BaseModel):
