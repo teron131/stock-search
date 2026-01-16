@@ -808,9 +808,12 @@ td:first-child {
   color: var(--negative);
 }
 
-.score-high { color: var(--positive); font-weight: 800; }
-.score-low { color: var(--negative); font-weight: 800; }
-.score-mid { color: var(--ink); }
+.score-high,
+.score-low,
+.score-mid { 
+  font-weight: 800;
+  /* Color will be dynamically set via JS */
+}
 
 .btn-remove-cell {
   width: 24px;

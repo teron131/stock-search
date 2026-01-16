@@ -154,6 +154,41 @@ const Utils = {
     default: (value) => String(value || '--')
   },
 
+  /**
+   * Calculate median of an array of numbers
+   */
+  median: (values) => {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 
+      ? (sorted[mid - 1] + sorted[mid]) / 2 
+      : sorted[mid];
+  },
+
+  /**
+   * Determine score color based on dynamic thresholds (top/bottom 20% of range).
+   * @returns {string} CSS variable string or null (for neutral)
+   */
+  getScoreColor: (value, meta) => {
+    if (value == null || !meta) return null;
+    
+    // Standard logic: Low Value = Red, High Value = Green
+    let color = null;
+    
+    // Check Low Threshold (Bottom 20%)
+    if (value <= meta.lowThreshold) {
+      color = meta.invert ? 'var(--positive)' : 'var(--negative)';
+    } 
+    // Check High Threshold (Top 20%)
+    else if (value >= meta.highThreshold) {
+      color = meta.invert ? 'var(--negative)' : 'var(--positive)';
+    }
+
+    return color;
+  },
+
+
   calculateWeightedChange: (data, totalVal) => {
     if (totalVal <= 0) return { percent: 0, absolute: 0 };
     const absolute = data.reduce((acc, r) => acc + ((r.change_percent || 0) / 100 * (r.notional || 0) / (1 + (r.change_percent || 0) / 100)), 0);
@@ -361,7 +396,7 @@ const UI = {
     }).join('')}</tr>`;
   },
 
-  buildTableCell: (row, col) => {
+  buildTableCell: (row, col, colorMetadata) => {
     const td = document.createElement('td');
 
     // Lookup order: specific column renderer (e.g., 'ticker', 'remove') → format renderer → default
@@ -375,20 +410,88 @@ const UI = {
     } else {
       td.textContent = content;
     }
+
+    // Apply gradual font coloring to numeric columns (scores, probs, ranks, etc)
+    const isTargetFormat = ['score', 'prob', 'percent_neutral', 'number'].includes(col.format);
+    const isTargetKey = ['rank', 'rsi'].includes(col.key);
+    
+    if ((isTargetFormat || isTargetKey) && colorMetadata && colorMetadata[col.key]) {
+      const value = row[col.key];
+      const textColor = Utils.getScoreColor(value, colorMetadata[col.key]);
+      
+      // Find the span with the score class (or create one/apply to cell if text only)
+      // Note: Most number formatters wrap in spans now.
+      const span = td.querySelector('span');
+      if (span) {
+        span.style.color = textColor || ''; // Apply color or reset
+      } else if (textColor) {
+        td.style.color = textColor; // Fallback for raw text cells
+      } else {
+         td.style.color = '';
+      }
+    }
     
     return td;
   },
 
-  buildTableRow: (row, cols, rowIndex) => {
+  buildTableRow: (row, cols, rowIndex, colorMetadata) => {
     const tr = document.createElement('tr');
     tr.style.animationDelay = `${rowIndex * CONFIG.animationDelayMs}ms`;
     tr.classList.add(CSS_CLASSES.animateIn);
 
     cols.forEach(col => {
-      tr.appendChild(UI.buildTableCell(row, col));
+      tr.appendChild(UI.buildTableCell(row, col, colorMetadata));
     });
 
     return tr;
+  },
+
+  /**
+   * Calculate color metadata for columns.
+   * - Scores (0-10): Use fixed median 5.0
+   * - Others (Rank, Weight, Prob): Use actual dataset median
+   */
+  calculateScoreColorMetadata: (data, cols) => {
+    const metadata = {};
+    const BACKEND_MEDIAN_SCORE = 5.0;
+    
+    // Columns to colorize
+    const targetFormats = ['score', 'prob', 'percent_neutral'];
+    const targetKeys = ['rank', 'rsi']; // Specific keys to include even if format differs
+
+    cols.forEach(col => {
+      if (targetFormats.includes(col.format) || targetKeys.includes(col.key)) {
+        const values = data
+          .map(row => row[col.key])
+          .filter(v => v != null && !isNaN(v));
+        
+        if (values.length > 0) {
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          
+          // Use fixed 5.0 for standard scores, otherwise calculate actual median
+          const median = col.format === 'score' 
+            ? BACKEND_MEDIAN_SCORE 
+            : Utils.median(values);
+            
+          // Invert colors for Rank (Lower is better) and Bear (Lower is better)
+          const invert = col.key === 'rank' || col.key === 'bear';
+          
+          metadata[col.key] = {
+            median,
+            min,
+            max,
+            invert,
+            // Red zone (standard): Bottom 20% of the spread towards median
+            lowThreshold: min + 0.2 * (median - min),
+            // Green zone (standard): Top 20% of the spread from median
+            highThreshold: max - 0.2 * (max - median)
+          };
+        }
+      }
+    });
+    
+    return metadata;
   },
 
   renderEmptyTable: (colSpan) => {
@@ -408,9 +511,12 @@ const UI = {
       return;
     }
 
+    // Calculate color metadata for score columns
+    const colorMetadata = UI.calculateScoreColorMetadata(sorted, cols);
+
     const fragment = document.createDocumentFragment();
     sorted.forEach((row, i) => {
-      fragment.appendChild(UI.buildTableRow(row, cols, i));
+      fragment.appendChild(UI.buildTableRow(row, cols, i, colorMetadata));
     });
     DOM.table.body.appendChild(fragment);
   },
