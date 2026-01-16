@@ -68,6 +68,7 @@ class Holding(BaseModel):
     """A single holding within an ETF."""
 
     ticker: Ticker
+    name: str | None = Field(default=None, description="Company name")
     weight: Weight
 
 

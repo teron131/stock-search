@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain.agents.structured_output import ToolStrategy
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
 from .multimodal import MediaMessage
@@ -48,17 +49,19 @@ class WebSearchAgent:
             web_search_max_results=web_search_max_results,
             **model_kwargs,
         )
-        if self.response_format:
-            self.model = self.model.with_structured_output(self.response_format)
+        self.agent = create_agent(
+            model=self.model,
+            tools=[],
+            system_prompt=self.system_prompt,
+            response_format=ToolStrategy(self.response_format) if self.response_format else None,
+        )
 
     def invoke(self, user_input: str) -> BaseModel | str:
         """Execute web search and process results."""
-        messages = []
-        if self.system_prompt:
-            messages.append(SystemMessage(content=self.system_prompt))
-        messages.append(HumanMessage(content=user_input))
-        response = self.model.invoke(messages)
-        return response if self.response_format else response.content
+        response = self.agent.invoke({"messages": [HumanMessage(content=user_input)]})
+        if self.response_format:
+            return response.get("structured_response")
+        return response.get("messages")[-1].content
 
 
 class WebLoaderAgent:
@@ -96,7 +99,7 @@ class WebLoaderAgent:
             model=self.model,
             tools=[webloader_tool],
             system_prompt=self.system_prompt,
-            response_format=self.response_format,
+            response_format=ToolStrategy(self.response_format) if self.response_format else None,
         )
 
     def invoke(self, user_input: str) -> BaseModel | str:
@@ -133,22 +136,23 @@ class ImageAnalysisAgent:
         """
         model = model or os.getenv("FAST_LLM")
         self.system_prompt = system_prompt
+        self.response_format = response_format
         self.model = ChatOpenRouter(
             model=model,
             temperature=temperature,
             reasoning_effort=reasoning_effort,
             **model_kwargs,
         )
-        self.response_format = response_format
-        if self.response_format:
-            self.model = self.model.with_structured_output(self.response_format)
+        self.agent = create_agent(
+            model=self.model,
+            tools=[],
+            system_prompt=self.system_prompt,
+            response_format=ToolStrategy(self.response_format) if self.response_format else None,
+        )
 
     def invoke(self, image_paths: str | Path | list[str | Path]) -> BaseModel | str:
         """Analyze one or more images with a prompt."""
-        messages: list[HumanMessage | SystemMessage] = []
-        if self.system_prompt:
-            messages.append(SystemMessage(content=self.system_prompt))
-        messages.append(MediaMessage(image_paths))
-
-        response = self.model.invoke(messages)
-        return response if self.response_format else response.content
+        response = self.agent.invoke({"messages": [MediaMessage(image_paths)]})
+        if self.response_format:
+            return response.get("structured_response")
+        return response.get("messages")[-1].content
