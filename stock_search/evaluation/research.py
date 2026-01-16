@@ -22,16 +22,17 @@ DEFAULT_ALLOWED_DOMAINS: tuple[str, ...] = (
     "placeholder.org",
 )
 
-RESEARCH_AGENT_PROMPT = """You are a research subagent. Use web search to find reliable, recent sources.
+RESEARCH_AGENT_PROMPT = """Research with web search to find reliable, recent sources.
 Focus on concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate.
 Return concise bullet points with sources."""
 
-WEBLOADER_AGENT_PROMPT = """You load and summarize pages from approved domains.
+WEBLOADER_AGENT_PROMPT = """Loads and summarizes pages from approved domains.
 Extract only facts that help score moat, quality, and outlook. No meta-language.
 Return short bullet points with sources if available."""
 
-VALIDATOR_AGENT_PROMPT = """You validate claims for factual support.
+VALIDATOR_AGENT_PROMPT = """Validates claims for factual support.
 Flag statements that lack evidence or conflict with sources. Return a short checklist of issues or "ok"."""
+
 MAX_VALIDATION_RETRIES = 2
 _STORE = InMemoryStore()
 
