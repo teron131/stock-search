@@ -1,6 +1,7 @@
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 import logging
+from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf
@@ -37,42 +38,43 @@ def parse_ratings(ticker: str | yf.Ticker, days: int = DEFAULT_RATINGS_LOOKBACK_
     """
     stock = ticker if isinstance(ticker, yf.Ticker) else yf.Ticker(ticker)
     current_price = stock.info.get("currentPrice")
-    df = stock.upgrades_downgrades
 
-    if df is None or df.empty or current_price is None:
+    # yfinance can return None, or sometimes a dict if something goes wrong, though usually DataFrame
+    df: Any = stock.upgrades_downgrades
+
+    if df is None or isinstance(df, dict) or (isinstance(df, pd.DataFrame) and df.empty) or current_price is None:
         return None
 
-    df = df.copy()
-    df.index = pd.to_datetime(df.index, utc=True)
-    cutoff_date = datetime.now(UTC) - timedelta(days=days)
-    recent_ratings = df[df.index >= cutoff_date]
+    # Enforce DataFrame type for subsequent operations
+    df = cast(pd.DataFrame, df).copy()
 
-    if recent_ratings.empty:
+    try:
+        df.index = pd.to_datetime(df.index, utc=True)
+        cutoff_date = datetime.now(UTC) - timedelta(days=days)
+        recent_ratings = df[df.index >= cutoff_date]
+
+        if recent_ratings.empty:
+            return None
+
+        upside_pct = ((recent_ratings["currentPriceTarget"] - current_price) / current_price * 100).round(2)
+        median_upside_pct = float(upside_pct.median())
+
+        return {
+            "median_upside_pct": median_upside_pct,
+            "ratings": recent_ratings.to_dict("records"),
+        }
+    except Exception:
         return None
-
-    upside_pct = ((recent_ratings["currentPriceTarget"] - current_price) / current_price * 100).round(2)
-    median_upside_pct = float(upside_pct.median())
-
-    return {
-        "median_upside_pct": median_upside_pct,
-        "ratings": recent_ratings.to_dict("records"),
-    }
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
     """Round a value if not None."""
-    return round(value, decimals) if value is not None else None
-
-
-def _format_with_sign(value: float | None, suffix: str = "") -> str | None:
-    """Format a numeric value with +/- sign and optional suffix."""
-    if value is None:
-        return None
-    sign = "+" if value >= 0 else ""
-    return f"{sign}{value:.2f}{suffix}"
+    return round(float(value), decimals) if value is not None else None
 
 
 class StockIndicator:
+    """Fetches and calculates technical and fundamental indicators for a stock."""
+
     def __init__(self, ticker: str):
         self.ticker = yf.Ticker(ticker)
         self._info: dict = {}
@@ -94,6 +96,12 @@ class StockIndicator:
     def price(self) -> float | None:
         """Get latest price based on market state (Pre, Regular, Post)."""
         info = self.info
+
+        # 1. Prefer explicit 'currentPrice' from Yahoo if available
+        if (p := info.get("currentPrice")) is not None:
+            return _round(p)
+
+        # 2. Fallback to manual logic based on market state
         state = self._market_state
         price = None
 
@@ -111,15 +119,14 @@ class StockIndicator:
         return _round(price)
 
     def _get_previous_close(self) -> float | None:
-        """Get appropriate baseline price for calculating change.
-
-        - Pre-Market: vs Regular Close (Yesterday) -> regularMarketPrice
-        - Regular: vs Regular Close (Yesterday) -> regularMarketPreviousClose
-        - Post-Market: vs Regular Close (Today) -> regularMarketPrice (if post price exists)
-        """
+        """Get appropriate baseline price for calculating change."""
         info = self.info
-        state = self._market_state
 
+        # Use Yahoo's explicit previous close if available
+        if (pc := info.get("regularMarketPreviousClose")) is not None:
+            return _round(pc)
+
+        state = self._market_state
         if state == MARKET_STATE_PRE:
             return _round(info.get("regularMarketPrice"))
 
@@ -130,81 +137,53 @@ class StockIndicator:
 
     @property
     def change(self) -> float | None:
-        """Calculate change from previous close based on current price source.
+        """Calculate change from previous close."""
+        # 1. Prefer explicit field from Yahoo
+        if (c := self.info.get("regularMarketChange")) is not None:
+            return _round(c)
 
-        Calculation: current_price - previous_close
-
-        Returns:
-            Absolute change in currency units (typically USD). Positive for gains, negative for losses.
-            None if price data unavailable.
-        """
+        # 2. Fallback to calculation
         if (current_price := self.price) is None or (previous_close := self._get_previous_close()) is None:
             return None
-        return round(current_price - previous_close, 2)
+        return _round(current_price - previous_close)
 
     @property
     def change_percent(self) -> float | None:
-        """Calculate percentage change from previous close based on current price source.
+        """Calculate percentage change from previous close."""
+        # 1. Prefer explicit field from Yahoo
+        if (cp := self.info.get("regularMarketChangePercent")) is not None:
+            return _round(cp)
 
-        Calculation: ((current_price - previous_close) / previous_close) * 100
-
-        Returns:
-            Percentage change (0-100 scale). Positive for gains, negative for losses.
-            None if price data unavailable or previous_close is zero.
-        """
+        # 2. Fallback to calculation
         if (current_price := self.price) is None or (previous_close := self._get_previous_close()) is None or previous_close == 0:
             return None
-        return round(((current_price - previous_close) / previous_close) * 100, 2)
+        return _round(((current_price - previous_close) / previous_close) * 100)
 
     @property
     def market_cap(self) -> str | None:
-        """Format market cap as T/B/M/K with appropriate precision.
-
-        Calculation: Divides raw market cap value by appropriate unit (trillion/billion/million/thousand)
-        and formats with 3 decimal places.
-
-        Returns:
-            Formatted string (e.g., "1.234T", "567.890B") in currency units (typically USD).
-            None if market cap unavailable.
-        """
+        """Format market cap as T/B/M/K."""
         if (market_cap := self.info.get("marketCap")) is None:
             return None
+
+        val = float(market_cap)
         for divisor, suffix in MARKET_CAP_UNITS:
-            if market_cap >= divisor:
-                return f"{market_cap / divisor:.3f}{suffix}"
-        return f"{market_cap:.3f}"
+            if val >= divisor:
+                return f"{val / divisor:.3f}{suffix}"
+        return f"{val:.3f}"
 
     @property
     def pe(self) -> float | None:
-        """Price-to-Earnings ratio (trailing P/E).
-
-        Calculation: Market price per share / Earnings per share (trailing 12 months)
-
-        Returns:
-            P/E ratio (unitless). Lower values may indicate undervaluation.
-            Typical range: 10-30 for most stocks. None if unavailable.
-        """
+        """Trailing P/E ratio."""
         return _round(self.info.get("trailingPE"))
 
     @property
     def pe_forward(self) -> float | None:
-        """Price-to-Earnings ratio (forward P/E).
-
-        Calculation: Market price per share / Earnings per share (forward 12 months)
-
-        Returns:
-            P/E ratio (unitless). Lower values may indicate undervaluation.
-            Typical range: 10-30 for most stocks. None if unavailable.
-        """
+        """Forward P/E ratio."""
         return _round(self.info.get("forwardPE"))
 
     @property
     def peg(self) -> float | None:
-        """Price/Earnings to Growth ratio. < 2 indicates reasonable price, < 1 means undervalued. It is called 'trailing' but it is 5 years forward expected.
-
-        Returns:
-            PEG ratio (unitless).
-        """
+        """PEG ratio."""
         return _round(self.info.get("trailingPegRatio"))
 
     @property
@@ -216,18 +195,7 @@ class StockIndicator:
 
     @property
     def rsi(self, days: int = DEFAULT_RSI_PERIOD) -> float | None:
-        """Relative Strength Index (RSI, 14-period).
-
-        Calculation:
-        1. Calculate price changes (deltas) from closing prices
-        2. Separate gains (positive deltas) and losses (negative deltas, made positive)
-        3. Calculate average gain and average loss over 14-period rolling window
-        4. RSI = 100 - (100 / (1 + RS)), where RS = avg_gain / avg_loss
-
-        Returns:
-            RSI value on 0-100 scale. 70+ indicates overbought conditions, 30- indicates oversold.
-            None if insufficient historical data or calculation error.
-        """
+        """Relative Strength Index (RSI)."""
         try:
             hist = self.ticker.history(period=f"{days + 10}d")
             if hist.empty or len(hist) < days + 1:
@@ -244,37 +212,19 @@ class StockIndicator:
                 return 100.0
 
             rs = avg_gain / avg_loss
-            return round(100 - (100 / (1 + rs)), 2)
+            return _round(100 - (100 / (1 + rs)))
         except Exception:
             return None
 
     @property
     def gross_margin(self) -> float | None:
-        """Gross margin as a percentage.
-
-        Calculation: (Revenue - Cost of Goods Sold) / Revenue * 100
-
-        Returns:
-            Gross margin percentage on 0-100 scale. Higher values indicate better profitability.
-            None if unavailable.
-        """
-        gross_margins = self.info.get("grossMargins")
-        return _round(gross_margins * 100) if gross_margins is not None else None
+        """Gross margin percentage."""
+        if (gross_margins := self.info.get("grossMargins")) is not None:
+            return _round(gross_margins * 100)
+        return None
 
     def _calculate_change_percent(self, days: int) -> float | None:
-        """Calculate percentage change as (price / EMA - 1) * 100.
-
-        Calculation:
-        1. Calculate N-day Exponential Moving Average (EMA) of closing prices
-        2. Percentage change = ((current_price / EMA) - 1) * 100
-
-        Args:
-            days: Number of days for EMA calculation
-
-        Returns:
-            Percentage change (0-100 scale). Positive if current price > EMA, negative if < EMA.
-            None if insufficient data, price unavailable, or EMA is zero.
-        """
+        """Calculate percentage change from EMA."""
         try:
             hist = self.ticker.history(period=f"{days + 30}d")
             if hist.empty or len(hist) < days or (current_price := self.price) is None:
@@ -282,89 +232,60 @@ class StockIndicator:
             ema = float(hist["Close"].ewm(span=days, adjust=False).mean().iloc[-1])
             if ema == 0:
                 return None
-            return round(((current_price / ema) - 1) * 100, 2)
+            return _round(((current_price / ema) - 1) * 100)
         except Exception:
             return None
 
     def _get_day_change_percent(self, days: int, key: str) -> float | None:
-        """Get day change percent from info or calculate it.
-
-        Args:
-            days: Number of days for the change calculation
-            key: Attribute name in info dict to check first
-
-        Returns:
-            Percentage change on 0-100 scale. None if unavailable.
-        """
+        """Get day change percent from info or calculate it."""
         if (change := self.info.get(key)) is not None:
-            return round(change * 100, 2)
+            return _round(change * 100)
         return self._calculate_change_percent(days)
 
     @property
     def twenty_day_change_percent(self) -> float | None:
-        """20-day percentage change.
-
-        Calculation: Percentage change from 20-day EMA (or from yfinance info if available).
-
-        Returns:
-            Percentage change on 0-100 scale. None if unavailable.
-        """
         return self._get_day_change_percent(20, "twentyDayAverageChangePercent")
 
     @property
     def fifty_day_change_percent(self) -> float | None:
-        """50-day percentage change.
-
-        Calculation: Percentage change from 50-day EMA (or from yfinance info if available).
-
-        Returns:
-            Percentage change on 0-100 scale. None if unavailable.
-        """
         return self._get_day_change_percent(50, "fiftyDayAverageChangePercent")
 
     @property
     def one_hundred_day_change_percent(self) -> float | None:
-        """100-day percentage change.
-
-        Calculation: Percentage change from 100-day EMA (or from yfinance info if available).
-
-        Returns:
-            Percentage change on 0-100 scale. None if unavailable.
-        """
         return self._get_day_change_percent(100, "oneHundredDayAverageChangePercent")
 
     @property
     def two_hundred_day_change_percent(self) -> float | None:
-        """200-day percentage change.
-
-        Calculation: Percentage change from 200-day EMA (or from yfinance info if available).
-
-        Returns:
-            Percentage change on 0-100 scale. None if unavailable.
-        """
         return self._get_day_change_percent(200, "twoHundredDayAverageChangePercent")
 
     @property
     def median_upside(self) -> float | None:
-        """Median analyst upside from recent ratings (last 90 days).
-
-        Calculation: Median of (target_price - current_price) / current_price * 100
-        across all analyst ratings from the last 90 days.
-
-        Returns:
-            Median upside percentage on 0-100 scale. Positive indicates upside potential.
-            None if no recent analyst ratings available.
-        """
+        """Median analyst upside from recent ratings."""
         ratings = parse_ratings(self.ticker)
         return ratings.get("median_upside_pct") if ratings else None
 
     @property
     def ratings(self) -> list[dict] | None:
-        """Raw analyst rating records from recent upgrades/downgrades (last 90 days)."""
+        """Raw analyst rating records."""
         ratings = parse_ratings(self.ticker)
         return ratings.get("ratings") if ratings else None
 
     def get_all_indicators(self) -> dict:
         """Get all available indicators as a dictionary."""
-        exclude = {"ticker", "info", "get_all_indicators"}
-        return {name: getattr(self, name) for name in dir(self) if not name.startswith("_") and name not in exclude and isinstance(getattr(type(self), name, None), property)}
+        return {
+            "price": self.price,
+            "change": self.change,
+            "change_percent": self.change_percent,
+            "market_cap": self.market_cap,
+            "pe": self.pe,
+            "pe_forward": self.pe_forward,
+            "peg": self.peg,
+            "earning_direction": self.earning_direction,
+            "rsi": self.rsi,
+            "gross_margin": self.gross_margin,
+            "twenty_day_change_percent": self.twenty_day_change_percent,
+            "fifty_day_change_percent": self.fifty_day_change_percent,
+            "one_hundred_day_change_percent": self.one_hundred_day_change_percent,
+            "two_hundred_day_change_percent": self.two_hundred_day_change_percent,
+            "median_upside": self.median_upside,
+        }

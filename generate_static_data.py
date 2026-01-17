@@ -395,9 +395,46 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
     return portfolio_entries
 
 
+def get_existing_tickers() -> list[str]:
+    """Get tickers from existing portfolio if available."""
+    tickers = set()
+
+    # Check data/portfolio.json
+    try:
+        path = Path("data/portfolio.json")
+        if path.exists():
+            data = json.loads(path.read_text())
+            # Handle both list format and legacy dict format
+            rows = data if isinstance(data, list) else data.get("rows") or data.get("positions", [])
+            for row in rows:
+                if row.get("ticker"):
+                    tickers.add(row["ticker"])
+    except Exception as e:
+        print(f"Warning: Could not read data/portfolio.json: {e}")
+
+    # Check ui/sample_data/portfolio.json
+    try:
+        path = Path("ui/sample_data/portfolio.json")
+        if path.exists():
+            data = json.loads(path.read_text())
+            rows = data if isinstance(data, list) else data.get("rows") or data.get("positions", [])
+            for row in rows:
+                if row.get("ticker"):
+                    tickers.add(row["ticker"])
+    except Exception as e:
+        print(f"Warning: Could not read ui/sample_data/portfolio.json: {e}")
+
+    return list(tickers)
+
+
 def generate_static_data(prod: bool = False):
     """Main generation orchestration."""
-    print(f"Generating data for {len(SAMPLE_TICKERS)} tickers...")
+
+    # Merge hardcoded samples with existing portfolio tickers
+    existing_tickers = get_existing_tickers()
+    all_tickers = sorted(set(SAMPLE_TICKERS + existing_tickers))
+
+    print(f"Generating data for {len(all_tickers)} tickers (Sample: {len(SAMPLE_TICKERS)}, Existing: {len(existing_tickers)})...")
 
     # 1. Fetch Stats
     stats_map = {}
@@ -411,13 +448,13 @@ def generate_static_data(prod: bool = False):
             return ticker, create_fallback_stats(ticker)
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        results = list(executor.map(safe_fetch, SAMPLE_TICKERS))
+        results = list(executor.map(safe_fetch, all_tickers))
         stats_map = dict(results)
 
     # 2. Generate Eval
     print("Generating evals...")
     # Now uses the fetched stats to generate realistic proxies
-    eval_map = {ticker: generate_eval_entry(ticker, stats_map[ticker]) for ticker in SAMPLE_TICKERS}
+    eval_map = {ticker: generate_eval_entry(ticker, stats_map[ticker]) for ticker in all_tickers}
 
     # 3. Allocate Portfolio
     print("Allocating portfolio...")
