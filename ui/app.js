@@ -57,7 +57,7 @@ const COLS = {
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
-    { key: "market_cap", label: "MKT_CAP" },
+    { key: "market_cap", label: "MKT_CAP", format: "market_cap" },
     { key: "pe", label: "PE", format: "number" },
     { key: "pe_forward", label: "FWD_PE", format: "number" },
     { key: "peg", label: "PEG", format: "number" },
@@ -153,7 +153,10 @@ const Utils = {
 
   parseMarketCap: (value) => {
     if (value == null) return null;
-    const raw = String(value).trim().toUpperCase();
+
+    let raw = String(value).trim().toUpperCase();
+    raw = raw.replace(/^\$/, '').replace(/,/g, '');
+
     const match = raw.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
     if (!match) return null;
 
@@ -190,6 +193,59 @@ const Utils = {
       const numeric = Number(value);
       if (Number.isNaN(numeric)) return '--';
       return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(numeric);
+    },
+
+    market_cap: (value) => {
+      if (value == null || value === '') return '--';
+
+      const sigFormatter = new Intl.NumberFormat('en-US', {
+        maximumSignificantDigits: 4,
+        minimumSignificantDigits: 4,
+        useGrouping: false,
+      });
+
+      const toSig = (n) => {
+        const num = Number(n);
+        if (Number.isNaN(num)) return null;
+        return sigFormatter.format(num);
+      };
+
+      const raw = String(value).trim();
+
+      // Case A: already formatted like "4.534T" (optionally "$" prefixed)
+      const cleaned = raw.trim().toUpperCase().replace(/^\$/, '').replace(/,/g, '');
+      const match = cleaned.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
+      const suffix = match?.[2];
+      if (suffix) {
+        const numericPart = match?.[1];
+        if (!numericPart) return '--';
+        const rounded = toSig(numericPart);
+        if (rounded == null) return '--';
+        return `$${rounded}${suffix}`;
+      }
+
+      // Case B: raw market cap number in dollars
+      const numeric = Number(cleaned);
+      if (Number.isNaN(numeric)) return '--';
+
+      const abs = Math.abs(numeric);
+      const units = [
+        { div: 1e12, suf: 'T' },
+        { div: 1e9, suf: 'B' },
+        { div: 1e6, suf: 'M' },
+        { div: 1e3, suf: 'K' },
+      ];
+
+      const unit = units.find(u => abs >= u.div);
+      if (!unit) {
+        const rounded = toSig(numeric);
+        return rounded == null ? '--' : `$${rounded}`;
+      }
+
+      const scaled = numeric / unit.div;
+      const rounded = toSig(scaled);
+      if (rounded == null) return '--';
+      return `$${rounded}${unit.suf}`;
     },
     score: (value) => {
       if (value == null) return '--';

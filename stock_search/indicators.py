@@ -160,16 +160,17 @@ class StockIndicator:
         return _round(((current_price - previous_close) / previous_close) * 100)
 
     @property
-    def market_cap(self) -> str | None:
-        """Format market cap as T/B/M/K."""
+    def market_cap(self) -> float | None:
+        """Raw market cap in dollars (no formatting).
+
+        Formatting is handled at display time (UI) to avoid rounding the underlying data.
+        """
         if (market_cap := self.info.get("marketCap")) is None:
             return None
-
-        val = float(market_cap)
-        for divisor, suffix in MARKET_CAP_UNITS:
-            if val >= divisor:
-                return f"{val / divisor:.3f}{suffix}"
-        return f"{val:.3f}"
+        try:
+            return float(market_cap)
+        except (TypeError, ValueError):
+            return None
 
     @property
     def pe(self) -> float | None:
@@ -205,8 +206,8 @@ class StockIndicator:
             gains = deltas.where(deltas > 0, 0)
             losses = -deltas.where(deltas < 0, 0)
 
-            avg_gain = float(gains.rolling(window=days).mean().iloc[-1])
-            avg_loss = float(losses.rolling(window=days).mean().iloc[-1])
+            avg_gain = float(pd.Series(gains).rolling(window=days).mean().iloc[-1])
+            avg_loss = float(pd.Series(losses).rolling(window=days).mean().iloc[-1])
 
             if avg_loss == 0:
                 return 100.0
