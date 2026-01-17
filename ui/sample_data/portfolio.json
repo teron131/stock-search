@@ -21,17 +21,17 @@
   },
   {
     "ticker": "ADBE",
-    "quantity": 41.0,
+    "quantity": 40.0,
     "delta": 1.0
   },
   {
     "ticker": "AFRM",
-    "quantity": 123.0,
+    "quantity": 122.0,
     "delta": 1.0
   },
   {
     "ticker": "AMAT",
-    "quantity": 30.0,
+    "quantity": 29.0,
     "delta": 1.0
   },
   {
@@ -46,7 +46,7 @@
   },
   {
     "ticker": "ARKK",
-    "quantity": 99.0,
+    "quantity": 98.0,
     "delta": 1.0
   },
   {
@@ -56,7 +56,7 @@
   },
   {
     "ticker": "BA",
-    "quantity": 35.0,
+    "quantity": 34.0,
     "delta": 1.0
   },
   {
@@ -66,12 +66,12 @@
   },
   {
     "ticker": "BITB",
-    "quantity": 141.0,
+    "quantity": 140.0,
     "delta": 1.0
   },
   {
     "ticker": "BMNR",
-    "quantity": 188.0,
+    "quantity": 212.0,
     "delta": 1.0
   },
   {
@@ -81,7 +81,7 @@
   },
   {
     "ticker": "CIFR",
-    "quantity": 401.0,
+    "quantity": 399.0,
     "delta": 1.0
   },
   {
@@ -96,7 +96,7 @@
   },
   {
     "ticker": "COST",
-    "quantity": 8.0,
+    "quantity": 9.0,
     "delta": 1.0
   },
   {
@@ -106,7 +106,7 @@
   },
   {
     "ticker": "CRWD",
-    "quantity": 25.0,
+    "quantity": 24.0,
     "delta": 1.0
   },
   {
@@ -146,12 +146,12 @@
   },
   {
     "ticker": "DOCN",
-    "quantity": 192.0,
+    "quantity": 191.0,
     "delta": 1.0
   },
   {
     "ticker": "ETSY",
-    "quantity": 155.0,
+    "quantity": 154.0,
     "delta": 1.0
   },
   {
@@ -171,7 +171,7 @@
   },
   {
     "ticker": "GLD",
-    "quantity": 22.0,
+    "quantity": 21.0,
     "delta": 1.0
   },
   {
@@ -201,7 +201,7 @@
   },
   {
     "ticker": "INTC",
-    "quantity": 207.0,
+    "quantity": 206.0,
     "delta": 1.0
   },
   {
@@ -216,7 +216,7 @@
   },
   {
     "ticker": "JNJ",
-    "quantity": 53.0,
+    "quantity": 52.0,
     "delta": 1.0
   },
   {
@@ -226,7 +226,7 @@
   },
   {
     "ticker": "KO",
-    "quantity": 146.0,
+    "quantity": 145.0,
     "delta": 1.0
   },
   {
@@ -251,7 +251,7 @@
   },
   {
     "ticker": "MA",
-    "quantity": 21.0,
+    "quantity": 20.0,
     "delta": 1.0
   },
   {
@@ -286,7 +286,7 @@
   },
   {
     "ticker": "NEE",
-    "quantity": 120.0,
+    "quantity": 119.0,
     "delta": 1.0
   },
   {
@@ -296,7 +296,7 @@
   },
   {
     "ticker": "NKE",
-    "quantity": 120.0,
+    "quantity": 119.0,
     "delta": 1.0
   },
   {
@@ -316,7 +316,7 @@
   },
   {
     "ticker": "ORCL",
-    "quantity": 60.0,
+    "quantity": 59.0,
     "delta": 1.0
   },
   {
@@ -326,7 +326,7 @@
   },
   {
     "ticker": "PFE",
-    "quantity": 423.0,
+    "quantity": 422.0,
     "delta": 1.0
   },
   {
@@ -336,7 +336,7 @@
   },
   {
     "ticker": "PINS",
-    "quantity": 405.0,
+    "quantity": 434.0,
     "delta": 1.0
   },
   {
@@ -346,7 +346,7 @@
   },
   {
     "ticker": "PYPL",
-    "quantity": 169.0,
+    "quantity": 168.0,
     "delta": 1.0
   },
   {
@@ -356,7 +356,7 @@
   },
   {
     "ticker": "RIOT",
-    "quantity": 443.0,
+    "quantity": 441.0,
     "delta": 1.0
   },
   {
@@ -366,7 +366,7 @@
   },
   {
     "ticker": "ROKU",
-    "quantity": 82.0,
+    "quantity": 90.0,
     "delta": 1.0
   },
   {
@@ -376,7 +376,7 @@
   },
   {
     "ticker": "SARK",
-    "quantity": 256.0,
+    "quantity": 255.0,
     "delta": 1.0
   },
   {
@@ -386,7 +386,7 @@
   },
   {
     "ticker": "SLV",
-    "quantity": 92.0,
+    "quantity": 91.0,
     "delta": 1.0
   },
   {
@@ -396,12 +396,12 @@
   },
   {
     "ticker": "SNOW",
-    "quantity": 41.0,
+    "quantity": 40.0,
     "delta": 1.0
   },
   {
     "ticker": "SOFI",
-    "quantity": 330.0,
+    "quantity": 329.0,
     "delta": 1.0
   },
   {
@@ -416,7 +416,7 @@
   },
   {
     "ticker": "T",
-    "quantity": 489.0,
+    "quantity": 487.0,
     "delta": 1.0
   },
   {
@@ -446,7 +446,7 @@
   },
   {
     "ticker": "UPST",
-    "quantity": 205.0,
+    "quantity": 204.0,
     "delta": 1.0
   },
   {
@@ -456,12 +456,12 @@
   },
   {
     "ticker": "VOO",
-    "quantity": 12.0,
+    "quantity": 11.0,
     "delta": 1.0
   },
   {
     "ticker": "VZ",
-    "quantity": 271.0,
+    "quantity": 270.0,
     "delta": 1.0
   },
   {
@@ -476,12 +476,12 @@
   },
   {
     "ticker": "XOM",
-    "quantity": 81.0,
+    "quantity": 80.0,
     "delta": 1.0
   },
   {
     "ticker": "ZM",
-    "quantity": 114.0,
+    "quantity": 113.0,
     "delta": 1.0
   }
 ]

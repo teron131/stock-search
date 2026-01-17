@@ -1,3 +1,4 @@
+import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
@@ -21,7 +22,6 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # Constants
 RSI_PERIOD = 14
 RSI_HISTORY_BUFFER = 10
-RSI_DEFAULT = 50.0
 RSI_MAX = 100.0
 
 # Quantity generation
@@ -31,14 +31,6 @@ TARGET_TOTAL_EQUITY = 1_000_000.0
 MAX_POSITION_QTY = 500
 
 BUCKETS = ["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]
-
-EVAL_SCORE_RANGES = {
-    "overall": (6.0, 9.5),
-    "quality": (6.0, 9.5),
-    "valuation": (3.0, 8.0),
-    "moat": (5.0, 9.8),
-    "upside": (5.0, 20.0),
-}
 
 SAMPLE_TICKERS = [
     "AAPL",
@@ -278,74 +270,90 @@ def create_fallback_stats(ticker: str) -> dict:
     }
 
 
-def generate_eval_entry() -> dict:
-    """Generate evaluation scores for a ticker."""
+def generate_eval_entry(ticker: str, stats: dict) -> dict:
+    """Generate evaluation scores for a ticker using statistical proxies."""
+    info = stats.get("_raw_info_snapshot") or {}
+
+    # 1. Calculate Scores using indicators/metrics
+    size_score = market_cap_score(ticker, info) or 5.0
+    valuation_score = calculate_valuation_score(info) or 5.0
+
+    m_upside = stats.get("median_upside")
+    upside_score = calculate_combined_upside_score(m_upside, ratings=None, outlook_score=None) or 5.0
+
+    # 2. Momentum proxy (Bull Probability)
+    trends = [stats.get("twenty_day_change_percent"), stats.get("fifty_day_change_percent"), stats.get("two_hundred_day_change_percent")]
+    valid_trends = [v for v in trends if v is not None]
+    avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
+    p_up = max(0.3, min(0.8, 0.55 + (avg_trend / 100.0)))
+    p_down = 0.2
+
+    # 3. Dynamic placeholders (Moat/Quality) based on proxies
+    mkt_cap = info.get("marketCap") or 0
+    margin_val = (stats.get("gross_margin") or 0) / 100.0
+
+    # Moat proxy: Scale + Ecosystem
+    moat_score = 4.0
+    if mkt_cap > 1e12:
+        moat_score = 9.5
+    elif mkt_cap > 500e9:
+        moat_score = 8.5
+    elif mkt_cap > 100e9:
+        moat_score = 7.0
+
+    # Quality proxy: Profitability
+    quality_score = 4.5
+    if margin_val > 0.70:
+        quality_score = 9.5
+    elif margin_val > 0.40:
+        quality_score = 8.0
+    elif margin_val > 0.25:
+        quality_score = 6.5
+
+    # Assemble the eval entry to match Evaluation schema + flat properties
+    # Note: We return a dict that matches the 'eval.json' structure
+
+    # Compute overall score roughly matching the Core Index logic
+    overall = (moat_score + quality_score + valuation_score + upside_score) / 4.0
+
     return {
-        "rank": 0,  # To be filled later or ignored
-        "overall": round(random.uniform(*EVAL_SCORE_RANGES["overall"]), 1),
-        "quality": round(random.uniform(*EVAL_SCORE_RANGES["quality"]), 1),
-        "valuation": round(random.uniform(*EVAL_SCORE_RANGES["valuation"]), 1),
-        "moat": round(random.uniform(*EVAL_SCORE_RANGES["moat"]), 1),
-        "upside": round(random.uniform(*EVAL_SCORE_RANGES["upside"]), 1),
-        "bull": 0.7,
-        "bear": 0.2,
+        "overall": round(overall, 1),
+        "quality": round(quality_score, 1),
+        "valuation": round(valuation_score, 1),
+        "moat": round(moat_score, 1),
+        "upside": round(upside_score, 1),
+        "market_cap": round(size_score, 1) if size_score else None,
+        "bull_probability": round(p_up, 2),
+        "bear_probability": round(p_down, 2),
+        # Internal fields for allocation logic can be re-derived or passed along if needed
+        # But here we just return the "view" data
     }
 
 
-def allocate_portfolio(
-    stats_map: dict[str, dict],
-) -> list[dict]:
+def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) -> list[dict]:
     """Allocate portfolio quantities based on stats and eval data."""
     scores: dict[str, float] = {}
     tickers = list(stats_map.keys())
 
     for ticker in tickers:
         stats = stats_map[ticker]
-        info = stats.get("_raw_info_snapshot") or {}
+        eval_data = eval_map[ticker]
 
-        # 1. Calculate Scores
-        size_score = market_cap_score(ticker, info) or 5.0
-        valuation_score = calculate_valuation_score(info) or 5.0
+        # Re-construct Evaluation object for the engine
+        # We use the values already computed in generate_eval_entry
 
-        m_upside = stats.get("median_upside")
-        upside_score = calculate_combined_upside_score(m_upside, ratings=None, outlook_score=None) or 5.0
+        # Note: evaluate_asset needs ScoredReason objects
+        moat_score = eval_data.get("moat") or 5.0
+        quality_score = eval_data.get("quality") or 5.0
 
-        # 2. Momentum proxy
-        trends = [stats.get("twenty_day_change_percent"), stats.get("fifty_day_change_percent"), stats.get("two_hundred_day_change_percent")]
-        valid_trends = [v for v in trends if v is not None]
-        avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
-        p_up = max(0.3, min(0.8, 0.55 + (avg_trend / 100.0)))
-        p_down = 0.2
-
-        # 3. Dynamic placeholders (Moat/Quality)
-        mkt_cap = info.get("marketCap") or 0
-        margin_val = (stats.get("gross_margin") or 0) / 100.0
-
-        moat_score = 4.0
-        if mkt_cap > 1e12:
-            moat_score = 9.5
-        elif mkt_cap > 500e9:
-            moat_score = 8.5
-        elif mkt_cap > 100e9:
-            moat_score = 7.0
-
-        quality_score = 4.5
-        if margin_val > 0.70:
-            quality_score = 9.5
-        elif margin_val > 0.40:
-            quality_score = 8.0
-        elif margin_val > 0.25:
-            quality_score = 6.5
-
-        # 4. Assemble Evaluation input
         eval_input = Evaluation(
-            score=(moat_score + quality_score + valuation_score + upside_score) / 4,
+            score=eval_data.get("overall") or 5.0,
             reasons=["Engine proxy"],
-            market_cap=size_score,
-            valuation=valuation_score,
-            upside=upside_score,
-            bull_probability=p_up,
-            bear_probability=p_down,
+            market_cap=eval_data.get("market_cap") or 5.0,
+            valuation=eval_data.get("valuation") or 5.0,
+            upside=eval_data.get("upside") or 5.0,
+            bull_probability=eval_data.get("bull_probability"),
+            bear_probability=eval_data.get("bear_probability"),
             moat=ScoredReason(score=moat_score, reasons=["Proxy"]),
             quality=ScoredReason(score=quality_score, reasons=["Proxy"]),
         )
@@ -387,7 +395,7 @@ def allocate_portfolio(
     return portfolio_entries
 
 
-def generate_static_data():
+def generate_static_data(prod: bool = False):
     """Main generation orchestration."""
     print(f"Generating data for {len(SAMPLE_TICKERS)} tickers...")
 
@@ -408,7 +416,8 @@ def generate_static_data():
 
     # 2. Generate Eval
     print("Generating evals...")
-    eval_map = {ticker: generate_eval_entry(ticker) for ticker in SAMPLE_TICKERS}
+    # Now uses the fetched stats to generate realistic proxies
+    eval_map = {ticker: generate_eval_entry(ticker, stats_map[ticker]) for ticker in SAMPLE_TICKERS}
 
     # 3. Allocate Portfolio
     print("Allocating portfolio...")
@@ -421,25 +430,30 @@ def generate_static_data():
 
     # 5. Save
     print("Saving files...")
-    data_dir = Path("data")
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Also save to ui/sample_data for frontend dev if needed
-    sample_dir = Path("ui/sample_data")
-    sample_dir.mkdir(parents=True, exist_ok=True)
 
     def write_json(path: Path, data):
         path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-    # Save to data/
-    write_json(data_dir / "portfolio.json", portfolio_list)
-    write_json(data_dir / "stats.json", stats_map)
-    write_json(data_dir / "eval.json", eval_map)
+    # Always save to ui/sample_data for frontend dev
+    sample_dir = Path("ui/sample_data")
+    sample_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save to ui/sample_data/ (mirror)
     write_json(sample_dir / "portfolio.json", portfolio_list)
     write_json(sample_dir / "stats.json", stats_map)
     write_json(sample_dir / "eval.json", eval_map)
+    print(f"Saved to {sample_dir}")
+
+    # Conditionally save to data/ for backend use
+    if prod:
+        data_dir = Path("data")
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        write_json(data_dir / "portfolio.json", portfolio_list)
+        write_json(data_dir / "stats.json", stats_map)
+        write_json(data_dir / "eval.json", eval_map)
+        print(f"Saved to {data_dir}")
+    else:
+        print("Skipping save to data/ (use --prod to save there)")
 
     print(f"SUCCESS: Generated {len(portfolio_list)} positions.")
     print(f"Stats: {len(stats_map)} entries")
@@ -447,4 +461,8 @@ def generate_static_data():
 
 
 if __name__ == "__main__":
-    generate_static_data()
+    parser = argparse.ArgumentParser(description="Generate static data for stock search.")
+    parser.add_argument("--prod", action="store_true", help="Write output to data/ directory for production use")
+    args = parser.parse_args()
+
+    generate_static_data(prod=args.prod)
