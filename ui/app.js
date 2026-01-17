@@ -54,21 +54,21 @@ const CSS_CLASSES = {
 const COLS = {
   holdings: [
     { key: "ticker", label: "TICKER" },
+    { key: "quantity", label: "QTY", format: "number" },
+    { key: "current_price", label: "PRICE", format: "currency" },
+    { key: "change_percent", label: "CHANGE%", format: "percent" },
     { key: "market_cap", label: "MKT_CAP" },
     { key: "pe", label: "PE", format: "number" },
     { key: "pe_forward", label: "FWD_PE", format: "number" },
     { key: "peg", label: "PEG", format: "number" },
     { key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
-    { key: "earning_direction", label: "EARN_DIR" },
-    { key: "current_price", label: "PRICE", format: "currency" },
-    { key: "change_percent", label: "CHANGE%", format: "percent" },
+    { key: "median_upside", label: "UPSIDE%", format: "percent" },
     { key: "rsi", label: "RSI", format: "number" },
     { key: "twenty_day_change_percent", label: "20D%", format: "percent" },
     { key: "fifty_day_change_percent", label: "50D%", format: "percent" },
     { key: "one_hundred_day_change_percent", label: "100D%", format: "percent" },
     { key: "two_hundred_day_change_percent", label: "200D%", format: "percent" },
-    { key: "median_upside", label: "UPSIDE%", format: "percent" },
-    { key: "quantity", label: "QTY", format: "number" },
+    { key: "earning_direction", label: "EARN_DIR" },
     { key: "notional", label: "VALUE", format: "currency" },
     { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
     { key: "bucket", label: "STRATEGY" },
@@ -84,6 +84,7 @@ const COLS = {
     { key: "upside", label: "UPSIDE", format: "score" },
     { key: "bull", label: "BULL", format: "prob" },
     { key: "bear", label: "BEAR", format: "prob" },
+    { key: "bucket", label: "STRATEGY" },
     { key: "remove", label: "", format: "action" }
   ]
 };
