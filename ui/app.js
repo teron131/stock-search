@@ -478,8 +478,9 @@ const UI = {
     // Apply gradual font coloring to numeric columns (scores, probs, ranks, etc)
     const isTargetFormat = ['score', 'prob', 'percent_neutral', 'number'].includes(col.format);
     const isTargetKey = ['rank', 'rsi'].includes(col.key);
+    const skipColoring = ['quantity', 'weight_pct'].includes(col.key);
     
-    if ((isTargetFormat || isTargetKey) && colorMetadata && colorMetadata[col.key]) {
+    if ((isTargetFormat || isTargetKey) && !skipColoring && colorMetadata && colorMetadata[col.key]) {
       const value = row[col.key];
       const textColor = Utils.getScoreColor(value, colorMetadata[col.key]);
       

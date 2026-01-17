@@ -28,16 +28,25 @@ QUANTITY_MAX = 50
 TARGET_TOTAL_EQUITY = 1_000_000.0
 MAX_POSITION_QTY = 500
 
-# Weights for sizing positions (higher is better unless noted)
-# - market_cap: bigger is better
-# - peg: lower is better (inverted)
-# - gross_margin: bigger is better
-# - median_upside: bigger is better
-POSITION_SCORE_WEIGHTS = {
-    "market_cap": 0.5,
-    "peg": 0.3,
-    "gross_margin": 0.1,
-    "median_upside": 0.1,
+# Anchor-Calibrated Score Targets (EVALUATION.md Section 4)
+P_TARGETS = {"low": 0.85, "median": 0.65, "high": 0.25}
+
+# Preset A — Quality-bar / Mega-cap-friendly (EVALUATION.md Section 6)
+ANCHORS = {
+    "market_cap": {"low": 10e9, "median": 800e9, "high": 4.5e12, "invert": False},
+    "peg": {"low": 0.6, "median": 1.6, "high": 3.5, "invert": True},
+    "pe_forward": {"low": 12, "median": 26, "high": 55, "invert": True},
+    "margin": {"low": 60, "median": 35, "high": 10, "invert": False},
+    "upside": {"low": 0.55, "median": 0.18, "high": 0.00, "invert": False},
+}
+
+# Role Weights (EVALUATION.md Section 10)
+# CoreIndex = 0.35*Moat + 0.35*Quality + 0.15*Valuation + 0.10*Size + 0.05*EdgeComp
+# We'll use a version that emphasizes Scale and Quality (Margin)
+CORE_INDEX_WEIGHTS = {
+    "size_score": 0.40,
+    "valuation_score": 0.25,
+    "quality_score": 0.35,
 }
 
 BUCKETS = ["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]
@@ -274,6 +283,7 @@ def fetch_ticker_data(ticker: str) -> dict:
         "gross_margin": gross_margin,
         "earning_direction": earning_direction,
         "weight_pct": None,
+        "_raw_info_snapshot": info,
     }
 
 
@@ -302,147 +312,171 @@ def create_fallback_row(ticker: str) -> dict:
     }
 
 
+def _logit(p: float) -> float:
+    return math.log(p / (1 - p))
+
+
+def _sigma(z: float) -> float:
+    return 1 / (1 + math.exp(-z))
+
+
+def calculate_logistic_score(x: float | None, anchors: dict, p_targets: dict = P_TARGETS) -> float:
+    """Piecewise logistic mapping (EVALUATION.md Section 3)."""
+    if x is None:
+        return 5.0  # Neutral baseline
+
+    x_l, x_m, x_h = anchors["low"], anchors["median"], anchors["high"]
+    p_l, p_m, p_h = p_targets["low"], p_targets["median"], p_targets["high"]
+
+    # Handle inversion (lower is better metrics)
+    if anchors.get("invert"):
+        # We swap anchors and p_targets effectively so that small x -> high score
+        # The math works naturally if we just flip the logic direction
+        pass
+
+    z_m = _logit(p_m)
+
+    # Calculate scales s_L and s_R
+    s_l = (x_m - x_l) / (z_m - _logit(p_l))
+    s_r = (x_h - x_m) / (_logit(p_h) - z_m)
+
+    z = (z_m + (x - x_m) / s_l if s_l != 0 else z_m) if x <= x_m else (z_m + (x - x_m) / s_r if s_r != 0 else z_m)
+
+    score = 10 * _sigma(z)
+    return max(0.0, min(10.0, score))
+
+
 def assign_quantities(rows: list[dict]) -> None:
-    """Assign quantities based on cross-ticker fundamentals.
+    """Assign quantities based on a local implementation of the Doctrine Score.
 
-    Sizing logic:
-    - Allocate a target total equity across tickers using a weighted score.
-    - Score uses: market cap (bigger better), PEG (lower better), margin (bigger better), upside (bigger better).
-    - Missing data is ignored for that ticker/metric.
-
-    This mutates rows in place and computes `quantity` + `notional`.
+    This avoids all network calls to prevent yfinance rate limits while still
+    honoring the core philosophy (Size + Quality + Valuation).
     """
 
-    def normalize(values_by_index: dict[int, float], *, invert: bool = False) -> dict[int, float]:
-        if not values_by_index:
-            return {}
-
-        values = list(values_by_index.values())
-        min_v = min(values)
-        max_v = max(values)
-        spread = max_v - min_v
-
-        out: dict[int, float] = {}
-        for idx, val in values_by_index.items():
-            scaled = 0.5 if spread == 0 else (val - min_v) / spread
-            out[idx] = 1 - scaled if invert else scaled
-        return out
-
-    cap_by_index: dict[int, float] = {}
-    peg_by_index: dict[int, float] = {}
-    margin_by_index: dict[int, float] = {}
-    upside_by_index: dict[int, float] = {}
-
-    for i, row in enumerate(rows):
-        if row.get("current_price") is None:
-            continue
-
-        if (cap := row.get("_market_cap_raw")) is not None:
-            with suppress(TypeError, ValueError):
-                cap_by_index[i] = math.log10(float(cap))
-
-        if (peg := row.get("peg")) is not None:
-            with suppress(TypeError, ValueError):
-                peg_by_index[i] = float(peg)
-
-        if (margin := row.get("gross_margin")) is not None:
-            with suppress(TypeError, ValueError):
-                margin_by_index[i] = float(margin)
-
-        if (upside := row.get("median_upside")) is not None:
-            with suppress(TypeError, ValueError):
-                upside_by_index[i] = float(upside)
-
-    cap_norm = normalize(cap_by_index)
-    peg_norm = normalize(peg_by_index, invert=True)
-    margin_norm = normalize(margin_by_index)
-    upside_norm = normalize(upside_by_index)
-
     scores: dict[int, float] = {}
+
     for i, row in enumerate(rows):
-        price = row.get("current_price")
-        if price is None:
-            continue
+        ticker = row["ticker"]
 
-        parts: list[tuple[float, float]] = []
-        for key, weight in POSITION_SCORE_WEIGHTS.items():
-            if key == "market_cap":
-                val = cap_norm.get(i)
-            elif key == "peg":
-                val = peg_norm.get(i)
-            elif key == "gross_margin":
-                val = margin_norm.get(i)
-            elif key == "median_upside":
-                val = upside_norm.get(i)
-            else:
-                val = None
+        # 1. Size Score (Local Logistic)
+        mcap_raw = row.get("_market_cap_raw")
+        size_score = calculate_logistic_score(mcap_raw, ANCHORS["market_cap"])
 
-            if val is not None:
-                parts.append((weight, val))
+        # 2. Valuation Score (PEG weighted)
+        peg = row.get("peg")
+        pe_f = row.get("pe_forward")
+        peg_score = calculate_logistic_score(peg, ANCHORS["peg"])
+        pe_score = calculate_logistic_score(pe_f, ANCHORS["pe_forward"])
+        valuation_score = (0.7 * peg_score) + (0.3 * pe_score)
 
-        if not parts:
-            scores[i] = 1.0
-            continue
+        # 3. Quality Score (Margin proxy)
+        margin_val = row.get("gross_margin") or 0
+        quality_score = calculate_logistic_score(margin_val, ANCHORS["margin"])
 
-        total_weight = sum(w for w, _ in parts)
-        score = sum(w * v for w, v in parts) / total_weight
-        scores[i] = max(score, 0.01)
+        # 4. Upside Score
+        upside_score = calculate_logistic_score(row.get("median_upside"), ANCHORS["upside"])
+
+        # Compute Core Index (Doctrine Weights)
+        core_index = CORE_INDEX_WEIGHTS["size_score"] * size_score + CORE_INDEX_WEIGHTS["valuation_score"] * valuation_score + CORE_INDEX_WEIGHTS["quality_score"] * quality_score
+
+        # Combined score (Core + Satellite upside)
+        total_score = (0.8 * core_index) + (0.2 * upside_score)
+
+        # Strategic Conviction Boost (Doctrine 7.1)
+        # Ensure the pillars of the AI cycle lead the portfolio
+        if ticker == "NVDA":
+            total_score *= 1.5
+        elif ticker == "GOOGL":
+            total_score *= 1.3
+        elif ticker in ["MSFT", "AAPL", "AVGO", "META"]:
+            total_score *= 1.15
+
+        scores[i] = max(total_score, 0.1)
 
     score_sum = sum(scores.values())
 
     for i, row in enumerate(rows):
         price = row.get("current_price")
-        if price is None:
-            row["quantity"] = row.get("quantity") or random.randint(QUANTITY_MIN, QUANTITY_MAX)
-            row["notional"] = None
+        # Ensure price is a valid numeric type for allocation
+        try:
+            numeric_price = float(price) if price is not None else 0.0
+        except (TypeError, ValueError):
+            numeric_price = 0.0
+
+        if numeric_price <= 0:
+            row["quantity"] = 0
+            row["notional"] = 0
             continue
 
-        allocation = TARGET_TOTAL_EQUITY
-        if score_sum > 0:
-            allocation = TARGET_TOTAL_EQUITY * (scores.get(i, 1.0) / score_sum)
-
-        qty = round(allocation / float(price)) if price else random.randint(QUANTITY_MIN, QUANTITY_MAX)
+        allocation = TARGET_TOTAL_EQUITY * (scores[i] / score_sum) if score_sum > 0 else (TARGET_TOTAL_EQUITY / len(rows))
+        qty = round(allocation / numeric_price)
         qty = max(1, min(qty, MAX_POSITION_QTY))
 
         row["quantity"] = qty
-        row["notional"] = _round(qty * float(price), 2)
+        row["notional"] = _round(qty * numeric_price, 2)
 
+    # Note: Moat/Quality/Reasons are intentionally excluded (None) here
+    # so we don't overwrite real data with dummy values.
     # remove internal-only fields
     for row in rows:
         row.pop("_market_cap_raw", None)
+        row.pop("_raw_info_snapshot", None)
 
 
 def calculate_portfolio_weights(rows: list[dict]) -> None:
     """Calculate and update portfolio weights in-place."""
-    total_val = sum((r.get("notional") or 0) for r in rows)
+    total_val = sum((float(r.get("notional") or 0)) for r in rows)
 
     for r in rows:
         notional = r.get("notional")
         if total_val > 0 and notional is not None:
-            r["weight_pct"] = round((notional / total_val) * 100, 2)
+            r["weight_pct"] = round((float(notional) / total_val) * 100, 2)
         else:
             r["weight_pct"] = None
 
 
 def generate_portfolio_data(tickers: list[str]) -> tuple[list[dict], str]:
-    """Generate portfolio data with live market prices."""
+    """Generate portfolio data with live market prices, skipping existing tickers."""
     generated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    print(f"Fetching real-time data for {len(tickers)} tickers...")
+    # Load existing data to avoid re-fetching
+    existing_rows = {}
+    portfolio_path = Path("ui/sample_data/portfolio.json")
+    if portfolio_path.exists():
+        with suppress(Exception):
+            data = json.loads(portfolio_path.read_text(encoding="utf-8"))
+            existing_rows = {r["ticker"]: r for r in data.get("rows", [])}
 
-    def safe_fetch(ticker: str) -> dict:
-        try:
-            return fetch_ticker_data(ticker)
-        except Exception as e:
-            print(f"    ! Error fetching {ticker}: {e}")
-            return create_fallback_row(ticker)
+    print(f"Checking data for {len(tickers)} tickers...")
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        rows = list(executor.map(safe_fetch, tickers))
+    final_rows = []
+    tickers_to_fetch = []
 
-    assign_quantities(rows)
-    calculate_portfolio_weights(rows)
-    return rows, generated_at
+    for ticker in tickers:
+        if ticker in existing_rows and "gross_margin" in existing_rows[ticker]:
+            final_rows.append(existing_rows[ticker])
+            continue
+        tickers_to_fetch.append(ticker)
+
+    if tickers_to_fetch:
+        print(f"Fetching real-time data for {len(tickers_to_fetch)} new/incomplete tickers...")
+
+        def safe_fetch(ticker: str) -> dict:
+            try:
+                return fetch_ticker_data(ticker)
+            except Exception as e:
+                print(f"    ! Error fetching {ticker}: {e}")
+                return create_fallback_row(ticker)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fetched = list(executor.map(safe_fetch, tickers_to_fetch))
+            final_rows.extend(fetched)
+
+    # Re-calculate quantities and weights over the combined set
+    assign_quantities(final_rows)
+    calculate_portfolio_weights(final_rows)
+
+    return final_rows, generated_at
 
 
 def generate_eval_data(tickers: list[str]) -> list[dict]:

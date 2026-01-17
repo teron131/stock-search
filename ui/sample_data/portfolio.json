@@ -2,10 +2,10 @@
   "rows": [
     {
       "ticker": "AAPL",
-      "quantity": 52,
+      "quantity": 47,
       "current_price": 255.53,
       "change_percent": -1.04,
-      "notional": 13287.56,
+      "notional": 12009.91,
       "bucket": "Risk Mitigation",
       "rsi": 10.48,
       "twenty_day_change_percent": null,
@@ -19,14 +19,14 @@
       "peg": 2.59,
       "gross_margin": 46.91,
       "earning_direction": "Increase",
-      "weight_pct": 1.33
+      "weight_pct": 1.27
     },
     {
       "ticker": "ABNB",
-      "quantity": 82,
+      "quantity": 70,
       "current_price": 130.66,
       "change_percent": -1.46,
-      "notional": 10714.12,
+      "notional": 9146.2,
       "bucket": "Risk Mitigation",
       "rsi": 37.35,
       "twenty_day_change_percent": null,
@@ -40,14 +40,14 @@
       "peg": 1.75,
       "gross_margin": 83.04,
       "earning_direction": "Increase",
-      "weight_pct": 1.08
+      "weight_pct": 0.97
     },
     {
       "ticker": "ABT",
-      "quantity": 78,
+      "quantity": 91,
       "current_price": 121.76,
       "change_percent": -1.43,
-      "notional": 9497.28,
+      "notional": 11080.16,
       "bucket": "Risk Mitigation",
       "rsi": 40.85,
       "twenty_day_change_percent": null,
@@ -61,14 +61,14 @@
       "peg": null,
       "gross_margin": 56.26,
       "earning_direction": "Decrease",
-      "weight_pct": 0.95
+      "weight_pct": 1.17
     },
     {
       "ticker": "ADP",
-      "quantity": 38,
+      "quantity": 40,
       "current_price": 260.44,
       "change_percent": 0.09,
-      "notional": 9896.72,
+      "notional": 10417.6,
       "bucket": "Tactical Opportunities",
       "rsi": 52.43,
       "twenty_day_change_percent": null,
@@ -82,14 +82,14 @@
       "peg": 3.11,
       "gross_margin": 48.31,
       "earning_direction": "Increase",
-      "weight_pct": 0.99
+      "weight_pct": 1.1
     },
     {
       "ticker": "ADBE",
-      "quantity": 39,
+      "quantity": 41,
       "current_price": 296.12,
       "change_percent": -2.62,
-      "notional": 11548.68,
+      "notional": 12140.92,
       "bucket": "Strategic Core",
       "rsi": 10.3,
       "twenty_day_change_percent": null,
@@ -103,14 +103,14 @@
       "peg": 0.84,
       "gross_margin": 89.27,
       "earning_direction": "Increase",
-      "weight_pct": 1.16
+      "weight_pct": 1.28
     },
     {
       "ticker": "AFRM",
-      "quantity": 128,
+      "quantity": 154,
       "current_price": 74.76,
       "change_percent": 4.11,
-      "notional": 9569.28,
+      "notional": 11513.04,
       "bucket": "Risk Mitigation",
       "rsi": 47.98,
       "twenty_day_change_percent": null,
@@ -124,14 +124,14 @@
       "peg": 0.58,
       "gross_margin": 47.76,
       "earning_direction": "Increase",
-      "weight_pct": 0.96
+      "weight_pct": 1.22
     },
     {
       "ticker": "AMAT",
-      "quantity": 33,
+      "quantity": 23,
       "current_price": 327.01,
       "change_percent": 2.49,
-      "notional": 10791.33,
+      "notional": 7521.23,
       "bucket": "Risk Mitigation",
       "rsi": 77.9,
       "twenty_day_change_percent": null,
@@ -145,14 +145,14 @@
       "peg": 2.81,
       "gross_margin": 48.68,
       "earning_direction": "Increase",
-      "weight_pct": 1.08
+      "weight_pct": 0.8
     },
     {
       "ticker": "AMRS",
-      "quantity": 15,
+      "quantity": 0,
       "current_price": null,
       "change_percent": null,
-      "notional": null,
+      "notional": 0,
       "bucket": "Risk Mitigation",
       "rsi": null,
       "twenty_day_change_percent": null,
@@ -166,14 +166,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": null
+      "weight_pct": 0.0
     },
     {
       "ticker": "AMZN",
-      "quantity": 56,
+      "quantity": 46,
       "current_price": 239.12,
       "change_percent": 0.39,
-      "notional": 13390.72,
+      "notional": 10999.52,
       "bucket": "Tactical Opportunities",
       "rsi": 58.04,
       "twenty_day_change_percent": null,
@@ -187,14 +187,14 @@
       "peg": 1.64,
       "gross_margin": 50.05,
       "earning_direction": "Increase",
-      "weight_pct": 1.35
+      "weight_pct": 1.16
     },
     {
       "ticker": "AMD",
-      "quantity": 52,
+      "quantity": 49,
       "current_price": 231.83,
       "change_percent": 1.72,
-      "notional": 12055.16,
+      "notional": 11359.67,
       "bucket": "Tactical Opportunities",
       "rsi": 63.95,
       "twenty_day_change_percent": null,
@@ -208,14 +208,14 @@
       "peg": 0.5,
       "gross_margin": 51.46,
       "earning_direction": "Increase",
-      "weight_pct": 1.21
+      "weight_pct": 1.2
     },
     {
       "ticker": "ARKK",
-      "quantity": 205,
+      "quantity": 82,
       "current_price": 81.68,
       "change_percent": -0.31,
-      "notional": 16744.4,
+      "notional": 6697.76,
       "bucket": "Tactical Opportunities",
       "rsi": 57.21,
       "twenty_day_change_percent": null,
@@ -229,7 +229,7 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.68
+      "weight_pct": 0.71
     },
     {
       "ticker": "AVGO",
@@ -250,7 +250,7 @@
       "peg": 0.98,
       "gross_margin": 77.33,
       "earning_direction": "Increase",
-      "weight_pct": 1.38
+      "weight_pct": 1.45
     },
     {
       "ticker": "BA",
@@ -271,7 +271,7 @@
       "peg": null,
       "gross_margin": 1.2,
       "earning_direction": null,
-      "weight_pct": 0.8
+      "weight_pct": 0.84
     },
     {
       "ticker": "BBAI",
@@ -292,14 +292,14 @@
       "peg": null,
       "gross_margin": 27.28,
       "earning_direction": null,
-      "weight_pct": 0.31
+      "weight_pct": 0.32
     },
     {
       "ticker": "BITB",
-      "quantity": 323,
+      "quantity": 129,
       "current_price": 51.9,
       "change_percent": 0.35,
-      "notional": 16763.7,
+      "notional": 6695.1,
       "bucket": "Tactical Opportunities",
       "rsi": 67.72,
       "twenty_day_change_percent": null,
@@ -313,14 +313,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.68
+      "weight_pct": 0.71
     },
     {
       "ticker": "BMNR",
-      "quantity": 169,
+      "quantity": 297,
       "current_price": 31.16,
       "change_percent": 0.94,
-      "notional": 5266.04,
+      "notional": 9254.52,
       "bucket": "Risk Mitigation",
       "rsi": 58.08,
       "twenty_day_change_percent": null,
@@ -334,14 +334,14 @@
       "peg": null,
       "gross_margin": 22.11,
       "earning_direction": null,
-      "weight_pct": 0.53
+      "weight_pct": 0.98
     },
     {
       "ticker": "CAT",
-      "quantity": 19,
+      "quantity": 13,
       "current_price": 646.89,
       "change_percent": -0.04,
-      "notional": 12290.91,
+      "notional": 8409.57,
       "bucket": "Strategic Core",
       "rsi": 73.17,
       "twenty_day_change_percent": null,
@@ -355,14 +355,14 @@
       "peg": 2.22,
       "gross_margin": 30.12,
       "earning_direction": "Increase",
-      "weight_pct": 1.23
+      "weight_pct": 0.89
     },
     {
       "ticker": "CIFR",
-      "quantity": 249,
+      "quantity": 500,
       "current_price": 18.8,
       "change_percent": 7.31,
-      "notional": 4681.2,
+      "notional": 9400.0,
       "bucket": "Strategic Core",
       "rsi": 67.31,
       "twenty_day_change_percent": null,
@@ -376,14 +376,14 @@
       "peg": null,
       "gross_margin": 33.98,
       "earning_direction": null,
-      "weight_pct": 0.47
+      "weight_pct": 0.99
     },
     {
       "ticker": "CLSK",
-      "quantity": 331,
+      "quantity": 500,
       "current_price": 13.37,
       "change_percent": 5.03,
-      "notional": 4425.47,
+      "notional": 6685.0,
       "bucket": "Growth Satellites",
       "rsi": 68.2,
       "twenty_day_change_percent": null,
@@ -397,14 +397,14 @@
       "peg": null,
       "gross_margin": 55.23,
       "earning_direction": "Decrease",
-      "weight_pct": 0.44
+      "weight_pct": 0.71
     },
     {
       "ticker": "COIN",
-      "quantity": 25,
+      "quantity": 42,
       "current_price": 241.15,
       "change_percent": 0.78,
-      "notional": 6028.75,
+      "notional": 10128.3,
       "bucket": "Strategic Core",
       "rsi": 52.44,
       "twenty_day_change_percent": null,
@@ -418,14 +418,14 @@
       "peg": 13.83,
       "gross_margin": 84.82,
       "earning_direction": "Decrease",
-      "weight_pct": 0.61
+      "weight_pct": 1.07
     },
     {
       "ticker": "COST",
-      "quantity": 10,
+      "quantity": 8,
       "current_price": 963.61,
       "change_percent": 0.72,
-      "notional": 9636.1,
+      "notional": 7708.88,
       "bucket": "Growth Satellites",
       "rsi": 81.49,
       "twenty_day_change_percent": null,
@@ -439,14 +439,14 @@
       "peg": 5.37,
       "gross_margin": 12.88,
       "earning_direction": "Increase",
-      "weight_pct": 0.97
+      "weight_pct": 0.82
     },
     {
       "ticker": "CRM",
-      "quantity": 52,
+      "quantity": 53,
       "current_price": 227.11,
       "change_percent": -2.75,
-      "notional": 11809.72,
+      "notional": 12036.83,
       "bucket": "Risk Mitigation",
       "rsi": 19.68,
       "twenty_day_change_percent": null,
@@ -460,14 +460,14 @@
       "peg": 1.05,
       "gross_margin": 77.73,
       "earning_direction": "Increase",
-      "weight_pct": 1.19
+      "weight_pct": 1.27
     },
     {
       "ticker": "CRWD",
-      "quantity": 23,
+      "quantity": 22,
       "current_price": 453.88,
       "change_percent": -0.25,
-      "notional": 10439.24,
+      "notional": 9985.36,
       "bucket": "Tactical Opportunities",
       "rsi": 35.4,
       "twenty_day_change_percent": null,
@@ -481,14 +481,14 @@
       "peg": 3.75,
       "gross_margin": 74.28,
       "earning_direction": null,
-      "weight_pct": 1.05
+      "weight_pct": 1.06
     },
     {
       "ticker": "CSX",
-      "quantity": 266,
+      "quantity": 290,
       "current_price": 36.25,
       "change_percent": -0.14,
-      "notional": 9642.5,
+      "notional": 10512.5,
       "bucket": "Tactical Opportunities",
       "rsi": 44.96,
       "twenty_day_change_percent": null,
@@ -502,14 +502,14 @@
       "peg": 2.62,
       "gross_margin": 46.29,
       "earning_direction": "Increase",
-      "weight_pct": 0.97
+      "weight_pct": 1.11
     },
     {
       "ticker": "CSCO",
-      "quantity": 156,
+      "quantity": 154,
       "current_price": 75.19,
       "change_percent": -0.08,
-      "notional": 11729.64,
+      "notional": 11579.26,
       "bucket": "Strategic Core",
       "rsi": 32.78,
       "twenty_day_change_percent": null,
@@ -523,14 +523,14 @@
       "peg": 1.63,
       "gross_margin": 64.85,
       "earning_direction": "Increase",
-      "weight_pct": 1.18
+      "weight_pct": 1.22
     },
     {
       "ticker": "CVX",
-      "quantity": 65,
+      "quantity": 60,
       "current_price": 166.26,
       "change_percent": 0.06,
-      "notional": 10806.9,
+      "notional": 9975.6,
       "bucket": "Strategic Core",
       "rsi": 72.75,
       "twenty_day_change_percent": null,
@@ -544,14 +544,14 @@
       "peg": 3.25,
       "gross_margin": 40.6,
       "earning_direction": "Increase",
-      "weight_pct": 1.09
+      "weight_pct": 1.05
     },
     {
       "ticker": "DASH",
-      "quantity": 53,
+      "quantity": 56,
       "current_price": 205.32,
       "change_percent": -2.28,
-      "notional": 10881.96,
+      "notional": 11497.92,
       "bucket": "Growth Satellites",
       "rsi": 24.04,
       "twenty_day_change_percent": null,
@@ -565,14 +565,14 @@
       "peg": 0.61,
       "gross_margin": 51.43,
       "earning_direction": "Increase",
-      "weight_pct": 1.09
+      "weight_pct": 1.22
     },
     {
       "ticker": "DDOG",
-      "quantity": 88,
+      "quantity": 97,
       "current_price": 119.02,
       "change_percent": -1.52,
-      "notional": 10473.76,
+      "notional": 11544.94,
       "bucket": "Strategic Core",
       "rsi": 23.97,
       "twenty_day_change_percent": null,
@@ -586,14 +586,14 @@
       "peg": 1.17,
       "gross_margin": 79.96,
       "earning_direction": "Increase",
-      "weight_pct": 1.05
+      "weight_pct": 1.22
     },
     {
       "ticker": "DE",
-      "quantity": 20,
+      "quantity": 19,
       "current_price": 514.4,
       "change_percent": -0.12,
-      "notional": 10288.0,
+      "notional": 9773.6,
       "bucket": "Growth Satellites",
       "rsi": 72.89,
       "twenty_day_change_percent": null,
@@ -611,10 +611,10 @@
     },
     {
       "ticker": "DIS",
-      "quantity": 86,
+      "quantity": 84,
       "current_price": 111.2,
       "change_percent": -1.95,
-      "notional": 9563.2,
+      "notional": 9340.8,
       "bucket": "Risk Mitigation",
       "rsi": 43.3,
       "twenty_day_change_percent": null,
@@ -628,14 +628,14 @@
       "peg": 5.27,
       "gross_margin": 37.76,
       "earning_direction": "Increase",
-      "weight_pct": 0.96
+      "weight_pct": 0.99
     },
     {
       "ticker": "DOCN",
-      "quantity": 87,
+      "quantity": 210,
       "current_price": 52.76,
       "change_percent": -0.23,
-      "notional": 4590.12,
+      "notional": 11079.6,
       "bucket": "Growth Satellites",
       "rsi": 61.08,
       "twenty_day_change_percent": null,
@@ -649,14 +649,14 @@
       "peg": null,
       "gross_margin": 60.58,
       "earning_direction": "Decrease",
-      "weight_pct": 0.46
+      "weight_pct": 1.17
     },
     {
       "ticker": "ETSY",
-      "quantity": 127,
+      "quantity": 182,
       "current_price": 61.77,
       "change_percent": -2.92,
-      "notional": 7844.79,
+      "notional": 11242.14,
       "bucket": "Tactical Opportunities",
       "rsi": 68.53,
       "twenty_day_change_percent": null,
@@ -670,14 +670,14 @@
       "peg": 2.69,
       "gross_margin": 72.04,
       "earning_direction": "Increase",
-      "weight_pct": 0.79
+      "weight_pct": 1.19
     },
     {
       "ticker": "FTNT",
-      "quantity": 138,
+      "quantity": 153,
       "current_price": 75.38,
       "change_percent": -1.23,
-      "notional": 10402.44,
+      "notional": 11533.14,
       "bucket": "Tactical Opportunities",
       "rsi": 25.86,
       "twenty_day_change_percent": null,
@@ -691,14 +691,14 @@
       "peg": 1.87,
       "gross_margin": 80.87,
       "earning_direction": "Increase",
-      "weight_pct": 1.05
+      "weight_pct": 1.22
     },
     {
       "ticker": "GE",
-      "quantity": 30,
+      "quantity": 26,
       "current_price": 325.12,
       "change_percent": 1.62,
-      "notional": 9753.6,
+      "notional": 8453.12,
       "bucket": "Tactical Opportunities",
       "rsi": 57.7,
       "twenty_day_change_percent": null,
@@ -712,7 +712,7 @@
       "peg": 5.9,
       "gross_margin": 32.46,
       "earning_direction": "Decrease",
-      "weight_pct": 0.98
+      "weight_pct": 0.89
     },
     {
       "ticker": "GEVO",
@@ -733,14 +733,14 @@
       "peg": null,
       "gross_margin": 38.53,
       "earning_direction": null,
-      "weight_pct": 0.1
+      "weight_pct": 0.11
     },
     {
       "ticker": "GLD",
-      "quantity": 24,
+      "quantity": 16,
       "current_price": 421.29,
       "change_percent": -0.48,
-      "notional": 10110.96,
+      "notional": 6740.64,
       "bucket": "Strategic Core",
       "rsi": 53.53,
       "twenty_day_change_percent": null,
@@ -754,14 +754,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.02
+      "weight_pct": 0.71
     },
     {
       "ticker": "GOOGL",
-      "quantity": 42,
+      "quantity": 39,
       "current_price": 330.0,
       "change_percent": -0.84,
-      "notional": 13860.0,
+      "notional": 12870.0,
       "bucket": "Growth Satellites",
       "rsi": 73.88,
       "twenty_day_change_percent": null,
@@ -775,14 +775,14 @@
       "peg": 1.74,
       "gross_margin": 59.17,
       "earning_direction": "Increase",
-      "weight_pct": 1.39
+      "weight_pct": 1.36
     },
     {
       "ticker": "GS",
-      "quantity": 13,
+      "quantity": 12,
       "current_price": 962.0,
       "change_percent": -1.42,
-      "notional": 12506.0,
+      "notional": 11544.0,
       "bucket": "Risk Mitigation",
       "rsi": 62.85,
       "twenty_day_change_percent": null,
@@ -796,14 +796,14 @@
       "peg": 1.36,
       "gross_margin": 82.88,
       "earning_direction": "Increase",
-      "weight_pct": 1.26
+      "weight_pct": 1.22
     },
     {
       "ticker": "HD",
-      "quantity": 26,
+      "quantity": 24,
       "current_price": 380.17,
       "change_percent": 0.27,
-      "notional": 9884.42,
+      "notional": 9124.08,
       "bucket": "Strategic Core",
       "rsi": 78.54,
       "twenty_day_change_percent": null,
@@ -817,14 +817,14 @@
       "peg": 5.37,
       "gross_margin": 33.36,
       "earning_direction": "Increase",
-      "weight_pct": 0.99
+      "weight_pct": 0.96
     },
     {
       "ticker": "HOOD",
-      "quantity": 87,
+      "quantity": 103,
       "current_price": 108.74,
       "change_percent": -1.45,
-      "notional": 9460.38,
+      "notional": 11200.22,
       "bucket": "Growth Satellites",
       "rsi": 38.15,
       "twenty_day_change_percent": null,
@@ -838,14 +838,14 @@
       "peg": null,
       "gross_margin": 92.25,
       "earning_direction": "Increase",
-      "weight_pct": 0.95
+      "weight_pct": 1.18
     },
     {
       "ticker": "IBM",
-      "quantity": 37,
+      "quantity": 36,
       "current_price": 305.67,
       "change_percent": 2.59,
-      "notional": 11309.79,
+      "notional": 11004.12,
       "bucket": "Tactical Opportunities",
       "rsi": 50.36,
       "twenty_day_change_percent": null,
@@ -859,14 +859,14 @@
       "peg": 2.09,
       "gross_margin": 57.81,
       "earning_direction": "Increase",
-      "weight_pct": 1.14
+      "weight_pct": 1.16
     },
     {
       "ticker": "INTC",
-      "quantity": 189,
+      "quantity": 134,
       "current_price": 46.96,
       "change_percent": -2.78,
-      "notional": 8875.44,
+      "notional": 6292.64,
       "bucket": "Growth Satellites",
       "rsi": 75.47,
       "twenty_day_change_percent": null,
@@ -880,14 +880,14 @@
       "peg": null,
       "gross_margin": 33.02,
       "earning_direction": "Increase",
-      "weight_pct": 0.89
+      "weight_pct": 0.67
     },
     {
       "ticker": "INTU",
-      "quantity": 21,
+      "quantity": 22,
       "current_price": 545.29,
       "change_percent": -1.68,
-      "notional": 11451.09,
+      "notional": 11996.38,
       "bucket": "Strategic Core",
       "rsi": 13.17,
       "twenty_day_change_percent": null,
@@ -901,14 +901,14 @@
       "peg": 1.47,
       "gross_margin": 80.73,
       "earning_direction": "Increase",
-      "weight_pct": 1.15
+      "weight_pct": 1.27
     },
     {
       "ticker": "ITA",
-      "quantity": 69,
+      "quantity": 27,
       "current_price": 243.77,
       "change_percent": 1.06,
-      "notional": 16820.13,
+      "notional": 6581.79,
       "bucket": "Strategic Core",
       "rsi": 82.08,
       "twenty_day_change_percent": null,
@@ -922,14 +922,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.69
+      "weight_pct": 0.7
     },
     {
       "ticker": "JNJ",
-      "quantity": 54,
+      "quantity": 43,
       "current_price": 218.66,
       "change_percent": -0.41,
-      "notional": 11807.64,
+      "notional": 9402.38,
       "bucket": "Risk Mitigation",
       "rsi": 70.76,
       "twenty_day_change_percent": null,
@@ -943,14 +943,14 @@
       "peg": 2.97,
       "gross_margin": 68.36,
       "earning_direction": "Increase",
-      "weight_pct": 1.19
+      "weight_pct": 0.99
     },
     {
       "ticker": "JPM",
-      "quantity": 37,
+      "quantity": 28,
       "current_price": 312.47,
       "change_percent": 1.04,
-      "notional": 11561.39,
+      "notional": 8749.16,
       "bucket": "Tactical Opportunities",
       "rsi": 37.63,
       "twenty_day_change_percent": null,
@@ -964,14 +964,14 @@
       "peg": 1.77,
       "gross_margin": 0.0,
       "earning_direction": "Increase",
-      "weight_pct": 1.16
+      "weight_pct": 0.93
     },
     {
       "ticker": "KO",
-      "quantity": 162,
+      "quantity": 159,
       "current_price": 70.44,
       "change_percent": -0.06,
-      "notional": 11411.28,
+      "notional": 11199.96,
       "bucket": "Risk Mitigation",
       "rsi": 53.64,
       "twenty_day_change_percent": null,
@@ -985,14 +985,14 @@
       "peg": 2.2,
       "gross_margin": 61.63,
       "earning_direction": "Increase",
-      "weight_pct": 1.15
+      "weight_pct": 1.18
     },
     {
       "ticker": "LMT",
-      "quantity": 17,
+      "quantity": 10,
       "current_price": 582.43,
       "change_percent": 0.79,
-      "notional": 9901.31,
+      "notional": 5824.3,
       "bucket": "Strategic Core",
       "rsi": 81.04,
       "twenty_day_change_percent": null,
@@ -1006,14 +1006,14 @@
       "peg": 1.93,
       "gross_margin": 8.25,
       "earning_direction": "Increase",
-      "weight_pct": 0.99
+      "weight_pct": 0.62
     },
     {
       "ticker": "LOW",
-      "quantity": 36,
+      "quantity": 35,
       "current_price": 277.55,
       "change_percent": 0.19,
-      "notional": 9991.8,
+      "notional": 9714.25,
       "bucket": "Tactical Opportunities",
       "rsi": 87.57,
       "twenty_day_change_percent": null,
@@ -1027,14 +1027,14 @@
       "peg": 3.0,
       "gross_margin": 33.59,
       "earning_direction": "Increase",
-      "weight_pct": 1.0
+      "weight_pct": 1.03
     },
     {
       "ticker": "MAGS",
-      "quantity": 258,
+      "quantity": 103,
       "current_price": 64.9,
       "change_percent": -0.29,
-      "notional": 16744.2,
+      "notional": 6684.7,
       "bucket": "Tactical Opportunities",
       "rsi": 28.45,
       "twenty_day_change_percent": null,
@@ -1048,14 +1048,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.68
+      "weight_pct": 0.71
     },
     {
       "ticker": "MARA",
-      "quantity": 388,
+      "quantity": 500,
       "current_price": 11.36,
       "change_percent": 6.57,
-      "notional": 4407.68,
+      "notional": 5680.0,
       "bucket": "Growth Satellites",
       "rsi": 66.54,
       "twenty_day_change_percent": null,
@@ -1069,14 +1069,14 @@
       "peg": null,
       "gross_margin": 44.87,
       "earning_direction": "Increase",
-      "weight_pct": 0.44
+      "weight_pct": 0.6
     },
     {
       "ticker": "MA",
-      "quantity": 24,
+      "quantity": 22,
       "current_price": 539.49,
       "change_percent": -0.58,
-      "notional": 12947.76,
+      "notional": 11868.78,
       "bucket": "Risk Mitigation",
       "rsi": 24.71,
       "twenty_day_change_percent": null,
@@ -1090,7 +1090,7 @@
       "peg": 1.76,
       "gross_margin": 100.0,
       "earning_direction": "Increase",
-      "weight_pct": 1.3
+      "weight_pct": 1.25
     },
     {
       "ticker": "MRK",
@@ -1111,14 +1111,14 @@
       "peg": 1.15,
       "gross_margin": 77.85,
       "earning_direction": "Decrease",
-      "weight_pct": 1.2
+      "weight_pct": 1.27
     },
     {
       "ticker": "META",
-      "quantity": 24,
+      "quantity": 19,
       "current_price": 620.25,
       "change_percent": -0.09,
-      "notional": 14886.0,
+      "notional": 11784.75,
       "bucket": "Growth Satellites",
       "rsi": 29.01,
       "twenty_day_change_percent": null,
@@ -1132,14 +1132,14 @@
       "peg": 1.47,
       "gross_margin": 82.01,
       "earning_direction": "Increase",
-      "weight_pct": 1.5
+      "weight_pct": 1.25
     },
     {
       "ticker": "MSTR",
-      "quantity": 49,
+      "quantity": 66,
       "current_price": 173.71,
       "change_percent": 1.64,
-      "notional": 8511.79,
+      "notional": 11464.86,
       "bucket": "Risk Mitigation",
       "rsi": 59.47,
       "twenty_day_change_percent": null,
@@ -1153,14 +1153,14 @@
       "peg": null,
       "gross_margin": 70.12,
       "earning_direction": "Increase",
-      "weight_pct": 0.86
+      "weight_pct": 1.21
     },
     {
       "ticker": "MSFT",
-      "quantity": 30,
+      "quantity": 29,
       "current_price": 459.86,
       "change_percent": 0.7,
-      "notional": 13795.8,
+      "notional": 13335.94,
       "bucket": "Tactical Opportunities",
       "rsi": 26.23,
       "twenty_day_change_percent": null,
@@ -1174,14 +1174,14 @@
       "peg": 1.86,
       "gross_margin": 68.76,
       "earning_direction": "Increase",
-      "weight_pct": 1.39
+      "weight_pct": 1.41
     },
     {
       "ticker": "MS",
-      "quantity": 64,
+      "quantity": 47,
       "current_price": 189.09,
       "change_percent": -1.12,
-      "notional": 12101.76,
+      "notional": 8887.23,
       "bucket": "Tactical Opportunities",
       "rsi": 59.53,
       "twenty_day_change_percent": null,
@@ -1195,14 +1195,14 @@
       "peg": 1.51,
       "gross_margin": 87.06,
       "earning_direction": "Increase",
-      "weight_pct": 1.22
+      "weight_pct": 0.94
     },
     {
       "ticker": "MU",
-      "quantity": 33,
+      "quantity": 23,
       "current_price": 362.75,
       "change_percent": 7.76,
-      "notional": 11970.75,
+      "notional": 8343.25,
       "bucket": "Tactical Opportunities",
       "rsi": 74.34,
       "twenty_day_change_percent": null,
@@ -1216,14 +1216,14 @@
       "peg": 0.64,
       "gross_margin": 45.31,
       "earning_direction": "Increase",
-      "weight_pct": 1.2
+      "weight_pct": 0.88
     },
     {
       "ticker": "NEE",
-      "quantity": 129,
+      "quantity": 132,
       "current_price": 83.63,
       "change_percent": 1.75,
-      "notional": 10788.27,
+      "notional": 11039.16,
       "bucket": "Growth Satellites",
       "rsi": 66.26,
       "twenty_day_change_percent": null,
@@ -1237,14 +1237,14 @@
       "peg": 2.51,
       "gross_margin": 62.04,
       "earning_direction": "Increase",
-      "weight_pct": 1.08
+      "weight_pct": 1.17
     },
     {
       "ticker": "NFLX",
-      "quantity": 134,
+      "quantity": 125,
       "current_price": 88.0,
       "change_percent": -0.05,
-      "notional": 11792.0,
+      "notional": 11000.0,
       "bucket": "Strategic Core",
       "rsi": 15.55,
       "twenty_day_change_percent": null,
@@ -1258,14 +1258,14 @@
       "peg": 1.49,
       "gross_margin": 48.08,
       "earning_direction": "Increase",
-      "weight_pct": 1.18
+      "weight_pct": 1.16
     },
     {
       "ticker": "NKE",
-      "quantity": 155,
+      "quantity": 160,
       "current_price": 64.38,
       "change_percent": -0.33,
-      "notional": 9978.9,
+      "notional": 10300.8,
       "bucket": "Tactical Opportunities",
       "rsi": 63.26,
       "twenty_day_change_percent": null,
@@ -1279,14 +1279,14 @@
       "peg": 2.28,
       "gross_margin": 41.13,
       "earning_direction": "Increase",
-      "weight_pct": 1.0
+      "weight_pct": 1.09
     },
     {
       "ticker": "NOW",
-      "quantity": 101,
+      "quantity": 93,
       "current_price": 127.31,
       "change_percent": -2.94,
-      "notional": 12858.31,
+      "notional": 11839.83,
       "bucket": "Growth Satellites",
       "rsi": 13.63,
       "twenty_day_change_percent": null,
@@ -1300,14 +1300,14 @@
       "peg": 1.19,
       "gross_margin": 78.05,
       "earning_direction": "Increase",
-      "weight_pct": 1.29
+      "weight_pct": 1.25
     },
     {
       "ticker": "NVDA",
-      "quantity": 79,
+      "quantity": 97,
       "current_price": 186.23,
       "change_percent": -0.41,
-      "notional": 14712.17,
+      "notional": 18064.31,
       "bucket": "Growth Satellites",
       "rsi": 40.43,
       "twenty_day_change_percent": null,
@@ -1321,14 +1321,14 @@
       "peg": 0.7,
       "gross_margin": 70.05,
       "earning_direction": "Increase",
-      "weight_pct": 1.48
+      "weight_pct": 1.91
     },
     {
       "ticker": "NVAX",
-      "quantity": 374,
+      "quantity": 500,
       "current_price": 8.01,
       "change_percent": 2.96,
-      "notional": 2995.74,
+      "notional": 4005.0,
       "bucket": "Tactical Opportunities",
       "rsi": 65.21,
       "twenty_day_change_percent": null,
@@ -1342,14 +1342,14 @@
       "peg": null,
       "gross_margin": 59.42,
       "earning_direction": "Increase",
-      "weight_pct": 0.3
+      "weight_pct": 0.42
     },
     {
       "ticker": "ORCL",
-      "quantity": 65,
+      "quantity": 60,
       "current_price": 191.09,
       "change_percent": 0.65,
-      "notional": 12420.85,
+      "notional": 11465.4,
       "bucket": "Tactical Opportunities",
       "rsi": 43.28,
       "twenty_day_change_percent": null,
@@ -1363,14 +1363,14 @@
       "peg": 1.76,
       "gross_margin": 68.54,
       "earning_direction": "Increase",
-      "weight_pct": 1.25
+      "weight_pct": 1.21
     },
     {
       "ticker": "PANW",
-      "quantity": 59,
+      "quantity": 61,
       "current_price": 187.66,
       "change_percent": -0.04,
-      "notional": 11071.94,
+      "notional": 11447.26,
       "bucket": "Risk Mitigation",
       "rsi": 48.84,
       "twenty_day_change_percent": null,
@@ -1384,14 +1384,14 @@
       "peg": 1.64,
       "gross_margin": 73.47,
       "earning_direction": "Increase",
-      "weight_pct": 1.11
+      "weight_pct": 1.21
     },
     {
       "ticker": "PFE",
-      "quantity": 405,
+      "quantity": 424,
       "current_price": 25.65,
       "change_percent": -0.93,
-      "notional": 10388.25,
+      "notional": 10875.6,
       "bucket": "Strategic Core",
       "rsi": 61.67,
       "twenty_day_change_percent": null,
@@ -1405,14 +1405,14 @@
       "peg": 3.77,
       "gross_margin": 74.81,
       "earning_direction": "Increase",
-      "weight_pct": 1.04
+      "weight_pct": 1.15
     },
     {
       "ticker": "PG",
-      "quantity": 73,
+      "quantity": 70,
       "current_price": 144.53,
       "change_percent": -0.07,
-      "notional": 10550.69,
+      "notional": 10117.1,
       "bucket": "Risk Mitigation",
       "rsi": 49.38,
       "twenty_day_change_percent": null,
@@ -1426,14 +1426,14 @@
       "peg": 4.39,
       "gross_margin": 51.28,
       "earning_direction": "Increase",
-      "weight_pct": 1.06
+      "weight_pct": 1.07
     },
     {
       "ticker": "PINS",
-      "quantity": 379,
+      "quantity": 473,
       "current_price": 25.91,
       "change_percent": -3.28,
-      "notional": 9819.89,
+      "notional": 12255.43,
       "bucket": "Growth Satellites",
       "rsi": 48.09,
       "twenty_day_change_percent": null,
@@ -1447,14 +1447,14 @@
       "peg": 0.56,
       "gross_margin": 79.99,
       "earning_direction": "Decrease",
-      "weight_pct": 0.99
+      "weight_pct": 1.3
     },
     {
       "ticker": "PLTR",
-      "quantity": 69,
+      "quantity": 61,
       "current_price": 170.96,
       "change_percent": -3.45,
-      "notional": 11796.24,
+      "notional": 10428.56,
       "bucket": "Growth Satellites",
       "rsi": 32.42,
       "twenty_day_change_percent": null,
@@ -1468,14 +1468,14 @@
       "peg": 2.78,
       "gross_margin": 80.81,
       "earning_direction": "Increase",
-      "weight_pct": 1.19
+      "weight_pct": 1.1
     },
     {
       "ticker": "PYPL",
-      "quantity": 179,
+      "quantity": 199,
       "current_price": 56.89,
       "change_percent": 0.26,
-      "notional": 10183.31,
+      "notional": 11321.11,
       "bucket": "Growth Satellites",
       "rsi": 32.74,
       "twenty_day_change_percent": null,
@@ -1489,14 +1489,14 @@
       "peg": 0.58,
       "gross_margin": 41.56,
       "earning_direction": "Increase",
-      "weight_pct": 1.02
+      "weight_pct": 1.2
     },
     {
       "ticker": "QCOM",
-      "quantity": 72,
+      "quantity": 75,
       "current_price": 159.42,
       "change_percent": -1.22,
-      "notional": 11478.24,
+      "notional": 11956.5,
       "bucket": "Risk Mitigation",
       "rsi": 31.67,
       "twenty_day_change_percent": null,
@@ -1510,14 +1510,14 @@
       "peg": 0.54,
       "gross_margin": 55.43,
       "earning_direction": "Increase",
-      "weight_pct": 1.15
+      "weight_pct": 1.26
     },
     {
       "ticker": "RIOT",
-      "quantity": 245,
+      "quantity": 500,
       "current_price": 19.24,
       "change_percent": 16.11,
-      "notional": 4713.8,
+      "notional": 9620.0,
       "bucket": "Risk Mitigation",
       "rsi": 81.87,
       "twenty_day_change_percent": null,
@@ -1531,14 +1531,14 @@
       "peg": null,
       "gross_margin": 39.55,
       "earning_direction": "Increase",
-      "weight_pct": 0.47
+      "weight_pct": 1.02
     },
     {
       "ticker": "RKLB",
-      "quantity": 71,
+      "quantity": 73,
       "current_price": 96.3,
       "change_percent": 6.1,
-      "notional": 6837.3,
+      "notional": 7029.9,
       "bucket": "Growth Satellites",
       "rsi": 83.13,
       "twenty_day_change_percent": null,
@@ -1552,14 +1552,14 @@
       "peg": null,
       "gross_margin": 31.7,
       "earning_direction": null,
-      "weight_pct": 0.69
+      "weight_pct": 0.74
     },
     {
       "ticker": "ROKU",
-      "quantity": 56,
+      "quantity": 96,
       "current_price": 103.66,
       "change_percent": -1.25,
-      "notional": 5804.96,
+      "notional": 9951.36,
       "bucket": "Growth Satellites",
       "rsi": 33.44,
       "twenty_day_change_percent": null,
@@ -1573,14 +1573,14 @@
       "peg": null,
       "gross_margin": 43.58,
       "earning_direction": null,
-      "weight_pct": 0.58
+      "weight_pct": 1.05
     },
     {
       "ticker": "RTX",
-      "quantity": 53,
+      "quantity": 47,
       "current_price": 201.92,
       "change_percent": 1.05,
-      "notional": 10701.76,
+      "notional": 9490.24,
       "bucket": "Tactical Opportunities",
       "rsi": 78.27,
       "twenty_day_change_percent": null,
@@ -1594,14 +1594,14 @@
       "peg": 1.76,
       "gross_margin": 20.13,
       "earning_direction": "Increase",
-      "weight_pct": 1.08
+      "weight_pct": 1.0
     },
     {
       "ticker": "SARK",
-      "quantity": 500,
+      "quantity": 236,
       "current_price": 28.36,
       "change_percent": 0.67,
-      "notional": 14180.0,
+      "notional": 6692.96,
       "bucket": "Tactical Opportunities",
       "rsi": 42.17,
       "twenty_day_change_percent": null,
@@ -1615,14 +1615,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.42
+      "weight_pct": 0.71
     },
     {
       "ticker": "SHOP",
-      "quantity": 59,
+      "quantity": 65,
       "current_price": 155.81,
       "change_percent": -1.38,
-      "notional": 9192.79,
+      "notional": 10127.65,
       "bucket": "Tactical Opportunities",
       "rsi": 34.5,
       "twenty_day_change_percent": null,
@@ -1636,14 +1636,14 @@
       "peg": null,
       "gross_margin": 48.75,
       "earning_direction": "Increase",
-      "weight_pct": 0.92
+      "weight_pct": 1.07
     },
     {
       "ticker": "SLV",
-      "quantity": 91,
+      "quantity": 83,
       "current_price": 81.02,
       "change_percent": -2.76,
-      "notional": 7372.82,
+      "notional": 6724.66,
       "bucket": "Growth Satellites",
       "rsi": 61.17,
       "twenty_day_change_percent": null,
@@ -1657,7 +1657,7 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 0.74
+      "weight_pct": 0.71
     },
     {
       "ticker": "SNAP",
@@ -1678,14 +1678,14 @@
       "peg": null,
       "gross_margin": 54.29,
       "earning_direction": null,
-      "weight_pct": 0.38
+      "weight_pct": 0.4
     },
     {
       "ticker": "SNOW",
-      "quantity": 41,
+      "quantity": 46,
       "current_price": 210.38,
       "change_percent": 1.27,
-      "notional": 8625.58,
+      "notional": 9677.48,
       "bucket": "Strategic Core",
       "rsi": 38.74,
       "twenty_day_change_percent": null,
@@ -1699,14 +1699,14 @@
       "peg": 6.57,
       "gross_margin": 67.24,
       "earning_direction": null,
-      "weight_pct": 0.87
+      "weight_pct": 1.02
     },
     {
       "ticker": "SOFI",
-      "quantity": 375,
+      "quantity": 429,
       "current_price": 26.13,
       "change_percent": -1.17,
-      "notional": 9798.75,
+      "notional": 11209.77,
       "bucket": "Tactical Opportunities",
       "rsi": 45.15,
       "twenty_day_change_percent": null,
@@ -1720,14 +1720,14 @@
       "peg": 2.01,
       "gross_margin": 82.51,
       "earning_direction": "Decrease",
-      "weight_pct": 0.98
+      "weight_pct": 1.19
     },
     {
       "ticker": "SOXX",
-      "quantity": 9,
+      "quantity": 20,
       "current_price": 342.47,
       "change_percent": 1.56,
-      "notional": 3082.23,
+      "notional": 6849.4,
       "bucket": "Growth Satellites",
       "rsi": 77.37,
       "twenty_day_change_percent": null,
@@ -1741,14 +1741,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 0.31
+      "weight_pct": 0.72
     },
     {
       "ticker": "SPOT",
-      "quantity": 21,
+      "quantity": 20,
       "current_price": 504.5,
       "change_percent": -0.7,
-      "notional": 10594.5,
+      "notional": 10090.0,
       "bucket": "Strategic Core",
       "rsi": 20.2,
       "twenty_day_change_percent": null,
@@ -1762,14 +1762,14 @@
       "peg": 1.26,
       "gross_margin": 31.85,
       "earning_direction": "Increase",
-      "weight_pct": 1.06
+      "weight_pct": 1.07
     },
     {
       "ticker": "SQ",
-      "quantity": 24,
+      "quantity": 0,
       "current_price": null,
       "change_percent": null,
-      "notional": null,
+      "notional": 0,
       "bucket": "Strategic Core",
       "rsi": null,
       "twenty_day_change_percent": null,
@@ -1783,14 +1783,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": null
+      "weight_pct": 0.0
     },
     {
       "ticker": "T",
-      "quantity": 484,
+      "quantity": 500,
       "current_price": 23.49,
       "change_percent": -1.01,
-      "notional": 11369.16,
+      "notional": 11745.0,
       "bucket": "Risk Mitigation",
       "rsi": 34.7,
       "twenty_day_change_percent": null,
@@ -1804,14 +1804,14 @@
       "peg": 0.96,
       "gross_margin": 59.67,
       "earning_direction": "Decrease",
-      "weight_pct": 1.14
+      "weight_pct": 1.24
     },
     {
       "ticker": "TSLA",
-      "quantity": 22,
+      "quantity": 17,
       "current_price": 437.5,
       "change_percent": -0.24,
-      "notional": 9625.0,
+      "notional": 7437.5,
       "bucket": "Risk Mitigation",
       "rsi": 31.15,
       "twenty_day_change_percent": null,
@@ -1825,14 +1825,14 @@
       "peg": 8.76,
       "gross_margin": 17.01,
       "earning_direction": "Increase",
-      "weight_pct": 0.97
+      "weight_pct": 0.79
     },
     {
       "ticker": "TSM",
-      "quantity": 39,
+      "quantity": 34,
       "current_price": 342.4,
       "change_percent": 0.22,
-      "notional": 13353.6,
+      "notional": 11641.6,
       "bucket": "Tactical Opportunities",
       "rsi": 76.64,
       "twenty_day_change_percent": null,
@@ -1846,14 +1846,14 @@
       "peg": 1.31,
       "gross_margin": 59.89,
       "earning_direction": "Increase",
-      "weight_pct": 1.34
+      "weight_pct": 1.23
     },
     {
       "ticker": "TXN",
-      "quantity": 58,
+      "quantity": 44,
       "current_price": 191.58,
       "change_percent": 1.3,
-      "notional": 11111.64,
+      "notional": 8429.52,
       "bucket": "Growth Satellites",
       "rsi": 65.58,
       "twenty_day_change_percent": null,
@@ -1867,14 +1867,14 @@
       "peg": 1.65,
       "gross_margin": 57.48,
       "earning_direction": "Increase",
-      "weight_pct": 1.12
+      "weight_pct": 0.89
     },
     {
       "ticker": "UBER",
-      "quantity": 112,
+      "quantity": 107,
       "current_price": 84.85,
       "change_percent": 0.56,
-      "notional": 9503.2,
+      "notional": 9078.95,
       "bucket": "Tactical Opportunities",
       "rsi": 60.85,
       "twenty_day_change_percent": null,
@@ -1888,14 +1888,14 @@
       "peg": 4.96,
       "gross_margin": 34.15,
       "earning_direction": "Increase",
-      "weight_pct": 0.95
+      "weight_pct": 0.96
     },
     {
       "ticker": "UNH",
-      "quantity": 34,
+      "quantity": 30,
       "current_price": 331.02,
       "change_percent": -2.34,
-      "notional": 11254.68,
+      "notional": 9930.6,
       "bucket": "Strategic Core",
       "rsi": 49.38,
       "twenty_day_change_percent": null,
@@ -1909,14 +1909,14 @@
       "peg": 1.26,
       "gross_margin": 19.7,
       "earning_direction": "Decrease",
-      "weight_pct": 1.13
+      "weight_pct": 1.05
     },
     {
       "ticker": "UPST",
-      "quantity": 107,
+      "quantity": 238,
       "current_price": 48.12,
       "change_percent": 0.44,
-      "notional": 5148.84,
+      "notional": 11452.56,
       "bucket": "Strategic Core",
       "rsi": 51.55,
       "twenty_day_change_percent": null,
@@ -1930,14 +1930,14 @@
       "peg": null,
       "gross_margin": 82.25,
       "earning_direction": "Increase",
-      "weight_pct": 0.52
+      "weight_pct": 1.21
     },
     {
       "ticker": "V",
-      "quantity": 39,
+      "quantity": 36,
       "current_price": 328.3,
       "change_percent": 0.17,
-      "notional": 12803.7,
+      "notional": 11818.8,
       "bucket": "Strategic Core",
       "rsi": 24.59,
       "twenty_day_change_percent": null,
@@ -1951,14 +1951,14 @@
       "peg": 1.8,
       "gross_margin": 97.77,
       "earning_direction": "Increase",
-      "weight_pct": 1.29
+      "weight_pct": 1.25
     },
     {
       "ticker": "VOO",
-      "quantity": 26,
+      "quantity": 11,
       "current_price": 636.09,
       "change_percent": -0.08,
-      "notional": 16538.34,
+      "notional": 6996.99,
       "bucket": "Tactical Opportunities",
       "rsi": 52.03,
       "twenty_day_change_percent": null,
@@ -1972,14 +1972,14 @@
       "peg": null,
       "gross_margin": null,
       "earning_direction": null,
-      "weight_pct": 1.66
+      "weight_pct": 0.74
     },
     {
       "ticker": "VZ",
-      "quantity": 282,
+      "quantity": 294,
       "current_price": 38.91,
       "change_percent": -1.14,
-      "notional": 10972.62,
+      "notional": 11439.54,
       "bucket": "Risk Mitigation",
       "rsi": 39.41,
       "twenty_day_change_percent": null,
@@ -1993,14 +1993,14 @@
       "peg": 1.89,
       "gross_margin": 59.41,
       "earning_direction": "Increase",
-      "weight_pct": 1.1
+      "weight_pct": 1.21
     },
     {
       "ticker": "WDAY",
-      "quantity": 57,
+      "quantity": 65,
       "current_price": 186.86,
       "change_percent": -3.04,
-      "notional": 10651.02,
+      "notional": 12145.9,
       "bucket": "Strategic Core",
       "rsi": 13.2,
       "twenty_day_change_percent": null,
@@ -2014,14 +2014,14 @@
       "peg": 0.59,
       "gross_margin": 75.64,
       "earning_direction": "Increase",
-      "weight_pct": 1.07
+      "weight_pct": 1.28
     },
     {
       "ticker": "WMT",
-      "quantity": 92,
+      "quantity": 71,
       "current_price": 119.7,
       "change_percent": 0.42,
-      "notional": 11012.4,
+      "notional": 8498.7,
       "bucket": "Growth Satellites",
       "rsi": 75.09,
       "twenty_day_change_percent": null,
@@ -2035,14 +2035,14 @@
       "peg": 4.35,
       "gross_margin": 24.91,
       "earning_direction": "Increase",
-      "weight_pct": 1.11
+      "weight_pct": 0.9
     },
     {
       "ticker": "XOM",
-      "quantity": 86,
+      "quantity": 73,
       "current_price": 129.89,
       "change_percent": 0.59,
-      "notional": 11170.54,
+      "notional": 9481.97,
       "bucket": "Risk Mitigation",
       "rsi": 68.51,
       "twenty_day_change_percent": null,
@@ -2056,14 +2056,14 @@
       "peg": 3.08,
       "gross_margin": 31.22,
       "earning_direction": "Increase",
-      "weight_pct": 1.12
+      "weight_pct": 1.0
     },
     {
       "ticker": "ZM",
-      "quantity": 106,
+      "quantity": 132,
       "current_price": 80.96,
       "change_percent": -0.69,
-      "notional": 8581.76,
+      "notional": 10686.72,
       "bucket": "Risk Mitigation",
       "rsi": 30.74,
       "twenty_day_change_percent": null,
@@ -2077,8 +2077,8 @@
       "peg": 4.48,
       "gross_margin": 76.89,
       "earning_direction": "Increase",
-      "weight_pct": 0.86
+      "weight_pct": 1.13
     }
   ],
-  "generated_at": "2026-01-17T06:02:05Z"
+  "generated_at": "2026-01-17T06:31:51Z"
 }
