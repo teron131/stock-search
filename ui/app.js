@@ -150,6 +150,20 @@ const DOM = {
 // --- Utilities ---
 const Utils = {
   normalizeTicker: (ticker) => ticker.replace('-', '.').toUpperCase(),
+
+  parseMarketCap: (value) => {
+    if (value == null) return null;
+    const raw = String(value).trim().toUpperCase();
+    const match = raw.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
+    if (!match) return null;
+
+    const numeric = Number(match[1]);
+    if (Number.isNaN(numeric)) return null;
+
+    const suffix = match[2];
+    const multiplier = suffix === 'T' ? 1e12 : suffix === 'B' ? 1e9 : suffix === 'M' ? 1e6 : suffix === 'K' ? 1e3 : 1;
+    return numeric * multiplier;
+  },
   
   format: {
     currency: (value) => {
@@ -404,6 +418,19 @@ const UI = {
     return [...data].sort((a, b) => {
       const valA = a[col];
       const valB = b[col];
+
+      // Special-case: market cap is stored as a formatted string (e.g. "4.534T")
+      // but should sort numerically.
+      if (col === 'market_cap') {
+        const capA = Utils.parseMarketCap(valA);
+        const capB = Utils.parseMarketCap(valB);
+
+        if (capA == null) return 1;
+        if (capB == null) return -1;
+        if (capA === capB) return 0;
+
+        return dir === 'asc' ? (capA < capB ? -1 : 1) : (capA < capB ? 1 : -1);
+      }
       
       if (valA == null) return 1;
       if (valB == null) return -1;
@@ -593,7 +620,13 @@ const Data = {
   determineDemoPath: async () => {
     try {
       const testRes = await fetch(`${CONFIG.demoPaths.primary}/portfolio.json`);
-      return testRes.ok ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
+      if (!testRes.ok) return CONFIG.demoPaths.fallback;
+
+      const payload = await testRes.json();
+      const hasRows = payload && Array.isArray(payload.rows);
+      const hasGeneratedAt = payload && typeof payload.generated_at === 'string' && payload.generated_at.length > 0;
+
+      return hasRows && hasGeneratedAt ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
     } catch {
       return CONFIG.demoPaths.fallback;
     }
