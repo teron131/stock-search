@@ -1,9 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
-from datetime import UTC, datetime
 import json
 import logging
-import math
 from pathlib import Path
 import random
 
@@ -24,37 +21,14 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # Constants
 RSI_PERIOD = 14
 RSI_HISTORY_BUFFER = 10
-RSI_DEFAULT = 50.0  # legacy default; prefer None for snapshots
+RSI_DEFAULT = 50.0
 RSI_MAX = 100.0
 
-# Quantity generation is score-based (see assign_quantities).
-# These are only used as a fallback when we can't size a position.
+# Quantity generation
 QUANTITY_MIN = 5
 QUANTITY_MAX = 50
-
 TARGET_TOTAL_EQUITY = 1_000_000.0
 MAX_POSITION_QTY = 500
-
-# Anchor-Calibrated Score Targets (EVALUATION.md Section 4)
-P_TARGETS = {"low": 0.85, "median": 0.65, "high": 0.25}
-
-# Preset A — Quality-bar / Mega-cap-friendly (EVALUATION.md Section 6)
-ANCHORS = {
-    "market_cap": {"low": 10e9, "median": 800e9, "high": 4.5e12, "invert": False},
-    "peg": {"low": 0.6, "median": 1.6, "high": 3.5, "invert": True},
-    "pe_forward": {"low": 12, "median": 26, "high": 55, "invert": True},
-    "margin": {"low": 60, "median": 35, "high": 10, "invert": False},
-    "upside": {"low": 0.55, "median": 0.18, "high": 0.00, "invert": False},
-}
-
-# Role Weights (EVALUATION.md Section 10)
-# CoreIndex = 0.35*Moat + 0.35*Quality + 0.15*Valuation + 0.10*Size + 0.05*EdgeComp
-# We'll use a version that aggressively emphasizes Scale and Quality (Margin)
-CORE_INDEX_WEIGHTS = {
-    "size_score": 0.60,  # Dominant factor to push Mega-caps to the top
-    "valuation_score": 0.10,  # Lower weight for valuation discipline
-    "quality_score": 0.30,  # Emphasis on high-margin stability
-}
 
 BUCKETS = ["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]
 
@@ -211,18 +185,10 @@ def calculate_rsi(ticker_obj, days=RSI_PERIOD):
         return None
 
 
-def fetch_ticker_data(ticker: str) -> dict:
-    """Fetch real-time market data + indicator snapshot for a ticker.
-
-    This should populate all fields needed for the UI holdings table.
-    If a field can't be fetched, we leave it as None so the UI renders "--".
-
-    Quantity is assigned in a second pass after we have cross-ticker metrics.
-    """
+def fetch_stats_data(ticker: str) -> dict:
+    """Fetch real-time market data + indicator snapshot for a ticker."""
     stock = yf.Ticker(ticker)
     info = stock.info or {}
-
-    qty: int | None = None
 
     raw_price = info.get("regularMarketPrice") or info.get("currentPrice")
     price = _round(raw_price, 2)
@@ -231,8 +197,6 @@ def fetch_ticker_data(ticker: str) -> dict:
 
     raw_change = info.get("regularMarketChangePercent")
     change_percent = _round(raw_change, 2)
-
-    notional = None  # computed after quantity assignment
 
     market_cap_raw = _round(info.get("marketCap"), 0)
     market_cap = _format_market_cap(market_cap_raw)
@@ -248,7 +212,6 @@ def fetch_ticker_data(ticker: str) -> dict:
     if (raw_margin := info.get("grossMargins")) is not None:
         gross_margin = _round(raw_margin * 100, 2)
 
-    # Trend change % values in yfinance info are typically ratios (0.12 -> 12%).
     def pct_from_ratio(key: str) -> float | None:
         if (raw := info.get(key)) is None:
             return None
@@ -270,12 +233,10 @@ def fetch_ticker_data(ticker: str) -> dict:
         median_upside = None
 
     return {
-        "ticker": ticker,
-        "quantity": qty,
         "current_price": price,
         "change_percent": change_percent,
-        "notional": notional,
         "bucket": random.choice(BUCKETS),
+        "name": info.get("shortName") or info.get("longName"),
         "rsi": rsi,
         "twenty_day_change_percent": twenty_day_change_percent,
         "fifty_day_change_percent": fifty_day_change_percent,
@@ -289,20 +250,17 @@ def fetch_ticker_data(ticker: str) -> dict:
         "peg": peg,
         "gross_margin": gross_margin,
         "earning_direction": earning_direction,
-        "weight_pct": None,
-        "_raw_info_snapshot": info,
+        "_raw_info_snapshot": info,  # Kept for scoring logic
     }
 
 
-def create_fallback_row(ticker: str) -> dict:
-    """Create fallback row for failed ticker fetches."""
+def create_fallback_stats(ticker: str) -> dict:
+    """Create fallback stats for failed ticker fetches."""
     return {
-        "ticker": ticker,
-        "quantity": random.randint(QUANTITY_MIN, QUANTITY_MAX),
         "current_price": None,
         "change_percent": None,
-        "notional": None,
         "bucket": random.choice(BUCKETS),
+        "name": ticker,
         "rsi": None,
         "twenty_day_change_percent": None,
         "fifty_day_change_percent": None,
@@ -315,97 +273,65 @@ def create_fallback_row(ticker: str) -> dict:
         "peg": None,
         "gross_margin": None,
         "earning_direction": None,
-        "weight_pct": None,
+        "_market_cap_raw": None,
+        "_raw_info_snapshot": {},
     }
 
 
-def _logit(p: float) -> float:
-    return math.log(p / (1 - p))
+def generate_eval_entry() -> dict:
+    """Generate evaluation scores for a ticker."""
+    return {
+        "rank": 0,  # To be filled later or ignored
+        "overall": round(random.uniform(*EVAL_SCORE_RANGES["overall"]), 1),
+        "quality": round(random.uniform(*EVAL_SCORE_RANGES["quality"]), 1),
+        "valuation": round(random.uniform(*EVAL_SCORE_RANGES["valuation"]), 1),
+        "moat": round(random.uniform(*EVAL_SCORE_RANGES["moat"]), 1),
+        "upside": round(random.uniform(*EVAL_SCORE_RANGES["upside"]), 1),
+        "bull": 0.7,
+        "bear": 0.2,
+    }
 
 
-def _sigma(z: float) -> float:
-    return 1 / (1 + math.exp(-z))
+def allocate_portfolio(
+    stats_map: dict[str, dict],
+) -> list[dict]:
+    """Allocate portfolio quantities based on stats and eval data."""
+    scores: dict[str, float] = {}
+    tickers = list(stats_map.keys())
 
+    for ticker in tickers:
+        stats = stats_map[ticker]
+        info = stats.get("_raw_info_snapshot") or {}
 
-def calculate_logistic_score(x: float | None, anchors: dict, p_targets: dict = P_TARGETS) -> float:
-    """Piecewise logistic mapping (EVALUATION.md Section 3)."""
-    if x is None:
-        return 5.0  # Neutral baseline
-
-    x_l, x_m, x_h = anchors["low"], anchors["median"], anchors["high"]
-    p_l, p_m, p_h = p_targets["low"], p_targets["median"], p_targets["high"]
-
-    # Handle inversion (lower is better metrics)
-    if anchors.get("invert"):
-        # We swap anchors and p_targets effectively so that small x -> high score
-        # The math works naturally if we just flip the logic direction
-        pass
-
-    z_m = _logit(p_m)
-
-    # Calculate scales s_L and s_R
-    s_l = (x_m - x_l) / (z_m - _logit(p_l))
-    s_r = (x_h - x_m) / (_logit(p_h) - z_m)
-
-    z = (z_m + (x - x_m) / s_l if s_l != 0 else z_m) if x <= x_m else (z_m + (x - x_m) / s_r if s_r != 0 else z_m)
-
-    score = 10 * _sigma(z)
-    return max(0.0, min(10.0, score))
-
-
-def assign_quantities(rows: list[dict]) -> None:
-    """Assign quantities based on Evaluation Engine scores (no new network calls)."""
-
-    scores: dict[int, float] = {}
-
-    for i, row in enumerate(rows):
-        ticker = row["ticker"]
-        # Use existing row data to avoid yfinance rate limits
-        info = row.get("_raw_info_snapshot") or {}
-
-        # 1. Calculate Scores using existing indicators/metrics
+        # 1. Calculate Scores
         size_score = market_cap_score(ticker, info) or 5.0
         valuation_score = calculate_valuation_score(info) or 5.0
 
-        # Pull these from the row since they were fetched in the first pass
-        m_upside = row.get("median_upside")
-        upside_score = (
-            calculate_combined_upside_score(
-                m_upside,
-                ratings=None,
-                outlook_score=None,
-            )
-            or 5.0
-        )
+        m_upside = stats.get("median_upside")
+        upside_score = calculate_combined_upside_score(m_upside, ratings=None, outlook_score=None) or 5.0
 
         # 2. Momentum proxy
-        # Average of the trend percentages we have
-        trends = [row.get("twenty_day_change_percent"), row.get("fifty_day_change_percent"), row.get("two_hundred_day_change_percent")]
+        trends = [stats.get("twenty_day_change_percent"), stats.get("fifty_day_change_percent"), stats.get("two_hundred_day_change_percent")]
         valid_trends = [v for v in trends if v is not None]
         avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
-
-        # Map avg trend to a 0.4 - 0.7 probability range
         p_up = max(0.3, min(0.8, 0.55 + (avg_trend / 100.0)))
         p_down = 0.2
 
-        # 3. Dynamic placeholders for LLM fields (Moat/Quality)
-        # We use Size and Margin as proxies to ensure scores aren't flat
+        # 3. Dynamic placeholders (Moat/Quality)
         mkt_cap = info.get("marketCap") or 0
-        margin_val = (row.get("gross_margin") or 0) / 100.0
+        margin_val = (stats.get("gross_margin") or 0) / 100.0
 
-        # Moat proxy: Scale + Ecosystem
         moat_score = 4.0
         if mkt_cap > 1e12:
-            moat_score = 9.5  # Trillion club
+            moat_score = 9.5
         elif mkt_cap > 500e9:
-            moat_score = 8.5  # Mega-cap
+            moat_score = 8.5
         elif mkt_cap > 100e9:
-            moat_score = 7.0  # Large-cap
+            moat_score = 7.0
 
-        # Quality proxy: Profitability + Execution
         quality_score = 4.5
         if margin_val > 0.70:
-            quality_score = 9.5  # Elite (NVDA territory)
+            quality_score = 9.5
         elif margin_val > 0.40:
             quality_score = 8.0
         elif margin_val > 0.25:
@@ -424,16 +350,9 @@ def assign_quantities(rows: list[dict]) -> None:
             quality=ScoredReason(score=quality_score, reasons=["Proxy"]),
         )
 
-        # 5. Run Evaluation Result (Calculates Strategy Indices)
         res = evaluate_asset(eval_input, ticker=ticker)
-
-        # 6. Sizing Logic: Core Index x Confidence
-        # This makes the "High Conviction" stocks lead by far.
-        # We use Core Index because it values Moat/Quality/Size/Value.
         base_weight = res.core_index or 1.0
 
-        # Strategic Conviction Multiplier (AI super-cycle pillars)
-        # This aligns the snapshot with Doctrine Section 7.1
         pillar_boost = 1.0
         if ticker == "NVDA":
             pillar_boost = 1.5
@@ -442,151 +361,90 @@ def assign_quantities(rows: list[dict]) -> None:
         elif ticker in ["MSFT", "AAPL", "AVGO", "META"]:
             pillar_boost = 1.2
 
-        scores[i] = base_weight * pillar_boost
+        scores[ticker] = base_weight * pillar_boost
 
     score_sum = sum(scores.values())
+    portfolio_entries = []
 
-    for i, row in enumerate(rows):
-        price = row.get("current_price")
-        # Ensure price is a valid numeric type for allocation
+    for ticker in tickers:
+        stats = stats_map[ticker]
+        price = stats.get("current_price")
+
         try:
             numeric_price = float(price) if price is not None else 0.0
         except (TypeError, ValueError):
             numeric_price = 0.0
 
         if numeric_price <= 0:
-            row["quantity"] = 0
-            row["notional"] = 0
             continue
 
-        allocation = TARGET_TOTAL_EQUITY * (scores[i] / score_sum) if score_sum > 0 else (TARGET_TOTAL_EQUITY / len(rows))
+        allocation = TARGET_TOTAL_EQUITY * (scores[ticker] / score_sum) if score_sum > 0 else (TARGET_TOTAL_EQUITY / len(tickers))
         qty = round(allocation / numeric_price)
         qty = max(1, min(qty, MAX_POSITION_QTY))
 
-        row["quantity"] = qty
-        row["notional"] = _round(qty * numeric_price, 2)
+        portfolio_entries.append({"ticker": ticker, "quantity": float(qty), "delta": 1.0})
 
-    # Note: Moat/Quality/Reasons are intentionally excluded (None) here
-    # so we don't overwrite real data with dummy values.
-    # remove internal-only fields
-    for row in rows:
-        row.pop("_market_cap_raw", None)
-        row.pop("_raw_info_snapshot", None)
+    return portfolio_entries
 
 
-def calculate_portfolio_weights(rows: list[dict]) -> None:
-    """Calculate and update portfolio weights in-place."""
-    total_val = sum((float(r.get("notional") or 0)) for r in rows)
+def generate_static_data():
+    """Main generation orchestration."""
+    print(f"Generating data for {len(SAMPLE_TICKERS)} tickers...")
 
-    for r in rows:
-        notional = r.get("notional")
-        if total_val > 0 and notional is not None:
-            r["weight_pct"] = round((float(notional) / total_val) * 100, 2)
-        else:
-            r["weight_pct"] = None
+    # 1. Fetch Stats
+    stats_map = {}
+    print("Fetching stats...")
 
+    def safe_fetch(ticker: str) -> tuple[str, dict]:
+        try:
+            return ticker, fetch_stats_data(ticker)
+        except Exception as e:
+            print(f"    ! Error fetching {ticker}: {e}")
+            return ticker, create_fallback_stats(ticker)
 
-def generate_portfolio_data(tickers: list[str]) -> tuple[list[dict], str]:
-    """Generate portfolio data with live market prices, skipping existing tickers."""
-    generated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(safe_fetch, SAMPLE_TICKERS))
+        stats_map = dict(results)
 
-    # Load existing data to avoid re-fetching
-    existing_rows = {}
-    portfolio_path = Path("ui/sample_data/portfolio.json")
-    if portfolio_path.exists():
-        with suppress(Exception):
-            data = json.loads(portfolio_path.read_text(encoding="utf-8"))
-            existing_rows = {r["ticker"]: r for r in data.get("rows", [])}
+    # 2. Generate Eval
+    print("Generating evals...")
+    eval_map = {ticker: generate_eval_entry(ticker) for ticker in SAMPLE_TICKERS}
 
-    print(f"Checking data for {len(tickers)} tickers...")
+    # 3. Allocate Portfolio
+    print("Allocating portfolio...")
+    portfolio_list = allocate_portfolio(stats_map, eval_map)
 
-    final_rows = []
-    tickers_to_fetch = []
+    # 4. Clean up Stats (remove internal fields)
+    for data in stats_map.values():
+        data.pop("_raw_info_snapshot", None)
+        data.pop("_market_cap_raw", None)
 
-    for ticker in tickers:
-        if ticker in existing_rows and "gross_margin" in existing_rows[ticker]:
-            final_rows.append(existing_rows[ticker])
-            continue
-        tickers_to_fetch.append(ticker)
-
-    if tickers_to_fetch:
-        print(f"Fetching real-time data for {len(tickers_to_fetch)} new/incomplete tickers...")
-
-        def safe_fetch(ticker: str) -> dict:
-            try:
-                return fetch_ticker_data(ticker)
-            except Exception as e:
-                print(f"    ! Error fetching {ticker}: {e}")
-                return create_fallback_row(ticker)
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            fetched = list(executor.map(safe_fetch, tickers_to_fetch))
-            final_rows.extend(fetched)
-
-    # Re-calculate quantities and weights over the combined set
-    assign_quantities(final_rows)
-    calculate_portfolio_weights(final_rows)
-
-    return final_rows, generated_at
-
-
-def generate_eval_data(tickers: list[str]) -> list[dict]:
-    """Generate evaluation scores for tickers."""
-    return [
-        {
-            "ticker": ticker,
-            "rank": i + 1,
-            "overall": round(random.uniform(*EVAL_SCORE_RANGES["overall"]), 1),
-            "quality": round(random.uniform(*EVAL_SCORE_RANGES["quality"]), 1),
-            "valuation": round(random.uniform(*EVAL_SCORE_RANGES["valuation"]), 1),
-            "moat": round(random.uniform(*EVAL_SCORE_RANGES["moat"]), 1),
-            "upside": round(random.uniform(*EVAL_SCORE_RANGES["upside"]), 1),
-            "bull": 0.7,
-            "bear": 0.2,
-        }
-        for i, ticker in enumerate(tickers)
-    ]
-
-
-def save_sample_data(portfolio_rows: list[dict], eval_data: list[dict], generated_at: str) -> None:
-    """Save generated data to JSON files."""
-    sample_data_dir = Path("ui/sample_data")
-    sample_data_dir.mkdir(parents=True, exist_ok=True)
-
+    # 5. Save
+    print("Saving files...")
     data_dir = Path("data")
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    dashboard = {"rows": portfolio_rows, "generated_at": generated_at}
-    (sample_data_dir / "portfolio.json").write_text(json.dumps(dashboard, indent=2), encoding="utf-8")
-    (sample_data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2), encoding="utf-8")
+    # Also save to ui/sample_data for frontend dev if needed
+    sample_dir = Path("ui/sample_data")
+    sample_dir.mkdir(parents=True, exist_ok=True)
 
-    (data_dir / "eval.json").write_text(json.dumps(eval_data, indent=2), encoding="utf-8")
+    def write_json(path: Path, data):
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-    positions = [
-        {
-            "ticker": row["ticker"],
-            "name": row["ticker"],
-            "quantity": float(row["quantity"]),
-            "bucket": row["bucket"],
-            "delta": 1.0,
-            "current_price": row["current_price"],
-        }
-        for row in portfolio_rows
-    ]
+    # Save to data/
+    write_json(data_dir / "portfolio.json", portfolio_list)
+    write_json(data_dir / "stats.json", stats_map)
+    write_json(data_dir / "eval.json", eval_map)
 
-    total_equity = sum((row.get("notional") or 0) for row in portfolio_rows)
-    portfolio_doc = {"total_equity": total_equity, "positions": positions}
-    (data_dir / "portfolio.json").write_text(json.dumps(portfolio_doc, indent=2), encoding="utf-8")
+    # Save to ui/sample_data/ (mirror)
+    write_json(sample_dir / "portfolio.json", portfolio_list)
+    write_json(sample_dir / "stats.json", stats_map)
+    write_json(sample_dir / "eval.json", eval_map)
 
-    print(f"\nSUCCESS: Updated ui/sample_data and data/ at {generated_at}.")
-
-
-def generate_sample_data():
-    """Generate sample portfolio and evaluation data."""
-    portfolio_rows, generated_at = generate_portfolio_data(SAMPLE_TICKERS)
-    eval_data = generate_eval_data(SAMPLE_TICKERS)
-    save_sample_data(portfolio_rows, eval_data, generated_at)
+    print(f"SUCCESS: Generated {len(portfolio_list)} positions.")
+    print(f"Stats: {len(stats_map)} entries")
+    print(f"Evals: {len(eval_map)} entries")
 
 
 if __name__ == "__main__":
-    generate_sample_data()
+    generate_static_data()

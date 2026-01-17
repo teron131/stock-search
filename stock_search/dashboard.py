@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -7,59 +6,66 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
-from stock_search.schemas import Portfolio, PortfolioPosition
 
 
-def _load_portfolio(path: str | Path) -> Portfolio:
-    """Load portfolio data from a JSON file."""
+def _load_json(path: str | Path) -> list | dict:
     path = Path(path)
     if not path.exists():
-        return Portfolio(positions=[])
-    data = json.loads(path.read_text())
-    return Portfolio.model_validate(data)
+        return []
+    return json.loads(path.read_text())
 
 
-def _build_row(position: PortfolioPosition) -> dict:
-    indicator = StockIndicator(position.ticker)
-    current_price = indicator.price or position.current_price
-
-    notional = None
-    if position.quantity is not None and position.delta is not None and current_price is not None:
-        notional = calculate_notional(position.quantity, position.delta, current_price)
-
-    return {
-        "ticker": position.ticker,
-        "name": position.name,
-        "quantity": position.quantity,
-        "delta": position.delta,
-        "current_price": current_price,
-        "change": indicator.change,
-        "change_percent": indicator.change_percent,
-        "market_cap": indicator.market_cap,
-        "pe": indicator.pe,
-        "pe_forward": indicator.pe_forward,
-        "peg": indicator.peg,
-        "earning_direction": indicator.earning_direction,
-        "gross_margin": indicator.gross_margin,
-        "rsi": indicator.rsi,
-        "twenty_day_change_percent": indicator.twenty_day_change_percent,
-        "fifty_day_change_percent": indicator.fifty_day_change_percent,
-        "one_hundred_day_change_percent": indicator.one_hundred_day_change_percent,
-        "two_hundred_day_change_percent": indicator.two_hundred_day_change_percent,
-        "median_upside": indicator.median_upside,
-        "bucket": position.bucket,
-        "notional": notional,
-        "weight_pct": None,
-    }
-
-
-def get_dashboard(portfolio_path: str | Path = "data/portfolio.json") -> pd.DataFrame:
+def get_dashboard(portfolio_path: str | Path = "data/portfolio.json", stats_path: str | Path = "data/stats.json") -> pd.DataFrame:
     """Return a raw portfolio table as a DataFrame."""
-    portfolio = _load_portfolio(portfolio_path)
-    with ThreadPoolExecutor() as executor:
-        rows = list(executor.map(_build_row, portfolio.positions))
+    portfolio_data = _load_json(portfolio_path)
+    stats_data = _load_json(stats_path)
+
+    # Handle list vs dict format for portfolio (legacy vs new)
+    positions = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
+
+    rows = []
+    for pos in positions:
+        ticker = pos.get("ticker")
+        stats = stats_data.get(ticker, {})
+
+        qty = float(pos.get("quantity") or 0)
+        delta = float(pos.get("delta") or 1.0)
+        price = stats.get("current_price")
+
+        notional = None
+        if qty and price:
+            try:
+                # Use helper if available or inline
+                notional = calculate_notional(qty, delta, price)
+            except Exception:
+                notional = qty * price * delta
+
+        row = {
+            "ticker": ticker,
+            "name": stats.get("name"),
+            "quantity": qty,
+            "delta": delta,
+            "current_price": price,
+            "change": None,  # Not strictly in stats.json yet unless added
+            "change_percent": stats.get("change_percent"),
+            "market_cap": stats.get("market_cap"),
+            "pe": stats.get("pe"),
+            "pe_forward": stats.get("pe_forward"),
+            "peg": stats.get("peg"),
+            "earning_direction": stats.get("earning_direction"),
+            "gross_margin": stats.get("gross_margin"),
+            "rsi": stats.get("rsi"),
+            "twenty_day_change_percent": stats.get("twenty_day_change_percent"),
+            "fifty_day_change_percent": stats.get("fifty_day_change_percent"),
+            "one_hundred_day_change_percent": stats.get("one_hundred_day_change_percent"),
+            "two_hundred_day_change_percent": stats.get("two_hundred_day_change_percent"),
+            "median_upside": stats.get("median_upside"),
+            "bucket": stats.get("bucket"),
+            "notional": notional,
+            "weight_pct": None,
+        }
+        rows.append(row)
 
     total_notional = sum((row["notional"] or 0) for row in rows)
     if total_notional > 0:
@@ -68,14 +74,16 @@ def get_dashboard(portfolio_path: str | Path = "data/portfolio.json") -> pd.Data
     else:
         for row in rows:
             row["weight_pct"] = None
+
     df = pd.DataFrame(rows)
-    df = df.sort_values(by="weight_pct", ascending=False, na_position="last")
+    if not df.empty:
+        df = df.sort_values(by="weight_pct", ascending=False, na_position="last")
     return df
 
 
-def display_dashboard(portfolio_path: str | Path = "data/portfolio.json") -> None:
+def display_dashboard(portfolio_path: str | Path = "data/portfolio.json", stats_path: str | Path = "data/stats.json") -> None:
     """Display the portfolio dashboard using Rich."""
-    df = get_dashboard(portfolio_path)
+    df = get_dashboard(portfolio_path, stats_path)
 
     console = Console()
     table = Table(title="Portfolio Dashboard", box=box.ROUNDED, header_style="bold magenta")
