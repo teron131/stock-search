@@ -250,7 +250,15 @@ const Utils = {
 
   mergeData: (dashData, evalData) => {
     const portfolioMap = new Map((dashData.rows || []).map(r => [Utils.normalizeTicker(r.ticker), r]));
-    const evalMap = new Map(evalData.map(e => [Utils.normalizeTicker(e.ticker), e]));
+    
+    let evalEntries = [];
+    if (Array.isArray(evalData)) {
+      evalEntries = evalData;
+    } else if (evalData && typeof evalData === 'object') {
+      evalEntries = Object.entries(evalData).map(([ticker, data]) => ({ ...data, ticker }));
+    }
+
+    const evalMap = new Map(evalEntries.map(e => [Utils.normalizeTicker(e.ticker), e]));
     const allTickers = new Set([...portfolioMap.keys(), ...evalMap.keys()]);
 
     return Array.from(allTickers).map(ticker => {
@@ -605,17 +613,64 @@ const UI = {
 // --- Data Logic ---
 const Data = {
   fetchPortfolioData: async (endpoints) => {
-    const [dashRes, evalRes] = await Promise.all([
+    // If endpoints has stats, we are likely in static/demo mode and need to join manually
+    const fetches = [
       fetch(endpoints.portfolio),
       fetch(endpoints.eval)
-    ]);
+    ];
     
-    if (!dashRes.ok || !evalRes.ok) throw new Error('API Failure');
+    if (endpoints.stats) {
+      fetches.push(fetch(endpoints.stats));
+    }
+
+    const responses = await Promise.all(fetches);
+    if (responses.some(r => !r.ok)) throw new Error('API Failure');
+
+    const portfolioRaw = await responses[0].json();
+    const evalData = await responses[1].json();
+    let statsData = {};
     
-    return {
-      dashData: await dashRes.json(),
-      evalData: await evalRes.json()
-    };
+    if (endpoints.stats) {
+      statsData = await responses[2].json();
+    }
+
+    // Process Portfolio Data
+    // Case A: API response (already joined) -> { rows: [...] }
+    if (portfolioRaw.rows) {
+      return { dashData: portfolioRaw, evalData };
+    }
+
+    // Case B: Raw static file (list of positions) -> needs join with stats
+    // We reconstruct the "dashboard" row format the UI expects
+    if (Array.isArray(portfolioRaw)) {
+      const rows = portfolioRaw.map(pos => {
+        const stat = statsData[pos.ticker] || {};
+        const quantity = Number(pos.quantity || 0);
+        const price = Number(stat.current_price || 0);
+        const delta = Number(pos.delta || 1);
+        
+        // Calculate notional if missing (it won't be in raw portfolio.json)
+        const notional = quantity * price * delta;
+
+        return {
+          ...stat, // spreads price, pe, changes, etc.
+          ...pos,  // spreads ticker, quantity, bucket
+          notional,
+          // Ensure essential fields exist even if stats are missing
+          ticker: pos.ticker,
+          current_price: price,
+          quantity: quantity
+        };
+      });
+
+      return {
+        dashData: { rows, generated_at: new Date().toISOString() }, // Mock generated_at or fetch from headers?
+        evalData
+      };
+    }
+
+    // Fallback
+    return { dashData: { rows: [] }, evalData };
   },
 
   determineDemoPath: async () => {
@@ -624,10 +679,10 @@ const Data = {
       if (!testRes.ok) return CONFIG.demoPaths.fallback;
 
       const payload = await testRes.json();
-      const hasRows = payload && Array.isArray(payload.rows);
-      const hasGeneratedAt = payload && typeof payload.generated_at === 'string' && payload.generated_at.length > 0;
-
-      return hasRows && hasGeneratedAt ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
+      // Valid if it's an Array (new format) or Object with rows (old format)
+      const isValid = Array.isArray(payload) || (payload && Array.isArray(payload.rows));
+      
+      return isValid ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
     } catch {
       return CONFIG.demoPaths.fallback;
     }
@@ -648,7 +703,8 @@ const Data = {
     
     const { dashData, evalData } = await Data.fetchPortfolioData({
       portfolio: `${basePath}/portfolio.json`,
-      eval: `${basePath}/eval.json`
+      eval: `${basePath}/eval.json`,
+      stats: `${basePath}/stats.json`
     });
 
     if ((!dashData.rows || dashData.rows.length === 0) && (!evalData || evalData.length === 0)) {
