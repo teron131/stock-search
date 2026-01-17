@@ -117,6 +117,7 @@ const DOM = {
   },
   tabs: document.querySelectorAll('.tab-btn'),
   table: {
+    wrapper: document.querySelector('.table-wrapper'),
     head: document.querySelector('#main-table thead'),
     body: document.querySelector('#main-table tbody')
   },
@@ -135,28 +136,38 @@ const DOM = {
   refreshBtn: document.getElementById('refresh-btn'),
   viewTitle: document.getElementById('view-title'),
   menuToggle: document.getElementById('menu-toggle'),
-    sidebar: {
-      el: document.getElementById('sidebar'),
-      toggle: document.getElementById('sidebar-toggle')
-    },
-    loadingOverlay: document.getElementById('loading-overlay'),
-    lastUpdate: document.getElementById('last-update'),
-    heatmap: {
-      tabs: document.querySelectorAll('#heatmap-section .tab-btn'),
-      container: document.getElementById('heatmap-widget-container')
-    }
-  };
+  sidebar: {
+    el: document.getElementById('sidebar'),
+    toggle: document.getElementById('sidebar-toggle')
+  },
+  loadingOverlay: document.getElementById('loading-overlay'),
+  lastUpdate: document.getElementById('last-update'),
+  heatmap: {
+    tabs: document.querySelectorAll('#heatmap-section .tab-btn'),
+    container: document.getElementById('heatmap-widget-container')
+  }
+};
 
 // --- Utilities ---
+const FORMATTERS = {
+  currency: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }),
+  number: new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }),
+  marketCapSig4: new Intl.NumberFormat('en-US', {
+    maximumSignificantDigits: 4,
+    minimumSignificantDigits: 4,
+    useGrouping: false,
+  }),
+};
+
 const Utils = {
   normalizeTicker: (ticker) => ticker.replace('-', '.').toUpperCase(),
+
+  _cleanNumericString: (value) => String(value).trim().toUpperCase().replace(/^\$/, '').replace(/,/g, ''),
 
   parseMarketCap: (value) => {
     if (value == null) return null;
 
-    let raw = String(value).trim().toUpperCase();
-    raw = raw.replace(/^\$/, '').replace(/,/g, '');
-
+    const raw = Utils._cleanNumericString(value);
     const match = raw.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
     if (!match) return null;
 
@@ -173,7 +184,7 @@ const Utils = {
       if (value == null) return '--';
       const numeric = Number(value);
       if (Number.isNaN(numeric)) return '--';
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
+      return FORMATTERS.currency.format(numeric);
     },
     percent: (value) => {
       if (value == null) return '--';
@@ -192,28 +203,21 @@ const Utils = {
       if (value == null) return '--';
       const numeric = Number(value);
       if (Number.isNaN(numeric)) return '--';
-      return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(numeric);
+      return FORMATTERS.number.format(numeric);
     },
 
     market_cap: (value) => {
       if (value == null || value === '') return '--';
 
-      const sigFormatter = new Intl.NumberFormat('en-US', {
-        maximumSignificantDigits: 4,
-        minimumSignificantDigits: 4,
-        useGrouping: false,
-      });
-
       const toSig = (n) => {
         const num = Number(n);
         if (Number.isNaN(num)) return null;
-        return sigFormatter.format(num);
+        return FORMATTERS.marketCapSig4.format(num);
       };
 
-      const raw = String(value).trim();
+      const cleaned = Utils._cleanNumericString(value);
 
       // Case A: already formatted like "4.534T" (optionally "$" prefixed)
-      const cleaned = raw.trim().toUpperCase().replace(/^\$/, '').replace(/,/g, '');
       const match = cleaned.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
       const suffix = match?.[2];
       if (suffix) {
@@ -657,7 +661,7 @@ const UI = {
     const cols = COLS[STATE.currentTab];
     
     // Preserve scroll position
-    const wrapper = document.querySelector('.table-wrapper');
+    const wrapper = DOM.table.wrapper;
     const savedScroll = wrapper ? wrapper.scrollTop : 0;
 
     const sorted = UI.sortData(UI.getFilteredRows(), STATE.sortCol, STATE.sortDir);
@@ -698,19 +702,20 @@ const UI = {
 
 // --- Data Logic ---
 const Data = {
+  _withCacheBuster: (url) => {
+    const cacheBuster = `_=${Date.now()}`;
+    return url.includes('?') ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
+  },
+
   fetchPortfolioData: async (endpoints) => {
     // If endpoints has stats, we are likely in static/demo mode and need to join manually
-    // Add cache busting for live data requests
-    const cacheBuster = `?_=${new Date().getTime()}`;
-    const appendCb = (url) => url.includes('?') ? `${url}&${cacheBuster.slice(1)}` : `${url}${cacheBuster}`;
-
     const fetches = [
-      fetch(appendCb(endpoints.portfolio)),
-      fetch(appendCb(endpoints.eval))
+      fetch(Data._withCacheBuster(endpoints.portfolio)),
+      fetch(Data._withCacheBuster(endpoints.eval))
     ];
-    
+
     if (endpoints.stats) {
-      fetches.push(fetch(appendCb(endpoints.stats)));
+      fetches.push(fetch(Data._withCacheBuster(endpoints.stats)));
     }
 
     const responses = await Promise.all(fetches);
@@ -719,7 +724,7 @@ const Data = {
     const portfolioRaw = await responses[0].json();
     const evalData = await responses[1].json();
     let statsData = {};
-    
+
     if (endpoints.stats) {
       statsData = await responses[2].json();
     }
