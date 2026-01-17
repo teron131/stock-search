@@ -563,13 +563,13 @@ const UI = {
       td.textContent = content;
     }
 
-    // Apply gradual font coloring to numeric columns (scores, probs, ranks, etc)
-    const isTargetFormat = ['score', 'prob', 'percent_neutral', 'number'].includes(col.format);
-    const isTargetKey = ['rank', 'rsi'].includes(col.key);
+    // Apply conditional font coloring to numeric columns (scores, probs, ranks, etc)
+    const isTargetFormat = ['score', 'prob', 'percent_neutral', 'number', 'market_cap'].includes(col.format);
+    const isTargetKey = ['rank', 'rsi', 'market_cap'].includes(col.key);
     const skipColoring = ['quantity', 'weight_pct'].includes(col.key);
     
     if ((isTargetFormat || isTargetKey) && !skipColoring && colorMetadata && colorMetadata[col.key]) {
-      const value = row[col.key];
+      const value = col.key === 'market_cap' ? Utils.parseMarketCap(row.market_cap) : row[col.key];
       const textColor = Utils.getScoreColor(value, colorMetadata[col.key]);
       
       // Find the span with the score class (or create one/apply to cell if text only)
@@ -612,13 +612,18 @@ const UI = {
     const BACKEND_MEDIAN_SCORE = 5.0;
     
     // Columns to colorize
-    const targetFormats = ['score', 'prob', 'percent_neutral', 'number'];
-    const targetKeys = ['rank', 'rsi']; // Specific keys to include even if format differs
+    const targetFormats = ['score', 'prob', 'percent_neutral', 'number', 'market_cap'];
+    const targetKeys = ['rank', 'rsi', 'market_cap']; // Specific keys to include even if format differs
 
     cols.forEach(col => {
       if (targetFormats.includes(col.format) || targetKeys.includes(col.key)) {
         const values = data
-          .map(row => row[col.key])
+          .map(row => {
+            if (col.key === 'market_cap') {
+              return Utils.parseMarketCap(row.market_cap);
+            }
+            return row[col.key];
+          })
           .filter(v => v != null && !isNaN(v));
         
         if (values.length > 0) {
