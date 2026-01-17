@@ -9,7 +9,14 @@ import random
 
 import yfinance as yf
 
+from stock_search.evaluation.evaluation import evaluate_asset
+from stock_search.evaluation.scores import (
+    calculate_combined_upside_score,
+    calculate_valuation_score,
+    market_cap_score,
+)
 from stock_search.indicators import MARKET_CAP_UNITS, parse_ratings
+from stock_search.schemas import Evaluation, ScoredReason
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
@@ -42,11 +49,11 @@ ANCHORS = {
 
 # Role Weights (EVALUATION.md Section 10)
 # CoreIndex = 0.35*Moat + 0.35*Quality + 0.15*Valuation + 0.10*Size + 0.05*EdgeComp
-# We'll use a version that emphasizes Scale and Quality (Margin)
+# We'll use a version that aggressively emphasizes Scale and Quality (Margin)
 CORE_INDEX_WEIGHTS = {
-    "size_score": 0.40,
-    "valuation_score": 0.25,
-    "quality_score": 0.35,
+    "size_score": 0.60,  # Dominant factor to push Mega-caps to the top
+    "valuation_score": 0.10,  # Lower weight for valuation discipline
+    "quality_score": 0.30,  # Emphasis on high-margin stability
 }
 
 BUCKETS = ["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]
@@ -347,51 +354,95 @@ def calculate_logistic_score(x: float | None, anchors: dict, p_targets: dict = P
 
 
 def assign_quantities(rows: list[dict]) -> None:
-    """Assign quantities based on a local implementation of the Doctrine Score.
-
-    This avoids all network calls to prevent yfinance rate limits while still
-    honoring the core philosophy (Size + Quality + Valuation).
-    """
+    """Assign quantities based on Evaluation Engine scores (no new network calls)."""
 
     scores: dict[int, float] = {}
 
     for i, row in enumerate(rows):
         ticker = row["ticker"]
+        # Use existing row data to avoid yfinance rate limits
+        info = row.get("_raw_info_snapshot") or {}
 
-        # 1. Size Score (Local Logistic)
-        mcap_raw = row.get("_market_cap_raw")
-        size_score = calculate_logistic_score(mcap_raw, ANCHORS["market_cap"])
+        # 1. Calculate Scores using existing indicators/metrics
+        size_score = market_cap_score(ticker, info) or 5.0
+        valuation_score = calculate_valuation_score(info) or 5.0
 
-        # 2. Valuation Score (PEG weighted)
-        peg = row.get("peg")
-        pe_f = row.get("pe_forward")
-        peg_score = calculate_logistic_score(peg, ANCHORS["peg"])
-        pe_score = calculate_logistic_score(pe_f, ANCHORS["pe_forward"])
-        valuation_score = (0.7 * peg_score) + (0.3 * pe_score)
+        # Pull these from the row since they were fetched in the first pass
+        m_upside = row.get("median_upside")
+        upside_score = (
+            calculate_combined_upside_score(
+                m_upside,
+                ratings=None,
+                outlook_score=None,
+            )
+            or 5.0
+        )
 
-        # 3. Quality Score (Margin proxy)
-        margin_val = row.get("gross_margin") or 0
-        quality_score = calculate_logistic_score(margin_val, ANCHORS["margin"])
+        # 2. Momentum proxy
+        # Average of the trend percentages we have
+        trends = [row.get("twenty_day_change_percent"), row.get("fifty_day_change_percent"), row.get("two_hundred_day_change_percent")]
+        valid_trends = [v for v in trends if v is not None]
+        avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
 
-        # 4. Upside Score
-        upside_score = calculate_logistic_score(row.get("median_upside"), ANCHORS["upside"])
+        # Map avg trend to a 0.4 - 0.7 probability range
+        p_up = max(0.3, min(0.8, 0.55 + (avg_trend / 100.0)))
+        p_down = 0.2
 
-        # Compute Core Index (Doctrine Weights)
-        core_index = CORE_INDEX_WEIGHTS["size_score"] * size_score + CORE_INDEX_WEIGHTS["valuation_score"] * valuation_score + CORE_INDEX_WEIGHTS["quality_score"] * quality_score
+        # 3. Dynamic placeholders for LLM fields (Moat/Quality)
+        # We use Size and Margin as proxies to ensure scores aren't flat
+        mkt_cap = info.get("marketCap") or 0
+        margin_val = (row.get("gross_margin") or 0) / 100.0
 
-        # Combined score (Core + Satellite upside)
-        total_score = (0.8 * core_index) + (0.2 * upside_score)
+        # Moat proxy: Scale + Ecosystem
+        moat_score = 4.0
+        if mkt_cap > 1e12:
+            moat_score = 9.5  # Trillion club
+        elif mkt_cap > 500e9:
+            moat_score = 8.5  # Mega-cap
+        elif mkt_cap > 100e9:
+            moat_score = 7.0  # Large-cap
 
-        # Strategic Conviction Boost (Doctrine 7.1)
-        # Ensure the pillars of the AI cycle lead the portfolio
+        # Quality proxy: Profitability + Execution
+        quality_score = 4.5
+        if margin_val > 0.70:
+            quality_score = 9.5  # Elite (NVDA territory)
+        elif margin_val > 0.40:
+            quality_score = 8.0
+        elif margin_val > 0.25:
+            quality_score = 6.5
+
+        # 4. Assemble Evaluation input
+        eval_input = Evaluation(
+            score=(moat_score + quality_score + valuation_score + upside_score) / 4,
+            reasons=["Engine proxy"],
+            market_cap=size_score,
+            valuation=valuation_score,
+            upside=upside_score,
+            bull_probability=p_up,
+            bear_probability=p_down,
+            moat=ScoredReason(score=moat_score, reasons=["Proxy"]),
+            quality=ScoredReason(score=quality_score, reasons=["Proxy"]),
+        )
+
+        # 5. Run Evaluation Result (Calculates Strategy Indices)
+        res = evaluate_asset(eval_input, ticker=ticker)
+
+        # 6. Sizing Logic: Core Index x Confidence
+        # This makes the "High Conviction" stocks lead by far.
+        # We use Core Index because it values Moat/Quality/Size/Value.
+        base_weight = res.core_index or 1.0
+
+        # Strategic Conviction Multiplier (AI super-cycle pillars)
+        # This aligns the snapshot with Doctrine Section 7.1
+        pillar_boost = 1.0
         if ticker == "NVDA":
-            total_score *= 1.5
+            pillar_boost = 1.5
         elif ticker == "GOOGL":
-            total_score *= 1.3
+            pillar_boost = 1.3
         elif ticker in ["MSFT", "AAPL", "AVGO", "META"]:
-            total_score *= 1.15
+            pillar_boost = 1.2
 
-        scores[i] = max(total_score, 0.1)
+        scores[i] = base_weight * pillar_boost
 
     score_sum = sum(scores.values())
 
