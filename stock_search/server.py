@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
 
-from stock_search.dashboard import _load_json, get_dashboard
+from stock_search.dashboard import get_dashboard
 from stock_search.indicators import StockIndicator
 from stock_search.schemas import PortfolioPosition
 
@@ -24,10 +24,19 @@ EVAL_PATH = DATA_DIR / "eval.json"
 app = FastAPI(title="Stock Search Dashboard")
 
 
+def _load_json(path: Path) -> list | dict:
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+
+
 def _save_portfolio(portfolio_data: list[dict], path: Path = PORTFOLIO_PATH) -> None:
     """Save portfolio data to JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(portfolio_data, indent=2))
+    path.write_text(json.dumps(portfolio_data, indent=2), encoding="utf-8")
 
 
 @app.get("/")
@@ -38,7 +47,7 @@ def serve_index() -> FileResponse:
 @app.get("/api/portfolio")
 def portfolio_api() -> dict:
     """Get current portfolio with live prices and indicators."""
-    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH)
+    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
     df = df.where(pd.notna(df), None)
 
     # Get last modified time of the local data file

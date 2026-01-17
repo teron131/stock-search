@@ -8,6 +8,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.evaluation.evaluation import bucket_from_eval_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
 
@@ -42,22 +43,26 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
         return {}
 
 
-def _build_row(pos: dict, stats_cache: dict) -> dict:
+def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
+    """Dynamically determine the strategy bucket from evaluation scores."""
+    return bucket_from_eval_json(ticker, eval_data)
+
+
+def _build_row(pos: dict[str, Any], stats_cache: dict[str, Any], eval_cache: dict[str, Any]) -> dict[str, Any]:
     """Build a single dashboard row by merging cached and live data."""
     ticker = pos.get("ticker")
     if not ticker:
         return {}
 
-    # 1. Start with cached data
-    stats = stats_cache.get(ticker, {}).copy()
+    # Start with cached data; live values override.
+    stats = dict(stats_cache.get(ticker, {}))
 
-    # 2. Fetch live data
-    live_stats = _fetch_live_stats(ticker)
+    eval_data = eval_cache.get(ticker, {})
+    if not isinstance(eval_data, dict):
+        eval_data = {}
 
-    # 3. Update cache with live data (live takes precedence)
-    stats.update(live_stats)
+    stats.update(_fetch_live_stats(ticker))
 
-    # 4. Calculate Position Metrics
     qty = float(pos.get("quantity") or 0)
     delta = float(pos.get("delta") or 1.0)
     price = stats.get("current_price")
@@ -69,7 +74,9 @@ def _build_row(pos: dict, stats_cache: dict) -> dict:
         except Exception:
             notional = qty * price * delta
 
-    # 5. Construct Row
+    # Strategy label priority: explicit portfolio -> derived from eval -> cached stats
+    bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
+
     return {
         "ticker": ticker,
         "name": stats.get("name"),
@@ -90,28 +97,40 @@ def _build_row(pos: dict, stats_cache: dict) -> dict:
         "one_hundred_day_change_percent": stats.get("one_hundred_day_change_percent"),
         "two_hundred_day_change_percent": stats.get("two_hundred_day_change_percent"),
         "median_upside": stats.get("median_upside"),
-        # Bucket can come from cache (stats.json) or portfolio input
-        "bucket": stats.get("bucket") or pos.get("bucket"),
+        "bucket": bucket,
         "notional": notional,
         "weight_pct": None,  # Calculated in aggregation step
     }
 
 
-def get_dashboard(portfolio_path: str | Path = "data/portfolio.json", stats_path: str | Path = "data/stats.json") -> pd.DataFrame:
+def get_dashboard(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+) -> pd.DataFrame:
     """Return a consolidated portfolio DataFrame with live market data."""
     portfolio_data = _load_json(portfolio_path)
 
-    # Load stats cache; ensure it's a dict
+    # Load stats cache
     stats_data = _load_json(stats_path)
     if not isinstance(stats_data, dict):
         stats_data = {}
+
+    # Load eval data for strategy derivation
+    eval_data_raw = _load_json(eval_path)
+    eval_data: dict[str, Any] = {}
+    if isinstance(eval_data_raw, dict):
+        eval_data = eval_data_raw
+    elif isinstance(eval_data_raw, list):
+        # Handle list format just in case (legacy)
+        pass
 
     # Handle portfolio list vs dict wrapper
     positions = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
 
     # Parallelize fetching and row building
     with ThreadPoolExecutor() as executor:
-        rows = list(executor.map(lambda p: _build_row(p, stats_data), positions))
+        rows = list(executor.map(lambda p: _build_row(p, stats_data, eval_data), positions))
 
     # Calculate Weights
     total_notional = sum(row.get("notional", 0) for row in rows)

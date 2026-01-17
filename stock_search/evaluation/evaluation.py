@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 import math
+from typing import Any
 
 from ..indicators import StockIndicator
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
-from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation
+from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
 from ..utils import parse_ticker
 from .research import run_llm_evaluation
 from .scores import (
@@ -146,4 +147,77 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         diversifier_index=indices.get("diversifier"),
         fomo_flag=fomo_flag,
         game_tier=get_game_tier(bull_score),
+    )
+
+
+def strategy_label(
+    core: float | None,
+    satellite: float | None,
+    speculative: float | None,
+    diversifier: float | None,
+) -> str:
+    """Return the strategy label based on the highest index score."""
+    scores = {
+        "Strategic Core": core,
+        "Growth Satellites": satellite,
+        "Tactical Opportunities": speculative,
+        "Risk Mitigation": diversifier,
+    }
+
+    available = {k: v for k, v in scores.items() if v is not None}
+    if not available:
+        return "Tactical Opportunities"
+
+    return max(available.items(), key=lambda x: x[1])[0]
+
+
+def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
+    """Build an `Evaluation` model from an `eval.json` entry.
+
+    Handles minor schema drift (e.g. `market_cap_score` vs `market_cap`,
+    `bull_probability` vs `bull`).
+    """
+    if not data:
+        return None
+
+    def to_float(value: Any, default: float) -> float:
+        if value is None:
+            return default
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    bull = to_float(data.get("bull_probability", data.get("bull")), 0.5)
+    bear = to_float(data.get("bear_probability", data.get("bear")), 0.2)
+    mcap_score = to_float(data.get("market_cap_score", data.get("market_cap")), 5.0)
+
+    moat = to_float(data.get("moat"), 5.0)
+    quality = to_float(data.get("quality"), 5.0)
+
+    return Evaluation(
+        score=to_float(data.get("overall", data.get("score")), 5.0),
+        reasons=[],
+        market_cap=mcap_score,
+        valuation=to_float(data.get("valuation"), 5.0),
+        upside=to_float(data.get("upside"), 5.0),
+        bull_probability=bull,
+        bear_probability=bear,
+        moat=ScoredReason(score=moat, reasons=[]),
+        quality=ScoredReason(score=quality, reasons=[]),
+    )
+
+
+def bucket_from_eval_json(ticker: str, data: dict[str, Any]) -> str | None:
+    """Derive the dashboard strategy label from an `eval.json` entry."""
+    inputs = eval_from_json(data)
+    if inputs is None:
+        return None
+
+    result = evaluate_asset(inputs, ticker=ticker)
+    return strategy_label(
+        result.core_index,
+        result.satellite_index,
+        result.speculative_index,
+        result.diversifier_index,
     )

@@ -25,8 +25,6 @@ RSI_HISTORY_BUFFER = 10
 RSI_MAX = 100.0
 
 # Quantity generation
-QUANTITY_MIN = 5
-QUANTITY_MAX = 50
 TARGET_TOTAL_EQUITY = 1_000_000.0
 MAX_POSITION_QTY = 500
 
@@ -322,7 +320,7 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
         "valuation": round(valuation_score, 1),
         "moat": round(moat_score, 1),
         "upside": round(upside_score, 1),
-        "market_cap": round(size_score, 1) if size_score else None,
+        "market_cap_score": round(size_score, 1) if size_score else None,
         "bull_probability": round(p_up, 2),
         "bear_probability": round(p_down, 2),
         # Internal fields for allocation logic can be re-derived or passed along if needed
@@ -336,7 +334,6 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
     tickers = list(stats_map.keys())
 
     for ticker in tickers:
-        stats = stats_map[ticker]
         eval_data = eval_map[ticker]
 
         # Re-construct Evaluation object for the engine
@@ -349,7 +346,7 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
         eval_input = Evaluation(
             score=eval_data.get("overall") or 5.0,
             reasons=["Engine proxy"],
-            market_cap=eval_data.get("market_cap") or 5.0,
+            market_cap=eval_data.get("market_cap_score") or 5.0,
             valuation=eval_data.get("valuation") or 5.0,
             upside=eval_data.get("upside") or 5.0,
             bull_probability=eval_data.get("bull_probability"),
@@ -395,46 +392,47 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
     return portfolio_entries
 
 
-def get_existing_tickers() -> list[str]:
-    """Get tickers from existing portfolio if available."""
-    tickers = set()
+def _load_portfolio_tickers(path: Path) -> set[str]:
+    """Load unique tickers from a `portfolio.json` file."""
+    if not path.exists():
+        return set()
 
-    # Check data/portfolio.json
     try:
-        path = Path("data/portfolio.json")
-        if path.exists():
-            data = json.loads(path.read_text())
-            # Handle both list format and legacy dict format
-            rows = data if isinstance(data, list) else data.get("rows") or data.get("positions", [])
-            for row in rows:
-                if row.get("ticker"):
-                    tickers.add(row["ticker"])
-    except Exception as e:
-        print(f"Warning: Could not read data/portfolio.json: {e}")
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return set()
 
-    # Check ui/sample_data/portfolio.json
-    try:
-        path = Path("ui/sample_data/portfolio.json")
-        if path.exists():
-            data = json.loads(path.read_text())
-            rows = data if isinstance(data, list) else data.get("rows") or data.get("positions", [])
-            for row in rows:
-                if row.get("ticker"):
-                    tickers.add(row["ticker"])
-    except Exception as e:
-        print(f"Warning: Could not read ui/sample_data/portfolio.json: {e}")
+    if isinstance(data, list):
+        rows = data
+    elif isinstance(data, dict):
+        rows = data.get("positions") or data.get("rows") or []
+    else:
+        rows = []
 
-    return list(tickers)
+    tickers: set[str] = set()
+    for row in rows:
+        if isinstance(row, dict) and (ticker := row.get("ticker")):
+            tickers.add(str(ticker))
+
+    return tickers
 
 
-def generate_static_data(prod: bool = False):
-    """Main generation orchestration."""
+def generate_static_data(
+    *,
+    prod: bool = False,
+    include_portfolio: bool = False,
+    prod_write_portfolio: bool = False,
+):
+    """Generate sample data (and optionally refresh production caches)."""
 
-    # Merge hardcoded samples with existing portfolio tickers
-    existing_tickers = get_existing_tickers()
-    all_tickers = sorted(set(SAMPLE_TICKERS + existing_tickers))
+    # Default behavior: sample-only generation
+    portfolio_tickers: set[str] = set()
+    if include_portfolio or prod:
+        portfolio_tickers = _load_portfolio_tickers(Path("data/portfolio.json"))
 
-    print(f"Generating data for {len(all_tickers)} tickers (Sample: {len(SAMPLE_TICKERS)}, Existing: {len(existing_tickers)})...")
+    all_tickers = sorted(set(SAMPLE_TICKERS) | portfolio_tickers)
+
+    print(f"Generating data for {len(all_tickers)} tickers (Sample: {len(SAMPLE_TICKERS)}, Portfolio: {len(portfolio_tickers)})...")
 
     # 1. Fetch Stats
     stats_map = {}
@@ -481,16 +479,20 @@ def generate_static_data(prod: bool = False):
     print(f"Saved to {sample_dir}")
 
     # Conditionally save to data/ for backend use
+    # Note: portfolio.json is the server source of truth and is NOT overwritten unless requested.
     if prod:
         data_dir = Path("data")
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        write_json(data_dir / "portfolio.json", portfolio_list)
         write_json(data_dir / "stats.json", stats_map)
         write_json(data_dir / "eval.json", eval_map)
-        print(f"Saved to {data_dir}")
+
+        if prod_write_portfolio:
+            write_json(data_dir / "portfolio.json", portfolio_list)
+
+        print(f"Saved caches to {data_dir}")
     else:
-        print("Skipping save to data/ (use --prod to save there)")
+        print("Skipping save to data/ (use --prod to save caches there)")
 
     print(f"SUCCESS: Generated {len(portfolio_list)} positions.")
     print(f"Stats: {len(stats_map)} entries")
@@ -499,7 +501,26 @@ def generate_static_data(prod: bool = False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate static data for stock search.")
-    parser.add_argument("--prod", action="store_true", help="Write output to data/ directory for production use")
+    parser.add_argument(
+        "--include-portfolio",
+        action="store_true",
+        help="Include tickers from data/portfolio.json in generated sample data",
+    )
+    parser.add_argument(
+        "--prod",
+        action="store_true",
+        help="Write refreshed caches (stats/eval) to data/",
+    )
+    parser.add_argument(
+        "--prod-write-portfolio",
+        action="store_true",
+        help="Also overwrite data/portfolio.json (not recommended)",
+    )
+
     args = parser.parse_args()
 
-    generate_static_data(prod=args.prod)
+    generate_static_data(
+        prod=args.prod,
+        include_portfolio=args.include_portfolio,
+        prod_write_portfolio=args.prod_write_portfolio,
+    )

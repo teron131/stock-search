@@ -252,10 +252,16 @@ const Utils = {
     const portfolioMap = new Map((dashData.rows || []).map(r => [Utils.normalizeTicker(r.ticker), r]));
     
     let evalEntries = [];
+    const normalizeEvalEntry = (entry) => ({
+      ...entry,
+      bull: entry.bull ?? entry.bull_probability,
+      bear: entry.bear ?? entry.bear_probability,
+    });
+
     if (Array.isArray(evalData)) {
-      evalEntries = evalData;
+      evalEntries = evalData.map(normalizeEvalEntry);
     } else if (evalData && typeof evalData === 'object') {
-      evalEntries = Object.entries(evalData).map(([ticker, data]) => ({ ...data, ticker }));
+      evalEntries = Object.entries(evalData).map(([ticker, data]) => normalizeEvalEntry({ ...data, ticker }));
     }
 
     const evalMap = new Map(evalEntries.map(e => [Utils.normalizeTicker(e.ticker), e]));
@@ -290,6 +296,20 @@ const Utils = {
       });
     }
     return totalVal;
+  },
+
+  calculateRanks: (data) => {
+    // Sort descending by overall score to determine rank
+    const sortedIndices = data
+      .map((row, index) => ({ index, score: Number(row.overall) || 0 }))
+      .sort((a, b) => b.score - a.score);
+
+    // Map rank back to the original items
+    sortedIndices.forEach((item, rank) => {
+      data[item.index].rank = rank + 1;
+    });
+
+    return data;
   }
 };
 
@@ -507,10 +527,13 @@ const UI = {
     return td;
   },
 
-  buildTableRow: (row, cols, rowIndex, colorMetadata) => {
+  buildTableRow: (row, cols, rowIndex, colorMetadata, skipAnimation = false) => {
     const tr = document.createElement('tr');
-    tr.style.animationDelay = `${rowIndex * CONFIG.animationDelayMs}ms`;
-    tr.classList.add(CSS_CLASSES.animateIn);
+    
+    if (!skipAnimation) {
+      tr.style.animationDelay = `${rowIndex * CONFIG.animationDelayMs}ms`;
+      tr.classList.add(CSS_CLASSES.animateIn);
+    }
 
     cols.forEach(col => {
       tr.appendChild(UI.buildTableCell(row, col, colorMetadata));
@@ -574,9 +597,13 @@ const UI = {
     DOM.table.body.innerHTML = `<tr><td colspan="${colSpan}" style="text-align: center; color: var(--muted); height: 200px; font-family: var(--font-mono);">${STATE.currentTab === 'holdings' ? 'NO ACTIVE POSITIONS FOUND' : STATE.currentTab === 'evaluations' ? 'NO EVALUATIONS FOUND' : 'NO DATA FOUND'}</td></tr>`;
   },
 
-  renderTable: () => {
+  renderTable: (skipAnimation = false) => {
     const cols = COLS[STATE.currentTab];
     
+    // Preserve scroll position
+    const wrapper = document.querySelector('.table-wrapper');
+    const savedScroll = wrapper ? wrapper.scrollTop : 0;
+
     const sorted = UI.sortData(UI.getFilteredRows(), STATE.sortCol, STATE.sortDir);
     UI.buildTableHead(cols);
 
@@ -592,9 +619,12 @@ const UI = {
 
     const fragment = document.createDocumentFragment();
     sorted.forEach((row, i) => {
-      fragment.appendChild(UI.buildTableRow(row, cols, i, colorMetadata));
+      fragment.appendChild(UI.buildTableRow(row, cols, i, colorMetadata, skipAnimation));
     });
     DOM.table.body.appendChild(fragment);
+    
+    // Restore scroll position
+    if (wrapper) wrapper.scrollTop = savedScroll;
   },
 
   showToast: (message) => {
@@ -614,13 +644,17 @@ const UI = {
 const Data = {
   fetchPortfolioData: async (endpoints) => {
     // If endpoints has stats, we are likely in static/demo mode and need to join manually
+    // Add cache busting for live data requests
+    const cacheBuster = `?_=${new Date().getTime()}`;
+    const appendCb = (url) => url.includes('?') ? `${url}&${cacheBuster.slice(1)}` : `${url}${cacheBuster}`;
+
     const fetches = [
-      fetch(endpoints.portfolio),
-      fetch(endpoints.eval)
+      fetch(appendCb(endpoints.portfolio)),
+      fetch(appendCb(endpoints.eval))
     ];
     
     if (endpoints.stats) {
-      fetches.push(fetch(endpoints.stats));
+      fetches.push(fetch(appendCb(endpoints.stats)));
     }
 
     const responses = await Promise.all(fetches);
@@ -688,11 +722,26 @@ const Data = {
     }
   },
 
-  setLoading: (isLoading) => {
+  setLoading: (isLoading, isBackground = false) => {
     STATE.isLoading = isLoading;
-    DOM.refreshBtn.style.opacity = isLoading ? '0.5' : '1';
+    
+    if (DOM.refreshBtn) {
+      DOM.refreshBtn.style.opacity = isLoading ? '0.5' : '1';
+      DOM.refreshBtn.disabled = isLoading;
+    }
+
+    if (DOM.quickAdd.ticker) DOM.quickAdd.ticker.disabled = isLoading;
+    if (DOM.quickAdd.qty) DOM.quickAdd.qty.disabled = isLoading;
+    const submitBtn = DOM.quickAdd.form.querySelector('button');
+    if (submitBtn) submitBtn.disabled = isLoading;
+
     if (DOM.loadingOverlay) {
-      DOM.loadingOverlay.style.display = isLoading ? 'flex' : 'none';
+      // Only show overlay if not a background update
+      if (isLoading && !isBackground) {
+        DOM.loadingOverlay.style.display = 'flex';
+      } else {
+        DOM.loadingOverlay.style.display = 'none';
+      }
     }
   },
 
@@ -719,37 +768,54 @@ const Data = {
     return Data.fetchPortfolioData(CONFIG.endpoints);
   },
 
-  load: async () => {
+  load: async (options = {}) => {
     if (STATE.isLoading) return;
-    Data.setLoading(true);
+    
+    // Auto-detect background mode if we already have data
+    const hasData = STATE.data && STATE.data.length > 0;
+    const { isBackground = hasData } = options;
+
+    Data.setLoading(true, isBackground);
 
     try {
-      // Small artificial delay for "Sync" feel
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Small artificial delay for "Sync" feel, only in demo mode
+      if (CONFIG.isDemoMode) {
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
 
       const { dashData, evalData } = CONFIG.isDemoMode
         ? await Data.fetchDemoData()
         : await Data.fetchLiveData();
 
-      STATE.data = Utils.mergeData(dashData, evalData);
-      Data.refreshUI(dashData.generated_at);
-      UI.showToast('TERMINAL SYNCHRONIZED');
+      let mergedData = Utils.mergeData(dashData, evalData);
+      // Calculate ranks based on scores dynamically
+      mergedData = Utils.calculateRanks(mergedData);
+      
+      STATE.data = mergedData;
+      Data.refreshUI(dashData.generated_at, isBackground);
+      
+      if (!isBackground) {
+        UI.showToast('TERMINAL SYNCHRONIZED');
+      }
 
     } catch (err) {
       console.warn("API Failure or No Data:", err);
-      STATE.data = [];
-      Data.refreshUI();
-      UI.showToast('SYNCHRONIZATION FAILED');
+      // Don't wipe data on error if background update
+      if (!isBackground) {
+        STATE.data = [];
+        Data.refreshUI();
+        UI.showToast('SYNCHRONIZATION FAILED');
+      }
     } finally {
-      Data.setLoading(false);
+      Data.setLoading(false, isBackground);
     }
   },
 
-  refreshUI: (customTime) => {
+  refreshUI: (customTime, skipAnimation = false) => {
     const totalVal = Utils.calculateAndAssignWeights(STATE.data);
     UI.updateStats(totalVal);
     UI.updateTickerTape();
-    UI.renderTable();
+    UI.renderTable(skipAnimation);
     UI.updateTimestamp(customTime);
   },
 
@@ -764,7 +830,8 @@ const Data = {
     try {
       const res = await fetch(`${CONFIG.endpoints.position}/${ticker}`, { method: 'DELETE' });
       if (res.ok) {
-        Data.load();
+        // Background load to avoid overlay
+        await Data.load({ isBackground: true });
       }
     } catch (err) {
       console.warn('Remove position failed:', err);
@@ -785,6 +852,18 @@ const Data = {
     const quantity = parseFloat(DOM.quickAdd.qty.value);
     const existing = STATE.data.find(d => d.ticker.toUpperCase() === ticker);
     
+    if (existing) {
+      if (!confirm(`Ticker ${ticker} already exists with ${existing.quantity}. Update to ${quantity}?`)) {
+        return;
+      }
+    }
+    
+    // Show spinner immediately on button
+    const btn = DOM.quickAdd.form.querySelector('button');
+    const originalText = btn.innerHTML;
+    btn.textContent = '…';
+    btn.disabled = true;
+
     try {
       const res = await fetch(CONFIG.endpoints.position, {
         method: 'POST',
@@ -801,11 +880,15 @@ const Data = {
       
       if (res.ok) {
         DOM.quickAdd.form.reset();
-        Data.load();
+        // Load in background mode to avoid full overlay
+        await Data.load({ isBackground: true }); 
       }
     } catch (err) {
       console.warn('Add position failed:', err);
       UI.showToast('Failed to add asset.');
+    } finally {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
     }
   }
 };
