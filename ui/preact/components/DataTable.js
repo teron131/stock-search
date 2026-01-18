@@ -102,7 +102,7 @@ function renderCell({ row, col, colorMeta, onRemove }) {
   return content;
 }
 
-export function DataTable({ tab, rows, sortCol, sortDir, onSort, onRemove }) {
+export function DataTable({ tab, rows, sortCol, sortDir, onSort, onRemove, animateRows = true }) {
   const cols = COLS[tab];
 
   const filtered = rows.filter((r) => {
@@ -129,10 +129,12 @@ export function DataTable({ tab, rows, sortCol, sortDir, onSort, onRemove }) {
           <tbody>
             ${sorted.length
               ? sorted.map(
-                  (row, i) => html`<tr class=${"animate-in"} style=${{ animationDelay: `${i * CONFIG.animationDelayMs}ms` }}>
-                    ${cols.map(
-                      (col) => html`<td>${renderCell({ row, col, colorMeta, onRemove })}</td>`,
-                    )}
+                  (row, i) => html`<tr
+                    key=${normalizeTicker(row.ticker)}
+                    class=${animateRows ? "animate-in" : ""}
+                    style=${animateRows ? { animationDelay: `${i * CONFIG.animationDelayMs}ms` } : null}
+                  >
+                    ${cols.map((col) => html`<td>${renderCell({ row, col, colorMeta, onRemove })}</td>`)}
                   </tr>`,
                 )
               : html`<tr>

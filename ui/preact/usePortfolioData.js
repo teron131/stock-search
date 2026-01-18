@@ -164,7 +164,7 @@ async function fetchPortfolioData(endpoints) {
 export function usePortfolioData() {
   const [rows, setRows] = useState([]);
   const [generatedAt, setGeneratedAt] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMode, setLoadingMode] = useState("idle");
   const [isUsingDemoData, setIsUsingDemoData] = useState(false);
   const [lastError, setLastError] = useState(null);
 
@@ -182,10 +182,10 @@ export function usePortfolioData() {
   }, [rows]);
 
   const load = useCallback(async ({ background = false } = {}) => {
-    if (isLoading) return;
+    if (loadingMode !== "idle") return;
 
     lastLoadWasBackground.current = background;
-    setIsLoading(true);
+    setLoadingMode(background ? "background" : "foreground");
     setLastError(null);
 
     try {
@@ -217,9 +217,9 @@ export function usePortfolioData() {
         setRows([]);
       }
     } finally {
-      setIsLoading(false);
+      setLoadingMode("idle");
     }
-  }, [isLoading]);
+  }, [loadingMode]);
 
   const addOrUpdate = useCallback(
     async ({ ticker, quantity, existingQuantity }) => {
@@ -284,7 +284,8 @@ export function usePortfolioData() {
   return {
     rows,
     generatedAt,
-    isLoading,
+    isLoading: loadingMode !== "idle",
+    isBackgroundLoading: loadingMode === "background",
     isUsingDemoData,
     lastError,
     stats,

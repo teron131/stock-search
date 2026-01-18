@@ -110,8 +110,17 @@ export function App() {
   const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.holdings);
   const [sortDir, setSortDir] = useState("desc");
 
-  const { rows, generatedAt, isLoading, isUsingDemoData, lastError, stats, topTickers, actions } =
-    usePortfolioData();
+  const {
+    rows,
+    generatedAt,
+    isLoading,
+    isBackgroundLoading,
+    isUsingDemoData,
+    lastError,
+    stats,
+    topTickers,
+    actions,
+  } = usePortfolioData();
 
   // Initial boot
   useEffect(() => {
@@ -189,8 +198,9 @@ export function App() {
 
     // In this first cut, we only show overlay for explicit sync button usage.
     // The hook still performs background refresh after add/remove.
-    overlay.style.display = isLoading ? "flex" : "none";
-  }, [isLoading]);
+    // Only show overlay for foreground sync
+    overlay.style.display = isLoading && !isBackgroundLoading ? "flex" : "none";
+  }, [isLoading, isBackgroundLoading]);
 
   useEffect(() => {
     if (lastError && !isLoading) {
@@ -244,6 +254,7 @@ export function App() {
         sortDir=${sortDir}
         onSort=${onSort}
         onRemove=${onRemove}
+        animateRows=${!isBackgroundLoading}
       />
     </div>
   `;
