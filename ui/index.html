@@ -114,34 +114,8 @@
             </tv-ticker-tape>
           </div>
 
-          <!-- Main Dashboard Section -->
-          <div class="tabs-container" id="dashboard-tables">
-            <div class="tabs-header">
-              <div class="tab-group">
-                <button class="tab-btn active" data-tab="holdings">PORTFOLIO</button>
-                <button class="tab-btn" data-tab="evaluations">EVALUATION</button>
-              </div>
-              
-              <!-- Quick Add Input -->
-              <form id="quick-add-form" class="quick-add-compact">
-                <input type="text" id="input-ticker" placeholder="TICKER" required autocomplete="off" />
-                <input type="number" id="input-qty" placeholder="QTY" step="any" required />
-                <button type="submit" class="btn-add-mini" title="Update or Add Position">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </button>
-              </form>
-            </div>
-            
-            <div class="table-wrapper">
-              <table id="main-table">
-                <thead></thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
+          <!-- Main Dashboard Section (Preact Mount) -->
+          <div id="preact-root"></div>
 
           <!-- Heatmap Section -->
           <div id="heatmap-section" class="heatmap-container" style="display: none;">
@@ -201,6 +175,6 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js"></script>
+    <script type="module" src="main.js"></script>
   </body>
 </html>

@@ -139,7 +139,7 @@ class PortfolioPosition(BaseModel):
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
     delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
     current_price: float | None = Field(default=None, description="Current market price")
-    bucket: Literal["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"] = Field(description="Strategy bucket")
+    bucket: Literal["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"] | None = Field(default=None, description="Strategy bucket")
 
 
 class Portfolio(BaseModel):
