@@ -173,6 +173,13 @@ export function App() {
       setText("portfolio-change", "--");
     }
 
+    const modeText = isUsingDemoData ? " [DEMO]" : "";
+
+    if (isBackgroundLoading) {
+      setText("last-update", `UPDATING...${modeText}`);
+      return;
+    }
+
     // last updated
     const time = generatedAt ? new Date(generatedAt) : new Date();
     const dateStr = time.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
@@ -182,9 +189,9 @@ export function App() {
       minute: "2-digit",
       second: "2-digit",
     });
-    const modeText = isUsingDemoData ? " [DEMO]" : "";
+
     setText("last-update", `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`);
-  }, [generatedAt, isUsingDemoData, stats]);
+  }, [generatedAt, isUsingDemoData, isBackgroundLoading, stats]);
 
   // Update ticker tape
   useEffect(() => {
@@ -202,6 +209,7 @@ export function App() {
     overlay.style.display = isLoading && !isBackgroundLoading ? "flex" : "none";
   }, [isLoading, isBackgroundLoading]);
 
+
   useEffect(() => {
     if (lastError && !isLoading) {
       showToast("SYNCHRONIZATION FAILED");
@@ -218,6 +226,23 @@ export function App() {
     const res = await actions.remove({ ticker });
     if (res.ok) showToast("UPDATED");
     if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
+  };
+
+  const onSetQuantity = async ({ ticker, quantity, delta, bucket, silent = false }) => {
+    const res = await actions.setQuantity({ ticker, quantity, delta, bucket });
+
+    if (!res.ok) {
+      if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
+      if (res.reason === "invalid") showToast("INVALID_QTY");
+      if (res.reason === "server") showToast("UPDATE FAILED");
+      return res;
+    }
+
+    if (!silent) {
+      showToast("UPDATED");
+    }
+
+    return res;
   };
 
   const onSubmit = async ({ ticker, quantity, existingQuantity }) => {
@@ -254,6 +279,8 @@ export function App() {
         sortDir=${sortDir}
         onSort=${onSort}
         onRemove=${onRemove}
+        onSetQuantity=${onSetQuantity}
+        isUsingDemoData=${isUsingDemoData}
         animateRows=${!isBackgroundLoading}
       />
     </div>

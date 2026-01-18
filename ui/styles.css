@@ -687,10 +687,13 @@ thead {
   background-color: var(--bg-surface-high);
 }
 
-/* Fix for widget alignment */
+/* Fix for widget alignment + font consistency */
 tv-ticker-tag {
   vertical-align: middle;
   margin-left: -4px;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
 }
 
 th {
@@ -701,9 +704,9 @@ th {
   height: 48px;
   padding: 0 var(--space-lg);
   text-align: left;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -748,6 +751,7 @@ td {
   vertical-align: middle;
   white-space: nowrap;
   background: var(--bg-surface);
+  font-variant-numeric: tabular-nums;
 }
 
 tbody tr {
@@ -775,8 +779,6 @@ tbody tr:hover td:first-child {
 }
 
 td:first-child {
-  font-family: var(--font-mono);
-  font-weight: 700;
   color: var(--ink);
 }
 
@@ -785,17 +787,16 @@ td:first-child {
 
 /* Custom renderers */
 .cell-weight {
-  font-weight: 700;
-  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-sans);
-  font-size: var(--text-base);
-  font-weight: 700;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
   border: none;
   background: transparent;
 }
@@ -811,7 +812,7 @@ td:first-child {
 .score-high,
 .score-low,
 .score-mid { 
-  font-weight: 800;
+  font-weight: inherit;
   /* Color will be dynamically set via JS */
 }
 
@@ -834,6 +835,85 @@ td:first-child {
   border-color: var(--negative);
 }
 
+/* Inline quantity control (holdings table) */
+.qty-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.qty-input {
+  width: 84px;
+  height: 34px;
+  padding: 0 30px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: inherit;
+  font-size: var(--text-base);
+  outline: none;
+}
+
+.qty-input:focus {
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+
+.qty-input:disabled {
+  opacity: 0.45;
+}
+
+/* hide native spinners */
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qty-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.qty-spin {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qty-spin-btn {
+  width: 18px;
+  height: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 9px;
+  font-family: inherit;
+  user-select: none;
+  touch-action: none;
+}
+
+.qty-spin-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-bright);
+}
+
+.qty-spin-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* Quick Add Inline */
 .quick-add-compact {
   display: flex;
@@ -851,7 +931,7 @@ td:first-child {
   border: none;
   color: var(--ink);
   padding: 0 var(--space-md);
-  font-family: var(--font-mono);
+  font-family: inherit;
   font-size: var(--text-sm);
   height: 100%;
   width: 120px;

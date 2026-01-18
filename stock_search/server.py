@@ -118,17 +118,20 @@ def evaluate_ticker_api(ticker: str) -> dict:
 
 @app.post("/api/portfolio/position")
 def add_position(position: PortfolioPosition):
-    # Validate ticker exists (optional, keeping original logic)
-    indicator = StockIndicator(position.ticker)
-    if indicator.price is None:
-        raise HTTPException(status_code=400, detail=f"Invalid ticker: {position.ticker}")
-
     portfolio_data = _load_json(PORTFOLIO_PATH)
     # Handle if it loads as dict (legacy) vs list (new)
     if isinstance(portfolio_data, dict):
         portfolio_data = portfolio_data.get("positions", [])
 
     ticker_upper = position.ticker.upper()
+    is_existing = any(p.get("ticker", "").upper() == ticker_upper for p in portfolio_data)
+
+    # Validate only when introducing a new ticker.
+    # Edits to existing positions should not fail due to transient yfinance issues.
+    if not is_existing:
+        indicator = StockIndicator(position.ticker)
+        if indicator.price is None:
+            raise HTTPException(status_code=400, detail=f"Invalid ticker: {position.ticker}")
 
     # Create the entry to save (minimal fields)
     new_entry = {"ticker": ticker_upper, "quantity": position.quantity or 0, "delta": position.delta or 1.0}

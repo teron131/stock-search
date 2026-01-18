@@ -254,6 +254,32 @@ export function usePortfolioData() {
     [isUsingDemoData, load],
   );
 
+  const setQuantity = useCallback(
+    async ({ ticker, quantity, delta = 1.0, bucket = CONFIG.defaultBucket }) => {
+      if (isUsingDemoData) return { ok: false, reason: "demo" };
+
+      const t = normalizeTicker(ticker);
+      const q = Number(quantity);
+      if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
+
+      const res = await fetch(CONFIG.endpoints.position, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: t,
+          quantity: q,
+          delta: Number(delta) || 1.0,
+          bucket,
+        }),
+      });
+
+      if (!res.ok) return { ok: false, reason: "server" };
+      await load({ background: true });
+      return { ok: true };
+    },
+    [isUsingDemoData, load],
+  );
+
   const remove = useCallback(
     async ({ ticker }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
@@ -293,6 +319,7 @@ export function usePortfolioData() {
     actions: {
       sync: load,
       addOrUpdate,
+      setQuantity,
       remove,
     },
   };
