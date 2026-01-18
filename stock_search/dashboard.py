@@ -8,7 +8,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from stock_search.evaluation.evaluation import bucket_from_eval_json
+from stock_search.evaluation.evaluation import bucket_from_eval_json, normalize_eval_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
 
@@ -74,10 +74,21 @@ def _build_row(pos: dict[str, Any], stats_cache: dict[str, Any], eval_cache: dic
         except Exception:
             notional = qty * price * delta
 
+    normalized_eval = normalize_eval_json(eval_data)
+
     # Strategy label priority: explicit portfolio -> derived from eval -> cached stats
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
 
     return {
+        "overall": normalized_eval.get("overall") if normalized_eval else None,
+        "quality": normalized_eval.get("quality") if normalized_eval else None,
+        "valuation": normalized_eval.get("valuation") if normalized_eval else None,
+        "moat": normalized_eval.get("moat") if normalized_eval else None,
+        "upside": normalized_eval.get("upside") if normalized_eval else None,
+        "market_cap_score": normalized_eval.get("market_cap_score") if normalized_eval else None,
+        "bull": normalized_eval.get("bull") if normalized_eval else None,
+        "bear": normalized_eval.get("bear") if normalized_eval else None,
+        "rank": None,
         "ticker": ticker,
         "name": stats.get("name"),
         "quantity": qty,
@@ -122,8 +133,10 @@ def get_dashboard(
     if isinstance(eval_data_raw, dict):
         eval_data = eval_data_raw
     elif isinstance(eval_data_raw, list):
-        # Handle list format just in case (legacy)
-        pass
+        # Legacy: list of dicts with embedded ticker
+        for item in eval_data_raw:
+            if isinstance(item, dict) and (t := item.get("ticker")):
+                eval_data[str(t)] = item
 
     # Handle portfolio list vs dict wrapper
     positions = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
@@ -137,6 +150,20 @@ def get_dashboard(
     for row in rows:
         notional = row.get("notional", 0)
         row["weight_pct"] = (notional / total_notional * 100) if total_notional > 0 else 0.0
+
+    # Calculate Rank from backend scores when available
+    scored_rows: list[tuple[int, float]] = []
+    for idx, row in enumerate(rows):
+        overall = row.get("overall")
+        if overall is None:
+            continue
+        try:
+            scored_rows.append((idx, float(overall)))
+        except (TypeError, ValueError):
+            continue
+    scored_rows.sort(key=lambda x: x[1], reverse=True)
+    for rank, (idx, _) in enumerate(scored_rows, start=1):
+        rows[idx]["rank"] = rank
 
     df = pd.DataFrame(rows)
     if not df.empty:

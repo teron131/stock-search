@@ -171,40 +171,51 @@ def strategy_label(
     return max(available.items(), key=lambda x: x[1])[0]
 
 
-def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
-    """Build an `Evaluation` model from an `eval.json` entry.
+def _to_float(value: Any, default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
-    Handles minor schema drift (e.g. `market_cap_score` vs `market_cap`,
-    `bull_probability` vs `bull`).
+
+def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize an eval.json entry to canonical keys used by the app.
+
+    This is the single place where we handle schema drift between generations.
     """
     if not data:
+        return {}
+
+    return {
+        "overall": _to_float(data.get("overall", data.get("score")), 5.0),
+        "quality": _to_float(data.get("quality"), 5.0),
+        "moat": _to_float(data.get("moat"), 5.0),
+        "valuation": _to_float(data.get("valuation"), 5.0),
+        "upside": _to_float(data.get("upside"), 5.0),
+        "market_cap_score": _to_float(data.get("market_cap_score", data.get("market_cap")), 5.0),
+        "bull": _to_float(data.get("bull", data.get("bull_probability")), 0.5),
+        "bear": _to_float(data.get("bear", data.get("bear_probability")), 0.2),
+    }
+
+
+def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
+    """Build an `Evaluation` model from an `eval.json` entry."""
+    normalized = normalize_eval_json(data)
+    if not normalized:
         return None
 
-    def to_float(value: Any, default: float) -> float:
-        if value is None:
-            return default
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default
-
-    bull = to_float(data.get("bull_probability", data.get("bull")), 0.5)
-    bear = to_float(data.get("bear_probability", data.get("bear")), 0.2)
-    mcap_score = to_float(data.get("market_cap_score", data.get("market_cap")), 5.0)
-
-    moat = to_float(data.get("moat"), 5.0)
-    quality = to_float(data.get("quality"), 5.0)
-
     return Evaluation(
-        score=to_float(data.get("overall", data.get("score")), 5.0),
+        score=normalized["overall"],
         reasons=[],
-        market_cap=mcap_score,
-        valuation=to_float(data.get("valuation"), 5.0),
-        upside=to_float(data.get("upside"), 5.0),
-        bull_probability=bull,
-        bear_probability=bear,
-        moat=ScoredReason(score=moat, reasons=[]),
-        quality=ScoredReason(score=quality, reasons=[]),
+        market_cap=normalized["market_cap_score"],
+        valuation=normalized["valuation"],
+        upside=normalized["upside"],
+        bull_probability=normalized["bull"],
+        bear_probability=normalized["bear"],
+        moat=ScoredReason(score=normalized["moat"], reasons=[]),
+        quality=ScoredReason(score=normalized["quality"], reasons=[]),
     )
 
 

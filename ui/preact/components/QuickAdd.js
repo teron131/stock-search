@@ -11,7 +11,9 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
   const existingQty = useMemo(() => {
     const t = normalizeTicker(ticker);
     const existing = rows.find((r) => normalizeTicker(r.ticker) === t);
-    return existing ? existing.quantity : null;
+    const qty = existing ? Number(existing.quantity) : null;
+    // Treat 0/NaN as "not present" (acts like add-new)
+    return qty && !Number.isNaN(qty) ? qty : null;
   }, [rows, ticker]);
 
   const submit = async (e) => {

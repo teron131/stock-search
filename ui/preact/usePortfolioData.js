@@ -229,7 +229,7 @@ export function usePortfolioData() {
       const q = Number(quantity);
       if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
 
-      if (existingQuantity != null) {
+      if (existingQuantity != null && existingQuantity !== 0) {
         const confirmed = window.confirm(
           `Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`,
         );
