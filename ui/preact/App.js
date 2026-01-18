@@ -126,11 +126,11 @@ export function App() {
   useEffect(() => {
     initSidebarAndNav({ onViewChange: setView });
     initHeatmapTabs();
-    actions.load({ background: false });
+    actions.sync({ background: false });
 
     const refreshBtn = document.getElementById("refresh-btn");
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => actions.load({ background: false }));
+      refreshBtn.addEventListener("click", () => actions.sync({ background: false }));
     }
   }, []);
 

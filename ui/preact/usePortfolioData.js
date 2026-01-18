@@ -291,7 +291,7 @@ export function usePortfolioData() {
     stats,
     topTickers,
     actions: {
-      load,
+      sync: load,
       addOrUpdate,
       remove,
     },
