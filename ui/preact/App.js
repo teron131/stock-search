@@ -7,6 +7,12 @@ import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
 import { fmt } from "./format.js";
 import { usePortfolioData } from "./usePortfolioData.js";
 
+const VIEW_TITLES = {
+  dashboard: "DASHBOARD",
+  heatmap: "MARKET MAP",
+  calendar: "ECONOMIC CALENDAR",
+};
+
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value;
@@ -136,7 +142,7 @@ export function App() {
 
   // View toggles (keep TradingView embeds mounted)
   useEffect(() => {
-    setText("view-title", view === "dashboard" ? "DASHBOARD" : view === "heatmap" ? "MARKET MAP" : "ECONOMIC CALENDAR");
+    setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES.calendar);
 
     const isDashboard = view === "dashboard";
     const overview = document.querySelector(".overview-panel");

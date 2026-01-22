@@ -6,29 +6,25 @@ import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
 import { COLS, CONFIG } from "../config.js";
 import { fmt, normalizeTicker, parseMarketCap } from "../format.js";
 
+function compareNullable(a, b, dir) {
+  if (a == null) return 1;
+  if (b == null) return -1;
+
+  const na = typeof a === "string" ? a.toLowerCase() : a;
+  const nb = typeof b === "string" ? b.toLowerCase() : b;
+
+  if (na === nb) return 0;
+  return dir === "asc" ? (na < nb ? -1 : 1) : na < nb ? 1 : -1;
+}
+
 function sortRows(rows, col, dir) {
   const sorted = [...rows];
   sorted.sort((a, b) => {
-    const valA = a[col];
-    const valB = b[col];
-
     if (col === "market_cap") {
-      const capA = parseMarketCap(a.market_cap);
-      const capB = parseMarketCap(b.market_cap);
-      if (capA == null) return 1;
-      if (capB == null) return -1;
-      if (capA === capB) return 0;
-      return dir === "asc" ? (capA < capB ? -1 : 1) : capA < capB ? 1 : -1;
+      return compareNullable(parseMarketCap(a.market_cap), parseMarketCap(b.market_cap), dir);
     }
 
-    if (valA == null) return 1;
-    if (valB == null) return -1;
-
-    const na = typeof valA === "string" ? valA.toLowerCase() : valA;
-    const nb = typeof valB === "string" ? valB.toLowerCase() : valB;
-
-    if (na === nb) return 0;
-    return dir === "asc" ? (na < nb ? -1 : 1) : na < nb ? 1 : -1;
+    return compareNullable(a[col], b[col], dir);
   });
   return sorted;
 }
@@ -52,6 +48,13 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
     captureTarget: null,
     pointerId: null,
   });
+
+  function clearDebounce() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+  }
 
   // When backend updates quantity (after refresh), sync draft unless user is mid-edit.
   useEffect(() => {
@@ -94,9 +97,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 
     markHeaderUpdating();
 
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    clearDebounce();
 
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
@@ -192,8 +193,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
       e.preventDefault();
       const parsed = Number(draftQty);
       if (Number.isNaN(parsed)) return;
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = null;
+      clearDebounce();
       commit(parsed);
       e.target.blur();
     }
@@ -204,15 +204,14 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 
     const parsed = Number(draftQty);
     if (Number.isNaN(parsed)) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = null;
+    clearDebounce();
     commit(parsed);
   };
 
   useEffect(() => {
     return () => {
       stopHold();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      clearDebounce();
     };
   }, []);
 
@@ -333,11 +332,6 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
     const rawValue = colorKey === "market_cap" ? parseMarketCap(row.market_cap) : row[colorKey];
     const textColor = getScoreColor(rawValue, colorMeta[colorKey]);
 
-    if (textColor && typeof content === "string") {
-      return html`<span style=${{ color: textColor }}>${content}</span>`;
-    }
-
-    // If content is a VNode with span, apply style at a wrapper
     if (textColor) {
       return html`<span style=${{ color: textColor }}>${content}</span>`;
     }

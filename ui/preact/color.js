@@ -1,5 +1,10 @@
 import { parseMarketCap } from "./format.js";
 
+const BACKEND_MEDIAN_SCORE = 5.0;
+const TARGET_FORMATS = new Set(["score", "prob", "percent_neutral", "number", "market_cap"]);
+const TARGET_KEYS = new Set(["rank", "rsi", "market_cap"]);
+const INVERT_KEYS = new Set(["rank", "bear", "pe", "pe_forward", "peg"]);
+
 export function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -22,14 +27,10 @@ export function getScoreColor(value, meta) {
 }
 
 export function calculateScoreColorMetadata(rows, cols, { colorBandFraction = 0.5 } = {}) {
-  const BACKEND_MEDIAN_SCORE = 5.0;
-  const targetFormats = ["score", "prob", "percent_neutral", "number", "market_cap"];
-  const targetKeys = ["rank", "rsi", "market_cap"];
-
   const metadata = {};
 
   cols.forEach((col) => {
-    if (!targetFormats.includes(col.format) && !targetKeys.includes(col.key)) {
+    if (!TARGET_FORMATS.has(col.format) && !TARGET_KEYS.has(col.key)) {
       return;
     }
 
@@ -40,8 +41,12 @@ export function calculateScoreColorMetadata(rows, cols, { colorBandFraction = 0.
         }
         return row[col.key];
       })
-      .filter((v) => v != null && !Number.isNaN(Number(v)))
-      .map((v) => Number(v));
+      .map((v) => {
+        if (v == null) return null;
+        const numeric = Number(v);
+        return Number.isNaN(numeric) ? null : numeric;
+      })
+      .filter((v) => v != null);
 
     if (!values.length) return;
 
@@ -49,7 +54,7 @@ export function calculateScoreColorMetadata(rows, cols, { colorBandFraction = 0.
     const max = Math.max(...values);
 
     const med = col.format === "score" ? BACKEND_MEDIAN_SCORE : median(values);
-    const invert = ["rank", "bear", "pe", "pe_forward", "peg"].includes(col.key);
+    const invert = INVERT_KEYS.has(col.key);
 
     metadata[col.key] = {
       median: med,

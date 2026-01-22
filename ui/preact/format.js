@@ -8,6 +8,24 @@ const FORMATTERS = {
   }),
 };
 
+const MARKET_CAP_MULTIPLIERS = {
+  T: 1e12,
+  B: 1e9,
+  M: 1e6,
+  K: 1e3,
+};
+
+function toNumberOrNull(value) {
+  if (value == null) return null;
+  const numeric = Number(value);
+  return Number.isNaN(numeric) ? null : numeric;
+}
+
+function toSig4(value) {
+  const numeric = toNumberOrNull(value);
+  return numeric == null ? null : FORMATTERS.sig4.format(numeric);
+}
+
 export function normalizeTicker(ticker) {
   return String(ticker || "").replace("-", ".").toUpperCase();
 }
@@ -28,84 +46,62 @@ export function parseMarketCap(value) {
   if (Number.isNaN(numeric)) return null;
 
   const suffix = match[2];
-  const multiplier =
-    suffix === "T"
-      ? 1e12
-      : suffix === "B"
-        ? 1e9
-        : suffix === "M"
-          ? 1e6
-          : suffix === "K"
-            ? 1e3
-            : 1;
+  const multiplier = (suffix && MARKET_CAP_MULTIPLIERS[suffix]) || 1;
   return numeric * multiplier;
 }
 
 export const fmt = {
   currency: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     return FORMATTERS.currency.format(numeric);
   },
 
   percent: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     const sign = numeric > 0 ? "+" : "";
     return `${sign}${numeric.toFixed(2)}%`;
   },
 
   percent_neutral: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     return `${numeric.toFixed(2)}%`;
   },
 
   number: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     return FORMATTERS.number.format(numeric);
   },
 
   score: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     return numeric.toFixed(1);
   },
 
   prob: (value) => {
-    if (value == null) return "--";
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(value);
+    if (numeric == null) return "--";
     return `${(numeric * 100).toFixed(0)}%`;
   },
 
   market_cap: (value) => {
     if (value == null || value === "") return "--";
 
-    const toSig4 = (n) => {
-      const num = Number(n);
-      if (Number.isNaN(num)) return null;
-      return FORMATTERS.sig4.format(num);
-    };
-
     // Already formatted like 4.534T (or $4.534T)
     const cleaned = cleanNumericString(value);
     const match = cleaned.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
     if (match?.[2]) {
       const rounded = toSig4(match[1]);
-      if (!rounded) return "--";
-      return `$${rounded}${match[2]}`;
+      return rounded ? `$${rounded}${match[2]}` : "--";
     }
 
     // Raw dollars
-    const numeric = Number(cleaned);
-    if (Number.isNaN(numeric)) return "--";
+    const numeric = toNumberOrNull(cleaned);
+    if (numeric == null) return "--";
 
     const abs = Math.abs(numeric);
     const units = [
@@ -121,8 +117,7 @@ export const fmt = {
       return rounded ? `$${rounded}` : "--";
     }
 
-    const scaled = numeric / unit.div;
-    const rounded = toSig4(scaled);
+    const rounded = toSig4(numeric / unit.div);
     return rounded ? `$${rounded}${unit.suf}` : "--";
   },
 

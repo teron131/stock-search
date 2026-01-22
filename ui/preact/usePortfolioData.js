@@ -87,7 +87,7 @@ function calculateWeightedChange(rows, totalVal) {
   const absolute = rows.reduce((acc, r) => {
     const cp = Number(r.change_percent) || 0;
     const notional = Number(r.notional) || 0;
-    return acc + (cp / 100) * notional / (1 + cp / 100);
+    return acc + ((cp / 100) * notional) / (1 + cp / 100);
   }, 0);
 
   const percent = (absolute / (totalVal - absolute)) * 100;
@@ -108,10 +108,7 @@ async function determineDemoPath() {
 }
 
 async function fetchPortfolioData(endpoints) {
-  const fetches = [
-    fetch(withCacheBuster(endpoints.portfolio)),
-    fetch(withCacheBuster(endpoints.eval)),
-  ];
+  const fetches = [fetch(withCacheBuster(endpoints.portfolio)), fetch(withCacheBuster(endpoints.eval))];
 
   if (endpoints.stats) {
     fetches.push(fetch(withCacheBuster(endpoints.stats)));
@@ -181,45 +178,57 @@ export function usePortfolioData() {
     };
   }, [rows]);
 
-  const load = useCallback(async ({ background = false } = {}) => {
-    if (loadingMode !== "idle") return;
+  const load = useCallback(
+    async ({ background = false } = {}) => {
+      if (loadingMode !== "idle") return;
 
-    lastLoadWasBackground.current = background;
-    setLoadingMode(background ? "background" : "foreground");
-    setLastError(null);
+      lastLoadWasBackground.current = background;
+      setLoadingMode(background ? "background" : "foreground");
+      setLastError(null);
 
-    try {
-      // Demo mode can optionally slow-load for effect, but keep it simple here.
-      if (CONFIG.isDemoMode) {
-        setIsUsingDemoData(true);
-        const basePath = await determineDemoPath();
+      try {
+        // Demo mode: prefer live API if it's available, fall back to static JSON.
+        if (CONFIG.isDemoMode) {
+          try {
+            const { dashData, evalData } = await fetchPortfolioData(CONFIG.endpoints);
+            setIsUsingDemoData(false);
+            const merged = calculateRanks(mergeRows(dashData, evalData));
+            setRows(merged);
+            setGeneratedAt(dashData.generated_at || new Date().toISOString());
+            return;
+          } catch {
+            setIsUsingDemoData(true);
+            const basePath = await determineDemoPath();
 
-        const { dashData, evalData } = await fetchPortfolioData({
-          portfolio: `${basePath}/portfolio.json`,
-          eval: `${basePath}/eval.json`,
-          stats: `${basePath}/stats.json`,
-        });
+            const { dashData, evalData } = await fetchPortfolioData({
+              portfolio: `${basePath}/portfolio.json`,
+              eval: `${basePath}/eval.json`,
+              stats: `${basePath}/stats.json`,
+            });
 
+            const merged = calculateRanks(mergeRows(dashData, evalData));
+            setRows(merged);
+            setGeneratedAt(dashData.generated_at || new Date().toISOString());
+            return;
+          }
+        }
+
+        setIsUsingDemoData(false);
+        const { dashData, evalData } = await fetchPortfolioData(CONFIG.endpoints);
         const merged = calculateRanks(mergeRows(dashData, evalData));
         setRows(merged);
         setGeneratedAt(dashData.generated_at || new Date().toISOString());
-        return;
+      } catch (e) {
+        setLastError(e);
+        if (!background) {
+          setRows([]);
+        }
+      } finally {
+        setLoadingMode("idle");
       }
-
-      setIsUsingDemoData(false);
-      const { dashData, evalData } = await fetchPortfolioData(CONFIG.endpoints);
-      const merged = calculateRanks(mergeRows(dashData, evalData));
-      setRows(merged);
-      setGeneratedAt(dashData.generated_at || new Date().toISOString());
-    } catch (e) {
-      setLastError(e);
-      if (!background) {
-        setRows([]);
-      }
-    } finally {
-      setLoadingMode("idle");
-    }
-  }, [loadingMode]);
+    },
+    [loadingMode],
+  );
 
   const addOrUpdate = useCallback(
     async ({ ticker, quantity, existingQuantity }) => {
