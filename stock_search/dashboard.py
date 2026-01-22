@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-import json
 from pathlib import Path
 from typing import Any
 
@@ -8,20 +7,13 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from stock_search.evaluation.evaluation import bucket_from_eval_json, normalize_eval_json
+from stock_search.evaluation.evaluation import (
+    bucket_from_eval_json,
+    normalize_eval_json,
+)
+from stock_search.file_utils import load_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
-
-
-def _load_json(path: str | Path) -> Any:
-    """Safely load JSON data from a file."""
-    path = Path(path)
-    if not path.exists():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return []
 
 
 def _fetch_live_stats(ticker: str) -> dict[str, Any]:
@@ -48,7 +40,11 @@ def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | No
     return bucket_from_eval_json(ticker, eval_data)
 
 
-def _build_row(pos: dict[str, Any], stats_cache: dict[str, Any], eval_cache: dict[str, Any]) -> dict[str, Any]:
+def _build_row(
+    pos: dict[str, Any],
+    stats_cache: dict[str, Any],
+    eval_cache: dict[str, Any],
+) -> dict[str, Any]:
     """Build a single dashboard row by merging cached and live data."""
     ticker = pos.get("ticker")
     if not ticker:
@@ -67,12 +63,7 @@ def _build_row(pos: dict[str, Any], stats_cache: dict[str, Any], eval_cache: dic
     delta = float(pos.get("delta") or 1.0)
     price = stats.get("current_price")
 
-    notional = 0.0
-    if qty and price:
-        try:
-            notional = calculate_notional(qty, delta, price)
-        except Exception:
-            notional = qty * price * delta
+    notional = calculate_notional(qty, delta, price) if qty and price else 0.0
 
     normalized_eval = normalize_eval_json(eval_data)
 
@@ -80,14 +71,14 @@ def _build_row(pos: dict[str, Any], stats_cache: dict[str, Any], eval_cache: dic
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
 
     return {
-        "overall": normalized_eval.get("overall") if normalized_eval else None,
-        "quality": normalized_eval.get("quality") if normalized_eval else None,
-        "valuation": normalized_eval.get("valuation") if normalized_eval else None,
-        "moat": normalized_eval.get("moat") if normalized_eval else None,
-        "upside": normalized_eval.get("upside") if normalized_eval else None,
-        "market_cap_score": normalized_eval.get("market_cap_score") if normalized_eval else None,
-        "bull": normalized_eval.get("bull") if normalized_eval else None,
-        "bear": normalized_eval.get("bear") if normalized_eval else None,
+        "overall": normalized_eval.get("overall"),
+        "quality": normalized_eval.get("quality"),
+        "valuation": normalized_eval.get("valuation"),
+        "moat": normalized_eval.get("moat"),
+        "upside": normalized_eval.get("upside"),
+        "market_cap_score": normalized_eval.get("market_cap_score"),
+        "bull": normalized_eval.get("bull"),
+        "bear": normalized_eval.get("bear"),
         "rank": None,
         "ticker": ticker,
         "name": stats.get("name"),
@@ -120,15 +111,15 @@ def get_dashboard(
     eval_path: str | Path = "data/eval.json",
 ) -> pd.DataFrame:
     """Return a consolidated portfolio DataFrame with live market data."""
-    portfolio_data = _load_json(portfolio_path)
+    portfolio_data = load_json(portfolio_path, default=[])
 
     # Load stats cache
-    stats_data = _load_json(stats_path)
+    stats_data = load_json(stats_path, default={})
     if not isinstance(stats_data, dict):
         stats_data = {}
 
     # Load eval data for strategy derivation
-    eval_data_raw = _load_json(eval_path)
+    eval_data_raw = load_json(eval_path, default={})
     eval_data: dict[str, Any] = {}
     if isinstance(eval_data_raw, dict):
         eval_data = eval_data_raw
@@ -201,7 +192,10 @@ def _fmt_num(val: Any) -> str:
     return f"{parsed:.2f}"
 
 
-def display_dashboard(portfolio_path: str | Path = "data/portfolio.json", stats_path: str | Path = "data/stats.json") -> None:
+def display_dashboard(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+) -> None:
     """Display the portfolio dashboard using Rich."""
     df = get_dashboard(portfolio_path, stats_path)
 

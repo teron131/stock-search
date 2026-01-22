@@ -26,7 +26,10 @@ MARKET_CAP_UNITS = [
 ]
 
 
-def parse_ratings(ticker: str | yf.Ticker, days: int = DEFAULT_RATINGS_LOOKBACK_DAYS) -> dict | None:
+def parse_ratings(
+    ticker: str | yf.Ticker,
+    days: int = DEFAULT_RATINGS_LOOKBACK_DAYS,
+) -> dict | None:
     """Parse analyst ratings for a ticker and calculate upside metrics.
 
     Args:

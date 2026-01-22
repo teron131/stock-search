@@ -19,7 +19,10 @@ from .constants import (
 from .math_utils import clamp_score, z_score_map
 
 
-def market_cap_score(ticker: str, info: dict | None = None) -> float | None:
+def market_cap_score(
+    ticker: str,
+    info: dict | None = None,
+) -> float | None:
     """Map market cap to 1-10 using a Log-S-curve."""
     info = info or (yf.Ticker(parse_ticker(ticker)).info or {})
     mcap = info.get("marketCap")
@@ -83,7 +86,11 @@ def calculate_valuation_score(info: dict) -> float | None:
     return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
 
 
-def calculate_combined_upside_score(median_upside: float | None, ratings: list[dict] | None, outlook_score: float | None) -> float | None:
+def calculate_combined_upside_score(
+    median_upside: float | None,
+    ratings: list[dict] | None,
+    outlook_score: float | None,
+) -> float | None:
     """Blend analyst upside, current ratings, and LLM outlook into a single score."""
     i_min, i_med, i_max = CalibrationConfig.UPSIDE_RANGE
     u_score = None
@@ -143,7 +150,10 @@ def _parse_rating_grade(text: str) -> float | None:
     return None
 
 
-def model_probabilities(indicator: StockIndicator, outlook: FutureOutlook | None) -> tuple[float | None, float | None]:
+def model_probabilities(
+    indicator: StockIndicator,
+    outlook: FutureOutlook | None,
+) -> tuple[float | None, float | None]:
     """Derive calibrated bull/bear scores from LLM and/or Historical momentum."""
     p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
 
@@ -186,7 +196,10 @@ def calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[flo
     )
 
 
-def calculate_strategy_indices(scores: dict[str, float | None], edge: float | None) -> dict[str, float | None]:
+def calculate_strategy_indices(
+    scores: dict[str, float | None],
+    edge: float | None,
+) -> dict[str, float | None]:
     """Apply strategy weights to core scores to find suitable portfolio buckets."""
     edge_comp = (5.0 + 0.5 * edge) if edge is not None else None
 
@@ -244,7 +257,10 @@ def calculate_strategy_indices(scores: dict[str, float | None], edge: float | No
     return indices
 
 
-def check_fomo_conditions(scores: dict, bull_score: float | None) -> bool:
+def check_fomo_conditions(
+    scores: dict,
+    bull_score: float | None,
+) -> bool:
     """Return True if an asset looks like a 'chase' opportunity."""
     v, u = scores.get("valuation"), scores.get("upside")
     if v is None or u is None or bull_score is None:

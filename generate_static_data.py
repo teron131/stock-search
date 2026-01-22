@@ -1,6 +1,5 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-import json
 import logging
 from pathlib import Path
 import random
@@ -13,6 +12,7 @@ from stock_search.evaluation.scores import (
     calculate_valuation_score,
     market_cap_score,
 )
+from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import MARKET_CAP_UNITS, parse_ratings
 from stock_search.schemas import Evaluation, ScoredReason
 
@@ -28,7 +28,12 @@ RSI_MAX = 100.0
 TARGET_TOTAL_EQUITY = 1_000_000.0
 MAX_POSITION_QTY = 500
 
-BUCKETS = ["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"]
+BUCKETS = [
+    "Strategic Core",
+    "Growth Satellites",
+    "Tactical Opportunities",
+    "Risk Mitigation",
+]
 
 SAMPLE_TICKERS = [
     "AAPL",
@@ -280,7 +285,11 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
     upside_score = calculate_combined_upside_score(m_upside, ratings=None, outlook_score=None) or 5.0
 
     # 2. Momentum proxy (Bull Probability)
-    trends = [stats.get("twenty_day_change_percent"), stats.get("fifty_day_change_percent"), stats.get("two_hundred_day_change_percent")]
+    trends = [
+        stats.get("twenty_day_change_percent"),
+        stats.get("fifty_day_change_percent"),
+        stats.get("two_hundred_day_change_percent"),
+    ]
     valid_trends = [v for v in trends if v is not None]
     avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
     p_up = max(0.3, min(0.8, 0.55 + (avg_trend / 100.0)))
@@ -394,12 +403,8 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
 
 def _load_portfolio_tickers(path: Path) -> set[str]:
     """Load unique tickers from a `portfolio.json` file."""
-    if not path.exists():
-        return set()
-
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    data = load_json(path, default=[])
+    if not data:
         return set()
 
     if isinstance(data, list):
@@ -466,12 +471,8 @@ def generate_static_data(
     # 5. Save
     print("Saving files...")
 
-    def write_json(path: Path, data):
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
     # Always save to ui/sample_data for frontend dev
     sample_dir = Path("ui/sample_data")
-    sample_dir.mkdir(parents=True, exist_ok=True)
 
     write_json(sample_dir / "portfolio.json", portfolio_list)
     write_json(sample_dir / "stats.json", stats_map)
@@ -482,7 +483,6 @@ def generate_static_data(
     # Note: portfolio.json is the server source of truth and is NOT overwritten unless requested.
     if prod:
         data_dir = Path("data")
-        data_dir.mkdir(parents=True, exist_ok=True)
 
         write_json(data_dir / "stats.json", stats_map)
         write_json(data_dir / "eval.json", eval_map)

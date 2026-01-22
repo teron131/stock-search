@@ -116,9 +116,16 @@ class NewsAnalysis(BaseModel):
 
     summary: str = Field(default="", description="Summary excluding noise/meta-language.")
     relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
-    category: Literal["macro_economics", "industry_news", "market_news", "company_news", "earnings", "analyst_rating", "analysis", "other"] = Field(
-        default="other", description="News category."
-    )
+    category: Literal[
+        "macro_economics",
+        "industry_news",
+        "market_news",
+        "company_news",
+        "earnings",
+        "analyst_rating",
+        "analysis",
+        "other",
+    ] = Field(default="other", description="News category.")
     sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
 
 
@@ -139,7 +146,15 @@ class PortfolioPosition(BaseModel):
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
     delta: float | None = Field(default=None, description="Option delta (1.0 for shares)")
     current_price: float | None = Field(default=None, description="Current market price")
-    bucket: Literal["Strategic Core", "Growth Satellites", "Tactical Opportunities", "Risk Mitigation"] | None = Field(default=None, description="Strategy bucket")
+    bucket: (
+        Literal[
+            "Strategic Core",
+            "Growth Satellites",
+            "Tactical Opportunities",
+            "Risk Mitigation",
+        ]
+        | None
+    ) = Field(default=None, description="Strategy bucket")
 
 
 class Portfolio(BaseModel):

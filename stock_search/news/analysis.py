@@ -89,7 +89,14 @@ def _analyze_news(
     if not successes:
         return results
 
-    prompts = [prompt_template.format(ticker=ticker, title=news_list[i].title, content=content) for i, content in successes]
+    prompts = [
+        prompt_template.format(
+            ticker=ticker,
+            title=news_list[i].title,
+            content=content,
+        )
+        for i, content in successes
+    ]
 
     print(f"[analyze_news] Analyzing {len(prompts)} articles")
     max_workers = min(len(prompts), 500)
@@ -112,10 +119,25 @@ def get_news(
     """Fetch news from multiple providers, dedupe by URL, then analyze."""
     providers = (
         lambda: get_news_newsdata(query=ticker),
-        lambda: get_news_massive(ticker=ticker, n_days=n_days, max_results=max_results),
-        lambda: get_news_exa(query=ticker, n_days=n_days, max_results=max_results),
-        lambda: get_news_yfinance(ticker=ticker, max_results=max_results),
-        lambda: get_news_newsapi(query=ticker, n_days=n_days, max_results=max_results),
+        lambda: get_news_massive(
+            ticker=ticker,
+            n_days=n_days,
+            max_results=max_results,
+        ),
+        lambda: get_news_exa(
+            query=ticker,
+            n_days=n_days,
+            max_results=max_results,
+        ),
+        lambda: get_news_yfinance(
+            ticker=ticker,
+            max_results=max_results,
+        ),
+        lambda: get_news_newsapi(
+            query=ticker,
+            n_days=n_days,
+            max_results=max_results,
+        ),
     )
 
     # Fetch from all providers
@@ -147,7 +169,11 @@ def get_news(
 
     def sort_key(x: News) -> tuple[float, int]:
         days = x.days_ago if x.days_ago is not None else float("inf")
-        relevancy_order = {"high": 0, "medium": 1, "low": 2}
+        relevancy_order = {
+            "high": 0,
+            "medium": 1,
+            "low": 2,
+        }
         return (days, relevancy_order[x.relevancy])
 
     sorted_news_list = sorted(filtered_news_list, key=sort_key)
