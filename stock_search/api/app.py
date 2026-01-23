@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
@@ -34,7 +34,9 @@ def serve_index() -> FileResponse:
 
 
 @app.get("/api/portfolio")
-def portfolio_api() -> dict:
+def portfolio_api(response: Response) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+
     df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
     df = df.where(pd.notna(df), None)
 
@@ -49,7 +51,8 @@ def portfolio_api() -> dict:
 
 
 @app.get("/api/eval")
-def eval_api() -> dict:
+def eval_api(response: Response) -> dict:
+    response.headers["Cache-Control"] = "no-store"
     return load_json(EVAL_PATH, default={})
 
 

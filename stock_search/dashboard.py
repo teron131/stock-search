@@ -15,28 +15,47 @@ from stock_search.file_utils import load_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
 
+_MAX_WORKERS = 10
+
+_MARKET_KEYS = {
+    "price",
+    "current_price",
+    "change",
+    "change_percent",
+    "market_cap",
+    "pe",
+    "pe_forward",
+    "peg",
+    "earning_direction",
+    "gross_margin",
+    "rsi",
+    "twenty_day_change_percent",
+    "fifty_day_change_percent",
+    "one_hundred_day_change_percent",
+    "two_hundred_day_change_percent",
+    "median_upside",
+}
+
 
 def _fetch_live_stats(ticker: str) -> dict[str, Any]:
-    """Fetch live statistics for a ticker using StockIndicator."""
+    """Fetch live-ish market stats for a ticker.
+
+    This intentionally does not fall back to `stats.json` for market fields.
+    """
     try:
         indicator = StockIndicator(ticker)
         data = indicator.get_all_indicators()
 
-        # Add name which isn't in standard indicators
         info = indicator.info
         data["name"] = info.get("shortName") or info.get("longName")
-
-        # Map 'price' to 'current_price' for compatibility with dashboard schema
         data["current_price"] = data.get("price")
 
-        # Filter out None values to allow cleaner merging with cache
         return {k: v for k, v in data.items() if v is not None}
     except Exception:
         return {}
 
 
 def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
-    """Dynamically determine the strategy bucket from evaluation scores."""
     return bucket_from_eval_json(ticker, eval_data)
 
 
@@ -45,18 +64,22 @@ def _build_row(
     stats_cache: dict[str, Any],
     eval_cache: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build a single dashboard row by merging cached and live data."""
     ticker = pos.get("ticker")
     if not ticker:
         return {}
 
-    # Start with cached data; live values override.
-    stats = dict(stats_cache.get(ticker, {}))
+    cached = stats_cache.get(ticker, {})
+    if not isinstance(cached, dict):
+        cached = {}
+
+    # Only keep non-market metadata from cache.
+    stats: dict[str, Any] = {k: v for k, v in cached.items() if k not in _MARKET_KEYS}
 
     eval_data = eval_cache.get(ticker, {})
     if not isinstance(eval_data, dict):
         eval_data = {}
 
+    # Live values override cached metadata.
     stats.update(_fetch_live_stats(ticker))
 
     qty = float(pos.get("quantity") or 0)
@@ -67,7 +90,6 @@ def _build_row(
 
     normalized_eval = normalize_eval_json(eval_data)
 
-    # Strategy label priority: explicit portfolio -> derived from eval -> cached stats
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
 
     return {
@@ -101,7 +123,7 @@ def _build_row(
         "median_upside": stats.get("median_upside"),
         "bucket": bucket,
         "notional": notional,
-        "weight_pct": None,  # Calculated in aggregation step
+        "weight_pct": None,
     }
 
 
@@ -110,39 +132,31 @@ def get_dashboard(
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
 ) -> pd.DataFrame:
-    """Return a consolidated portfolio DataFrame with live market data."""
     portfolio_data = load_json(portfolio_path, default=[])
 
-    # Load stats cache
     stats_data = load_json(stats_path, default={})
     if not isinstance(stats_data, dict):
         stats_data = {}
 
-    # Load eval data for strategy derivation
     eval_data_raw = load_json(eval_path, default={})
     eval_data: dict[str, Any] = {}
     if isinstance(eval_data_raw, dict):
         eval_data = eval_data_raw
     elif isinstance(eval_data_raw, list):
-        # Legacy: list of dicts with embedded ticker
         for item in eval_data_raw:
             if isinstance(item, dict) and (t := item.get("ticker")):
                 eval_data[str(t)] = item
 
-    # Handle portfolio list vs dict wrapper
     positions = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
 
-    # Parallelize fetching and row building
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         rows = list(executor.map(lambda p: _build_row(p, stats_data, eval_data), positions))
 
-    # Calculate Weights
     total_notional = sum(row.get("notional", 0) for row in rows)
     for row in rows:
         notional = row.get("notional", 0)
         row["weight_pct"] = (notional / total_notional * 100) if total_notional > 0 else 0.0
 
-    # Calculate Rank from backend scores when available
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
         overall = row.get("overall")
@@ -152,6 +166,7 @@ def get_dashboard(
             scored_rows.append((idx, float(overall)))
         except (TypeError, ValueError):
             continue
+
     scored_rows.sort(key=lambda x: x[1], reverse=True)
     for rank, (idx, _) in enumerate(scored_rows, start=1):
         rows[idx]["rank"] = rank
@@ -168,7 +183,7 @@ def _to_float(val: Any) -> float | None:
         return None
     try:
         parsed = float(val)
-        return parsed if parsed == parsed else None  # Check for NaN
+        return parsed if parsed == parsed else None  # NaN check
     except (TypeError, ValueError):
         return None
 
@@ -196,13 +211,11 @@ def display_dashboard(
     portfolio_path: str | Path = "data/portfolio.json",
     stats_path: str | Path = "data/stats.json",
 ) -> None:
-    """Display the portfolio dashboard using Rich."""
     df = get_dashboard(portfolio_path, stats_path)
 
     console = Console()
     table = Table(title="Portfolio Dashboard", box=box.ROUNDED, header_style="bold magenta")
 
-    # Define columns
     table.add_column("Ticker", style="cyan", no_wrap=True)
     table.add_column("Qty", justify="right")
     table.add_column("Price", justify="right")
@@ -225,13 +238,9 @@ def display_dashboard(
             _fmt_pct(row["twenty_day_change_percent"]),
             _fmt_pct(row["fifty_day_change_percent"]),
             _fmt_pct(row["two_hundred_day_change_percent"]),
-            _fmt_num(row["median_upside"]),
+            _fmt_pct(row["median_upside"]),
             _fmt_curr(row["notional"]),
-            f"{row['weight_pct']:.2f}%" if row["weight_pct"] is not None else "-",
+            _fmt_pct(row["weight_pct"]),
         )
 
     console.print(table)
-
-
-if __name__ == "__main__":
-    display_dashboard()

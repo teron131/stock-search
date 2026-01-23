@@ -1,5 +1,5 @@
 import { html } from "https://esm.sh/htm@3.1.1/preact";
-import { useEffect, useState } from "https://esm.sh/preact@10.19.6/hooks";
+import { useEffect, useRef, useState } from "https://esm.sh/preact@10.19.6/hooks";
 
 import { DataTable } from "./components/DataTable.js";
 import { QuickAdd } from "./components/QuickAdd.js";
@@ -128,6 +128,11 @@ export function App() {
     actions,
   } = usePortfolioData();
 
+  const syncRef = useRef(actions.sync);
+  useEffect(() => {
+    syncRef.current = actions.sync;
+  }, [actions.sync]);
+
   // Initial boot
   useEffect(() => {
     initSidebarAndNav({ onViewChange: setView });
@@ -138,6 +143,19 @@ export function App() {
     if (refreshBtn) {
       refreshBtn.addEventListener("click", () => actions.sync({ background: false }));
     }
+  }, []);
+
+  // Periodic background refresh (skip demo mode)
+  useEffect(() => {
+    if (CONFIG.isDemoMode) return;
+
+    const intervalId = setInterval(() => {
+      syncRef.current?.({ background: true });
+    }, 60_000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   // View toggles (keep TradingView embeds mounted)

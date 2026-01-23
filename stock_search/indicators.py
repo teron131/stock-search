@@ -81,6 +81,7 @@ class StockIndicator:
     def __init__(self, ticker: str):
         self.ticker = yf.Ticker(ticker)
         self._info: dict = {}
+        self._history_cache: dict[str, pd.DataFrame] = {}
 
     @property
     def info(self) -> dict:
@@ -119,7 +120,11 @@ class StockIndicator:
         if price is None:
             price = info.get("regularMarketPrice") or info.get("postMarketPrice") or info.get("preMarketPrice")
 
-        return _round(price)
+        if price is not None:
+            return _round(price)
+
+        # 3. Last-resort fallback: intraday close, then daily close
+        return self._last_intraday_price() or self._last_close()
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change."""
@@ -133,10 +138,15 @@ class StockIndicator:
         if state == MARKET_STATE_PRE:
             return _round(info.get("regularMarketPrice"))
 
-        if state in (MARKET_STATE_POST, MARKET_STATE_POSTPOST, MARKET_STATE_CLOSED) and info.get("postMarketPrice"):
+        if state in (
+            MARKET_STATE_POST,
+            MARKET_STATE_POSTPOST,
+            MARKET_STATE_CLOSED,
+        ) and info.get("postMarketPrice"):
             return _round(info.get("regularMarketPrice"))
 
-        return _round(info.get("regularMarketPreviousClose"))
+        previous_close = _round(info.get("regularMarketPreviousClose"))
+        return previous_close if previous_close is not None else self._previous_close_from_history()
 
     @property
     def change(self) -> float | None:

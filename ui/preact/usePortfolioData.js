@@ -51,12 +51,18 @@ function mergeRows(dashData, evalData) {
     const e = evalMap.get(t) || {};
     const safeTicker = p.ticker || e.ticker || t;
 
-    return {
-      ...p,
-      ...e,
-      ticker: safeTicker,
-      name: p.name || e.name || safeTicker,
-    };
+    // API rows are authoritative for live stats; eval is fill-only.
+    const merged = { ...p };
+    Object.entries(e).forEach(([k, v]) => {
+      if (merged[k] == null) {
+        merged[k] = v;
+      }
+    });
+
+    merged.ticker = safeTicker;
+    merged.name = merged.name || e.name || safeTicker;
+
+    return merged;
   });
 }
 
@@ -192,7 +198,7 @@ export function usePortfolioData() {
           const { dashData, evalData } = await fetchStaticPortfolioData(basePath);
           const merged = calculateRanks(mergeRows(dashData, evalData));
           setRows(merged);
-          setGeneratedAt(dashData.generated_at || new Date().toISOString());
+          setGeneratedAt(new Date().toISOString());
           return;
         }
 
@@ -213,9 +219,7 @@ export function usePortfolioData() {
         setIsUsingDemoData(false);
         const merged = calculateRanks(mergeRows(dashData, evalData));
         setRows(merged);
-        
-        // Prioritize API timestamp, fallback to static if missing, then current time
-        setGeneratedAt(dashData.generated_at || new Date().toISOString());
+        setGeneratedAt(new Date().toISOString());
       } catch (e) {
         setLastError(e);
 
@@ -226,7 +230,7 @@ export function usePortfolioData() {
           setIsUsingDemoData(true);
           const merged = calculateRanks(mergeRows(dashData, evalData));
           setRows(merged);
-          setGeneratedAt(dashData.generated_at || new Date().toISOString());
+          setGeneratedAt(new Date().toISOString());
         } catch {
           if (!background) {
             setRows([]);
