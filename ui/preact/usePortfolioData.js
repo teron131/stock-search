@@ -8,6 +8,16 @@ function withCacheBuster(url) {
   return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
 }
 
+async function tryFetchJson(url) {
+  try {
+    const res = await fetch(withCacheBuster(url));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 function ensureEvalEntries(evalData) {
   if (Array.isArray(evalData)) {
     return evalData.map((e) => ({
@@ -107,28 +117,15 @@ async function determineDemoPath() {
   }
 }
 
-async function fetchPortfolioData(endpoints) {
-  const fetches = [fetch(withCacheBuster(endpoints.portfolio)), fetch(withCacheBuster(endpoints.eval))];
+async function fetchStaticPortfolioData(basePath) {
+  const portfolioRaw = await tryFetchJson(`${basePath}/portfolio.json`);
+  if (!portfolioRaw) throw new Error("Static portfolio not found");
 
-  if (endpoints.stats) {
-    fetches.push(fetch(withCacheBuster(endpoints.stats)));
-  }
+  const evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
+  const statsData = (await tryFetchJson(`${basePath}/stats.json`)) ?? {};
 
-  const responses = await Promise.all(fetches);
-  if (responses.some((r) => !r.ok)) throw new Error("API Failure");
-
-  const portfolioRaw = await responses[0].json();
-  const evalData = await responses[1].json();
-
-  // API response already joined
-  if (portfolioRaw.rows) {
+  if (portfolioRaw?.rows) {
     return { dashData: portfolioRaw, evalData };
-  }
-
-  // Sample/static response: join portfolio list with stats
-  let statsData = {};
-  if (endpoints.stats) {
-    statsData = await responses[2].json();
   }
 
   if (Array.isArray(portfolioRaw)) {
@@ -187,41 +184,53 @@ export function usePortfolioData() {
       setLastError(null);
 
       try {
-        // Demo mode: prefer live API if it's available, fall back to static JSON.
+        const basePath = await determineDemoPath();
+
+        // Demo mode: static only
         if (CONFIG.isDemoMode) {
-          try {
-            const { dashData, evalData } = await fetchPortfolioData(CONFIG.endpoints);
-            setIsUsingDemoData(false);
-            const merged = calculateRanks(mergeRows(dashData, evalData));
-            setRows(merged);
-            setGeneratedAt(dashData.generated_at || new Date().toISOString());
-            return;
-          } catch {
-            setIsUsingDemoData(true);
-            const basePath = await determineDemoPath();
-
-            const { dashData, evalData } = await fetchPortfolioData({
-              portfolio: `${basePath}/portfolio.json`,
-              eval: `${basePath}/eval.json`,
-              stats: `${basePath}/stats.json`,
-            });
-
-            const merged = calculateRanks(mergeRows(dashData, evalData));
-            setRows(merged);
-            setGeneratedAt(dashData.generated_at || new Date().toISOString());
-            return;
-          }
+          setIsUsingDemoData(true);
+          const { dashData, evalData } = await fetchStaticPortfolioData(basePath);
+          const merged = calculateRanks(mergeRows(dashData, evalData));
+          setRows(merged);
+          setGeneratedAt(dashData.generated_at || new Date().toISOString());
+          return;
         }
 
+        // Normal mode:
+        // - Stats/portfolio always via API (live)
+        // - Eval cache-first (static), fallback to API
+        const dashData = await (async () => {
+          const res = await fetch(withCacheBuster(CONFIG.endpoints.portfolio));
+          if (!res.ok) throw new Error("API Failure");
+          return await res.json();
+        })();
+
+        const evalData =
+          (await tryFetchJson(`${basePath}/eval.json`)) ??
+          (await tryFetchJson(CONFIG.endpoints.eval)) ??
+          {};
+
         setIsUsingDemoData(false);
-        const { dashData, evalData } = await fetchPortfolioData(CONFIG.endpoints);
         const merged = calculateRanks(mergeRows(dashData, evalData));
         setRows(merged);
+        
+        // Prioritize API timestamp, fallback to static if missing, then current time
         setGeneratedAt(dashData.generated_at || new Date().toISOString());
       } catch (e) {
         setLastError(e);
-        if (!background) {
-          setRows([]);
+
+        // If API fails, fall back to static (read-only)
+        try {
+          const basePath = await determineDemoPath();
+          const { dashData, evalData } = await fetchStaticPortfolioData(basePath);
+          setIsUsingDemoData(true);
+          const merged = calculateRanks(mergeRows(dashData, evalData));
+          setRows(merged);
+          setGeneratedAt(dashData.generated_at || new Date().toISOString());
+        } catch {
+          if (!background) {
+            setRows([]);
+          }
         }
       } finally {
         setLoadingMode("idle");
@@ -239,9 +248,7 @@ export function usePortfolioData() {
       if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
 
       if (existingQuantity != null && existingQuantity !== 0) {
-        const confirmed = window.confirm(
-          `Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`,
-        );
+        const confirmed = window.confirm(`Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`);
         if (!confirmed) return { ok: false, reason: "cancelled" };
       }
 

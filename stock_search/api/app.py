@@ -23,6 +23,10 @@ EVAL_PATH = DATA_DIR / "eval.json"
 
 app = FastAPI(title="Stock Search Dashboard")
 
+# Expose backend `data/` to the UI (portfolio/eval/stats JSON)
+# This must be mounted before the UI mount at "/".
+app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
+
 
 @app.get("/")
 def serve_index() -> FileResponse:
@@ -34,10 +38,8 @@ def portfolio_api() -> dict:
     df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
     df = df.where(pd.notna(df), None)
 
-    generated_at = None
-    if STATS_PATH.exists():
-        mtime = STATS_PATH.stat().st_mtime
-        generated_at = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
+    # Timestamp for *this* response (not the cache file mtime)
+    generated_at = datetime.now(tz=UTC).isoformat()
 
     return {
         "columns": list(df.columns),
