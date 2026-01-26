@@ -275,7 +275,12 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
   const format = col.format;
 
   if (key === "quantity" && onSetQuantity) {
-    return html`<${QtyCell} row=${row} isUsingDemoData=${isUsingDemoData} onSetQuantity=${onSetQuantity} />`;
+    return html`<${QtyCell}
+      key=${normalizeTicker(row.ticker)}
+      row=${row}
+      isUsingDemoData=${isUsingDemoData}
+      onSetQuantity=${onSetQuantity}
+    />`;
   }
 
   if (key === "remove") {
