@@ -275,14 +275,9 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
   const format = col.format;
 
   if (key === "quantity" && onSetQuantity) {
-    return html`<${QtyCell}
-      key=${normalizeTicker(row.ticker)}
-      row=${row}
-      isUsingDemoData=${isUsingDemoData}
-      onSetQuantity=${onSetQuantity}
-    />`;
+    return html`<${QtyCell} row=${row} isUsingDemoData=${isUsingDemoData} onSetQuantity=${onSetQuantity} />`;
   }
-
+  
   if (key === "remove") {
     return html`<button class="btn-remove-cell" onClick=${() => onRemove(row.ticker)} title="Remove">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
