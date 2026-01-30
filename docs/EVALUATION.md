@@ -12,30 +12,30 @@ For each asset:
 
 ### A) Fundamental scores (0–10)
 
-* **Moat**: replaceability under real constraints
-* **Quality**: durability of economics / execution
-* **Valuation**: attractiveness of price relative to growth/quality
-* **Upside**: payoff size if the thesis plays out
-* **Size**: market-cap scale (robustness proxy)
+- **Moat**: replaceability under real constraints
+- **Quality**: durability of economics / execution
+- **Valuation**: attractiveness of price relative to growth/quality
+- **Upside**: payoff size if the thesis plays out
+- **Size**: market-cap scale (robustness proxy)
 
 ### B) Directional odds (game-like)
 
-* **Bull score (0–10)** ≈ pseudo-probability of being **up** in 12 months
-* **Bear score (0–10)** ≈ pseudo-probability of being **down** in 12 months
-* **Flat probability** is implicit
+- **Bull score (0–10)** ≈ pseudo-probability of being **up** in 12 months
+- **Bear score (0–10)** ≈ pseudo-probability of being **down** in 12 months
+- **Flat probability** is implicit
 
 Derived:
 
-* **Edge** = Bull − Bear
-* **Confidence** = |Bull − Bear|
+- **Edge** = Bull − Bear
+- **Confidence** = |Bull − Bear|
 
 ### C) Ranking + roles
 
-* **Overall score** = average of (Moat, Quality, Valuation, Upside)
-* **Role indices**: Core / Satellite / Speculative / Diversifier
-* **Label** = argmax(role indices)
-* **FOMO flag** (overlay)
-* Optional **Elo-style normalization** (additive rating deltas)
+- **Overall score** = average of (Moat, Quality, Valuation, Upside)
+- **Role indices**: Core / Satellite / Speculative / Diversifier
+- **Label** = argmax(role indices)
+- **FOMO flag** (overlay)
+- Optional **Elo-style normalization** (additive rating deltas)
 
 ---
 
@@ -43,9 +43,9 @@ Derived:
 
 Every mapped metric has **three anchors**:
 
-* **Low**: notably good / cheap / strong (memorable best examples)
-* **Median**: “good standard” (personal bar or S&P-ish median)
-* **High**: notably stretched / weak (memorable worst examples)
+- **Low**: notably good / cheap / strong (memorable best examples)
+- **Median**: “good standard” (personal bar or S&P-ish median)
+- **High**: notably stretched / weak (memorable worst examples)
 
 Because the mapping is S-curved, the **median anchor dominates** how most names score; extremes mostly control saturation.
 
@@ -67,9 +67,9 @@ Score(x) = 10 · p(x), where p(x) ∈ [0,1]
 
 Instead of pretending metrics are Normal with a standard deviation, anchors are treated as **calibration targets**:
 
-* Low anchor (x_L) maps to target percentile/probability (p_L)
-* Median anchor (x_M) maps to (p_M)
-* High anchor (x_H) maps to (p_H)
+- Low anchor (x_L) maps to target percentile/probability (p_L)
+- Median anchor (x_M) maps to (p_M)
+- High anchor (x_H) maps to (p_H)
 
 “Probability” here means “position on the 0–1 score curve”, not a market probability.
 
@@ -83,24 +83,22 @@ A single logistic has only 2 parameters, so it cannot perfectly match 3 anchors.
 
 Let:
 
-* g(p) = logit(p)
-* z_M = g(p_M)
+- g(p) = logit(p)
+- z_M = g(p_M)
 
-Left scale:
-( s_L = \frac{x_M - x_L}{z_M - g(p_L)} )
+Left scale: ( s_L = \frac{x_M - x_L}{z_M - g(p_L)} )
 
-Right scale:
-( s_R = \frac{x_H - x_M}{g(p_H) - z_M} )
+Right scale: ( s_R = \frac{x_H - x_M}{g(p_H) - z_M} )
 
 Then for any x:
 
-* If x ≤ x_M: ( z = z_M + \frac{x - x_M}{s_L} )
-* If x ≥ x_M: ( z = z_M + \frac{x - x_M}{s_R} )
+- If x ≤ x_M: ( z = z_M + \frac{x - x_M}{s_L} )
+- If x ≥ x_M: ( z = z_M + \frac{x - x_M}{s_R} )
 
 Finally:
 
-* p = σ(z)
-* Score = 10·p, clamped to [0,10]
+- p = σ(z)
+- Score = 10·p, clamped to [0,10]
 
 ### 3.4 Monotonic direction (good-is-high vs good-is-low)
 
@@ -108,8 +106,8 @@ Some metrics are “higher is better” (growth, upside). Others are “lower is
 
 Two equivalent ways to handle “lower is better”:
 
-* Negate the input: score(−x) using the same anchors, or
-* Swap anchors / flip target p’s so “cheap” maps to higher p.
+- Negate the input: score(−x) using the same anchors, or
+- Swap anchors / flip target p’s so “cheap” maps to higher p.
 
 ---
 
@@ -119,14 +117,14 @@ To make the median represent a “good standard” (not a neutral 5/10), set:
 
 ### Default target mapping (sensible, stable)
 
-* **Low (notably good)**: p_L = 0.85 → score 8.5
-* **Median (good standard)**: p_M = 0.65 → score 6.5
-* **High (stretched/weak)**: p_H = 0.25 → score 2.5
+- **Low (notably good)**: p_L = 0.85 → score 8.5
+- **Median (good standard)**: p_M = 0.65 → score 6.5
+- **High (stretched/weak)**: p_H = 0.25 → score 2.5
 
 This creates a practical behavior:
 
-* names around the “good” median cluster around 6–7
-* extremes saturate without dominating the entire ranking
+- names around the “good” median cluster around 6–7
+- extremes saturate without dominating the entire ranking
 
 For metrics where “higher is worse” (P/E), those p targets are applied after inversion so “cheap” still maps to 8.5.
 
@@ -138,40 +136,40 @@ These are the **metrics that require anchors**.
 
 ## 5.1 Size anchors (Market cap, USD)
 
-* **Min**: $10B
-* **Median**: $800B
-* **Max**: **$4.5T** (NVDA cap ceiling anchor)
+- **Min**: $10B
+- **Median**: $800B
+- **Max**: **$4.5T** (NVDA cap ceiling anchor)
 
 ## 5.2 Valuation anchors
 
 These are “lower is better” metrics (after inversion they become “higher is better” on the score curve).
 
-* **PEG**: 0.5 / 1.5 / 3.0
-* **P/E**: 10 / 28 / 50
+- **PEG**: 0.5 / 1.5 / 3.0
+- **P/E**: 10 / 28 / 50
 
 ## 5.3 Growth anchor
 
 “Higher is better”
 
-* **Earnings growth (YoY)**: 0.10 / 0.30 / 0.50
+- **Earnings growth (YoY)**: 0.10 / 0.30 / 0.50
 
 ## 5.4 Upside anchor (Analyst target upside)
 
 “Higher is better”
 
-* **Target upside %**: 0.00 / 0.15 / 0.50
+- **Target upside %**: 0.00 / 0.15 / 0.50
 
 ## 5.5 Analyst rating anchor (1–5 scale)
 
 “Higher is better”
 
-* **Rating**: 1.0 / 3.5 / 5.0
+- **Rating**: 1.0 / 3.5 / 5.0
 
 ## 5.6 Game-probability anchors (market direction)
 
 These are intentionally tight because markets are noisy.
 
-* **Probability**: 0.50 / 0.55 / 0.60
+- **Probability**: 0.50 / 0.55 / 0.60
 
 ---
 
@@ -215,10 +213,10 @@ Median reflects a more index-like standard.
 
 “How hard is it to replace this under real constraints?”
 
-* switching costs, integration depth, ecosystem lock-in
-* regulatory/security/procurement barriers
-* data/feedback loops (when not easily replicated)
-* physics bottlenecks / supply chain choke points
+- switching costs, integration depth, ecosystem lock-in
+- regulatory/security/procurement barriers
+- data/feedback loops (when not easily replicated)
+- physics bottlenecks / supply chain choke points
 
 ### Commodities: moat is scarcity + role (not competition) 🪙
 
@@ -232,25 +230,25 @@ This yields sensible ordering like gold > silver on “role,” while still ackn
 
 “How reliably does the asset/business generate durable economics across regimes?”
 
-* cash conversion, margins, resilience
-* balance sheet strength
-* execution reliability (delivery, safety, compliance where relevant)
+- cash conversion, margins, resilience
+- balance sheet strength
+- execution reliability (delivery, safety, compliance where relevant)
 
 ## 7.3 Valuation (0–10) — weighted blend
 
 Valuation is not a single metric. It is a blend of mapped sub-scores:
 
-* PEG score (largest weight)
-* trailing P/E score
-* forward P/E score
-* earnings growth score (small weight, to avoid punishing genuine growth)
+- PEG score (largest weight)
+- trailing P/E score
+- forward P/E score
+- earnings growth score (small weight, to avoid punishing genuine growth)
 
 Suggested weights (stable and interpretable):
 
-* PEG 0.55
-* trailing P/E 0.20
-* forward P/E 0.15
-* growth 0.10
+- PEG 0.55
+- trailing P/E 0.20
+- forward P/E 0.15
+- growth 0.10
 
 If some inputs are missing, weights are re-normalized over available components.
 
@@ -274,23 +272,23 @@ Size maps market cap on a log-like perception scale (because $4T is not “4×�
 
 Bull and Bear are produced from two sources:
 
-* **Market behavior signal** (momentum-like input normalized to a 0–1 probability proxy)
-* **Forward outlook bull/bear probabilities** (subjective/LLM or structured)
+- **Market behavior signal** (momentum-like input normalized to a 0–1 probability proxy)
+- **Forward outlook bull/bear probabilities** (subjective/LLM or structured)
 
 Then mapped using the **Probability anchors**.
 
 Convert:
 
-* p_up = Bull/10
-* p_down = Bear/10
-* p_flat = max(0, 1 − p_up − p_down)
+- p_up = Bull/10
+- p_down = Bear/10
+- p_flat = max(0, 1 − p_up − p_down)
 
 ### Game tiers (for Bull score)
 
-* **5.5–5.8**: already high edge
-* **5.9–6.2**: very high
-* **6.3–6.7**: smurfing
-* **6.8+**: rare / dislocation-level
+- **5.5–5.8**: already high edge
+- **5.9–6.2**: very high
+- **6.3–6.7**: smurfing
+- **6.8+**: rare / dislocation-level
 
 ---
 
@@ -308,8 +306,8 @@ Roles are not opinions. They are derived mechanically from scores.
 
 First compute:
 
-* Edge = Bull − Bear
-* EdgeComp = 5 + 0.5·Edge (a 0–10-ish tilt term)
+- Edge = Bull − Bear
+- EdgeComp = 5 + 0.5·Edge (a 0–10-ish tilt term)
 
 Then compute indices:
 
@@ -341,9 +339,9 @@ Label = argmax(CoreIndex, SatelliteIndex, SpecIndex, DivIndex)
 
 A behavior-risk overlay triggers when:
 
-* Valuation ≤ 3.0
-* Upside ≥ 8.0
-* Bull ≤ 5.8
+- Valuation ≤ 3.0
+- Upside ≥ 8.0
+- Bull ≤ 5.8
 
 Interpretation: compelling story + expensive pricing + odds not exceptional.
 
@@ -357,9 +355,9 @@ For a probability p:
 
 Variants:
 
-* **Classic**: p = p_up
-* **Directional**: p = p_up vs p_down → 400·log10(p_up/p_down)
-* **Draw-aware**: expected score S = p_up + 0.5·p_flat, then ΔElo(S)
+- **Classic**: p = p_up
+- **Directional**: p = p_up vs p_down → 400·log10(p_up/p_down)
+- **Draw-aware**: expected score S = p_up + 0.5·p_flat, then ΔElo(S)
 
 This turns “slight win-rate edges” into a clean additive scale.
 
@@ -369,8 +367,8 @@ This turns “slight win-rate edges” into a clean additive scale.
 
 Anchors are not “statistics.” Anchors are **definitions**:
 
-* the median is what “good” means
-* extremes are what “notable” means
-* the logistic mapping ensures robustness and saturation without needing any assumed distribution
+- the median is what “good” means
+- extremes are what “notable” means
+- the logistic mapping ensures robustness and saturation without needing any assumed distribution
 
 That makes the framework stable, interpretable, and aligned with a game-like view where **small edges matter and giant edges are rare**.

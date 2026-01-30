@@ -24,12 +24,9 @@ A lot of investing errors come from mixing categories that should stay separate.
 
 ## Moat ≠ profitability ≠ valuation
 
-* **Moat** answers: *How replaceable is the business under real constraints?*
-  Switching costs, ecosystem gravity, distribution, data/feedback loops, regulatory barriers, and physics bottlenecks belong here.
-* **Quality** answers: *How reliably does the business convert advantages into durable economics?*
-  Cash generation, operating discipline, resilience through cycles, and pricing power belong here.
-* **Valuation** answers: *What is the market charging today?*
-  Valuation can be wrong for extended periods without invalidating moat or quality.
+- **Moat** answers: _How replaceable is the business under real constraints?_ Switching costs, ecosystem gravity, distribution, data/feedback loops, regulatory barriers, and physics bottlenecks belong here.
+- **Quality** answers: _How reliably does the business convert advantages into durable economics?_ Cash generation, operating discipline, resilience through cycles, and pricing power belong here.
+- **Valuation** answers: _What is the market charging today?_ Valuation can be wrong for extended periods without invalidating moat or quality.
 
 This separation is why an elite platform can be temporarily undervalued, and why high profitability doesn’t automatically imply a strong moat.
 
@@ -43,11 +40,11 @@ The doctrine rejects “owning everything” as a goal. It favors owning **the f
 
 Conviction is not a vibe. It is earned through:
 
-* clarity of moat mechanics
-* evidence of execution
-* product reality (not slide decks)
-* durable demand drivers
-* strong alignment between management incentives and long-term value creation
+- clarity of moat mechanics
+- evidence of execution
+- product reality (not slide decks)
+- durable demand drivers
+- strong alignment between management incentives and long-term value creation
 
 ## Diversification is a tool, not a virtue
 
@@ -63,8 +60,8 @@ The valuation style emphasizes **PEG** (growth-adjusted valuation) more than raw
 
 Typical interpretation:
 
-* PEG < 2: reasonable
-* PEG < 1: cheap (in context)
+- PEG < 2: reasonable
+- PEG < 1: cheap (in context)
 
 PEG is treated as a lens—not a law—because growth estimates can be wrong, and regime changes can compress multiples even when execution remains strong.
 
@@ -80,10 +77,10 @@ Valuation is used primarily to decide **how aggressively to add**, not whether a
 
 The preferred vehicle is **shares**, even when using moderate margin. The reasons are practical:
 
-* no expiration and no roll mechanics
-* easier scaling in/out
-* fewer hidden Greeks
-* fewer path-dependent mistakes
+- no expiration and no roll mechanics
+- easier scaling in/out
+- fewer hidden Greeks
+- fewer path-dependent mistakes
 
 This simplifies decision-making, improves controllability, and reduces the temptation to turn investing into an options-operations problem.
 
@@ -91,8 +88,8 @@ This simplifies decision-making, improves controllability, and reduces the tempt
 
 The system no longer defaults to LEAPS and spreads because the **carry cost** often fails the reality test.
 
-* **Shares on margin**: carry cost ≈ borrowed notional × margin APR
-* **LEAPS**: carry cost ≈ theta decay + volatility path risk + occasional liquidity friction
+- **Shares on margin**: carry cost ≈ borrowed notional × margin APR
+- **LEAPS**: carry cost ≈ theta decay + volatility path risk + occasional liquidity friction
 
 When margin APR is moderate (e.g., ~5–6%) and the option is not near-zero extrinsic, theta can be a larger and more persistent drag than margin interest for comparable delta exposure. That makes shares the cleaner long-duration vehicle.
 
@@ -102,8 +99,8 @@ Leverage is treated as normal in the real world (mortgages, corporate debt, cred
 
 Two realities are taken seriously:
 
-* margin requirements can tighten dynamically (correlation, IV, stress)
-* concentrated high-IV names can consume disproportionate margin
+- margin requirements can tighten dynamically (correlation, IV, stress)
+- concentrated high-IV names can consume disproportionate margin
 
 So leverage is allowed only when it preserves the ability to hold through volatility and still buy dips.
 
@@ -119,8 +116,8 @@ Adds are preferred on pullbacks that are driven by sentiment, positioning, or no
 
 Entries are typically laddered. This reduces regret on both sides:
 
-* early entry regret if the dip deepens
-* missed-opportunity regret if price runs
+- early entry regret if the dip deepens
+- missed-opportunity regret if price runs
 
 Scaling is not an attempt to outsmart the market; it is a behavioral tool for consistency.
 
@@ -136,11 +133,11 @@ A recurring failure mode is having conviction but no capacity to act when opport
 
 The portfolio’s central thesis is that AI capex, infrastructure buildout, and AI-enabled productivity create a multi-year compounding runway. Mega-cap platforms and infrastructure beneficiaries are treated as the most reliable engines because they sit at the intersection of:
 
-* distribution
-* compute and data
-* enterprise adoption
-* operational leverage
-* capital access
+- distribution
+- compute and data
+- enterprise adoption
+- operational leverage
+- capital access
 
 ## “Financials become more like tech” (Tom Lee thesis) 🏦
 
@@ -162,9 +159,9 @@ A successful system is not the one that wins every month; it is the one that com
 
 This doctrine defines success as:
 
-* holding true winners long enough for compounding to matter
-* preserving survivability through drawdowns
-* keeping enough capacity to add when prices are irrational
-* avoiding complexity that creates self-inflicted errors
+- holding true winners long enough for compounding to matter
+- preserving survivability through drawdowns
+- keeping enough capacity to add when prices are irrational
+- avoiding complexity that creates self-inflicted errors
 
 The ideal state is a portfolio that is simultaneously **high conviction** and **structurally resilient**—so that patience becomes a feature, not a liability.

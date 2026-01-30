@@ -1,4 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from "https://esm.sh/preact@10.19.6/hooks";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "https://esm.sh/preact@10.19.6/hooks";
 
 import { CONFIG } from "./config.js";
 import { normalizeTicker } from "./format.js";
@@ -40,9 +45,13 @@ function ensureEvalEntries(evalData) {
 }
 
 function mergeRows(dashData, evalData) {
-  const portfolioMap = new Map((dashData.rows || []).map((r) => [normalizeTicker(r.ticker), r]));
+  const portfolioMap = new Map(
+    (dashData.rows || []).map((r) => [normalizeTicker(r.ticker), r]),
+  );
   const evalEntries = ensureEvalEntries(evalData);
-  const evalMap = new Map(evalEntries.map((e) => [normalizeTicker(e.ticker), e]));
+  const evalMap = new Map(
+    evalEntries.map((e) => [normalizeTicker(e.ticker), e]),
+  );
 
   const allTickers = new Set([...portfolioMap.keys(), ...evalMap.keys()]);
 
@@ -112,11 +121,14 @@ function calculateWeightedChange(rows, totalVal) {
 
 async function determineDemoPath() {
   try {
-    const res = await fetch(withCacheBuster(`${CONFIG.demoPaths.primary}/portfolio.json`));
+    const res = await fetch(
+      withCacheBuster(`${CONFIG.demoPaths.primary}/portfolio.json`),
+    );
     if (!res.ok) return CONFIG.demoPaths.fallback;
 
     const payload = await res.json();
-    const isValid = Array.isArray(payload) || (payload && Array.isArray(payload.rows));
+    const isValid =
+      Array.isArray(payload) || (payload && Array.isArray(payload.rows));
     return isValid ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
   } catch {
     return CONFIG.demoPaths.fallback;
@@ -195,7 +207,8 @@ export function usePortfolioData() {
         // Demo mode: static only
         if (CONFIG.isDemoMode) {
           setIsUsingDemoData(true);
-          const { dashData, evalData } = await fetchStaticPortfolioData(basePath);
+          const { dashData, evalData } =
+            await fetchStaticPortfolioData(basePath);
           const merged = calculateRanks(mergeRows(dashData, evalData));
           setRows(merged);
           setGeneratedAt(new Date().toISOString());
@@ -226,7 +239,8 @@ export function usePortfolioData() {
         // If API fails, fall back to static (read-only)
         try {
           const basePath = await determineDemoPath();
-          const { dashData, evalData } = await fetchStaticPortfolioData(basePath);
+          const { dashData, evalData } =
+            await fetchStaticPortfolioData(basePath);
           setIsUsingDemoData(true);
           const merged = calculateRanks(mergeRows(dashData, evalData));
           setRows(merged);
@@ -252,7 +266,9 @@ export function usePortfolioData() {
       if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
 
       if (existingQuantity != null && existingQuantity !== 0) {
-        const confirmed = window.confirm(`Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`);
+        const confirmed = window.confirm(
+          `Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`,
+        );
         if (!confirmed) return { ok: false, reason: "cancelled" };
       }
 
@@ -275,7 +291,12 @@ export function usePortfolioData() {
   );
 
   const setQuantity = useCallback(
-    async ({ ticker, quantity, delta = 1.0, bucket = CONFIG.defaultBucket }) => {
+    async ({
+      ticker,
+      quantity,
+      delta = 1.0,
+      bucket = CONFIG.defaultBucket,
+    }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
 
       const t = normalizeTicker(ticker);
@@ -307,10 +328,14 @@ export function usePortfolioData() {
       const t = normalizeTicker(ticker);
       if (!t) return { ok: false, reason: "invalid" };
 
-      const confirmed = window.confirm(`CONFIRM: Eliminate ${t} from portfolio?`);
+      const confirmed = window.confirm(
+        `CONFIRM: Eliminate ${t} from portfolio?`,
+      );
       if (!confirmed) return { ok: false, reason: "cancelled" };
 
-      const res = await fetch(`${CONFIG.endpoints.position}/${t}`, { method: "DELETE" });
+      const res = await fetch(`${CONFIG.endpoints.position}/${t}`, {
+        method: "DELETE",
+      });
       if (!res.ok) return { ok: false, reason: "server" };
 
       await load({ background: true });
@@ -323,7 +348,10 @@ export function usePortfolioData() {
     return [...rows]
       .sort((a, b) => (Number(b.weight_pct) || 0) - (Number(a.weight_pct) || 0))
       .map((r) => normalizeTicker(r.ticker))
-      .filter((t, i, self) => t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i)
+      .filter(
+        (t, i, self) =>
+          t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i,
+      )
       .slice(0, CONFIG.maxTickerTapeCount);
   }, [rows]);
 

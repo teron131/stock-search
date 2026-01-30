@@ -1,5 +1,8 @@
 const FORMATTERS = {
-  currency: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }),
+  currency: new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }),
   number: new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }),
   sig4: new Intl.NumberFormat("en-US", {
     maximumSignificantDigits: 4,
@@ -27,11 +30,17 @@ function toSig4(value) {
 }
 
 export function normalizeTicker(ticker) {
-  return String(ticker || "").replace("-", ".").toUpperCase();
+  return String(ticker || "")
+    .replace("-", ".")
+    .toUpperCase();
 }
 
 export function cleanNumericString(value) {
-  return String(value).trim().toUpperCase().replace(/^\$/, "").replace(/,/g, "");
+  return String(value)
+    .trim()
+    .toUpperCase()
+    .replace(/^\$/, "")
+    .replace(/,/g, "");
 }
 
 export function parseMarketCap(value) {

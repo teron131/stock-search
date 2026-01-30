@@ -1,5 +1,9 @@
 import { html } from "https://esm.sh/htm@3.1.1/preact";
-import { useEffect, useRef, useState } from "https://esm.sh/preact@10.19.6/hooks";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "https://esm.sh/preact@10.19.6/hooks";
 
 import { DataTable } from "./components/DataTable.js";
 import { QuickAdd } from "./components/QuickAdd.js";
@@ -74,7 +78,9 @@ function initSidebarAndNav({ onViewChange }) {
       const viewName = btn.dataset.view;
       if (!viewName) return;
 
-      navItems.forEach((n) => n.classList.toggle("active", n.dataset.view === viewName));
+      navItems.forEach((n) =>
+        n.classList.toggle("active", n.dataset.view === viewName),
+      );
       onViewChange(viewName);
 
       if (window.innerWidth <= 1024 && sidebar) {
@@ -88,10 +94,12 @@ function createHeatmapWidget(dataSource) {
   const container = document.getElementById("heatmap-widget-container");
   if (!container) return;
 
-  container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
+  container.innerHTML =
+    '<div class="tradingview-widget-container__widget"></div>';
   const script = document.createElement("script");
   script.type = "text/javascript";
-  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js";
+  script.src =
+    "https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js";
   script.async = true;
   script.innerHTML = JSON.stringify({ ...CONFIG.heatmapWidget, dataSource });
   container.appendChild(script);
@@ -104,7 +112,9 @@ function initHeatmapTabs() {
       const source = tab.dataset.source;
       if (!source) return;
 
-      tabs.forEach((t) => t.classList.toggle("active", t.dataset.source === source));
+      tabs.forEach((t) =>
+        t.classList.toggle("active", t.dataset.source === source),
+      );
       createHeatmapWidget(source);
     });
   });
@@ -141,7 +151,9 @@ export function App() {
 
     const refreshBtn = document.getElementById("refresh-btn");
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => actions.sync({ background: false }));
+      refreshBtn.addEventListener("click", () =>
+        actions.sync({ background: false }),
+      );
     }
   }, []);
 
@@ -179,8 +191,14 @@ export function App() {
 
   // Update overview panel + timestamp
   useEffect(() => {
-    setText("total-positions", stats.positions ? String(stats.positions) : "--");
-    setText("total-notional", stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--");
+    setText(
+      "total-positions",
+      stats.positions ? String(stats.positions) : "--",
+    );
+    setText(
+      "total-notional",
+      stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
+    );
 
     if (stats.totalVal > 0) {
       const { percent, absolute } = stats.change;
@@ -206,7 +224,10 @@ export function App() {
 
     // last updated
     const time = generatedAt ? new Date(generatedAt) : new Date();
-    const dateStr = time.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
+    const dateStr = time.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+    });
     const timeStr = time.toLocaleTimeString("en-US", {
       hour12: false,
       hour: "2-digit",
@@ -233,7 +254,6 @@ export function App() {
     overlay.style.display = isLoading && !isBackgroundLoading ? "flex" : "none";
   }, [isLoading, isBackgroundLoading]);
 
-
   useEffect(() => {
     if (lastError && !isLoading) {
       showToast("SYNCHRONIZATION FAILED");
@@ -252,7 +272,13 @@ export function App() {
     if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
   };
 
-  const onSetQuantity = async ({ ticker, quantity, delta, bucket, silent = false }) => {
+  const onSetQuantity = async ({
+    ticker,
+    quantity,
+    delta,
+    bucket,
+    silent = false,
+  }) => {
     const res = await actions.setQuantity({ ticker, quantity, delta, bucket });
 
     if (!res.ok) {
@@ -270,7 +296,11 @@ export function App() {
   };
 
   const onSubmit = async ({ ticker, quantity, existingQuantity }) => {
-    const res = await actions.addOrUpdate({ ticker, quantity, existingQuantity });
+    const res = await actions.addOrUpdate({
+      ticker,
+      quantity,
+      existingQuantity,
+    });
     if (res.ok) showToast("UPDATED");
     if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
   };
@@ -285,15 +315,25 @@ export function App() {
     <div class="tabs-container" id="dashboard-tables">
       <div class="tabs-header">
         <div class="tab-group">
-          <button class=${`tab-btn ${tab === "holdings" ? "active" : ""}`} onClick=${() => setTab("holdings")}>
+          <button
+            class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
+            onClick=${() => setTab("holdings")}
+          >
             PORTFOLIO
           </button>
-          <button class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`} onClick=${() => setTab("evaluations")}>
+          <button
+            class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
+            onClick=${() => setTab("evaluations")}
+          >
             EVALUATION
           </button>
         </div>
 
-        <${QuickAdd} rows=${rows} isUsingDemoData=${isUsingDemoData} onSubmit=${onSubmit} />
+        <${QuickAdd}
+          rows=${rows}
+          isUsingDemoData=${isUsingDemoData}
+          onSubmit=${onSubmit}
+        />
       </div>
 
       <${DataTable}

@@ -1,7 +1,13 @@
 import { parseMarketCap } from "./format.js";
 
 const BACKEND_MEDIAN_SCORE = 5.0;
-const TARGET_FORMATS = new Set(["score", "prob", "percent_neutral", "number", "market_cap"]);
+const TARGET_FORMATS = new Set([
+  "score",
+  "prob",
+  "percent_neutral",
+  "number",
+  "market_cap",
+]);
 const TARGET_KEYS = new Set(["rank", "rsi", "market_cap"]);
 const INVERT_KEYS = new Set(["rank", "bear", "pe", "pe_forward", "peg"]);
 
@@ -9,7 +15,9 @@ export function median(values) {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
 
 export function getScoreColor(value, meta) {
@@ -26,7 +34,11 @@ export function getScoreColor(value, meta) {
   return null;
 }
 
-export function calculateScoreColorMetadata(rows, cols, { colorBandFraction = 0.5 } = {}) {
+export function calculateScoreColorMetadata(
+  rows,
+  cols,
+  { colorBandFraction = 0.5 } = {},
+) {
   const metadata = {};
 
   cols.forEach((col) => {

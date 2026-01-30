@@ -28,7 +28,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # In this HTML version, we deploy the 'ui' directory directly
-          path: './ui'
+          path: "./ui"
 
   deploy:
     needs: build

@@ -1,6 +1,10 @@
 import { html } from "https://esm.sh/htm@3.1.1/preact";
 
-import { useEffect, useRef, useState } from "https://esm.sh/preact@10.19.6/hooks";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "https://esm.sh/preact@10.19.6/hooks";
 
 import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
 import { COLS, CONFIG } from "../config.js";
@@ -21,7 +25,11 @@ function sortRows(rows, col, dir) {
   const sorted = [...rows];
   sorted.sort((a, b) => {
     if (col === "market_cap") {
-      return compareNullable(parseMarketCap(a.market_cap), parseMarketCap(b.market_cap), dir);
+      return compareNullable(
+        parseMarketCap(a.market_cap),
+        parseMarketCap(b.market_cap),
+        dir,
+      );
     }
 
     return compareNullable(a[col], b[col], dir);
@@ -107,7 +115,9 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 
   const applyDelta = (delta, evt, overrideStep) => {
     const step = overrideStep ?? (evt?.shiftKey ? 10 : evt?.altKey ? 100 : 1);
-    const base = Number.isFinite(numericDraftRef.current) ? numericDraftRef.current : lastCommitted.current;
+    const base = Number.isFinite(numericDraftRef.current)
+      ? numericDraftRef.current
+      : lastCommitted.current;
     const next = Math.max(0, (Number(base) || 0) + delta * step);
     numericDraftRef.current = next;
     setDraftQty(String(next));
@@ -128,7 +138,9 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 
     if (holdRef.current.captureTarget && holdRef.current.pointerId != null) {
       try {
-        holdRef.current.captureTarget.releasePointerCapture(holdRef.current.pointerId);
+        holdRef.current.captureTarget.releasePointerCapture(
+          holdRef.current.pointerId,
+        );
       } catch {
         // ignore
       }
@@ -167,7 +179,10 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
       if (!holdRef.current.isActive) return;
 
       const elapsedMs = performance.now() - holdRef.current.startMs;
-      const intervalMs = Math.max(30, Math.round(220 * Math.pow(0.78, elapsedMs / 650)));
+      const intervalMs = Math.max(
+        30,
+        Math.round(220 * Math.pow(0.78, elapsedMs / 650)),
+      );
 
       applyDelta(holdRef.current.delta, null, holdRef.current.step);
       holdRef.current.timer = setTimeout(tick, intervalMs);
@@ -254,7 +269,9 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
         onClick=${onSpinClick(1)}
         onKeyDown=${onSpinKeyDown(1)}
         title="Up"
-      >▲</button>
+      >
+        ▲
+      </button>
       <button
         class="qty-spin-btn"
         disabled=${!canEdit}
@@ -265,22 +282,49 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
         onClick=${onSpinClick(-1)}
         onKeyDown=${onSpinKeyDown(-1)}
         title="Down"
-      >▼</button>
+      >
+        ▼
+      </button>
     </div>
   </div>`;
 }
 
-function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoData }) {
+function renderCell({
+  row,
+  col,
+  colorMeta,
+  onRemove,
+  onSetQuantity,
+  isUsingDemoData,
+}) {
   const key = col.key;
   const format = col.format;
 
   if (key === "quantity" && onSetQuantity) {
-    return html`<${QtyCell} row=${row} isUsingDemoData=${isUsingDemoData} onSetQuantity=${onSetQuantity} />`;
+    return html`<${QtyCell}
+      row=${row}
+      isUsingDemoData=${isUsingDemoData}
+      onSetQuantity=${onSetQuantity}
+    />`;
   }
-  
+
   if (key === "remove") {
-    return html`<button class="btn-remove-cell" onClick=${() => onRemove(row.ticker)} title="Remove">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    return html`<button
+      class="btn-remove-cell"
+      onClick=${() => onRemove(row.ticker)}
+      title="Remove"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -296,7 +340,8 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
       hide-background
       theme="dark"
       transparent
-    >${val}</tv-ticker-tag>`;
+      >${val}</tv-ticker-tag
+    >`;
   }
 
   const valueForDisplay = row[key];
@@ -306,9 +351,13 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
   if (format === "percent") {
     const numeric = Number(valueForDisplay);
     const badgeClass = numeric >= 0 ? "positive" : "negative";
-    content = html`<span class=${`badge ${badgeClass}`}>${formatter(valueForDisplay)}</span>`;
+    content = html`<span class=${`badge ${badgeClass}`}
+      >${formatter(valueForDisplay)}</span
+    >`;
   } else if (format === "percent_neutral") {
-    content = html`<span class="cell-weight">${formatter(valueForDisplay)}</span>`;
+    content = html`<span class="cell-weight"
+      >${formatter(valueForDisplay)}</span
+    >`;
   } else if (format === "score") {
     const numeric = Number(valueForDisplay);
     const scoreClass =
@@ -317,7 +366,9 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
         : numeric <= CONFIG.scoreThresholds.low
           ? "score-low"
           : "score-mid";
-    content = html`<span class=${scoreClass}>${formatter(valueForDisplay)}</span>`;
+    content = html`<span class=${scoreClass}
+      >${formatter(valueForDisplay)}</span
+    >`;
   } else {
     content = formatter(valueForDisplay);
   }
@@ -325,11 +376,15 @@ function renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoD
   // Apply conditional coloring
   const colorKey = col.key;
   const isColorizable =
-    ["score", "prob", "percent_neutral", "number", "market_cap"].includes(format) ||
-    ["rank", "rsi", "market_cap"].includes(colorKey);
+    ["score", "prob", "percent_neutral", "number", "market_cap"].includes(
+      format,
+    ) || ["rank", "rsi", "market_cap"].includes(colorKey);
 
   if (isColorizable && colorMeta && colorMeta[colorKey]) {
-    const rawValue = colorKey === "market_cap" ? parseMarketCap(row.market_cap) : row[colorKey];
+    const rawValue =
+      colorKey === "market_cap"
+        ? parseMarketCap(row.market_cap)
+        : row[colorKey];
     const textColor = getScoreColor(rawValue, colorMeta[colorKey]);
 
     if (textColor) {
@@ -359,7 +414,9 @@ export function DataTable({
   });
 
   const sorted = sortRows(filtered, sortCol, sortDir);
-  const colorMeta = calculateScoreColorMetadata(sorted, cols, { colorBandFraction: CONFIG.colorBandFraction });
+  const colorMeta = calculateScoreColorMetadata(sorted, cols, {
+    colorBandFraction: CONFIG.colorBandFraction,
+  });
 
   return html`
     <div class="tabs-container">
@@ -369,25 +426,52 @@ export function DataTable({
             <tr>
               ${cols.map((c) => {
                 if (c.key === "remove") return html`<th></th>`;
-                const sortedClass = sortCol === c.key ? `sorted ${sortDir}` : "";
-                return html`<th data-sort=${c.key} class=${sortedClass} onClick=${() => onSort(c.key)}>${c.label}</th>`;
+                const sortedClass =
+                  sortCol === c.key ? `sorted ${sortDir}` : "";
+                return html`<th
+                  data-sort=${c.key}
+                  class=${sortedClass}
+                  onClick=${() => onSort(c.key)}
+                >
+                  ${c.label}
+                </th>`;
               })}
             </tr>
           </thead>
           <tbody>
             ${sorted.length
               ? sorted.map(
-                  (row, i) => html`<tr
-                    key=${normalizeTicker(row.ticker)}
-                    class=${animateRows ? "animate-in" : ""}
-                    style=${animateRows ? { animationDelay: `${i * CONFIG.animationDelayMs}ms` } : null}
-                  >
-                    ${cols.map(                      (col) => html`<td>${renderCell({ row, col, colorMeta, onRemove, onSetQuantity, isUsingDemoData })}</td>`)}
-                  </tr>`,
+                  (row, i) =>
+                    html`<tr
+                      key=${normalizeTicker(row.ticker)}
+                      class=${animateRows ? "animate-in" : ""}
+                      style=${animateRows
+                        ? { animationDelay: `${i * CONFIG.animationDelayMs}ms` }
+                        : null}
+                    >
+                      ${cols.map(
+                        (col) =>
+                          html`<td>
+                            ${renderCell({
+                              row,
+                              col,
+                              colorMeta,
+                              onRemove,
+                              onSetQuantity,
+                              isUsingDemoData,
+                            })}
+                          </td>`,
+                      )}
+                    </tr>`,
                 )
               : html`<tr>
-                  <td colspan=${cols.length} style="text-align:center;color:var(--muted);height:200px;font-family:var(--font-mono);">
-                    ${tab === "holdings" ? "NO ACTIVE POSITIONS FOUND" : "NO EVALUATIONS FOUND"}
+                  <td
+                    colspan=${cols.length}
+                    style="text-align:center;color:var(--muted);height:200px;font-family:var(--font-mono);"
+                  >
+                    ${tab === "holdings"
+                      ? "NO ACTIVE POSITIONS FOUND"
+                      : "NO EVALUATIONS FOUND"}
                   </td>
                 </tr>`}
           </tbody>

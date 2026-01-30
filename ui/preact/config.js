@@ -55,8 +55,16 @@ export const COLS = {
     { key: "rsi", label: "RSI", format: "number" },
     { key: "twenty_day_change_percent", label: "20D%", format: "percent" },
     { key: "fifty_day_change_percent", label: "50D%", format: "percent" },
-    { key: "one_hundred_day_change_percent", label: "100D%", format: "percent" },
-    { key: "two_hundred_day_change_percent", label: "200D%", format: "percent" },
+    {
+      key: "one_hundred_day_change_percent",
+      label: "100D%",
+      format: "percent",
+    },
+    {
+      key: "two_hundred_day_change_percent",
+      label: "200D%",
+      format: "percent",
+    },
     { key: "earning_direction", label: "EARN_DIR" },
     { key: "notional", label: "VALUE", format: "currency" },
     { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
