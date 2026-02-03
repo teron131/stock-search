@@ -419,64 +419,61 @@ export function DataTable({
   });
 
   return html`
-    <div class="tabs-container">
-      <div class="table-wrapper">
-        <table id="main-table">
-          <thead>
-            <tr>
-              ${cols.map((c) => {
-                if (c.key === "remove") return html`<th></th>`;
-                const sortedClass =
-                  sortCol === c.key ? `sorted ${sortDir}` : "";
-                return html`<th
-                  data-sort=${c.key}
-                  class=${sortedClass}
-                  onClick=${() => onSort(c.key)}
-                >
-                  ${c.label}
-                </th>`;
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            ${sorted.length
-              ? sorted.map(
-                  (row, i) =>
-                    html`<tr
-                      key=${normalizeTicker(row.ticker)}
-                      class=${animateRows ? "animate-in" : ""}
-                      style=${animateRows
-                        ? { animationDelay: `${i * CONFIG.animationDelayMs}ms` }
-                        : null}
-                    >
-                      ${cols.map(
-                        (col) =>
-                          html`<td>
-                            ${renderCell({
-                              row,
-                              col,
-                              colorMeta,
-                              onRemove,
-                              onSetQuantity,
-                              isUsingDemoData,
-                            })}
-                          </td>`,
-                      )}
-                    </tr>`,
-                )
-              : html`<tr>
-                  <td
-                    colspan=${cols.length}
-                    style="text-align:center;color:var(--muted);height:200px;font-family:var(--font-mono);"
+    <div class="table-wrapper">
+      <table id="main-table">
+        <thead>
+          <tr>
+            ${cols.map((c) => {
+              if (c.key === "remove") return html`<th></th>`;
+              const sortedClass = sortCol === c.key ? `sorted ${sortDir}` : "";
+              return html`<th
+                data-sort=${c.key}
+                class=${sortedClass}
+                onClick=${() => onSort(c.key)}
+              >
+                ${c.label}
+              </th>`;
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.length
+            ? sorted.map(
+                (row, i) =>
+                  html`<tr
+                    key=${normalizeTicker(row.ticker)}
+                    class=${animateRows ? "animate-in" : ""}
+                    style=${animateRows
+                      ? { animationDelay: `${i * CONFIG.animationDelayMs}ms` }
+                      : null}
                   >
-                    ${tab === "holdings"
-                      ? "NO ACTIVE POSITIONS FOUND"
-                      : "NO EVALUATIONS FOUND"}
-                  </td>
-                </tr>`}
-          </tbody>
-        </table>
-      </div>
+                    ${cols.map(
+                      (col) =>
+                        html`<td>
+                          ${renderCell({
+                            row,
+                            col,
+                            colorMeta,
+                            onRemove,
+                            onSetQuantity,
+                            isUsingDemoData,
+                          })}
+                        </td>`,
+                    )}
+                  </tr>`,
+              )
+            : html`<tr>
+                <td
+                  colspan=${cols.length}
+                  style="text-align:center;color:var(--muted);height:200px;font-family:var(--font-mono);"
+                >
+                  ${tab === "holdings"
+                    ? "NO ACTIVE POSITIONS FOUND"
+                    : "NO EVALUATIONS FOUND"}
+                </td>
+              </tr>`}
+        </tbody>
+      </table>
     </div>
   `;
 }
