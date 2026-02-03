@@ -51,7 +51,18 @@ function updateTickerTape(tickers) {
   }
 
   container.style.display = "block";
-  tape.setAttribute("symbols", tickers.join(","));
+
+  // TradingView ticker tape expects a comma-separated list of symbols.
+  const symbols = tickers
+    .map((t) =>
+      String(t || "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter(Boolean)
+    .join(",");
+
+  tape.setAttribute("symbols", symbols);
   tape.style.height = "auto";
 }
 

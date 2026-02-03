@@ -72,19 +72,23 @@ def _build_row(
     if not isinstance(cached, dict):
         cached = {}
 
-    # Only keep non-market metadata from cache.
-    stats: dict[str, Any] = {k: v for k, v in cached.items() if k not in _MARKET_KEYS}
+    # Cache is a read-through fallback: keep non-market metadata always,
+    # and use cached market fields only when live fetch fails or omits them.
+    cached_meta: dict[str, Any] = {k: v for k, v in cached.items() if k not in _MARKET_KEYS}
+    cached_market: dict[str, Any] = {k: v for k, v in cached.items() if k in _MARKET_KEYS}
 
     eval_data = eval_cache.get(ticker, {})
     if not isinstance(eval_data, dict):
         eval_data = {}
 
-    # Live values override cached metadata.
-    stats.update(_fetch_live_stats(ticker))
+    live_market = _fetch_live_stats(ticker)
+
+    # Start with metadata, then market (cached -> live overrides)
+    stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
     qty = float(pos.get("quantity") or 0)
     delta = float(pos.get("delta") or 1.0)
-    price = stats.get("current_price")
+    price = stats.get("current_price") or stats.get("price")
 
     notional = calculate_notional(qty, delta, price) if qty and price else 0.0
 

@@ -345,14 +345,25 @@ export function usePortfolioData() {
   );
 
   const topTickers = useMemo(() => {
-    return [...rows]
-      .sort((a, b) => (Number(b.weight_pct) || 0) - (Number(a.weight_pct) || 0))
-      .map((r) => normalizeTicker(r.ticker))
-      .filter(
-        (t, i, self) =>
-          t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i,
-      )
-      .slice(0, CONFIG.maxTickerTapeCount);
+    return (
+      [...rows]
+        .sort(
+          (a, b) => (Number(b.weight_pct) || 0) - (Number(a.weight_pct) || 0),
+        )
+        // TradingView ticker tape accepts plain tickers (no exchange prefix) and
+        // resolves logos internally; keep them lowercase like the official snippet.
+        .map((r) =>
+          String(r?.ticker || "")
+            .trim()
+            .replace("-", ".")
+            .toLowerCase(),
+        )
+        .filter(
+          (t, i, self) =>
+            t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i,
+        )
+        .slice(0, CONFIG.maxTickerTapeCount)
+    );
   }, [rows]);
 
   return {
