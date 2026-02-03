@@ -1,6 +1,7 @@
 import os
 
-from .llm_harness import WebLoaderAgent
+from llm_harness.clients import WebLoaderAgent
+
 from .schemas import ETFHoldings
 
 ETF_SYSTEM_PROMPT = """Extract ETF holdings and weightings from these websites:

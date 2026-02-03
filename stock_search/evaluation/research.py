@@ -10,10 +10,9 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.store.memory import InMemoryStore
+from llm_harness.clients import ChatOpenRouter, WebLoaderAgent
 from pydantic import BaseModel, Field
 
-from ..llm_harness.agents import WebLoaderAgent
-from ..llm_harness.openrouter import ChatOpenRouter
 from ..utils import extract_domain
 from .constants import ThresholdConfig
 

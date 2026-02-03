@@ -11,9 +11,10 @@ import math
 import os
 
 from langchain_core.prompts import PromptTemplate
+from llm_harness.clients import ChatOpenRouter
+from llm_harness.tools import webloader
 from tqdm import tqdm
 
-from ..llm_harness import ChatOpenRouter, webloader
 from ..prompts import NEWS_ANALYSIS_PROMPT
 from ..schemas import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
