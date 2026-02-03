@@ -24,6 +24,7 @@ dependencies = [
     "uvicorn>=0.40.0",
     "yfinance>=0.2.65",
     "pandas>=2.2.3",
+    "llm-harness",
 ]
 
 [build-system]
@@ -82,3 +83,11 @@ force-sort-within-sections = true
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.uv.workspace]
+members = [
+    "llm-harness",
+]
+
+[tool.uv.sources]
+llm-harness = { workspace = true }

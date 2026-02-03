@@ -1,11 +1,9 @@
 .DS_Store
-uv.lock
 *.json
 data/
 !ui/sample_data/*.json
 *.ipynb
 *test*
-AGENTS.md
 *.png
 
 
