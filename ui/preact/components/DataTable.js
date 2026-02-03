@@ -409,6 +409,11 @@ export function DataTable({
   const cols = COLS[tab];
 
   const filtered = rows.filter((r) => {
+    if (tab === "all") {
+      const isHolding = r.quantity != null && r.notional != null;
+      const isEval = r.overall != null || r.rank != null;
+      return isHolding || isEval;
+    }
     if (tab === "holdings") return r.quantity != null && r.notional != null;
     return r.overall != null || r.rank != null;
   });
@@ -469,7 +474,9 @@ export function DataTable({
                 >
                   ${tab === "holdings"
                     ? "NO ACTIVE POSITIONS FOUND"
-                    : "NO EVALUATIONS FOUND"}
+                    : tab === "evaluations"
+                      ? "NO EVALUATIONS FOUND"
+                      : "NO DATA FOUND"}
                 </td>
               </tr>`}
         </tbody>

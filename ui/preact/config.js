@@ -41,7 +41,7 @@ export const CONFIG = {
 };
 
 export const COLS = {
-  holdings: [
+  all: [
     { key: "ticker", label: "TICKER" },
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
@@ -69,10 +69,6 @@ export const COLS = {
     { key: "notional", label: "VALUE", format: "currency" },
     { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
     { key: "bucket", label: "STRATEGY" },
-    { key: "remove", label: "", format: "action" },
-  ],
-  evaluations: [
-    { key: "ticker", label: "TICKER" },
     { key: "rank", label: "RANK" },
     { key: "overall", label: "SCORE", format: "score" },
     { key: "quality", label: "QUALITY", format: "score" },
@@ -81,12 +77,31 @@ export const COLS = {
     { key: "upside", label: "UPSIDE", format: "score" },
     { key: "bull", label: "BULL", format: "prob" },
     { key: "bear", label: "BEAR", format: "prob" },
+    { key: "remove", label: "", format: "action" },
+  ],
+  holdings: [
+    { key: "ticker", label: "TICKER" },
+    { key: "quantity", label: "QTY", format: "number" },
+    { key: "current_price", label: "PRICE", format: "currency" },
+    { key: "change_percent", label: "CHANGE%", format: "percent" },
+    { key: "notional", label: "VALUE", format: "currency" },
+    { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
+    { key: "bucket", label: "STRATEGY" },
+    { key: "remove", label: "", format: "action" },
+  ],
+  evaluations: [
+    { key: "ticker", label: "TICKER" },
+    { key: "rank", label: "RANK" },
+    { key: "overall", label: "SCORE", format: "score" },
+    { key: "bull", label: "BULL", format: "prob" },
+    { key: "bear", label: "BEAR", format: "prob" },
     { key: "bucket", label: "STRATEGY" },
     { key: "remove", label: "", format: "action" },
   ],
 };
 
 export const DEFAULT_SORT_COLS = {
+  all: "weight_pct",
   holdings: "weight_pct",
   evaluations: "overall",
 };

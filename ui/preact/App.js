@@ -133,8 +133,8 @@ function initHeatmapTabs() {
 
 export function App() {
   const [view, setView] = useState("dashboard");
-  const [tab, setTab] = useState("holdings");
-  const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.holdings);
+  const [tab, setTab] = useState("all");
+  const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
   const [sortDir, setSortDir] = useState("desc");
 
   const {
@@ -326,6 +326,12 @@ export function App() {
     <div class="tabs-container" id="dashboard-tables">
       <div class="tabs-header">
         <div class="tab-group">
+          <button
+            class=${`tab-btn ${tab === "all" ? "active" : ""}`}
+            onClick=${() => setTab("all")}
+          >
+            ALL
+          </button>
           <button
             class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
             onClick=${() => setTab("holdings")}
