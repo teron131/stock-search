@@ -409,13 +409,14 @@ export function DataTable({
   const cols = COLS[tab];
 
   const filtered = rows.filter((r) => {
-    if (tab === "all") {
-      const isHolding = r.quantity != null && r.notional != null;
-      const isEval = r.overall != null || r.rank != null;
-      return isHolding || isEval;
-    }
-    if (tab === "holdings") return r.quantity != null && r.notional != null;
-    return r.overall != null || r.rank != null;
+    const qty = Number(r.quantity);
+    const hasQty = r.quantity != null && !Number.isNaN(qty);
+    const isHolding = hasQty && qty > 0 && r.notional != null;
+    const isEval = r.overall != null || r.rank != null;
+
+    if (tab === "all") return isHolding || isEval;
+    if (tab === "holdings") return isHolding;
+    return isEval;
   });
 
   const sorted = sortRows(filtered, sortCol, sortDir);
@@ -467,18 +468,7 @@ export function DataTable({
                     )}
                   </tr>`,
               )
-            : html`<tr>
-                <td
-                  colspan=${cols.length}
-                  style="text-align:center;color:var(--muted);height:200px;font-family:var(--font-mono);"
-                >
-                  ${tab === "holdings"
-                    ? "NO ACTIVE POSITIONS FOUND"
-                    : tab === "evaluations"
-                      ? "NO EVALUATIONS FOUND"
-                      : "NO DATA FOUND"}
-                </td>
-              </tr>`}
+            : null}
         </tbody>
       </table>
     </div>

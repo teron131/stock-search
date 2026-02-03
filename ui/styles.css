@@ -88,6 +88,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.is-loading {
+  overflow: hidden;
+}
+
 /* Subtle background grain and grid */
 body::before {
   content: "";
@@ -1076,6 +1080,7 @@ tv-ticker-tag {
   align-items: center;
   justify-content: center;
   gap: var(--space-xl);
+  overflow: hidden;
 }
 
 .loader {

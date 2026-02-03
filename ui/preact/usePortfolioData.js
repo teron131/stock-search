@@ -97,8 +97,9 @@ function calculateWeights(rows) {
   return {
     totalVal,
     rows: rows.map((r) => {
-      const notional = Number(r.notional);
-      if (!notional || Number.isNaN(notional)) {
+      const rawNotional = r.notional;
+      const notional = rawNotional == null ? null : Number(rawNotional);
+      if (notional == null || Number.isNaN(notional)) {
         return { ...r, weight_pct: null };
       }
       return { ...r, weight_pct: (notional / totalVal) * 100 };
@@ -280,7 +281,7 @@ export function usePortfolioData() {
       const q = Number(quantity);
       if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
 
-      if (existingQuantity != null && existingQuantity !== 0) {
+      if (existingQuantity != null) {
         const confirmed = window.confirm(
           `Ticker ${t} already exists with ${existingQuantity}. Update to ${q}?`,
         );

@@ -259,10 +259,16 @@ export function App() {
     const overlay = document.getElementById("loading-overlay");
     if (!overlay) return;
 
+    const show = isLoading && !isBackgroundLoading;
+
     // In this first cut, we only show overlay for explicit sync button usage.
     // The hook still performs background refresh after add/remove.
-    // Only show overlay for foreground sync
-    overlay.style.display = isLoading && !isBackgroundLoading ? "flex" : "none";
+    overlay.style.display = show ? "flex" : "none";
+    document.body.classList.toggle("is-loading", show);
+
+    return () => {
+      document.body.classList.remove("is-loading");
+    };
   }, [isLoading, isBackgroundLoading]);
 
   useEffect(() => {
@@ -315,12 +321,6 @@ export function App() {
     if (res.ok) showToast("UPDATED");
     if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
   };
-
-  // Keep sort defaults when switching tabs
-  useEffect(() => {
-    setSortCol(DEFAULT_SORT_COLS[tab]);
-    setSortDir("desc");
-  }, [tab]);
 
   return html`
     <div class="tabs-container" id="dashboard-tables">

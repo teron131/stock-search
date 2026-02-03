@@ -498,5 +498,10 @@
     "ticker": "ZM",
     "quantity": 111.0,
     "delta": 1.0
+  },
+  {
+    "ticker": "APP",
+    "quantity": 0,
+    "delta": 1.0
   }
 ]

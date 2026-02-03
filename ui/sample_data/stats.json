@@ -1834,5 +1834,23 @@
     "peg": 4.45,
     "gross_margin": 76.89,
     "earning_direction": "Increase"
+  },
+  "APP": {
+    "current_price": 0.42,
+    "change_percent": 0.0,
+    "bucket": "Tactical Opportunities",
+    "name": "AppLovin Corporation, Inc.",
+    "rsi": null,
+    "twenty_day_change_percent": null,
+    "fifty_day_change_percent": null,
+    "one_hundred_day_change_percent": null,
+    "two_hundred_day_change_percent": null,
+    "median_upside": null,
+    "market_cap": null,
+    "pe": null,
+    "pe_forward": null,
+    "peg": null,
+    "gross_margin": null,
+    "earning_direction": null
   }
 }
