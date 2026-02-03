@@ -1124,30 +1124,31 @@ tv-ticker-tag {
   flex-direction: column;
   border-radius: var(--radius-md);
   overflow: visible;
+  padding: 0 0 var(--space-md);
   box-shadow: var(--shadow-sm);
 }
 
 /* TradingView widgets need an explicit parent height when using height: 100% */
 #heatmap-section,
-.calendar-section {
+#calendar-section {
   height: calc(
     100vh - var(--header-height) - var(--space-xl) - var(--space-4xl)
   );
 }
 
 #heatmap-widget-container,
-.calendar-section .tradingview-widget-container {
+#calendar-section .tradingview-widget-container {
   flex: 1;
   min-height: 0;
 }
 
 #heatmap-widget-container > .tradingview-widget-container__widget,
-.calendar-section .tradingview-widget-container__widget {
+#calendar-section .tradingview-widget-container__widget {
   height: 100%;
 }
 
 #heatmap-widget-container iframe,
-.calendar-section iframe {
+#calendar-section iframe {
   display: block;
   width: 100% !important;
   height: 100% !important;
