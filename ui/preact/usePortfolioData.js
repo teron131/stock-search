@@ -120,19 +120,34 @@ function calculateWeightedChange(rows, totalVal) {
 }
 
 async function determineDemoPath() {
-  try {
-    const res = await fetch(
-      withCacheBuster(`${CONFIG.demoPaths.primary}/portfolio.json`),
-    );
-    if (!res.ok) return CONFIG.demoPaths.fallback;
+  const stripLeadingSlashes = (p) => String(p || "").replace(/^\/+/, "");
 
-    const payload = await res.json();
-    const isValid =
-      Array.isArray(payload) || (payload && Array.isArray(payload.rows));
-    return isValid ? CONFIG.demoPaths.primary : CONFIG.demoPaths.fallback;
-  } catch {
-    return CONFIG.demoPaths.fallback;
+  const isValidPortfolioPayload = (payload) =>
+    Array.isArray(payload) || (payload && Array.isArray(payload.rows));
+
+  const primary = CONFIG.demoPaths.primary;
+  const fallback = CONFIG.demoPaths.fallback;
+
+  // Prefer relative paths (works for GitHub Pages subpaths), but fall back to absolute
+  // (helps if UI is served from a sub-route while backend mounts /data at root).
+  const candidates = [primary, fallback].flatMap((base) => {
+    if (!base) return [];
+    if (String(base).startsWith("/")) return [base];
+    return [base, `/${stripLeadingSlashes(base)}`];
+  });
+
+  for (const base of candidates) {
+    try {
+      const res = await fetch(withCacheBuster(`${base}/portfolio.json`));
+      if (!res.ok) continue;
+      const payload = await res.json();
+      if (isValidPortfolioPayload(payload)) return base;
+    } catch {
+      // keep trying
+    }
   }
+
+  return fallback;
 }
 
 async function fetchStaticPortfolioData(basePath) {
