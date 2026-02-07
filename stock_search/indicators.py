@@ -45,6 +45,11 @@ _SESSION_PRICE_KEYS: dict[str, str] = {
 }
 
 _PRICE_FALLBACK_ORDER = ("regularMarketPrice", "postMarketPrice", "preMarketPrice")
+_PRICE_TIME_KEYS: tuple[tuple[str, str], ...] = (
+    ("preMarketPrice", "preMarketTime"),
+    ("regularMarketPrice", "regularMarketTime"),
+    ("postMarketPrice", "postMarketTime"),
+)
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
@@ -52,19 +57,18 @@ def _round(value: float | None, decimals: int = 2) -> float | None:
     return round(float(value), decimals) if value is not None else None
 
 
+def _safe_float(value: Any) -> float | None:
+    """Convert value to float when possible."""
+    with suppress(TypeError, ValueError):
+        return float(value)
+    return None
+
+
 def parse_ratings(
     ticker: str | yf.Ticker,
     days: int = DEFAULT_RATINGS_LOOKBACK_DAYS,
-) -> dict | None:
-    """Parse analyst ratings for a ticker and calculate upside metrics.
-
-    Args:
-        ticker: Ticker string or yf.Ticker instance
-        days: Number of days to look back for ratings
-
-    Returns:
-        Dictionary with median_upside_pct and raw ratings data, or None if unavailable
-    """
+) -> dict[str, Any] | None:
+    """Parse analyst ratings for a ticker and calculate upside metrics."""
     stock = ticker if isinstance(ticker, yf.Ticker) else yf.Ticker(ticker)
 
     info: dict[str, Any] = {}
@@ -82,12 +86,12 @@ def parse_ratings(
     if df is None or isinstance(df, dict) or (isinstance(df, pd.DataFrame) and df.empty):
         return None
 
-    df = cast(pd.DataFrame, df).copy()
+    ratings_df = cast(pd.DataFrame, df).copy()
 
     try:
-        df.index = pd.to_datetime(df.index, utc=True)
+        ratings_df.index = pd.to_datetime(ratings_df.index, utc=True)
         cutoff_date = datetime.now(UTC) - timedelta(days=days)
-        recent_ratings = df[df.index >= cutoff_date]
+        recent_ratings = ratings_df[ratings_df.index >= cutoff_date]
 
         if recent_ratings.empty:
             return None
@@ -122,18 +126,17 @@ class StockIndicator:
         if now_ny.weekday() >= 5:
             return MARKET_STATE_CLOSED
 
-        t = now_ny.timetz().replace(tzinfo=None)
-        if _SESSION_PRE_START <= t < _SESSION_REGULAR_START:
+        now_time = now_ny.timetz().replace(tzinfo=None)
+        if _SESSION_PRE_START <= now_time < _SESSION_REGULAR_START:
             return MARKET_STATE_PRE
-        if _SESSION_REGULAR_START <= t < _SESSION_REGULAR_END:
+        if _SESSION_REGULAR_START <= now_time < _SESSION_REGULAR_END:
             return MARKET_STATE_REGULAR
-        if _SESSION_REGULAR_END <= t < _SESSION_POST_END:
+        if _SESSION_REGULAR_END <= now_time < _SESSION_POST_END:
             return MARKET_STATE_POST
         return MARKET_STATE_CLOSED
 
     @staticmethod
     def _session_window(now_ny: datetime, session: str) -> tuple[datetime, datetime] | None:
-        d = now_ny.date()
         windows = {
             MARKET_STATE_PRE: (_SESSION_PRE_START, _SESSION_REGULAR_START),
             MARKET_STATE_REGULAR: (_SESSION_REGULAR_START, _SESSION_REGULAR_END),
@@ -142,15 +145,23 @@ class StockIndicator:
         }
         if session not in windows:
             return None
+
         start_time, end_time = windows[session]
+        current_date = now_ny.date()
         return (
-            datetime.combine(d, start_time, tzinfo=NY_TZ),
-            datetime.combine(d, end_time, tzinfo=NY_TZ),
+            datetime.combine(current_date, start_time, tzinfo=NY_TZ),
+            datetime.combine(current_date, end_time, tzinfo=NY_TZ),
         )
 
     @staticmethod
-    def _index_to_ny(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
-        return idx.tz_convert(NY_TZ) if idx.tz else idx.tz_localize(NY_TZ)
+    def _index_to_ny(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+        return index.tz_convert(NY_TZ) if index.tz else index.tz_localize(NY_TZ)
+
+    @staticmethod
+    def _close_series(hist: pd.DataFrame) -> pd.Series | None:
+        if hist.empty or "Close" not in hist:
+            return None
+        return hist["Close"].dropna()
 
     # --- Data Fetching ---
 
@@ -161,22 +172,22 @@ class StockIndicator:
         interval: str | None = None,
         prepost: bool = False,
     ) -> pd.DataFrame:
-        key = f"{period}|{interval or ''}|prepost={prepost}"
-        if key in self._history_cache:
-            return self._history_cache[key]
+        cache_key = f"{period}|{interval or ''}|prepost={prepost}"
+        if cache_key in self._history_cache:
+            return self._history_cache[cache_key]
 
         try:
             kwargs: dict[str, Any] = {"period": period, "prepost": prepost}
             if interval:
                 kwargs["interval"] = interval
-            df = self.ticker.history(**kwargs)
-            if not isinstance(df, pd.DataFrame):
-                df = pd.DataFrame()
+            hist = self.ticker.history(**kwargs)
+            if not isinstance(hist, pd.DataFrame):
+                hist = pd.DataFrame()
         except Exception:
-            df = pd.DataFrame()
+            hist = pd.DataFrame()
 
-        self._history_cache[key] = df
-        return df
+        self._history_cache[cache_key] = hist
+        return hist
 
     @property
     def info(self) -> dict[str, Any]:
@@ -192,54 +203,59 @@ class StockIndicator:
 
     # --- Price Resolution ---
 
+    def _extract_session_close(self, hist: pd.DataFrame, window: tuple[datetime, datetime] | None) -> float | None:
+        """Extract the last close price from history, optionally scoped to a session window."""
+        close_series = self._close_series(hist)
+        if close_series is None:
+            return None
+
+        try:
+            if window:
+                idx_ny = self._index_to_ny(hist.index)
+                start, end = window
+                scoped = hist.loc[(idx_ny >= start) & (idx_ny < end)]
+                scoped_close = self._close_series(scoped)
+                if scoped_close is not None and not scoped_close.empty:
+                    return _round(float(scoped_close.iloc[-1]))
+
+            return _round(float(close_series.iloc[-1]))
+        except Exception:
+            return None
+
     def _last_intraday_price(self) -> float | None:
         """Best-effort intraday close price (fallback when `info` is missing)."""
         now_ny = self._now_ny()
-        target_session = self._market_state or self._infer_session(now_ny)
-        window = self._session_window(now_ny, target_session)
+        session = self._market_state or self._infer_session(now_ny)
+        window = self._session_window(now_ny, session)
 
         for interval in ("1m", "5m", "15m"):
             hist = self._history(period="1d", interval=interval, prepost=True)
-            if (p := self._extract_session_close(hist, window)) is not None:
-                return p
+            if (price := self._extract_session_close(hist, window)) is not None:
+                return price
         return None
-
-    def _extract_session_close(self, hist: pd.DataFrame, window: tuple[datetime, datetime] | None) -> float | None:
-        """Extract the last close price from history, optionally scoped to a session window."""
-        if hist.empty or "Close" not in hist:
-            return None
-        try:
-            idx_ny = self._index_to_ny(hist.index)
-            if window:
-                start, end = window
-                mask = (idx_ny >= start) & (idx_ny < end)
-                scoped = hist.loc[mask]
-                if not scoped.empty:
-                    return _round(float(scoped["Close"].iloc[-1]))
-            return _round(float(hist["Close"].iloc[-1]))
-        except Exception:
-            return None
 
     def _last_close(self) -> float | None:
         """Best-effort daily close price."""
         hist = self._history(period="5d", interval="1d")
-        if hist.empty or "Close" not in hist:
+        close_series = self._close_series(hist)
+        if close_series is None or close_series.empty:
             return None
+
         with suppress(Exception):
-            return _round(float(hist["Close"].iloc[-1]))
+            return _round(float(close_series.iloc[-1]))
         return None
 
     def _previous_close_from_history(self) -> float | None:
         """Best-effort previous close from daily history."""
         hist = self._history(period="5d", interval="1d")
-        if hist.empty or "Close" not in hist:
+        close_series = self._close_series(hist)
+        if close_series is None or close_series.empty:
             return None
+
         with suppress(Exception):
-            closes = hist["Close"].dropna()
-            if len(closes) >= 2:
-                return _round(float(closes.iloc[-2]))
-            if len(closes) == 1:
-                return _round(float(closes.iloc[-1]))
+            if len(close_series) >= 2:
+                return _round(float(close_series.iloc[-2]))
+            return _round(float(close_series.iloc[-1]))
         return None
 
     def _select_realtime_price_from_info(self) -> float | None:
@@ -247,48 +263,43 @@ class StockIndicator:
         info = self.info
         candidates: list[tuple[int, float]] = []
 
-        price_time_pairs = [
-            ("preMarketPrice", "preMarketTime"),
-            ("regularMarketPrice", "regularMarketTime"),
-            ("postMarketPrice", "postMarketTime"),
-        ]
-
-        for price_key, time_key in price_time_pairs:
-            price = info.get(price_key)
+        for price_key, time_key in _PRICE_TIME_KEYS:
+            price = _safe_float(info.get(price_key))
             if price is None:
                 continue
-            try:
-                t = int(info.get(time_key) or 0)
-                candidates.append((t, float(price)))
-            except (TypeError, ValueError):
-                continue
 
-        # Prefer most recently updated session
+            try:
+                timestamp = int(info.get(time_key) or 0)
+            except (TypeError, ValueError):
+                timestamp = 0
+            candidates.append((timestamp, price))
+
         if candidates and any(ts > 0 for ts, _ in candidates):
-            _, price = max(candidates, key=lambda x: x[0])
+            _, price = max(candidates, key=lambda item: item[0])
             return _round(price)
 
-        # Fallback by market state
-        prefer_key = _SESSION_PRICE_KEYS.get(self._market_state)
-        for key in (prefer_key, *_PRICE_FALLBACK_ORDER):
-            if key and (p := info.get(key)) is not None:
-                return _round(p)
+        preferred_key = _SESSION_PRICE_KEYS.get(self._market_state)
+        for key in (preferred_key, *_PRICE_FALLBACK_ORDER):
+            if not key:
+                continue
+            if (price := _safe_float(info.get(key))) is not None:
+                return _round(price)
 
         return None
 
     @property
     def price(self) -> float | None:
         """Get latest price based on market state (Pre, Regular, Post)."""
-        if (p := self._select_realtime_price_from_info()) is not None:
-            return p
-        if (p := self.info.get("currentPrice")) is not None:
-            return _round(p)
+        if (price := self._select_realtime_price_from_info()) is not None:
+            return price
+        if (price := _safe_float(self.info.get("currentPrice"))) is not None:
+            return _round(price)
         return self._last_intraday_price() or self._last_close()
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change."""
-        if (pc := self.info.get("regularMarketPreviousClose")) is not None:
-            return _round(pc)
+        if (previous_close := _safe_float(self.info.get("regularMarketPreviousClose"))) is not None:
+            return _round(previous_close)
         return self._previous_close_from_history()
 
     # --- Change Calculations ---
@@ -296,84 +307,76 @@ class StockIndicator:
     @property
     def change(self) -> float | None:
         """Calculate change from previous close."""
-        current = self.price
-        previous = self._get_previous_close()
-        if current is None or previous is None:
+        current_price = self.price
+        previous_close = self._get_previous_close()
+        if current_price is None or previous_close is None:
             return None
-        return _round(current - previous)
+        return _round(current_price - previous_close)
 
     @property
     def change_percent(self) -> float | None:
         """Calculate percentage change from previous close."""
-        current = self.price
-        previous = self._get_previous_close()
-        if current is None or previous is None or previous == 0:
+        current_price = self.price
+        previous_close = self._get_previous_close()
+        if current_price is None or previous_close is None or previous_close == 0:
             return None
-        return _round(((current - previous) / previous) * 100)
+        return _round(((current_price - previous_close) / previous_close) * 100)
 
     # --- Fundamental Indicators ---
 
     @property
     def market_cap(self) -> float | None:
         """Raw market cap in dollars."""
-        if (market_cap := self.info.get("marketCap")) is None:
-            return None
-        try:
-            return float(market_cap)
-        except (TypeError, ValueError):
-            return None
+        return _safe_float(self.info.get("marketCap"))
 
     @property
     def pe(self) -> float | None:
         """Trailing P/E ratio."""
-        return _round(self.info.get("trailingPE"))
+        return _round(_safe_float(self.info.get("trailingPE")))
 
     @property
     def pe_forward(self) -> float | None:
         """Forward P/E ratio."""
-        return _round(self.info.get("forwardPE"))
+        return _round(_safe_float(self.info.get("forwardPE")))
 
     @property
     def peg(self) -> float | None:
         """PEG ratio."""
-        return _round(self.info.get("trailingPegRatio"))
+        return _round(_safe_float(self.info.get("trailingPegRatio")))
 
     @property
     def earning_direction(self) -> str | None:
         """Direction of expected earnings change based on P/E ratios."""
-        trailing_pe = self.info.get("trailingPE")
-        forward_pe = self.info.get("forwardPE")
-        if not trailing_pe or not forward_pe:
+        trailing_pe = _safe_float(self.info.get("trailingPE"))
+        forward_pe = _safe_float(self.info.get("forwardPE"))
+        if trailing_pe is None or forward_pe is None:
             return None
         return "Increase" if trailing_pe > forward_pe else "Decrease"
 
     @property
     def gross_margin(self) -> float | None:
         """Gross margin percentage."""
-        if (gross_margins := self.info.get("grossMargins")) is not None:
-            return _round(gross_margins * 100)
-        return None
+        gross_margins = _safe_float(self.info.get("grossMargins"))
+        if gross_margins is None:
+            return None
+        return _round(gross_margins * 100)
 
     # --- Technical Indicators ---
-
-    @property
-    def rsi(self) -> float | None:
-        """Relative Strength Index (RSI)."""
-        return self._calculate_rsi(DEFAULT_RSI_PERIOD)
 
     def _calculate_rsi(self, days: int) -> float | None:
         """Calculate RSI for the given period."""
         try:
             hist = self._history(period=f"{days + 10}d")
-            if hist.empty or len(hist) < days + 1:
+            close_series = self._close_series(hist)
+            if close_series is None or len(close_series) < days + 1:
                 return None
 
-            deltas = hist["Close"].diff()
-            gains = deltas.where(deltas > 0, 0)
-            losses = -deltas.where(deltas < 0, 0)
+            deltas = close_series.diff()
+            gains = deltas.where(deltas > 0, 0.0)
+            losses = -deltas.where(deltas < 0, 0.0)
 
-            avg_gain = float(pd.Series(gains).rolling(window=days).mean().iloc[-1])
-            avg_loss = float(pd.Series(losses).rolling(window=days).mean().iloc[-1])
+            avg_gain = float(gains.rolling(window=days).mean().iloc[-1])
+            avg_loss = float(losses.rolling(window=days).mean().iloc[-1])
 
             if avg_loss == 0:
                 return 100.0
@@ -387,20 +390,45 @@ class StockIndicator:
         """Calculate percentage change from EMA."""
         try:
             hist = self._history(period=f"{days + 30}d")
-            if hist.empty or len(hist) < days or (current_price := self.price) is None:
+            close_series = self._close_series(hist)
+            current_price = self.price
+            if close_series is None or len(close_series) < days or current_price is None:
                 return None
-            ema = float(hist["Close"].ewm(span=days, adjust=False).mean().iloc[-1])
+
+            ema = float(close_series.ewm(span=days, adjust=False).mean().iloc[-1])
             if ema == 0:
                 return None
+
             return _round(((current_price / ema) - 1) * 100)
         except Exception:
             return None
 
     def _get_day_change_percent(self, days: int, info_key: str) -> float | None:
         """Get day change percent from info or calculate it."""
-        if (change := self.info.get(info_key)) is not None:
-            return _round(change * 100)
+        info_change = _safe_float(self.info.get(info_key))
+        if info_change is not None:
+            return _round(info_change * 100)
         return self._calculate_ema_change_percent(days)
+
+    def _period_baseline_close(self, start_date: date, history_period: str) -> float | None:
+        """Get period baseline close: prior-session close, else first close on/after start."""
+        hist = self._history(period=history_period, interval="1d")
+        close_series = self._close_series(hist)
+        if close_series is None or close_series.empty:
+            return None
+
+        try:
+            idx_ny = self._index_to_ny(close_series.index)
+            before_start = close_series.loc[idx_ny.date < start_date]
+            if not before_start.empty:
+                return float(before_start.iloc[-1])
+
+            on_or_after_start = close_series.loc[idx_ny.date >= start_date]
+            if on_or_after_start.empty:
+                return None
+            return float(on_or_after_start.iloc[0])
+        except Exception:
+            return None
 
     def _calculate_period_return_percent(self, start_date: date, history_period: str) -> float | None:
         """Calculate return percent from the close before `start_date` to current price."""
@@ -408,31 +436,16 @@ class StockIndicator:
         if current_price is None:
             return None
 
-        hist = self._history(period=history_period, interval="1d")
-        if hist.empty or "Close" not in hist:
+        baseline_close = self._period_baseline_close(start_date, history_period)
+        if baseline_close is None or baseline_close == 0:
             return None
 
-        try:
-            idx_ny = self._index_to_ny(hist.index)
-            close_series = hist["Close"]
+        return _round(((current_price / baseline_close) - 1) * 100)
 
-            # Prefer the prior session close before the period start.
-            before_start = close_series.loc[idx_ny.date < start_date]
-            start_value = before_start.iloc[-1] if not before_start.empty else None
-
-            # Fallback when no prior session is present in the requested history window.
-            if start_value is None:
-                on_or_after_start = close_series.loc[idx_ny.date >= start_date]
-                if on_or_after_start.empty:
-                    return None
-                start_value = on_or_after_start.iloc[0]
-
-            start_price = float(start_value)
-            if start_price == 0.0:
-                return None
-            return _round(((current_price / start_price) - 1) * 100)
-        except Exception:
-            return None
+    @property
+    def rsi(self) -> float | None:
+        """Relative Strength Index (RSI)."""
+        return self._calculate_rsi(DEFAULT_RSI_PERIOD)
 
     @property
     def twenty_day_change_percent(self) -> float | None:
@@ -463,12 +476,8 @@ class StockIndicator:
         if (hist_ytd := self._calculate_period_return_percent(year_start, "2y")) is not None:
             return hist_ytd
 
-        ytd = self.info.get("ytdReturn")
-        if ytd is None:
-            return None
-        with suppress(TypeError, ValueError):
-            return _round(float(ytd))
-        return None
+        ytd_return = _safe_float(self.info.get("ytdReturn"))
+        return _round(ytd_return) if ytd_return is not None else None
 
     # --- Analyst Ratings ---
 
@@ -476,13 +485,16 @@ class StockIndicator:
     def median_upside(self) -> float | None:
         """Median analyst upside from recent ratings."""
         ratings = parse_ratings(self.ticker)
-        return ratings.get("median_upside_pct") if ratings else None
+        return _safe_float(ratings.get("median_upside_pct")) if ratings else None
 
     @property
-    def ratings(self) -> list[dict] | None:
+    def ratings(self) -> list[dict[str, Any]] | None:
         """Raw analyst rating records."""
         ratings = parse_ratings(self.ticker)
-        return ratings.get("ratings") if ratings else None
+        if not ratings:
+            return None
+        value = ratings.get("ratings")
+        return value if isinstance(value, list) else None
 
     # --- Aggregate ---
 
