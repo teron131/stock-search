@@ -9,7 +9,14 @@ const TARGET_FORMATS = new Set([
   "market_cap",
 ]);
 const TARGET_KEYS = new Set(["rank", "rsi", "market_cap"]);
-const INVERT_KEYS = new Set(["rank", "bear", "pe", "pe_forward", "peg"]);
+const INVERT_KEYS = new Set([
+  "rank",
+  "bear",
+  "pe",
+  "pe_forward",
+  "peg",
+  "debt_to_equity",
+]);
 
 export function median(values) {
   if (!values.length) return 0;

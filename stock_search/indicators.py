@@ -1,6 +1,7 @@
 import calendar
 from contextlib import suppress
 from datetime import UTC, date, datetime, time, timedelta
+from functools import cache
 import logging
 from typing import Any, cast
 from zoneinfo import ZoneInfo
@@ -68,6 +69,36 @@ def _safe_float(value: Any) -> float | None:
 def _normalize_yahoo_ticker(ticker: str) -> str:
     """Normalize common ticker variants for Yahoo Finance."""
     return ticker.strip().upper().replace(" ", "-").replace(".", "-")
+
+
+@cache
+def _fx_rate(from_currency: str, to_currency: str) -> float | None:
+    """Best-effort FX rate from `from_currency` to `to_currency`."""
+    source = from_currency.strip().upper()
+    target = to_currency.strip().upper()
+    if not source or not target:
+        return None
+    if source == target:
+        return 1.0
+
+    direct_pair = f"{source}{target}=X"
+    inverse_pair = f"{target}{source}=X"
+
+    with suppress(Exception):
+        direct_hist = yf.Ticker(direct_pair).history(period="5d", interval="1d")
+        if isinstance(direct_hist, pd.DataFrame) and not direct_hist.empty and "Close" in direct_hist:
+            close = direct_hist["Close"].dropna()
+            if not close.empty:
+                return float(close.iloc[-1])
+
+    with suppress(Exception):
+        inverse_hist = yf.Ticker(inverse_pair).history(period="5d", interval="1d")
+        if isinstance(inverse_hist, pd.DataFrame) and not inverse_hist.empty and "Close" in inverse_hist:
+            close = inverse_hist["Close"].dropna()
+            if not close.empty and float(close.iloc[-1]) != 0:
+                return 1.0 / float(close.iloc[-1])
+
+    return None
 
 
 def _subtract_months(value: date, months: int) -> date:
@@ -362,6 +393,37 @@ class StockIndicator:
         return _round(_safe_float(self.info.get("trailingPegRatio")))
 
     @property
+    def debt_to_equity(self) -> float | None:
+        """Debt-to-equity percentage from Yahoo Finance."""
+        return _round(_safe_float(self.info.get("debtToEquity")))
+
+    @property
+    def free_cash_flow(self) -> float | None:
+        """Free cash flow converted to the quote currency when needed."""
+        free_cash_flow = _safe_float(self.info.get("freeCashflow"))
+        if free_cash_flow is None:
+            return None
+
+        financial_currency = str(self.info.get("financialCurrency") or "").upper()
+        quote_currency = str(self.info.get("currency") or "").upper()
+
+        if not financial_currency or not quote_currency or financial_currency == quote_currency:
+            return free_cash_flow
+
+        conversion_rate = _fx_rate(financial_currency, quote_currency)
+        if conversion_rate is None:
+            return None
+        return free_cash_flow * conversion_rate
+
+    @property
+    def revenue_growth(self) -> float | None:
+        """Revenue growth percentage."""
+        revenue_growth = _safe_float(self.info.get("revenueGrowth"))
+        if revenue_growth is None:
+            return None
+        return _round(revenue_growth * 100)
+
+    @property
     def earning_direction(self) -> str | None:
         """Direction of expected earnings change based on P/E ratios."""
         trailing_pe = _safe_float(self.info.get("trailingPE"))
@@ -522,6 +584,9 @@ class StockIndicator:
             "pe": self.pe,
             "pe_forward": self.pe_forward,
             "peg": self.peg,
+            "debt_to_equity": self.debt_to_equity,
+            "free_cash_flow": self.free_cash_flow,
+            "revenue_growth": self.revenue_growth,
             "earning_direction": self.earning_direction,
             "rsi": self.rsi,
             "gross_margin": self.gross_margin,
