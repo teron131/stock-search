@@ -31,7 +31,8 @@ function toSig4(value) {
 
 export function normalizeTicker(ticker) {
   return String(ticker || "")
-    .replace("-", ".")
+    .trim()
+    .replace(".", "-")
     .toUpperCase();
 }
 

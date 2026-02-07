@@ -8,6 +8,31 @@ import {
 import { CONFIG } from "./config.js";
 import { normalizeTicker } from "./format.js";
 
+const NO_EVAL_TICKERS = new Set([
+  "SCHD",
+  "SHLD",
+  "ITA",
+  "SOXX",
+  "GLD",
+  "VOO",
+  "GRNY",
+  "GRNJ",
+]);
+
+const EVAL_KEYS = [
+  "overall",
+  "quality",
+  "valuation",
+  "moat",
+  "upside",
+  "market_cap_score",
+  "bull",
+  "bear",
+  "bull_probability",
+  "bear_probability",
+  "rank",
+];
+
 function withCacheBuster(url) {
   const cacheBuster = `_=${Date.now()}`;
   return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
@@ -71,17 +96,30 @@ function mergeRows(dashData, evalData) {
     merged.ticker = safeTicker;
     merged.name = merged.name || e.name || safeTicker;
 
+    if (NO_EVAL_TICKERS.has(normalizeTicker(safeTicker))) {
+      EVAL_KEYS.forEach((key) => {
+        merged[key] = null;
+      });
+    }
+
     return merged;
   });
 }
 
 function calculateRanks(rows) {
-  const sorted = rows
-    .map((row, index) => ({ index, score: Number(row.overall) || 0 }))
+  const out = rows.map((row) => ({ ...row, rank: null }));
+
+  const ranked = rows
+    .map((row, index) => ({
+      index,
+      hasScore: row.overall != null && row.overall !== "",
+      score: Number(row.overall),
+    }))
+    .filter((item) => item.hasScore)
+    .filter((item) => Number.isFinite(item.score))
     .sort((a, b) => b.score - a.score);
 
-  const out = [...rows];
-  sorted.forEach((item, rank) => {
+  ranked.forEach((item, rank) => {
     out[item.index] = { ...out[item.index], rank: rank + 1 };
   });
 

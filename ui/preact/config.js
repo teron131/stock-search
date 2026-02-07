@@ -53,6 +53,8 @@ export const COLS = {
     { key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
     { key: "median_upside", label: "UPSIDE%", format: "percent" },
     { key: "rsi", label: "RSI", format: "number" },
+    { key: "mtd_change_percent", label: "MTD%", format: "percent" },
+    { key: "ytd_change_percent", label: "YTD%", format: "percent" },
     { key: "twenty_day_change_percent", label: "20D%", format: "percent" },
     { key: "fifty_day_change_percent", label: "50D%", format: "percent" },
     {
@@ -91,6 +93,8 @@ export const COLS = {
     { key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
     { key: "median_upside", label: "UPSIDE%", format: "percent" },
     { key: "rsi", label: "RSI", format: "number" },
+    { key: "mtd_change_percent", label: "MTD%", format: "percent" },
+    { key: "ytd_change_percent", label: "YTD%", format: "percent" },
     { key: "twenty_day_change_percent", label: "20D%", format: "percent" },
     { key: "fifty_day_change_percent", label: "50D%", format: "percent" },
     {

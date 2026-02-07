@@ -64,6 +64,11 @@ def _safe_float(value: Any) -> float | None:
     return None
 
 
+def _normalize_yahoo_ticker(ticker: str) -> str:
+    """Normalize common ticker variants for Yahoo Finance."""
+    return ticker.strip().upper().replace(" ", "-").replace(".", "-")
+
+
 def parse_ratings(
     ticker: str | yf.Ticker,
     days: int = DEFAULT_RATINGS_LOOKBACK_DAYS,
@@ -111,7 +116,7 @@ class StockIndicator:
     """Fetches and calculates technical and fundamental indicators for a stock."""
 
     def __init__(self, ticker: str):
-        self.ticker = yf.Ticker(ticker)
+        self.ticker = yf.Ticker(_normalize_yahoo_ticker(ticker))
         self._info: dict[str, Any] = {}
         self._history_cache: dict[str, pd.DataFrame] = {}
 
