@@ -332,7 +332,7 @@ function renderCell({
   }
 
   if (key === "ticker") {
-    const val = normalizeTicker(row.ticker);
+    const val = normalizeTicker(row.ticker).replace("-", ".");
     return html`<tv-ticker-tag
       symbol=${val}
       preserve-text
