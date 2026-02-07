@@ -59,19 +59,19 @@ def _probabilities_from_scores(
     bull_score: float | None,
     bear_score: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    p_up = round(bull_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bull_score is not None else None
-    p_down = round(bear_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bear_score is not None else None
+    bull_probability = round(bull_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bull_score is not None else None
+    bear_probability = round(bear_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bear_score is not None else None
 
-    p_flat = None
-    if p_up is not None and p_down is not None:
-        p_flat = max(0.0, round(1.0 - p_up - p_down, ROUND_PROBABILITY_DIGITS))
-    return p_up, p_down, p_flat
+    flat_probability = None
+    if bull_probability is not None and bear_probability is not None:
+        flat_probability = max(0.0, round(1.0 - bull_probability - bear_probability, ROUND_PROBABILITY_DIGITS))
+    return bull_probability, bear_probability, flat_probability
 
 
-def _flat_probability(p_up: float | None, p_down: float | None) -> float | None:
-    if p_up is None or p_down is None:
+def _flat_probability(bull_probability: float | None, bear_probability: float | None) -> float | None:
+    if bull_probability is None or bear_probability is None:
         return None
-    return max(0.0, 1 - p_up - p_down)
+    return max(0.0, 1 - bull_probability - bear_probability)
 
 
 def _blended_quality(
@@ -98,8 +98,8 @@ def _blended_quality(
 
 def build_inputs(ticker: str) -> Evaluation:
     """Fetch metrics and run LLM evaluations to build the Evaluation input model."""
-    normalized = parse_ticker(ticker)
-    indicator = StockIndicator(normalized)
+    normalized_ticker = parse_ticker(ticker)
+    indicator = StockIndicator(normalized_ticker)
 
     # 1. Qualitative Evaluation (LLM)
     outlook: FutureOutlook = run_llm_evaluation(
@@ -114,7 +114,7 @@ def build_inputs(ticker: str) -> Evaluation:
     )
 
     # 2. Market Metrics
-    size_score = market_cap_score(normalized, indicator.info)
+    market_cap_value = market_cap_score(indicator.info)
     valuation_score = calculate_valuation_score(indicator)
     quality_signal_score = calculate_quality_signal_score(indicator)
     upside_score = calculate_combined_upside_score(
@@ -125,16 +125,16 @@ def build_inputs(ticker: str) -> Evaluation:
 
     # 3. Probability Modeling
     bull_score, bear_score = model_probabilities(indicator, outlook)
-    p_up, p_down, p_flat = _probabilities_from_scores(bull_score, bear_score)
+    bull_probability, bear_probability, flat_probability = _probabilities_from_scores(bull_score, bear_score)
 
     # 4. Input Assembly
     eval_data = {
         "valuation": valuation_score,
         "upside": upside_score,
-        "market_cap": float(size_score) if size_score is not None else None,
-        "bull_probability": p_up,
-        "bear_probability": p_down,
-        "flat_probability": p_flat,
+        "market_cap": float(market_cap_value) if market_cap_value is not None else None,
+        "bull_probability": bull_probability,
+        "bear_probability": bear_probability,
+        "flat_probability": flat_probability,
     }
 
     if outlook:
@@ -155,12 +155,16 @@ def build_inputs(ticker: str) -> Evaluation:
 
 def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationResult:
     """Process an Evaluation model into a final EvaluationResult with indices and deltas."""
-    p_up = inputs.bull_probability
-    p_down = inputs.bear_probability
-    p_flat = inputs.flat_probability if inputs.flat_probability is not None else _flat_probability(p_up, p_down)
+    bull_probability = inputs.bull_probability
+    bear_probability = inputs.bear_probability
+    flat_probability = (
+        inputs.flat_probability
+        if inputs.flat_probability is not None
+        else _flat_probability(bull_probability, bear_probability)
+    )
 
-    bull_score = p_up * SCORE_SCALE if p_up is not None else None
-    bear_score = p_down * SCORE_SCALE if p_down is not None else None
+    bull_score = bull_probability * SCORE_SCALE if bull_probability is not None else None
+    bear_score = bear_probability * SCORE_SCALE if bear_probability is not None else None
     edge = bull_score - bear_score if bull_score is not None and bear_score is not None else None
 
     scores = {
@@ -172,24 +176,34 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     }
 
     # Core 4-metric average
-    req = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
-    overall = sum(req) / 4 if all(v is not None for v in req) else None
+    core_metrics = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
+    overall = sum(core_metrics) / 4 if all(value is not None for value in core_metrics) else None
 
     indices = calculate_strategy_indices(scores, edge)
     fomo_flag = check_fomo_conditions(scores, bull_score)
+    elo_direction_delta = (
+        ELO_K_FACTOR * math.log10(bull_probability / bear_probability)
+        if bull_probability is not None and bear_probability is not None and bull_probability > 0 and bear_probability > 0
+        else None
+    )
+    expected_probability = (
+        bull_probability + (EXPECTED_DRAW_WEIGHT * flat_probability)
+        if bull_probability is not None and flat_probability is not None
+        else None
+    )
 
     return EvaluationResult(
         inputs=inputs,
         ticker=ticker,
-        p_up=p_up,
-        p_down=p_down,
-        p_flat=p_flat,
+        p_up=bull_probability,
+        p_down=bear_probability,
+        p_flat=flat_probability,
         edge=edge,
         confidence=abs(edge) if edge is not None else None,
         overall=overall,
-        elo_delta=calculate_elo_delta(p_up),
-        elo_delta_dir=ELO_K_FACTOR * math.log10(p_up / p_down) if p_up is not None and p_down is not None and p_up > 0 and p_down > 0 else None,
-        elo_delta_exp=calculate_elo_delta(p_up + (EXPECTED_DRAW_WEIGHT * p_flat)) if p_up is not None and p_flat is not None else None,
+        elo_delta=calculate_elo_delta(bull_probability),
+        elo_delta_dir=elo_direction_delta,
+        elo_delta_exp=calculate_elo_delta(expected_probability),
         core_index=indices.get("core"),
         satellite_index=indices.get("satellite"),
         speculative_index=indices.get("speculative"),
@@ -206,18 +220,18 @@ def strategy_label(
     diversifier: float | None,
 ) -> str:
     """Return the strategy label based on the highest index score."""
-    scores = {
+    strategy_scores = {
         "Strategic Core": core,
         "Growth Satellites": satellite,
         "Tactical Opportunities": speculative,
         "Risk Mitigation": diversifier,
     }
 
-    available = {k: v for k, v in scores.items() if v is not None}
-    if not available:
+    available_scores = {name: value for name, value in strategy_scores.items() if value is not None}
+    if not available_scores:
         return "Tactical Opportunities"
 
-    return max(available.items(), key=lambda x: x[1])[0]
+    return max(available_scores.items(), key=lambda score_item: score_item[1])[0]
 
 
 def _to_float(value: Any, default: float) -> float:

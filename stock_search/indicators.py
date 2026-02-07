@@ -150,14 +150,16 @@ def parse_ratings(
     if current_price is None:
         return None
 
-    df: Any = None
+    ratings_data: Any = None
     with suppress(Exception):
-        df = stock.upgrades_downgrades
+        ratings_data = stock.upgrades_downgrades
 
-    if df is None or isinstance(df, dict) or (isinstance(df, pd.DataFrame) and df.empty):
+    if ratings_data is None or isinstance(ratings_data, dict):
+        return None
+    if isinstance(ratings_data, pd.DataFrame) and ratings_data.empty:
         return None
 
-    ratings_df = cast(pd.DataFrame, df).copy()
+    ratings_df = cast(pd.DataFrame, ratings_data).copy()
 
     try:
         ratings_df.index = pd.to_datetime(ratings_df.index, utc=True)
@@ -277,9 +279,9 @@ class StockIndicator:
 
         try:
             if window:
-                idx_ny = self._index_to_ny(hist.index)
+                index_ny = self._index_to_ny(hist.index)
                 start, end = window
-                scoped = hist.loc[(idx_ny >= start) & (idx_ny < end)]
+                scoped = hist.loc[(index_ny >= start) & (index_ny < end)]
                 scoped_close = self._close_series(scoped)
                 if scoped_close is not None and not scoped_close.empty:
                     return _round(float(scoped_close.iloc[-1]))
@@ -510,12 +512,12 @@ class StockIndicator:
             return None
 
         try:
-            idx_ny = self._index_to_ny(close_series.index)
-            before_start = close_series.loc[idx_ny.date < start_date]
+            index_ny = self._index_to_ny(close_series.index)
+            before_start = close_series.loc[index_ny.date < start_date]
             if not before_start.empty:
                 return float(before_start.iloc[-1])
 
-            on_or_after_start = close_series.loc[idx_ny.date >= start_date]
+            on_or_after_start = close_series.loc[index_ny.date >= start_date]
             if on_or_after_start.empty:
                 return None
             return float(on_or_after_start.iloc[0])
@@ -573,8 +575,9 @@ class StockIndicator:
     def ytd_change_percent(self) -> float | None:
         today_ny = self._now_ny().date()
         year_start = date(today_ny.year, 1, 1)
-        if (hist_ytd := self._calculate_period_return_percent(year_start, "2y")) is not None:
-            return hist_ytd
+        historical_ytd = self._calculate_period_return_percent(year_start, "2y")
+        if historical_ytd is not None:
+            return historical_ytd
 
         ytd_return = _safe_float(self.info.get("ytdReturn"))
         return _round(ytd_return) if ytd_return is not None else None
@@ -590,16 +593,16 @@ class StockIndicator:
     @property
     def median_upside(self) -> float | None:
         """Median analyst upside from recent ratings."""
-        ratings = self._ratings_payload
-        return _safe_float(ratings.get("median_upside_pct")) if ratings else None
+        ratings_payload = self._ratings_payload
+        return _safe_float(ratings_payload.get("median_upside_pct")) if ratings_payload else None
 
     @property
     def ratings(self) -> list[dict[str, Any]] | None:
         """Raw analyst rating records."""
-        ratings = self._ratings_payload
-        if not ratings:
+        ratings_payload = self._ratings_payload
+        if not ratings_payload:
             return None
-        value = ratings.get("ratings")
+        value = ratings_payload.get("ratings")
         return value if isinstance(value, list) else None
 
     # --- Aggregate ---
