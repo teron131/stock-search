@@ -53,6 +53,16 @@ _PRICE_TIME_KEYS: tuple[tuple[str, str], ...] = (
     ("regularMarketPrice", "regularMarketTime"),
     ("postMarketPrice", "postMarketTime"),
 )
+_SESSION_WINDOWS: dict[str, tuple[time, time]] = {
+    MARKET_STATE_PRE: (_SESSION_PRE_START, _SESSION_REGULAR_START),
+    MARKET_STATE_REGULAR: (_SESSION_REGULAR_START, _SESSION_REGULAR_END),
+    MARKET_STATE_POST: (_SESSION_REGULAR_END, _SESSION_POST_END),
+    MARKET_STATE_POSTPOST: (_SESSION_REGULAR_END, _SESSION_POST_END),
+}
+_INTRADAY_PRICE_INTERVALS = ("1m", "5m", "15m")
+_DAILY_HISTORY_PERIOD = "5d"
+_DAILY_INTERVAL = "1d"
+_UNSET = object()
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
@@ -175,6 +185,7 @@ class StockIndicator:
         self.ticker = yf.Ticker(_normalize_yahoo_ticker(ticker))
         self._info: dict[str, Any] = {}
         self._history_cache: dict[str, pd.DataFrame] = {}
+        self._parsed_ratings: dict[str, Any] | None | object = _UNSET
 
     # --- Time Utilities ---
 
@@ -198,16 +209,10 @@ class StockIndicator:
 
     @staticmethod
     def _session_window(now_ny: datetime, session: str) -> tuple[datetime, datetime] | None:
-        windows = {
-            MARKET_STATE_PRE: (_SESSION_PRE_START, _SESSION_REGULAR_START),
-            MARKET_STATE_REGULAR: (_SESSION_REGULAR_START, _SESSION_REGULAR_END),
-            MARKET_STATE_POST: (_SESSION_REGULAR_END, _SESSION_POST_END),
-            MARKET_STATE_POSTPOST: (_SESSION_REGULAR_END, _SESSION_POST_END),
-        }
-        if session not in windows:
+        if session not in _SESSION_WINDOWS:
             return None
 
-        start_time, end_time = windows[session]
+        start_time, end_time = _SESSION_WINDOWS[session]
         current_date = now_ny.date()
         return (
             datetime.combine(current_date, start_time, tzinfo=NY_TZ),
@@ -289,16 +294,19 @@ class StockIndicator:
         session = self._market_state or self._infer_session(now_ny)
         window = self._session_window(now_ny, session)
 
-        for interval in ("1m", "5m", "15m"):
+        for interval in _INTRADAY_PRICE_INTERVALS:
             hist = self._history(period="1d", interval=interval, prepost=True)
             if (price := self._extract_session_close(hist, window)) is not None:
                 return price
         return None
 
+    def _daily_close_series(self) -> pd.Series | None:
+        hist = self._history(period=_DAILY_HISTORY_PERIOD, interval=_DAILY_INTERVAL)
+        return self._close_series(hist)
+
     def _last_close(self) -> float | None:
         """Best-effort daily close price."""
-        hist = self._history(period="5d", interval="1d")
-        close_series = self._close_series(hist)
+        close_series = self._daily_close_series()
         if close_series is None or close_series.empty:
             return None
 
@@ -308,8 +316,7 @@ class StockIndicator:
 
     def _previous_close_from_history(self) -> float | None:
         """Best-effort previous close from daily history."""
-        hist = self._history(period="5d", interval="1d")
-        close_series = self._close_series(hist)
+        close_series = self._daily_close_series()
         if close_series is None or close_series.empty:
             return None
 
@@ -575,15 +582,21 @@ class StockIndicator:
     # --- Analyst Ratings ---
 
     @property
+    def _ratings_payload(self) -> dict[str, Any] | None:
+        if self._parsed_ratings is _UNSET:
+            self._parsed_ratings = parse_ratings(self.ticker)
+        return self._parsed_ratings if isinstance(self._parsed_ratings, dict) else None
+
+    @property
     def median_upside(self) -> float | None:
         """Median analyst upside from recent ratings."""
-        ratings = parse_ratings(self.ticker)
+        ratings = self._ratings_payload
         return _safe_float(ratings.get("median_upside_pct")) if ratings else None
 
     @property
     def ratings(self) -> list[dict[str, Any]] | None:
         """Raw analyst rating records."""
-        ratings = parse_ratings(self.ticker)
+        ratings = self._ratings_payload
         if not ratings:
             return None
         value = ratings.get("ratings")

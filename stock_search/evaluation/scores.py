@@ -20,6 +20,60 @@ from .constants import (
 from .math_utils import clamp_score, z_score_map
 
 WeightedConfig = tuple[float | None, tuple[float, float, float], float, bool]
+StrategyBucketConfig = tuple[tuple[str, ...], tuple[float, ...], float]
+
+_SCORE_SCALE = 10.0
+_EDGE_BASE = 5.0
+_EDGE_MULTIPLIER = 0.5
+_MOMENTUM_INPUTS = (
+    "change_percent",
+    "one_month_change_percent",
+    "three_month_change_percent",
+    "six_month_change_percent",
+    "one_year_change_percent",
+)
+_STRATEGY_BUCKET_CONFIGS: dict[str, StrategyBucketConfig] = {
+    "core": (
+        ("moat", "quality", "valuation", "size"),
+        (
+            CoreEngineWeights.MOAT,
+            CoreEngineWeights.QUALITY,
+            CoreEngineWeights.VALUATION,
+            CoreEngineWeights.SIZE,
+        ),
+        CoreEngineWeights.EDGE,
+    ),
+    "satellite": (
+        ("moat", "quality", "valuation", "upside"),
+        (
+            SatelliteWeights.MOAT,
+            SatelliteWeights.QUALITY,
+            SatelliteWeights.VALUATION,
+            SatelliteWeights.UPSIDE,
+        ),
+        SatelliteWeights.EDGE,
+    ),
+    "speculative": (
+        ("moat", "quality", "valuation", "upside"),
+        (
+            SpeculativeWeights.MOAT,
+            SpeculativeWeights.QUALITY,
+            SpeculativeWeights.VALUATION,
+            SpeculativeWeights.UPSIDE,
+        ),
+        0.0,
+    ),
+    "diversifier": (
+        ("quality", "valuation", "size", "upside"),
+        (
+            DiversifierWeights.QUALITY,
+            DiversifierWeights.VALUATION,
+            DiversifierWeights.SIZE,
+            DiversifierWeights.UPSIDE,
+        ),
+        0.0,
+    ),
+}
 
 
 def _weighted_zscore_average(configs: list[WeightedConfig]) -> float | None:
@@ -194,23 +248,32 @@ def _parse_rating_grade(text: str) -> float | None:
     return None
 
 
+def _probability_to_score(value: float | None) -> float | None:
+    if value is None:
+        return None
+    p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
+    return z_score_map(value, p_min, p_max, p_med)
+
+
 def model_probabilities(
     indicator: StockIndicator,
     outlook: FutureOutlook | None,
 ) -> tuple[float | None, float | None]:
     """Derive calibrated bull/bear scores from LLM and/or Historical momentum."""
-    p_min, p_med, p_max = CalibrationConfig.PROBABILITY_RANGE
-
     # momentum: Historical momentum scores (0-10) derived from average of moving averages
     bull_momentum_raw, bear_momentum_raw = calculate_historical_momentum_scores(indicator)
-    bull_momentum = z_score_map(bull_momentum_raw / 10.0, p_min, p_max, p_med) if bull_momentum_raw is not None else None
-    bear_momentum = z_score_map(bear_momentum_raw / 10.0, p_min, p_max, p_med) if bear_momentum_raw is not None else None
+    bull_momentum = _probability_to_score(
+        bull_momentum_raw / _SCORE_SCALE if bull_momentum_raw is not None else None,
+    )
+    bear_momentum = _probability_to_score(
+        bear_momentum_raw / _SCORE_SCALE if bear_momentum_raw is not None else None,
+    )
 
     # LLM: LLM results (0-10)
     bull_llm, bear_llm = None, None
     if outlook and outlook.bull_probability is not None and outlook.bear_probability is not None:
-        bull_llm = z_score_map(outlook.bull_probability, p_min, p_max, p_med)
-        bear_llm = z_score_map(outlook.bear_probability, p_min, p_max, p_med)
+        bull_llm = _probability_to_score(outlook.bull_probability)
+        bear_llm = _probability_to_score(outlook.bear_probability)
 
     # Blending logic: If LLM exists, return mean(LLM, momentum), else return momentum
     if bull_llm is not None and bear_llm is not None:
@@ -223,13 +286,7 @@ def model_probabilities(
 
 def calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[float | None, float | None]:
     """Average recent price changes into a 0-10 momentum score."""
-    changes = [
-        indicator.change_percent,
-        indicator.one_month_change_percent,
-        indicator.three_month_change_percent,
-        indicator.six_month_change_percent,
-        indicator.one_year_change_percent,
-    ]
+    changes = [getattr(indicator, metric_name) for metric_name in _MOMENTUM_INPUTS]
     valid = [v for v in changes if isinstance(v, (int, float))]
     if not valid:
         return None, None
@@ -246,57 +303,14 @@ def calculate_strategy_indices(
     edge: float | None,
 ) -> dict[str, float | None]:
     """Apply strategy weights to core scores to find suitable portfolio buckets."""
-    edge_comp = (5.0 + 0.5 * edge) if edge is not None else None
+    edge_component = (_EDGE_BASE + (_EDGE_MULTIPLIER * edge)) if edge is not None else None
 
-    bucket_configs = {
-        "core": {
-            "keys": ("moat", "quality", "valuation", "size"),
-            "weights": (
-                CoreEngineWeights.MOAT,
-                CoreEngineWeights.QUALITY,
-                CoreEngineWeights.VALUATION,
-                CoreEngineWeights.SIZE,
-            ),
-            "edge": CoreEngineWeights.EDGE,
-        },
-        "satellite": {
-            "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (
-                SatelliteWeights.MOAT,
-                SatelliteWeights.QUALITY,
-                SatelliteWeights.VALUATION,
-                SatelliteWeights.UPSIDE,
-            ),
-            "edge": SatelliteWeights.EDGE,
-        },
-        "speculative": {
-            "keys": ("moat", "quality", "valuation", "upside"),
-            "weights": (
-                SpeculativeWeights.MOAT,
-                SpeculativeWeights.QUALITY,
-                SpeculativeWeights.VALUATION,
-                SpeculativeWeights.UPSIDE,
-            ),
-            "edge": 0.0,
-        },
-        "diversifier": {
-            "keys": ("quality", "valuation", "size", "upside"),
-            "weights": (
-                DiversifierWeights.QUALITY,
-                DiversifierWeights.VALUATION,
-                DiversifierWeights.SIZE,
-                DiversifierWeights.UPSIDE,
-            ),
-            "edge": 0.0,
-        },
-    }
-
-    indices = {}
-    for name, cfg in bucket_configs.items():
-        vals = [scores[k] for k in cfg["keys"]]
-        if all(v is not None for v in vals) and (cfg["edge"] == 0 or edge_comp is not None):
-            weighted = sum(v * w for v, w in zip(vals, cfg["weights"], strict=False))
-            indices[name] = weighted + (cfg["edge"] * (edge_comp or 0))
+    indices: dict[str, float | None] = {}
+    for name, (score_keys, weights, edge_weight) in _STRATEGY_BUCKET_CONFIGS.items():
+        vals = [scores[key] for key in score_keys]
+        if all(v is not None for v in vals) and (edge_weight == 0 or edge_component is not None):
+            weighted = sum(v * w for v, w in zip(vals, weights, strict=False))
+            indices[name] = weighted + (edge_weight * (edge_component or 0))
         else:
             indices[name] = None
     return indices

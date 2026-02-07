@@ -2,7 +2,11 @@ from typing import Final
 
 B: Final[float] = 1e9
 T: Final[float] = 1e12
-MinMedMax: type[tuple[float, float, float]] = tuple[float, float, float]
+MinMedMax = tuple[float, float, float]
+
+DEFAULT_SCORE: Final[float] = 5.0
+DEFAULT_BULL_PROBABILITY: Final[float] = 0.5
+DEFAULT_BEAR_PROBABILITY: Final[float] = 0.2
 
 
 class MarketCapConfig:
