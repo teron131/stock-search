@@ -85,13 +85,13 @@ def calculate_valuation_score(indicator: StockIndicator) -> float | None:
         ),
         (
             info.get("trailingPE"),
-            CalibrationConfig.PE_RANGE,
+            CalibrationConfig.TRAILING_PE_RANGE,
             ValuationWeights.PE,
             True,
         ),
         (
             info.get("forwardPE"),
-            CalibrationConfig.PE_RANGE,
+            CalibrationConfig.FORWARD_PE_RANGE,
             ValuationWeights.PE_FORWARD,
             True,
         ),

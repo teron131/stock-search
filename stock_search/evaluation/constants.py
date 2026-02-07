@@ -17,7 +17,8 @@ class CalibrationConfig:
     """Calibration ranges for mapping various financial metrics to 0-10 scores."""
 
     PEG_RANGE: Final[MinMedMax] = (0.5, 1.5, 3.0)
-    PE_RANGE: Final[MinMedMax] = (10.0, 28.0, 50.0)
+    TRAILING_PE_RANGE: Final[MinMedMax] = (10.0, 35.0, 70.0)
+    FORWARD_PE_RANGE: Final[MinMedMax] = (10.0, 25.0, 50.0)
     GROWTH_RANGE: Final[MinMedMax] = (0.1, 0.3, 0.5)
     REVENUE_GROWTH_PCT_RANGE: Final[MinMedMax] = (-10.0, 12.0, 35.0)
     GROSS_MARGIN_PCT_RANGE: Final[MinMedMax] = (10.0, 45.0, 70.0)
