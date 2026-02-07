@@ -1,3 +1,4 @@
+import calendar
 from contextlib import suppress
 from datetime import UTC, date, datetime, time, timedelta
 import logging
@@ -67,6 +68,17 @@ def _safe_float(value: Any) -> float | None:
 def _normalize_yahoo_ticker(ticker: str) -> str:
     """Normalize common ticker variants for Yahoo Finance."""
     return ticker.strip().upper().replace(" ", "-").replace(".", "-")
+
+
+def _subtract_months(value: date, months: int) -> date:
+    """Return a date shifted back by N calendar months."""
+    year = value.year
+    month = value.month - months
+    while month <= 0:
+        month += 12
+        year -= 1
+    max_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(value.day, max_day))
 
 
 def parse_ratings(
@@ -408,13 +420,6 @@ class StockIndicator:
         except Exception:
             return None
 
-    def _get_day_change_percent(self, days: int, info_key: str) -> float | None:
-        """Get day change percent from info or calculate it."""
-        info_change = _safe_float(self.info.get(info_key))
-        if info_change is not None:
-            return _round(info_change * 100)
-        return self._calculate_ema_change_percent(days)
-
     def _period_baseline_close(self, start_date: date, history_period: str) -> float | None:
         """Get period baseline close: prior-session close, else first close on/after start."""
         hist = self._history(period=history_period, interval="1d")
@@ -453,20 +458,24 @@ class StockIndicator:
         return self._calculate_rsi(DEFAULT_RSI_PERIOD)
 
     @property
-    def twenty_day_change_percent(self) -> float | None:
-        return self._get_day_change_percent(20, "twentyDayAverageChangePercent")
+    def one_month_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        return self._calculate_period_return_percent(_subtract_months(today_ny, 1), "2y")
 
     @property
-    def fifty_day_change_percent(self) -> float | None:
-        return self._get_day_change_percent(50, "fiftyDayAverageChangePercent")
+    def three_month_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        return self._calculate_period_return_percent(_subtract_months(today_ny, 3), "2y")
 
     @property
-    def one_hundred_day_change_percent(self) -> float | None:
-        return self._get_day_change_percent(100, "oneHundredDayAverageChangePercent")
+    def six_month_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        return self._calculate_period_return_percent(_subtract_months(today_ny, 6), "2y")
 
     @property
-    def two_hundred_day_change_percent(self) -> float | None:
-        return self._get_day_change_percent(200, "twoHundredDayAverageChangePercent")
+    def one_year_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        return self._calculate_period_return_percent(_subtract_months(today_ny, 12), "3y")
 
     @property
     def mtd_change_percent(self) -> float | None:
@@ -516,10 +525,10 @@ class StockIndicator:
             "earning_direction": self.earning_direction,
             "rsi": self.rsi,
             "gross_margin": self.gross_margin,
-            "twenty_day_change_percent": self.twenty_day_change_percent,
-            "fifty_day_change_percent": self.fifty_day_change_percent,
-            "one_hundred_day_change_percent": self.one_hundred_day_change_percent,
-            "two_hundred_day_change_percent": self.two_hundred_day_change_percent,
+            "one_month_change_percent": self.one_month_change_percent,
+            "three_month_change_percent": self.three_month_change_percent,
+            "six_month_change_percent": self.six_month_change_percent,
+            "one_year_change_percent": self.one_year_change_percent,
             "mtd_change_percent": self.mtd_change_percent,
             "ytd_change_percent": self.ytd_change_percent,
             "median_upside": self.median_upside,

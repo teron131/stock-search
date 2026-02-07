@@ -29,10 +29,10 @@ _MARKET_KEYS = {
     "earning_direction",
     "gross_margin",
     "rsi",
-    "twenty_day_change_percent",
-    "fifty_day_change_percent",
-    "one_hundred_day_change_percent",
-    "two_hundred_day_change_percent",
+    "one_month_change_percent",
+    "three_month_change_percent",
+    "six_month_change_percent",
+    "one_year_change_percent",
     "mtd_change_percent",
     "ytd_change_percent",
     "median_upside",
@@ -122,12 +122,10 @@ def _build_row(
         "earning_direction": stats.get("earning_direction"),
         "gross_margin": stats.get("gross_margin"),
         "rsi": stats.get("rsi"),
-        "twenty_day_change_percent": stats.get("twenty_day_change_percent"),
-        "fifty_day_change_percent": stats.get("fifty_day_change_percent"),
-        "one_hundred_day_change_percent": stats.get("one_hundred_day_change_percent"),
-        "two_hundred_day_change_percent": stats.get("two_hundred_day_change_percent"),
-        "mtd_change_percent": stats.get("mtd_change_percent"),
-        "ytd_change_percent": stats.get("ytd_change_percent"),
+        "one_month_change_percent": stats.get("one_month_change_percent"),
+        "three_month_change_percent": stats.get("three_month_change_percent"),
+        "six_month_change_percent": stats.get("six_month_change_percent"),
+        "one_year_change_percent": stats.get("one_year_change_percent"),
         "median_upside": stats.get("median_upside"),
         "bucket": bucket,
         "notional": notional,
@@ -229,9 +227,10 @@ def display_dashboard(
     table.add_column("Price", justify="right")
     table.add_column("Change %", justify="right")
     table.add_column("RSI", justify="right")
-    table.add_column("20d %", justify="right")
-    table.add_column("50d %", justify="right")
-    table.add_column("200d %", justify="right")
+    table.add_column("1M %", justify="right")
+    table.add_column("3M %", justify="right")
+    table.add_column("6M %", justify="right")
+    table.add_column("1Y %", justify="right")
     table.add_column("Upside", justify="right")
     table.add_column("Notional", justify="right")
     table.add_column("Weight %", justify="right")
@@ -243,9 +242,10 @@ def display_dashboard(
             _fmt_curr(row["current_price"]),
             _fmt_pct(row["change_percent"]),
             _fmt_num(row["rsi"]),
-            _fmt_pct(row["twenty_day_change_percent"]),
-            _fmt_pct(row["fifty_day_change_percent"]),
-            _fmt_pct(row["two_hundred_day_change_percent"]),
+            _fmt_pct(row["one_month_change_percent"]),
+            _fmt_pct(row["three_month_change_percent"]),
+            _fmt_pct(row["six_month_change_percent"]),
+            _fmt_pct(row["one_year_change_percent"]),
             _fmt_pct(row["median_upside"]),
             _fmt_curr(row["notional"]),
             _fmt_pct(row["weight_pct"]),

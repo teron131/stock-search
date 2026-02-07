@@ -181,9 +181,10 @@ def calculate_historical_momentum_scores(indicator: StockIndicator) -> tuple[flo
     """Average recent price changes into a 0-10 momentum score."""
     changes = [
         indicator.change_percent,
-        indicator.twenty_day_change_percent,
-        indicator.fifty_day_change_percent,
-        indicator.two_hundred_day_change_percent,
+        indicator.one_month_change_percent,
+        indicator.three_month_change_percent,
+        indicator.six_month_change_percent,
+        indicator.one_year_change_percent,
     ]
     valid = [v for v in changes if isinstance(v, (int, float))]
     if not valid:
