@@ -199,10 +199,6 @@ def fetch_stats_data(ticker: str) -> dict:
     pe_forward = _round(info.get("forwardPE"), 2)
     peg = _round(info.get("trailingPegRatio"), 2)
 
-    earning_direction = None
-    if pe is not None and pe_forward is not None:
-        earning_direction = "Increase" if pe > pe_forward else "Decrease"
-
     gross_margin = None
     if (raw_margin := info.get("grossMargins")) is not None:
         gross_margin = _round(raw_margin * 100, 2)
@@ -244,7 +240,6 @@ def fetch_stats_data(ticker: str) -> dict:
         "pe_forward": pe_forward,
         "peg": peg,
         "gross_margin": gross_margin,
-        "earning_direction": earning_direction,
         "_raw_info_snapshot": info,  # Kept for scoring logic
     }
 
@@ -267,7 +262,6 @@ def create_fallback_stats(ticker: str) -> dict:
         "pe_forward": None,
         "peg": None,
         "gross_margin": None,
-        "earning_direction": None,
         "_market_cap_raw": None,
         "_raw_info_snapshot": {},
     }

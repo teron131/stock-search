@@ -14,8 +14,7 @@
     "pe": 34.25,
     "pe_forward": 27.92,
     "peg": 2.59,
-    "gross_margin": 46.91,
-    "earning_direction": "Increase"
+    "gross_margin": 46.91
   },
   "ABNB": {
     "current_price": 130.66,
@@ -32,8 +31,7 @@
     "pe": 31.18,
     "pe_forward": 27.09,
     "peg": 1.73,
-    "gross_margin": 83.04,
-    "earning_direction": "Increase"
+    "gross_margin": 83.04
   },
   "ABT": {
     "current_price": 121.76,
@@ -50,8 +48,7 @@
     "pe": 15.3,
     "pe_forward": 21.45,
     "peg": null,
-    "gross_margin": 56.26,
-    "earning_direction": "Decrease"
+    "gross_margin": 56.26
   },
   "ADBE": {
     "current_price": 296.12,
@@ -68,8 +65,7 @@
     "pe": 17.73,
     "pe_forward": 11.26,
     "peg": 0.84,
-    "gross_margin": 89.27,
-    "earning_direction": "Increase"
+    "gross_margin": 89.27
   },
   "ADP": {
     "current_price": 260.44,
@@ -86,8 +82,7 @@
     "pe": 25.71,
     "pe_forward": 21.84,
     "peg": 3.11,
-    "gross_margin": 48.31,
-    "earning_direction": "Increase"
+    "gross_margin": 48.31
   },
   "AFRM": {
     "current_price": 74.76,
@@ -104,8 +99,7 @@
     "pe": 108.35,
     "pe_forward": 20.18,
     "peg": 0.58,
-    "gross_margin": 47.76,
-    "earning_direction": "Increase"
+    "gross_margin": 47.76
   },
   "AMAT": {
     "current_price": 327.01,
@@ -122,8 +116,7 @@
     "pe": 37.72,
     "pe_forward": 27.62,
     "peg": 2.81,
-    "gross_margin": 48.68,
-    "earning_direction": "Increase"
+    "gross_margin": 48.68
   },
   "AMD": {
     "current_price": 231.83,
@@ -140,8 +133,7 @@
     "pe": 122.02,
     "pe_forward": 35.27,
     "peg": 0.5,
-    "gross_margin": 51.46,
-    "earning_direction": "Increase"
+    "gross_margin": 51.46
   },
   "AMRS": {
     "current_price": null,
@@ -158,8 +150,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "AMZN": {
     "current_price": 239.12,
@@ -176,8 +167,7 @@
     "pe": 33.77,
     "pe_forward": 30.42,
     "peg": 1.64,
-    "gross_margin": 50.05,
-    "earning_direction": "Increase"
+    "gross_margin": 50.05
   },
   "ARKK": {
     "current_price": 81.68,
@@ -194,8 +184,7 @@
     "pe": 22.93,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "AVGO": {
     "current_price": 351.71,
@@ -212,8 +201,7 @@
     "pe": 73.58,
     "pe_forward": 24.85,
     "peg": 0.98,
-    "gross_margin": 77.33,
-    "earning_direction": "Increase"
+    "gross_margin": 77.33
   },
   "BA": {
     "current_price": 247.68,
@@ -230,8 +218,7 @@
     "pe": null,
     "pe_forward": 109.7,
     "peg": null,
-    "gross_margin": 1.2,
-    "earning_direction": null
+    "gross_margin": 1.2
   },
   "BBAI": {
     "current_price": 6.12,
@@ -248,8 +235,7 @@
     "pe": null,
     "pe_forward": -30.6,
     "peg": null,
-    "gross_margin": 27.28,
-    "earning_direction": null
+    "gross_margin": 27.28
   },
   "BITB": {
     "current_price": 51.9,
@@ -266,8 +252,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "BMNR": {
     "current_price": 31.16,
@@ -284,8 +269,7 @@
     "pe": null,
     "pe_forward": 33.15,
     "peg": null,
-    "gross_margin": 22.11,
-    "earning_direction": null
+    "gross_margin": 22.11
   },
   "CAT": {
     "current_price": 646.89,
@@ -302,8 +286,7 @@
     "pe": 33.22,
     "pe_forward": 28.83,
     "peg": 2.22,
-    "gross_margin": 30.12,
-    "earning_direction": "Increase"
+    "gross_margin": 30.12
   },
   "CIFR": {
     "current_price": 18.8,
@@ -320,8 +303,7 @@
     "pe": null,
     "pe_forward": 38.37,
     "peg": null,
-    "gross_margin": 33.98,
-    "earning_direction": null
+    "gross_margin": 33.98
   },
   "CLSK": {
     "current_price": 13.37,
@@ -338,8 +320,7 @@
     "pe": 11.94,
     "pe_forward": 24.76,
     "peg": null,
-    "gross_margin": 55.23,
-    "earning_direction": "Decrease"
+    "gross_margin": 55.23
   },
   "COIN": {
     "current_price": 241.15,
@@ -356,8 +337,7 @@
     "pe": 20.82,
     "pe_forward": 36.17,
     "peg": 13.83,
-    "gross_margin": 84.82,
-    "earning_direction": "Decrease"
+    "gross_margin": 84.82
   },
   "COST": {
     "current_price": 963.61,
@@ -374,8 +354,7 @@
     "pe": 51.56,
     "pe_forward": 43.38,
     "peg": 5.37,
-    "gross_margin": 12.88,
-    "earning_direction": "Increase"
+    "gross_margin": 12.88
   },
   "CRM": {
     "current_price": 227.11,
@@ -392,8 +371,7 @@
     "pe": 30.32,
     "pe_forward": 17.32,
     "peg": 1.05,
-    "gross_margin": 77.73,
-    "earning_direction": "Increase"
+    "gross_margin": 77.73
   },
   "CRWD": {
     "current_price": 453.88,
@@ -410,8 +388,7 @@
     "pe": null,
     "pe_forward": 93.9,
     "peg": 3.74,
-    "gross_margin": 74.28,
-    "earning_direction": null
+    "gross_margin": 74.28
   },
   "CSCO": {
     "current_price": 75.19,
@@ -428,8 +405,7 @@
     "pe": 29.03,
     "pe_forward": 16.81,
     "peg": 1.63,
-    "gross_margin": 64.85,
-    "earning_direction": "Increase"
+    "gross_margin": 64.85
   },
   "CSX": {
     "current_price": 36.25,
@@ -446,8 +422,7 @@
     "pe": 23.54,
     "pe_forward": 19.3,
     "peg": 2.62,
-    "gross_margin": 46.29,
-    "earning_direction": "Increase"
+    "gross_margin": 46.29
   },
   "CVX": {
     "current_price": 166.26,
@@ -464,8 +439,7 @@
     "pe": 23.35,
     "pe_forward": 22.45,
     "peg": 3.25,
-    "gross_margin": 40.6,
-    "earning_direction": "Increase"
+    "gross_margin": 40.6
   },
   "DASH": {
     "current_price": 205.32,
@@ -482,8 +456,7 @@
     "pe": 104.22,
     "pe_forward": 33.54,
     "peg": 0.6,
-    "gross_margin": 51.43,
-    "earning_direction": "Increase"
+    "gross_margin": 51.43
   },
   "DDOG": {
     "current_price": 119.02,
@@ -500,8 +473,7 @@
     "pe": 383.94,
     "pe_forward": 50.92,
     "peg": 1.15,
-    "gross_margin": 79.96,
-    "earning_direction": "Increase"
+    "gross_margin": 79.96
   },
   "DE": {
     "current_price": 514.4,
@@ -518,8 +490,7 @@
     "pe": 27.78,
     "pe_forward": 23.35,
     "peg": 1.63,
-    "gross_margin": 26.96,
-    "earning_direction": "Increase"
+    "gross_margin": 26.96
   },
   "DIS": {
     "current_price": 111.2,
@@ -536,8 +507,7 @@
     "pe": 16.23,
     "pe_forward": 15.13,
     "peg": 5.27,
-    "gross_margin": 37.76,
-    "earning_direction": "Increase"
+    "gross_margin": 37.76
   },
   "DOCN": {
     "current_price": 52.76,
@@ -554,8 +524,7 @@
     "pe": 21.1,
     "pe_forward": 27.1,
     "peg": null,
-    "gross_margin": 60.58,
-    "earning_direction": "Decrease"
+    "gross_margin": 60.58
   },
   "ETSY": {
     "current_price": 61.77,
@@ -572,8 +541,7 @@
     "pe": 41.74,
     "pe_forward": 13.17,
     "peg": 2.69,
-    "gross_margin": 72.04,
-    "earning_direction": "Increase"
+    "gross_margin": 72.04
   },
   "FTNT": {
     "current_price": 75.38,
@@ -590,8 +558,7 @@
     "pe": 31.02,
     "pe_forward": 25.74,
     "peg": 1.87,
-    "gross_margin": 80.87,
-    "earning_direction": "Increase"
+    "gross_margin": 80.87
   },
   "GE": {
     "current_price": 325.12,
@@ -608,8 +575,7 @@
     "pe": 43.47,
     "pe_forward": 45.67,
     "peg": 5.9,
-    "gross_margin": 32.46,
-    "earning_direction": "Decrease"
+    "gross_margin": 32.46
   },
   "GEVO": {
     "current_price": 2.01,
@@ -626,8 +592,7 @@
     "pe": null,
     "pe_forward": -20.1,
     "peg": null,
-    "gross_margin": 38.53,
-    "earning_direction": null
+    "gross_margin": 38.53
   },
   "GLD": {
     "current_price": 421.29,
@@ -644,8 +609,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "GOOGL": {
     "current_price": 330.0,
@@ -662,8 +626,7 @@
     "pe": 32.58,
     "pe_forward": 29.25,
     "peg": 1.74,
-    "gross_margin": 59.17,
-    "earning_direction": "Increase"
+    "gross_margin": 59.17
   },
   "GRNJ": {
     "current_price": 28.81,
@@ -680,8 +643,7 @@
     "pe": 32.66,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "GRNY": {
     "current_price": 25.87,
@@ -698,8 +660,7 @@
     "pe": 32.86,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "GS": {
     "current_price": 962.0,
@@ -716,8 +677,7 @@
     "pe": 18.76,
     "pe_forward": 14.89,
     "peg": 1.36,
-    "gross_margin": 82.88,
-    "earning_direction": "Increase"
+    "gross_margin": 82.88
   },
   "HD": {
     "current_price": 380.17,
@@ -734,8 +694,7 @@
     "pe": 25.91,
     "pe_forward": 25.27,
     "peg": 5.37,
-    "gross_margin": 33.36,
-    "earning_direction": "Increase"
+    "gross_margin": 33.36
   },
   "HOOD": {
     "current_price": 108.74,
@@ -752,8 +711,7 @@
     "pe": 45.31,
     "pe_forward": 41.69,
     "peg": null,
-    "gross_margin": 92.25,
-    "earning_direction": "Increase"
+    "gross_margin": 92.25
   },
   "IBM": {
     "current_price": 305.67,
@@ -770,8 +728,7 @@
     "pe": 36.48,
     "pe_forward": 25.06,
     "peg": 2.09,
-    "gross_margin": 57.81,
-    "earning_direction": "Increase"
+    "gross_margin": 57.81
   },
   "INTC": {
     "current_price": 46.96,
@@ -788,8 +745,7 @@
     "pe": 782.67,
     "pe_forward": 78.23,
     "peg": null,
-    "gross_margin": 33.02,
-    "earning_direction": "Increase"
+    "gross_margin": 33.02
   },
   "INTU": {
     "current_price": 545.29,
@@ -806,8 +762,7 @@
     "pe": 37.45,
     "pe_forward": 20.63,
     "peg": 1.47,
-    "gross_margin": 80.73,
-    "earning_direction": "Increase"
+    "gross_margin": 80.73
   },
   "ITA": {
     "current_price": 243.77,
@@ -824,8 +779,7 @@
     "pe": 41.21,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "JNJ": {
     "current_price": 218.66,
@@ -842,8 +796,7 @@
     "pe": 21.15,
     "pe_forward": 19.02,
     "peg": 2.97,
-    "gross_margin": 68.36,
-    "earning_direction": "Increase"
+    "gross_margin": 68.36
   },
   "JPM": {
     "current_price": 312.47,
@@ -860,8 +813,7 @@
     "pe": 15.6,
     "pe_forward": 13.54,
     "peg": 1.77,
-    "gross_margin": 0.0,
-    "earning_direction": "Increase"
+    "gross_margin": 0.0
   },
   "KO": {
     "current_price": 70.44,
@@ -878,8 +830,7 @@
     "pe": 23.32,
     "pe_forward": 21.88,
     "peg": 2.2,
-    "gross_margin": 61.63,
-    "earning_direction": "Increase"
+    "gross_margin": 61.63
   },
   "LMT": {
     "current_price": 582.43,
@@ -896,8 +847,7 @@
     "pe": 32.47,
     "pe_forward": 20.02,
     "peg": 1.93,
-    "gross_margin": 8.25,
-    "earning_direction": "Increase"
+    "gross_margin": 8.25
   },
   "LOW": {
     "current_price": 277.55,
@@ -914,8 +864,7 @@
     "pe": 23.0,
     "pe_forward": 21.37,
     "peg": 3.0,
-    "gross_margin": 33.59,
-    "earning_direction": "Increase"
+    "gross_margin": 33.59
   },
   "MA": {
     "current_price": 539.49,
@@ -932,8 +881,7 @@
     "pe": 34.47,
     "pe_forward": 28.23,
     "peg": 1.75,
-    "gross_margin": 100.0,
-    "earning_direction": "Increase"
+    "gross_margin": 100.0
   },
   "MAGS": {
     "current_price": 64.9,
@@ -950,8 +898,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "MARA": {
     "current_price": 11.36,
@@ -968,8 +915,7 @@
     "pe": 4.42,
     "pe_forward": -42.07,
     "peg": null,
-    "gross_margin": 44.87,
-    "earning_direction": "Increase"
+    "gross_margin": 44.87
   },
   "META": {
     "current_price": 620.25,
@@ -986,8 +932,7 @@
     "pe": 27.47,
     "pe_forward": 20.42,
     "peg": 1.47,
-    "gross_margin": 82.01,
-    "earning_direction": "Increase"
+    "gross_margin": 82.01
   },
   "MRK": {
     "current_price": 108.83,
@@ -1004,8 +949,7 @@
     "pe": 14.4,
     "pe_forward": 15.93,
     "peg": 1.15,
-    "gross_margin": 77.85,
-    "earning_direction": "Decrease"
+    "gross_margin": 77.85
   },
   "MS": {
     "current_price": 189.09,
@@ -1022,8 +966,7 @@
     "pe": 18.52,
     "pe_forward": 15.61,
     "peg": 1.51,
-    "gross_margin": 87.06,
-    "earning_direction": "Increase"
+    "gross_margin": 87.06
   },
   "MSFT": {
     "current_price": 459.86,
@@ -1040,8 +983,7 @@
     "pe": 32.68,
     "pe_forward": 24.53,
     "peg": 1.86,
-    "gross_margin": 68.76,
-    "earning_direction": "Increase"
+    "gross_margin": 68.76
   },
   "MSTR": {
     "current_price": 173.71,
@@ -1058,8 +1000,7 @@
     "pe": 7.13,
     "pe_forward": 3.54,
     "peg": null,
-    "gross_margin": 70.12,
-    "earning_direction": "Increase"
+    "gross_margin": 70.12
   },
   "MU": {
     "current_price": 362.75,
@@ -1076,8 +1017,7 @@
     "pe": 34.48,
     "pe_forward": 8.73,
     "peg": 0.64,
-    "gross_margin": 45.31,
-    "earning_direction": "Increase"
+    "gross_margin": 45.31
   },
   "NEE": {
     "current_price": 83.63,
@@ -1094,8 +1034,7 @@
     "pe": 26.55,
     "pe_forward": 20.85,
     "peg": 2.51,
-    "gross_margin": 62.04,
-    "earning_direction": "Increase"
+    "gross_margin": 62.04
   },
   "NFLX": {
     "current_price": 88.0,
@@ -1112,8 +1051,7 @@
     "pe": 36.82,
     "pe_forward": 27.23,
     "peg": 1.49,
-    "gross_margin": 48.08,
-    "earning_direction": "Increase"
+    "gross_margin": 48.08
   },
   "NKE": {
     "current_price": 64.38,
@@ -1130,8 +1068,7 @@
     "pe": 37.65,
     "pe_forward": 27.67,
     "peg": 2.28,
-    "gross_margin": 41.13,
-    "earning_direction": "Increase"
+    "gross_margin": 41.13
   },
   "NOW": {
     "current_price": 127.31,
@@ -1148,8 +1085,7 @@
     "pe": 76.69,
     "pe_forward": 31.23,
     "peg": 1.16,
-    "gross_margin": 78.05,
-    "earning_direction": "Increase"
+    "gross_margin": 78.05
   },
   "NVAX": {
     "current_price": 8.01,
@@ -1166,8 +1102,7 @@
     "pe": 3.99,
     "pe_forward": -22.07,
     "peg": null,
-    "gross_margin": 59.42,
-    "earning_direction": "Increase"
+    "gross_margin": 59.42
   },
   "NVDA": {
     "current_price": 186.23,
@@ -1184,8 +1119,7 @@
     "pe": 46.1,
     "pe_forward": 24.49,
     "peg": 0.7,
-    "gross_margin": 70.05,
-    "earning_direction": "Increase"
+    "gross_margin": 70.05
   },
   "ORCL": {
     "current_price": 191.09,
@@ -1202,8 +1136,7 @@
     "pe": 35.99,
     "pe_forward": 24.03,
     "peg": 1.76,
-    "gross_margin": 68.54,
-    "earning_direction": "Increase"
+    "gross_margin": 68.54
   },
   "PANW": {
     "current_price": 187.66,
@@ -1220,8 +1153,7 @@
     "pe": 118.77,
     "pe_forward": 43.26,
     "peg": 1.64,
-    "gross_margin": 73.47,
-    "earning_direction": "Increase"
+    "gross_margin": 73.47
   },
   "PFE": {
     "current_price": 25.65,
@@ -1238,8 +1170,7 @@
     "pe": 14.91,
     "pe_forward": 8.6,
     "peg": 3.77,
-    "gross_margin": 74.81,
-    "earning_direction": "Increase"
+    "gross_margin": 74.81
   },
   "PG": {
     "current_price": 144.53,
@@ -1256,8 +1187,7 @@
     "pe": 21.1,
     "pe_forward": 19.75,
     "peg": 4.39,
-    "gross_margin": 51.28,
-    "earning_direction": "Increase"
+    "gross_margin": 51.28
   },
   "PINS": {
     "current_price": 25.91,
@@ -1274,8 +1204,7 @@
     "pe": 9.09,
     "pe_forward": 13.49,
     "peg": 0.54,
-    "gross_margin": 79.99,
-    "earning_direction": "Decrease"
+    "gross_margin": 79.99
   },
   "PLTR": {
     "current_price": 170.96,
@@ -1292,8 +1221,7 @@
     "pe": 397.58,
     "pe_forward": 169.02,
     "peg": 2.68,
-    "gross_margin": 80.81,
-    "earning_direction": "Increase"
+    "gross_margin": 80.81
   },
   "PYPL": {
     "current_price": 56.89,
@@ -1310,8 +1238,7 @@
     "pe": 11.42,
     "pe_forward": 9.88,
     "peg": 0.58,
-    "gross_margin": 41.56,
-    "earning_direction": "Increase"
+    "gross_margin": 41.56
   },
   "QCOM": {
     "current_price": 159.42,
@@ -1328,8 +1255,7 @@
     "pe": 31.82,
     "pe_forward": 12.92,
     "peg": 0.54,
-    "gross_margin": 55.43,
-    "earning_direction": "Increase"
+    "gross_margin": 55.43
   },
   "RIOT": {
     "current_price": 19.24,
@@ -1346,8 +1272,7 @@
     "pe": 37.0,
     "pe_forward": -31.54,
     "peg": null,
-    "gross_margin": 39.55,
-    "earning_direction": "Increase"
+    "gross_margin": 39.55
   },
   "RKLB": {
     "current_price": 96.3,
@@ -1364,8 +1289,7 @@
     "pe": null,
     "pe_forward": -825.4,
     "peg": null,
-    "gross_margin": 31.7,
-    "earning_direction": null
+    "gross_margin": 31.7
   },
   "ROKU": {
     "current_price": 103.66,
@@ -1382,8 +1306,7 @@
     "pe": null,
     "pe_forward": 79.39,
     "peg": null,
-    "gross_margin": 43.58,
-    "earning_direction": null
+    "gross_margin": 43.58
   },
   "RTX": {
     "current_price": 201.92,
@@ -1400,8 +1323,7 @@
     "pe": 41.46,
     "pe_forward": 30.05,
     "peg": 1.76,
-    "gross_margin": 20.13,
-    "earning_direction": "Increase"
+    "gross_margin": 20.13
   },
   "SARK": {
     "current_price": 28.36,
@@ -1418,8 +1340,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "SHLD": {
     "current_price": 77.91,
@@ -1436,8 +1357,7 @@
     "pe": 37.7,
     "pe_forward": -7.97,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": "Increase"
+    "gross_margin": null
   },
   "SHOP": {
     "current_price": 155.81,
@@ -1454,8 +1374,7 @@
     "pe": 114.57,
     "pe_forward": 84.33,
     "peg": null,
-    "gross_margin": 48.75,
-    "earning_direction": "Increase"
+    "gross_margin": 48.75
   },
   "SLV": {
     "current_price": 81.02,
@@ -1472,8 +1391,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "SNAP": {
     "current_price": 7.53,
@@ -1490,8 +1408,7 @@
     "pe": null,
     "pe_forward": 15.71,
     "peg": null,
-    "gross_margin": 54.29,
-    "earning_direction": null
+    "gross_margin": 54.29
   },
   "SNOW": {
     "current_price": 210.38,
@@ -1508,8 +1425,7 @@
     "pe": null,
     "pe_forward": 128.84,
     "peg": 6.65,
-    "gross_margin": 67.24,
-    "earning_direction": null
+    "gross_margin": 67.24
   },
   "SOFI": {
     "current_price": 26.13,
@@ -1526,8 +1442,7 @@
     "pe": 46.66,
     "pe_forward": 47.64,
     "peg": 2.01,
-    "gross_margin": 82.51,
-    "earning_direction": "Decrease"
+    "gross_margin": 82.51
   },
   "SOXX": {
     "current_price": 342.47,
@@ -1544,8 +1459,7 @@
     "pe": 43.21,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "SPOT": {
     "current_price": 504.5,
@@ -1562,8 +1476,7 @@
     "pe": 64.93,
     "pe_forward": 35.55,
     "peg": 1.26,
-    "gross_margin": 31.85,
-    "earning_direction": "Increase"
+    "gross_margin": 31.85
   },
   "SQ": {
     "current_price": null,
@@ -1580,8 +1493,7 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "T": {
     "current_price": 23.49,
@@ -1598,8 +1510,7 @@
     "pe": 7.65,
     "pe_forward": 10.55,
     "peg": 0.96,
-    "gross_margin": 59.67,
-    "earning_direction": "Decrease"
+    "gross_margin": 59.67
   },
   "TSLA": {
     "current_price": 437.5,
@@ -1616,8 +1527,7 @@
     "pe": 303.82,
     "pe_forward": 201.28,
     "peg": 8.74,
-    "gross_margin": 17.01,
-    "earning_direction": "Increase"
+    "gross_margin": 17.01
   },
   "TSM": {
     "current_price": 342.4,
@@ -1634,8 +1544,7 @@
     "pe": 32.67,
     "pe_forward": 19.02,
     "peg": 1.31,
-    "gross_margin": 59.89,
-    "earning_direction": "Increase"
+    "gross_margin": 59.89
   },
   "TXN": {
     "current_price": 191.58,
@@ -1652,8 +1561,7 @@
     "pe": 34.83,
     "pe_forward": 31.25,
     "peg": 1.65,
-    "gross_margin": 57.48,
-    "earning_direction": "Increase"
+    "gross_margin": 57.48
   },
   "UBER": {
     "current_price": 84.85,
@@ -1670,8 +1578,7 @@
     "pe": 43.74,
     "pe_forward": 20.13,
     "peg": 4.99,
-    "gross_margin": 34.15,
-    "earning_direction": "Increase"
+    "gross_margin": 34.15
   },
   "UNH": {
     "current_price": 331.02,
@@ -1688,8 +1595,7 @@
     "pe": 17.24,
     "pe_forward": 18.65,
     "peg": 1.26,
-    "gross_margin": 19.7,
-    "earning_direction": "Decrease"
+    "gross_margin": 19.7
   },
   "UPST": {
     "current_price": 48.12,
@@ -1706,8 +1612,7 @@
     "pe": 185.08,
     "pe_forward": 20.09,
     "peg": null,
-    "gross_margin": 82.25,
-    "earning_direction": "Increase"
+    "gross_margin": 82.25
   },
   "V": {
     "current_price": 328.3,
@@ -1724,8 +1629,7 @@
     "pe": 32.15,
     "pe_forward": 22.76,
     "peg": 1.81,
-    "gross_margin": 97.77,
-    "earning_direction": "Increase"
+    "gross_margin": 97.77
   },
   "VOO": {
     "current_price": 636.09,
@@ -1742,8 +1646,7 @@
     "pe": 28.04,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   },
   "VZ": {
     "current_price": 38.91,
@@ -1760,8 +1663,7 @@
     "pe": 8.3,
     "pe_forward": 8.13,
     "peg": 1.89,
-    "gross_margin": 59.41,
-    "earning_direction": "Increase"
+    "gross_margin": 59.41
   },
   "WDAY": {
     "current_price": 186.86,
@@ -1778,8 +1680,7 @@
     "pe": 78.84,
     "pe_forward": 17.44,
     "peg": 0.57,
-    "gross_margin": 75.64,
-    "earning_direction": "Increase"
+    "gross_margin": 75.64
   },
   "WMT": {
     "current_price": 119.7,
@@ -1796,8 +1697,7 @@
     "pe": 41.85,
     "pe_forward": 40.3,
     "peg": 4.35,
-    "gross_margin": 24.91,
-    "earning_direction": "Increase"
+    "gross_margin": 24.91
   },
   "XOM": {
     "current_price": 129.89,
@@ -1814,8 +1714,7 @@
     "pe": 18.88,
     "pe_forward": 18.41,
     "peg": 3.08,
-    "gross_margin": 31.22,
-    "earning_direction": "Increase"
+    "gross_margin": 31.22
   },
   "ZM": {
     "current_price": 80.96,
@@ -1832,8 +1731,7 @@
     "pe": 15.75,
     "pe_forward": 13.35,
     "peg": 4.45,
-    "gross_margin": 76.89,
-    "earning_direction": "Increase"
+    "gross_margin": 76.89
   },
   "APP": {
     "current_price": 0.42,
@@ -1850,7 +1748,6 @@
     "pe": null,
     "pe_forward": null,
     "peg": null,
-    "gross_margin": null,
-    "earning_direction": null
+    "gross_margin": null
   }
 }

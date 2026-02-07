@@ -415,6 +415,28 @@ class StockIndicator:
         return _round(_safe_float(self.info.get("trailingPegRatio")))
 
     @property
+    def median_upside(self) -> float | None:
+        """Median analyst upside from recent ratings."""
+        ratings_payload = self._ratings_payload
+        return _safe_float(ratings_payload.get("median_upside_pct")) if ratings_payload else None
+
+    @property
+    def revenue_growth(self) -> float | None:
+        """Revenue growth percentage."""
+        revenue_growth = _safe_float(self.info.get("revenueGrowth"))
+        if revenue_growth is None:
+            return None
+        return _round(revenue_growth * 100)
+
+    @property
+    def gross_margin(self) -> float | None:
+        """Gross margin percentage."""
+        gross_margins = _safe_float(self.info.get("grossMargins"))
+        if gross_margins is None:
+            return None
+        return _round(gross_margins * 100)
+
+    @property
     def debt_to_equity(self) -> float | None:
         """Debt-to-equity percentage from Yahoo Finance."""
         return _round(_safe_float(self.info.get("debtToEquity")))
@@ -438,29 +460,9 @@ class StockIndicator:
         return free_cash_flow * conversion_rate
 
     @property
-    def revenue_growth(self) -> float | None:
-        """Revenue growth percentage."""
-        revenue_growth = _safe_float(self.info.get("revenueGrowth"))
-        if revenue_growth is None:
-            return None
-        return _round(revenue_growth * 100)
-
-    @property
-    def earning_direction(self) -> str | None:
-        """Direction of expected earnings change based on P/E ratios."""
-        trailing_pe = _safe_float(self.info.get("trailingPE"))
-        forward_pe = _safe_float(self.info.get("forwardPE"))
-        if trailing_pe is None or forward_pe is None:
-            return None
-        return "Increase" if trailing_pe > forward_pe else "Decrease"
-
-    @property
-    def gross_margin(self) -> float | None:
-        """Gross margin percentage."""
-        gross_margins = _safe_float(self.info.get("grossMargins"))
-        if gross_margins is None:
-            return None
-        return _round(gross_margins * 100)
+    def rsi(self) -> float | None:
+        """Relative Strength Index (RSI)."""
+        return self._calculate_rsi(DEFAULT_RSI_PERIOD)
 
     # --- Technical Indicators ---
 
@@ -537,11 +539,6 @@ class StockIndicator:
         return _round(((current_price / baseline_close) - 1) * 100)
 
     @property
-    def rsi(self) -> float | None:
-        """Relative Strength Index (RSI)."""
-        return self._calculate_rsi(DEFAULT_RSI_PERIOD)
-
-    @property
     def one_month_change_percent(self) -> float | None:
         return self._period_change_percent("one_month_change_percent")
 
@@ -591,12 +588,6 @@ class StockIndicator:
         return self._parsed_ratings if isinstance(self._parsed_ratings, dict) else None
 
     @property
-    def median_upside(self) -> float | None:
-        """Median analyst upside from recent ratings."""
-        ratings_payload = self._ratings_payload
-        return _safe_float(ratings_payload.get("median_upside_pct")) if ratings_payload else None
-
-    @property
     def ratings(self) -> list[dict[str, Any]] | None:
         """Raw analyst rating records."""
         ratings_payload = self._ratings_payload
@@ -611,23 +602,22 @@ class StockIndicator:
         """Get all available indicators as a dictionary."""
         return {
             "price": self.price,
-            "change": self.change,
             "change_percent": self.change_percent,
             "market_cap": self.market_cap,
             "pe": self.pe,
             "pe_forward": self.pe_forward,
             "peg": self.peg,
-            "debt_to_equity": self.debt_to_equity,
-            "free_cash_flow": self.free_cash_flow,
-            "revenue_growth": self.revenue_growth,
-            "earning_direction": self.earning_direction,
-            "rsi": self.rsi,
-            "gross_margin": self.gross_margin,
             "one_month_change_percent": self.one_month_change_percent,
             "three_month_change_percent": self.three_month_change_percent,
             "six_month_change_percent": self.six_month_change_percent,
             "one_year_change_percent": self.one_year_change_percent,
+            "median_upside": self.median_upside,
+            "revenue_growth": self.revenue_growth,
+            "gross_margin": self.gross_margin,
+            "debt_to_equity": self.debt_to_equity,
+            "free_cash_flow": self.free_cash_flow,
+            "rsi": self.rsi,
+            "change": self.change,
             "mtd_change_percent": self.mtd_change_percent,
             "ytd_change_percent": self.ytd_change_percent,
-            "median_upside": self.median_upside,
         }
