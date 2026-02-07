@@ -197,6 +197,8 @@ def fetch_stats_data(ticker: str) -> dict:
     market_cap = _format_market_cap(market_cap_raw)
     pe = _round(info.get("trailingPE"), 2)
     pe_forward = _round(info.get("forwardPE"), 2)
+    if str(info.get("quoteType") or "").upper() == "ETF":
+        pe_forward = None
     peg = _round(info.get("trailingPegRatio"), 2)
 
     gross_margin = None

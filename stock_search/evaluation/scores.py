@@ -110,22 +110,21 @@ def market_cap_score(
 
 def calculate_valuation_score(indicator: StockIndicator) -> float | None:
     """Compute weighted valuation score from valuation and balance-sheet metrics."""
-    info = indicator.info
     valuation_factors: list[WeightedFactorConfig] = [
         (
-            info.get("trailingPegRatio"),
+            indicator.peg,
             CalibrationConfig.PEG_RANGE,
             ValuationWeights.PEG,
             True,
         ),
         (
-            info.get("trailingPE"),
+            indicator.pe,
             CalibrationConfig.TRAILING_PE_RANGE,
             ValuationWeights.PE,
             True,
         ),
         (
-            info.get("forwardPE"),
+            indicator.pe_forward,
             CalibrationConfig.FORWARD_PE_RANGE,
             ValuationWeights.PE_FORWARD,
             True,

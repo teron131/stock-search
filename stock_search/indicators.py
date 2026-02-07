@@ -407,6 +407,8 @@ class StockIndicator:
     @property
     def pe_forward(self) -> float | None:
         """Forward P/E ratio."""
+        if str(self.info.get("quoteType") or "").upper() == "ETF":
+            return None
         return _round(_safe_float(self.info.get("forwardPE")))
 
     @property

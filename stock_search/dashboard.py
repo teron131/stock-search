@@ -51,10 +51,14 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
         data = indicator.get_all_indicators()
 
         info = indicator.info
+        quote_type = str(info.get("quoteType") or "").upper()
+        if quote_type == "ETF":
+            # Explicitly clear cached ETF forward P/E values that may be stale.
+            data["pe_forward"] = None
         data["name"] = info.get("shortName") or info.get("longName")
         data["current_price"] = data.get("price")
 
-        return {k: v for k, v in data.items() if v is not None}
+        return {k: v for k, v in data.items() if v is not None or k == "pe_forward"}
     except Exception:
         return {}
 
