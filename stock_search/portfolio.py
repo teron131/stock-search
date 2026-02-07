@@ -3,17 +3,18 @@
 
 def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
     """
-    Calculate notional exposure: delta x quantity x price.
+    Calculate notional exposure from shares plus option-equivalent shares.
 
     Args:
-        quantity: Number of shares or contracts
-        delta: Delta (1.0 for shares, 0-1 for options)
+        quantity: Number of underlying shares held
+        delta: Net option delta in contract units; each 1.0 adds 100 share-equivalents
         current_price: Current price in USD
 
     Returns:
         Notional exposure in USD
     """
-    return delta * quantity * current_price
+    effective_shares = quantity + (delta * 100.0)
+    return effective_shares * current_price
 
 
 def calculate_position_weight(notional: float, total_equity: float) -> float:

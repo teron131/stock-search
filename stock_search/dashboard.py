@@ -87,7 +87,7 @@ def _build_row(
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
     qty = float(pos.get("quantity") or 0)
-    delta = float(pos.get("delta") or 1.0)
+    delta = float(pos.get("delta") if pos.get("delta") is not None else 0.0)
     price = stats.get("current_price") or stats.get("price")
 
     notional = calculate_notional(qty, delta, price) if qty and price else 0.0

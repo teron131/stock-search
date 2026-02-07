@@ -396,7 +396,7 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
         qty = round(allocation / numeric_price)
         qty = max(1, min(qty, MAX_POSITION_QTY))
 
-        portfolio_entries.append({"ticker": ticker, "quantity": float(qty), "delta": 1.0})
+        portfolio_entries.append({"ticker": ticker, "quantity": float(qty), "delta": 0.0})
 
     return portfolio_entries
 

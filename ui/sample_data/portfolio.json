@@ -2,506 +2,506 @@
   {
     "ticker": "AAPL",
     "quantity": 57.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ABNB",
     "quantity": 67.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ABT",
     "quantity": 88.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ADBE",
     "quantity": 40.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ADP",
     "quantity": 36.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "AFRM",
     "quantity": 119.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "AMAT",
     "quantity": 29.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "AMD",
     "quantity": 47.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "AMZN",
     "quantity": 53.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ARKK",
     "quantity": 96.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "AVGO",
     "quantity": 48.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "BA",
     "quantity": 34.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "BBAI",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "BITB",
     "quantity": 137.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "BMNR",
     "quantity": 208.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CAT",
     "quantity": 14.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CIFR",
     "quantity": 391.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CLSK",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "COIN",
     "quantity": 36.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "COST",
     "quantity": 9.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CRM",
     "quantity": 52.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CRWD",
     "quantity": 24.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CSCO",
     "quantity": 136.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CSX",
     "quantity": 218.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "CVX",
     "quantity": 59.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "DASH",
     "quantity": 43.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "DDOG",
     "quantity": 76.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "DE",
     "quantity": 18.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "DIS",
     "quantity": 83.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "DOCN",
     "quantity": 187.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ETSY",
     "quantity": 151.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "FTNT",
     "quantity": 114.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GE",
     "quantity": 26.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GEVO",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GLD",
     "quantity": 21.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GOOGL",
     "quantity": 50.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GRNJ",
     "quantity": 230.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GRNY",
     "quantity": 255.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "GS",
     "quantity": 12.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "HD",
     "quantity": 24.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "HOOD",
     "quantity": 79.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "IBM",
     "quantity": 32.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "INTC",
     "quantity": 202.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "INTU",
     "quantity": 20.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ITA",
     "quantity": 25.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "JNJ",
     "quantity": 51.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "JPM",
     "quantity": 31.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "KO",
     "quantity": 142.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "LMT",
     "quantity": 13.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "LOW",
     "quantity": 32.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MA",
     "quantity": 20.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MAGS",
     "quantity": 110.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MARA",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "META",
     "quantity": 26.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MRK",
     "quantity": 112.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MS",
     "quantity": 61.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MSFT",
     "quantity": 32.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MSTR",
     "quantity": 59.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "MU",
     "quantity": 31.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NEE",
     "quantity": 117.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NFLX",
     "quantity": 114.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NKE",
     "quantity": 117.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NOW",
     "quantity": 85.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NVAX",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "NVDA",
     "quantity": 115.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ORCL",
     "quantity": 58.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PANW",
     "quantity": 55.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PFE",
     "quantity": 413.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PG",
     "quantity": 69.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PINS",
     "quantity": 425.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PLTR",
     "quantity": 60.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "PYPL",
     "quantity": 165.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "QCOM",
     "quantity": 69.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "RIOT",
     "quantity": 432.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "RKLB",
     "quantity": 91.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ROKU",
     "quantity": 88.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "RTX",
     "quantity": 39.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SARK",
     "quantity": 250.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SHLD",
     "quantity": 92.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SHOP",
     "quantity": 66.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SLV",
     "quantity": 89.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SNAP",
     "quantity": 500.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SNOW",
     "quantity": 40.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SOFI",
     "quantity": 322.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SOXX",
     "quantity": 18.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "SPOT",
     "quantity": 18.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "T",
     "quantity": 477.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "TSLA",
     "quantity": 25.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "TSM",
     "quantity": 39.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "TXN",
     "quantity": 51.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "UBER",
     "quantity": 103.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "UNH",
     "quantity": 27.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "UPST",
     "quantity": 200.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "V",
     "quantity": 36.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "VOO",
     "quantity": 11.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "VZ",
     "quantity": 264.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "WDAY",
     "quantity": 52.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "WMT",
     "quantity": 74.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "XOM",
     "quantity": 79.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "ZM",
     "quantity": 111.0,
-    "delta": 1.0
+    "delta": 0.0
   },
   {
     "ticker": "APP",
     "quantity": 0,
-    "delta": 1.0
+    "delta": 0.0
   }
 ]

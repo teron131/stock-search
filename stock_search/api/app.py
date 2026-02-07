@@ -116,7 +116,7 @@ def add_position(position: PortfolioPosition):
     new_entry = {
         "ticker": ticker_upper,
         "quantity": position.quantity or 0,
-        "delta": position.delta or 1.0,
+        "delta": 0.0 if position.delta is None else position.delta,
     }
 
     for i, existing in enumerate(portfolio_data):

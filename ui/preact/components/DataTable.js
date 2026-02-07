@@ -92,7 +92,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
     const res = await onSetQuantity({
       ticker: row.ticker,
       quantity: qty,
-      delta: row.delta ?? 1.0,
+      delta: row.delta ?? 0.0,
       bucket: row.bucket,
       silent: true,
     });

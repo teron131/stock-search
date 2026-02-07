@@ -167,8 +167,8 @@ async function fetchStaticPortfolioData(basePath) {
       const stat = statsData[pos.ticker] || {};
       const quantity = Number(pos.quantity || 0);
       const price = Number(stat.current_price || 0);
-      const delta = Number(pos.delta || 1);
-      const notional = quantity * price * delta;
+      const delta = Number(pos.delta ?? 0);
+      const notional = (quantity + delta * 100) * price;
 
       return {
         ...stat,
@@ -294,7 +294,7 @@ export function usePortfolioData() {
         body: JSON.stringify({
           ticker: t,
           quantity: q,
-          delta: 1.0,
+          delta: 0.0,
           bucket: CONFIG.defaultBucket,
         }),
       });
@@ -310,7 +310,7 @@ export function usePortfolioData() {
     async ({
       ticker,
       quantity,
-      delta = 1.0,
+      delta = 0.0,
       bucket = CONFIG.defaultBucket,
     }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
@@ -325,7 +325,7 @@ export function usePortfolioData() {
         body: JSON.stringify({
           ticker: t,
           quantity: q,
-          delta: Number(delta) || 1.0,
+          delta: Number.isFinite(Number(delta)) ? Number(delta) : 0.0,
           bucket,
         }),
       });
