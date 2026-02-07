@@ -140,6 +140,7 @@ export function App() {
   const {
     rows,
     generatedAt,
+    colorStandards,
     isLoading,
     isBackgroundLoading,
     isUsingDemoData,
@@ -361,6 +362,7 @@ export function App() {
         onSort=${onSort}
         onRemove=${onRemove}
         onSetQuantity=${onSetQuantity}
+        colorStandards=${colorStandards}
         isUsingDemoData=${isUsingDemoData}
         animateRows=${!isBackgroundLoading}
       />

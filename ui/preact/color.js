@@ -30,6 +30,16 @@ export function median(values) {
 export function getScoreColor(value, meta) {
   if (value == null || !meta) return null;
 
+  if (meta.standardRange) {
+    const { min, max } = meta.standardRange;
+    if (value <= min) {
+      return meta.invert ? "var(--positive)" : "var(--negative)";
+    }
+    if (value >= max) {
+      return meta.invert ? "var(--negative)" : "var(--positive)";
+    }
+  }
+
   if (value <= meta.lowThreshold) {
     return meta.invert ? "var(--positive)" : "var(--negative)";
   }
@@ -44,9 +54,10 @@ export function getScoreColor(value, meta) {
 export function calculateScoreColorMetadata(
   rows,
   cols,
-  { colorBandFraction = 0.5 } = {},
+  { colorBandFraction = 0.5, keyStandards = null } = {},
 ) {
   const metadata = {};
+  const resolvedStandards = keyStandards || {};
 
   cols.forEach((col) => {
     if (!TARGET_FORMATS.has(col.format) && !TARGET_KEYS.has(col.key)) {
@@ -74,12 +85,14 @@ export function calculateScoreColorMetadata(
 
     const med = col.format === "score" ? BACKEND_MEDIAN_SCORE : median(values);
     const invert = INVERT_KEYS.has(col.key);
+    const standardRange = resolvedStandards[col.key] || null;
 
     metadata[col.key] = {
       median: med,
       min,
       max,
       invert,
+      standardRange,
       lowThreshold: min + colorBandFraction * (med - min),
       highThreshold: max - colorBandFraction * (max - med),
     };

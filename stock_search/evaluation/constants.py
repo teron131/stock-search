@@ -32,7 +32,7 @@ class MarketCapConfig:
 
     MIN: Final[float] = 10 * B
     MEDIAN: Final[float] = 800 * B
-    MAX: Final[float] = 4.5 * T
+    MAX: Final[float] = 4.0 * T
 
 
 class CalibrationConfig:

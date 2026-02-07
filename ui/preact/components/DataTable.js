@@ -403,6 +403,7 @@ export function DataTable({
   onSort,
   onRemove,
   onSetQuantity,
+  colorStandards = null,
   isUsingDemoData = false,
   animateRows = true,
 }) {
@@ -424,6 +425,7 @@ export function DataTable({
   const sorted = sortRows(filtered, sortCol, sortDir);
   const colorMeta = calculateScoreColorMetadata(sorted, cols, {
     colorBandFraction: CONFIG.colorBandFraction,
+    keyStandards: colorStandards,
   });
 
   return html`

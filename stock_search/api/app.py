@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 
 from stock_search.dashboard import get_dashboard
+from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
 from stock_search.schemas import PortfolioPosition
@@ -54,6 +55,58 @@ def portfolio_api(response: Response) -> dict:
 def eval_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return load_json(EVAL_PATH, default={})
+
+
+@app.get("/api/color-standards")
+def color_standards_api(response: Response) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "standards": {
+            "market_cap": {"min": MarketCapConfig.MIN, "max": MarketCapConfig.MAX},
+            "pe": {
+                "min": CalibrationConfig.TRAILING_PE_RANGE[0],
+                "max": CalibrationConfig.TRAILING_PE_RANGE[2],
+            },
+            "pe_forward": {
+                "min": CalibrationConfig.FORWARD_PE_RANGE[0],
+                "max": CalibrationConfig.FORWARD_PE_RANGE[2],
+            },
+            "peg": {
+                "min": CalibrationConfig.PEG_RANGE[0],
+                "max": CalibrationConfig.PEG_RANGE[2],
+            },
+            "revenue_growth": {
+                "min": CalibrationConfig.REVENUE_GROWTH_PCT_RANGE[0],
+                "max": CalibrationConfig.REVENUE_GROWTH_PCT_RANGE[2],
+            },
+            "gross_margin": {
+                "min": CalibrationConfig.GROSS_MARGIN_PCT_RANGE[0],
+                "max": CalibrationConfig.GROSS_MARGIN_PCT_RANGE[2],
+            },
+            "debt_to_equity": {
+                "min": CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE[0],
+                "max": CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE[2],
+            },
+            "median_upside": {
+                "min": CalibrationConfig.UPSIDE_RANGE[0],
+                "max": CalibrationConfig.UPSIDE_RANGE[2],
+            },
+            "bull": {
+                "min": CalibrationConfig.PROBABILITY_RANGE[0],
+                "max": CalibrationConfig.PROBABILITY_RANGE[2],
+            },
+            "bear": {
+                "min": CalibrationConfig.PROBABILITY_RANGE[0],
+                "max": CalibrationConfig.PROBABILITY_RANGE[2],
+            },
+            "rsi": {"min": 20.0, "max": 80.0},
+            "overall": {"min": 2.0, "max": 8.0},
+            "quality": {"min": 2.0, "max": 8.0},
+            "valuation": {"min": 2.0, "max": 8.0},
+            "moat": {"min": 2.0, "max": 8.0},
+            "upside": {"min": 2.0, "max": 8.0},
+        }
+    }
 
 
 @app.get("/api/news/{ticker}")

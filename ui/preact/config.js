@@ -6,6 +6,7 @@ export const CONFIG = {
   endpoints: {
     portfolio: "/api/portfolio",
     eval: "/api/eval",
+    colorStandards: "/api/color-standards",
     position: "/api/portfolio/position",
   },
 

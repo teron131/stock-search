@@ -229,6 +229,7 @@ async function fetchStaticPortfolioData(basePath) {
 
 export function usePortfolioData() {
   const [rows, setRows] = useState([]);
+  const [colorStandards, setColorStandards] = useState(null);
   const [generatedAt, setGeneratedAt] = useState(null);
   const [loadingMode, setLoadingMode] = useState("idle");
   const [isUsingDemoData, setIsUsingDemoData] = useState(false);
@@ -282,6 +283,13 @@ export function usePortfolioData() {
           (await tryFetchJson(`${basePath}/eval.json`)) ??
           (await tryFetchJson(CONFIG.endpoints.eval)) ??
           {};
+        const standardsPayload = await tryFetchJson(
+          CONFIG.endpoints.colorStandards,
+        );
+        const standards = standardsPayload?.standards;
+        if (standards && typeof standards === "object") {
+          setColorStandards(standards);
+        }
 
         setIsUsingDemoData(false);
         const merged = calculateRanks(mergeRows(dashData, evalData));
@@ -423,6 +431,7 @@ export function usePortfolioData() {
   return {
     rows,
     generatedAt,
+    colorStandards,
     isLoading: loadingMode !== "idle",
     isBackgroundLoading: loadingMode === "background",
     isUsingDemoData,
