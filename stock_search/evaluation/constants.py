@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, NamedTuple
 
 B: Final[float] = 1e9
 T: Final[float] = 1e12
@@ -7,6 +7,24 @@ MinMedMax = tuple[float, float, float]
 DEFAULT_SCORE: Final[float] = 5.0
 DEFAULT_BULL_PROBABILITY: Final[float] = 0.5
 DEFAULT_BEAR_PROBABILITY: Final[float] = 0.2
+
+# --- Scoring Constants ---
+SCORE_SCALE: Final[float] = 10.0
+ROUND_PROBABILITY_DIGITS: Final[int] = 4
+QUALITY_RESEARCH_WEIGHT: Final[float] = 0.7
+QUALITY_SIGNAL_WEIGHT: Final[float] = 0.3
+ELO_K_FACTOR: Final[float] = 400.0
+EXPECTED_DRAW_WEIGHT: Final[float] = 0.5
+EDGE_BASE: Final[float] = 5.0
+EDGE_MULTIPLIER: Final[float] = 0.5
+
+
+class StrategyBucket(NamedTuple):
+    """Configuration for a portfolio strategy bucket."""
+
+    score_keys: tuple[str, ...]
+    weights: tuple[float, ...]
+    edge_weight: float
 
 
 class MarketCapConfig:

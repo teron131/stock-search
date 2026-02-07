@@ -1,11 +1,11 @@
 import math
 
-import yfinance as yf
-
 from ..indicators import StockIndicator
 from ..schemas import FutureOutlook
-from ..utils import parse_ticker
 from .constants import (
+    EDGE_BASE,
+    EDGE_MULTIPLIER,
+    SCORE_SCALE,
     CalibrationConfig,
     CoreEngineWeights,
     DiversifierWeights,
@@ -14,17 +14,14 @@ from .constants import (
     QualitySignalWeights,
     SatelliteWeights,
     SpeculativeWeights,
+    StrategyBucket,
     ThresholdConfig,
     ValuationWeights,
 )
 from .math_utils import clamp_score, z_score_map
 
 WeightedConfig = tuple[float | None, tuple[float, float, float], float, bool]
-StrategyBucketConfig = tuple[tuple[str, ...], tuple[float, ...], float]
 
-_SCORE_SCALE = 10.0
-_EDGE_BASE = 5.0
-_EDGE_MULTIPLIER = 0.5
 _MOMENTUM_INPUTS = (
     "change_percent",
     "one_month_change_percent",
@@ -32,46 +29,27 @@ _MOMENTUM_INPUTS = (
     "six_month_change_percent",
     "one_year_change_percent",
 )
-_STRATEGY_BUCKET_CONFIGS: dict[str, StrategyBucketConfig] = {
-    "core": (
-        ("moat", "quality", "valuation", "size"),
-        (
-            CoreEngineWeights.MOAT,
-            CoreEngineWeights.QUALITY,
-            CoreEngineWeights.VALUATION,
-            CoreEngineWeights.SIZE,
-        ),
-        CoreEngineWeights.EDGE,
+
+_STRATEGY_BUCKETS: dict[str, StrategyBucket] = {
+    "core": StrategyBucket(
+        score_keys=("moat", "quality", "valuation", "size"),
+        weights=(CoreEngineWeights.MOAT, CoreEngineWeights.QUALITY, CoreEngineWeights.VALUATION, CoreEngineWeights.SIZE),
+        edge_weight=CoreEngineWeights.EDGE,
     ),
-    "satellite": (
-        ("moat", "quality", "valuation", "upside"),
-        (
-            SatelliteWeights.MOAT,
-            SatelliteWeights.QUALITY,
-            SatelliteWeights.VALUATION,
-            SatelliteWeights.UPSIDE,
-        ),
-        SatelliteWeights.EDGE,
+    "satellite": StrategyBucket(
+        score_keys=("moat", "quality", "valuation", "upside"),
+        weights=(SatelliteWeights.MOAT, SatelliteWeights.QUALITY, SatelliteWeights.VALUATION, SatelliteWeights.UPSIDE),
+        edge_weight=SatelliteWeights.EDGE,
     ),
-    "speculative": (
-        ("moat", "quality", "valuation", "upside"),
-        (
-            SpeculativeWeights.MOAT,
-            SpeculativeWeights.QUALITY,
-            SpeculativeWeights.VALUATION,
-            SpeculativeWeights.UPSIDE,
-        ),
-        0.0,
+    "speculative": StrategyBucket(
+        score_keys=("moat", "quality", "valuation", "upside"),
+        weights=(SpeculativeWeights.MOAT, SpeculativeWeights.QUALITY, SpeculativeWeights.VALUATION, SpeculativeWeights.UPSIDE),
+        edge_weight=0.0,
     ),
-    "diversifier": (
-        ("quality", "valuation", "size", "upside"),
-        (
-            DiversifierWeights.QUALITY,
-            DiversifierWeights.VALUATION,
-            DiversifierWeights.SIZE,
-            DiversifierWeights.UPSIDE,
-        ),
-        0.0,
+    "diversifier": StrategyBucket(
+        score_keys=("quality", "valuation", "size", "upside"),
+        weights=(DiversifierWeights.QUALITY, DiversifierWeights.VALUATION, DiversifierWeights.SIZE, DiversifierWeights.UPSIDE),
+        edge_weight=0.0,
     ),
 }
 
@@ -110,11 +88,14 @@ def _fcf_yield_percent(indicator: StockIndicator) -> float | None:
 
 
 def market_cap_score(
-    ticker: str,
     info: dict | None = None,
 ) -> float | None:
-    """Map market cap to 1-10 using a Log-S-curve."""
-    info = info or (yf.Ticker(parse_ticker(ticker)).info or {})
+    """Map market cap to 1-10 using a Log-S-curve.
+
+    Requires `info` dict to be provided.
+    """
+    if info is None:
+        return None
     mcap = info.get("marketCap")
     if info.get("quoteType") == "ETF" or not mcap:
         return None
@@ -263,10 +244,10 @@ def model_probabilities(
     # momentum: Historical momentum scores (0-10) derived from average of moving averages
     bull_momentum_raw, bear_momentum_raw = calculate_historical_momentum_scores(indicator)
     bull_momentum = _probability_to_score(
-        bull_momentum_raw / _SCORE_SCALE if bull_momentum_raw is not None else None,
+        bull_momentum_raw / SCORE_SCALE if bull_momentum_raw is not None else None,
     )
     bear_momentum = _probability_to_score(
-        bear_momentum_raw / _SCORE_SCALE if bear_momentum_raw is not None else None,
+        bear_momentum_raw / SCORE_SCALE if bear_momentum_raw is not None else None,
     )
 
     # LLM: LLM results (0-10)
@@ -303,14 +284,14 @@ def calculate_strategy_indices(
     edge: float | None,
 ) -> dict[str, float | None]:
     """Apply strategy weights to core scores to find suitable portfolio buckets."""
-    edge_component = (_EDGE_BASE + (_EDGE_MULTIPLIER * edge)) if edge is not None else None
+    edge_component = (EDGE_BASE + (EDGE_MULTIPLIER * edge)) if edge is not None else None
 
     indices: dict[str, float | None] = {}
-    for name, (score_keys, weights, edge_weight) in _STRATEGY_BUCKET_CONFIGS.items():
-        vals = [scores[key] for key in score_keys]
-        if all(v is not None for v in vals) and (edge_weight == 0 or edge_component is not None):
-            weighted = sum(v * w for v, w in zip(vals, weights, strict=False))
-            indices[name] = weighted + (edge_weight * (edge_component or 0))
+    for name, bucket in _STRATEGY_BUCKETS.items():
+        vals = [scores[key] for key in bucket.score_keys]
+        if all(v is not None for v in vals) and (bucket.edge_weight == 0 or edge_component is not None):
+            weighted = sum(v * w for v, w in zip(vals, bucket.weights, strict=False))
+            indices[name] = weighted + (bucket.edge_weight * (edge_component or 0))
         else:
             indices[name] = None
     return indices

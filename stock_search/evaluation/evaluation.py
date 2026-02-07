@@ -6,7 +6,17 @@ from ..indicators import StockIndicator
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
 from ..utils import parse_ticker
-from .constants import DEFAULT_BEAR_PROBABILITY, DEFAULT_BULL_PROBABILITY, DEFAULT_SCORE
+from .constants import (
+    DEFAULT_BEAR_PROBABILITY,
+    DEFAULT_BULL_PROBABILITY,
+    DEFAULT_SCORE,
+    ELO_K_FACTOR,
+    EXPECTED_DRAW_WEIGHT,
+    QUALITY_RESEARCH_WEIGHT,
+    QUALITY_SIGNAL_WEIGHT,
+    ROUND_PROBABILITY_DIGITS,
+    SCORE_SCALE,
+)
 from .research import run_llm_evaluation
 from .scores import (
     calculate_combined_upside_score,
@@ -19,13 +29,6 @@ from .scores import (
     market_cap_score,
     model_probabilities,
 )
-
-_SCORE_SCALE = 10.0
-_ROUND_PROBABILITY_DIGITS = 4
-_QUALITY_RESEARCH_WEIGHT = 0.7
-_QUALITY_SIGNAL_WEIGHT = 0.3
-_ELO_K_FACTOR = 400.0
-_EXPECTED_DRAW_WEIGHT = 0.5
 
 
 @dataclass(frozen=True)
@@ -56,12 +59,12 @@ def _probabilities_from_scores(
     bull_score: float | None,
     bear_score: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    p_up = round(bull_score / _SCORE_SCALE, _ROUND_PROBABILITY_DIGITS) if bull_score is not None else None
-    p_down = round(bear_score / _SCORE_SCALE, _ROUND_PROBABILITY_DIGITS) if bear_score is not None else None
+    p_up = round(bull_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bull_score is not None else None
+    p_down = round(bear_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bear_score is not None else None
 
     p_flat = None
     if p_up is not None and p_down is not None:
-        p_flat = max(0.0, round(1.0 - p_up - p_down, _ROUND_PROBABILITY_DIGITS))
+        p_flat = max(0.0, round(1.0 - p_up - p_down, ROUND_PROBABILITY_DIGITS))
     return p_up, p_down, p_flat
 
 
@@ -81,7 +84,7 @@ def _blended_quality(
 
     if research_quality_score is not None and quality_signal_score is not None:
         score = round(
-            (_QUALITY_RESEARCH_WEIGHT * research_quality_score) + (_QUALITY_SIGNAL_WEIGHT * quality_signal_score),
+            (QUALITY_RESEARCH_WEIGHT * research_quality_score) + (QUALITY_SIGNAL_WEIGHT * quality_signal_score),
             2,
         )
     elif research_quality_score is not None:
@@ -156,8 +159,8 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     p_down = inputs.bear_probability
     p_flat = inputs.flat_probability if inputs.flat_probability is not None else _flat_probability(p_up, p_down)
 
-    bull_score = p_up * _SCORE_SCALE if p_up is not None else None
-    bear_score = p_down * _SCORE_SCALE if p_down is not None else None
+    bull_score = p_up * SCORE_SCALE if p_up is not None else None
+    bear_score = p_down * SCORE_SCALE if p_down is not None else None
     edge = bull_score - bear_score if bull_score is not None and bear_score is not None else None
 
     scores = {
@@ -185,8 +188,8 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         confidence=abs(edge) if edge is not None else None,
         overall=overall,
         elo_delta=calculate_elo_delta(p_up),
-        elo_delta_dir=_ELO_K_FACTOR * math.log10(p_up / p_down) if p_up is not None and p_down is not None and p_up > 0 and p_down > 0 else None,
-        elo_delta_exp=calculate_elo_delta(p_up + (_EXPECTED_DRAW_WEIGHT * p_flat)) if p_up is not None and p_flat is not None else None,
+        elo_delta_dir=ELO_K_FACTOR * math.log10(p_up / p_down) if p_up is not None and p_down is not None and p_up > 0 and p_down > 0 else None,
+        elo_delta_exp=calculate_elo_delta(p_up + (EXPECTED_DRAW_WEIGHT * p_flat)) if p_up is not None and p_flat is not None else None,
         core_index=indices.get("core"),
         satellite_index=indices.get("satellite"),
         speculative_index=indices.get("speculative"),
