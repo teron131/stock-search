@@ -1,5 +1,5 @@
 from contextlib import suppress
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 import logging
 from typing import Any, cast
 from zoneinfo import ZoneInfo
@@ -402,6 +402,38 @@ class StockIndicator:
             return _round(change * 100)
         return self._calculate_ema_change_percent(days)
 
+    def _calculate_period_return_percent(self, start_date: date, history_period: str) -> float | None:
+        """Calculate return percent from the close before `start_date` to current price."""
+        current_price = self.price
+        if current_price is None:
+            return None
+
+        hist = self._history(period=history_period, interval="1d")
+        if hist.empty or "Close" not in hist:
+            return None
+
+        try:
+            idx_ny = self._index_to_ny(hist.index)
+            close_series = hist["Close"]
+
+            # Prefer the prior session close before the period start.
+            before_start = close_series.loc[idx_ny.date < start_date]
+            start_value = before_start.iloc[-1] if not before_start.empty else None
+
+            # Fallback when no prior session is present in the requested history window.
+            if start_value is None:
+                on_or_after_start = close_series.loc[idx_ny.date >= start_date]
+                if on_or_after_start.empty:
+                    return None
+                start_value = on_or_after_start.iloc[0]
+
+            start_price = float(start_value)
+            if start_price == 0.0:
+                return None
+            return _round(((current_price / start_price) - 1) * 100)
+        except Exception:
+            return None
+
     @property
     def twenty_day_change_percent(self) -> float | None:
         return self._get_day_change_percent(20, "twentyDayAverageChangePercent")
@@ -417,6 +449,26 @@ class StockIndicator:
     @property
     def two_hundred_day_change_percent(self) -> float | None:
         return self._get_day_change_percent(200, "twoHundredDayAverageChangePercent")
+
+    @property
+    def mtd_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        month_start = date(today_ny.year, today_ny.month, 1)
+        return self._calculate_period_return_percent(month_start, "3mo")
+
+    @property
+    def ytd_change_percent(self) -> float | None:
+        today_ny = self._now_ny().date()
+        year_start = date(today_ny.year, 1, 1)
+        if (hist_ytd := self._calculate_period_return_percent(year_start, "2y")) is not None:
+            return hist_ytd
+
+        ytd = self.info.get("ytdReturn")
+        if ytd is None:
+            return None
+        with suppress(TypeError, ValueError):
+            return _round(float(ytd))
+        return None
 
     # --- Analyst Ratings ---
 
@@ -451,5 +503,7 @@ class StockIndicator:
             "fifty_day_change_percent": self.fifty_day_change_percent,
             "one_hundred_day_change_percent": self.one_hundred_day_change_percent,
             "two_hundred_day_change_percent": self.two_hundred_day_change_percent,
+            "mtd_change_percent": self.mtd_change_percent,
+            "ytd_change_percent": self.ytd_change_percent,
             "median_upside": self.median_upside,
         }

@@ -33,6 +33,8 @@ _MARKET_KEYS = {
     "fifty_day_change_percent",
     "one_hundred_day_change_percent",
     "two_hundred_day_change_percent",
+    "mtd_change_percent",
+    "ytd_change_percent",
     "median_upside",
 }
 
@@ -124,6 +126,8 @@ def _build_row(
         "fifty_day_change_percent": stats.get("fifty_day_change_percent"),
         "one_hundred_day_change_percent": stats.get("one_hundred_day_change_percent"),
         "two_hundred_day_change_percent": stats.get("two_hundred_day_change_percent"),
+        "mtd_change_percent": stats.get("mtd_change_percent"),
+        "ytd_change_percent": stats.get("ytd_change_percent"),
         "median_upside": stats.get("median_upside"),
         "bucket": bucket,
         "notional": notional,
