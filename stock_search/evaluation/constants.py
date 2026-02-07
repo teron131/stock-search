@@ -2,6 +2,7 @@ from typing import Final
 
 B: Final[float] = 1e9
 T: Final[float] = 1e12
+Range3: type[tuple[float, float, float]] = tuple[float, float, float]
 
 
 class MarketCapConfig:
@@ -15,16 +16,16 @@ class MarketCapConfig:
 class CalibrationConfig:
     """Calibration ranges for mapping various financial metrics to 0-10 scores."""
 
-    PEG_RANGE: Final[tuple[float, float, float]] = (0.5, 1.5, 3.0)
-    PE_RANGE: Final[tuple[float, float, float]] = (10.0, 28.0, 50.0)
-    GROWTH_RANGE: Final[tuple[float, float, float]] = (0.1, 0.3, 0.5)
-    REVENUE_GROWTH_PCT_RANGE: Final[tuple[float, float, float]] = (-10.0, 12.0, 35.0)
-    GROSS_MARGIN_PCT_RANGE: Final[tuple[float, float, float]] = (10.0, 45.0, 70.0)
-    DEBT_TO_EQUITY_PCT_RANGE: Final[tuple[float, float, float]] = (0.0, 60.0, 200.0)
-    FCF_YIELD_PCT_RANGE: Final[tuple[float, float, float]] = (-2.0, 3.0, 8.0)
-    UPSIDE_RANGE: Final[tuple[float, float, float]] = (0.0, 15.0, 50.0)
-    PROBABILITY_RANGE: Final[tuple[float, float, float]] = (0.5, 0.55, 0.6)
-    RATING_RANGE: Final[tuple[float, float, float]] = (1.0, 3.5, 5.0)
+    PEG_RANGE: Final[Range3] = (0.5, 1.5, 3.0)
+    PE_RANGE: Final[Range3] = (10.0, 28.0, 50.0)
+    GROWTH_RANGE: Final[Range3] = (0.1, 0.3, 0.5)
+    REVENUE_GROWTH_PCT_RANGE: Final[Range3] = (-10.0, 12.0, 35.0)
+    GROSS_MARGIN_PCT_RANGE: Final[Range3] = (10.0, 45.0, 70.0)
+    DEBT_TO_EQUITY_PCT_RANGE: Final[Range3] = (0.0, 60.0, 200.0)
+    FCF_YIELD_PCT_RANGE: Final[Range3] = (-2.0, 3.0, 8.0)
+    UPSIDE_RANGE: Final[Range3] = (0.0, 15.0, 50.0)
+    PROBABILITY_RANGE: Final[Range3] = (0.5, 0.55, 0.6)
+    RATING_RANGE: Final[Range3] = (1.0, 3.5, 5.0)
 
 
 class ValuationWeights:

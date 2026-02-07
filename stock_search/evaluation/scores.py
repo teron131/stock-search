@@ -19,6 +19,41 @@ from .constants import (
 )
 from .math_utils import clamp_score, z_score_map
 
+WeightedConfig = tuple[float | None, tuple[float, float, float], float, bool]
+
+
+def _weighted_zscore_average(configs: list[WeightedConfig]) -> float | None:
+    """Average weighted z-score mapped factors, skipping missing values."""
+    weighted_scores: list[float] = []
+    total_weight = 0.0
+
+    for value, range_values, weight, inverse in configs:
+        if value is None:
+            continue
+        range_min, range_median, range_max = range_values
+        score = z_score_map(
+            value,
+            in_min=range_min,
+            in_max=range_max,
+            in_median=range_median,
+            out_min=10.0 if inverse else 0.0,
+            out_max=0.0 if inverse else 10.0,
+        )
+        weighted_scores.append(score * weight)
+        total_weight += weight
+
+    if total_weight == 0:
+        return None
+    return clamp_score(sum(weighted_scores) / total_weight)
+
+
+def _fcf_yield_percent(indicator: StockIndicator) -> float | None:
+    market_cap = indicator.market_cap
+    free_cash_flow = indicator.free_cash_flow
+    if free_cash_flow is None or market_cap is None or market_cap <= 0:
+        return None
+    return (free_cash_flow / market_cap) * 100
+
 
 def market_cap_score(
     ticker: str,
@@ -41,51 +76,25 @@ def market_cap_score(
 def calculate_valuation_score(indicator: StockIndicator) -> float | None:
     """Compute weighted valuation score from valuation and balance-sheet metrics."""
     info = indicator.info
-    market_cap = indicator.market_cap
-    free_cash_flow = indicator.free_cash_flow
-    fcf_yield = None
-    if free_cash_flow is not None and market_cap is not None and market_cap > 0:
-        fcf_yield = (free_cash_flow / market_cap) * 100
-
-    configs = [
+    valuation_factors: list[WeightedConfig] = [
         (
-            "trailingPegRatio",
+            info.get("trailingPegRatio"),
             CalibrationConfig.PEG_RANGE,
             ValuationWeights.PEG,
             True,
-        ),  # True = inverse
+        ),
         (
-            "trailingPE",
+            info.get("trailingPE"),
             CalibrationConfig.PE_RANGE,
             ValuationWeights.PE,
             True,
         ),
         (
-            "forwardPE",
+            info.get("forwardPE"),
             CalibrationConfig.PE_RANGE,
             ValuationWeights.PE_FORWARD,
             True,
         ),
-    ]
-
-    weighted_scores = []
-    total_w = 0.0
-
-    for key, range_val, weight, inverse in configs:
-        if (val := info.get(key)) is not None:
-            i_min, i_med, i_max = range_val
-            score = z_score_map(
-                val,
-                in_min=i_min,
-                in_max=i_max,
-                in_median=i_med,
-                out_min=10.0 if inverse else 0.0,
-                out_max=0.0 if inverse else 10.0,
-            )
-            weighted_scores.append(score * weight)
-            total_w += weight
-
-    valuation_overlays = [
         (
             indicator.debt_to_equity,
             CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
@@ -93,34 +102,18 @@ def calculate_valuation_score(indicator: StockIndicator) -> float | None:
             True,
         ),
         (
-            fcf_yield,
+            _fcf_yield_percent(indicator),
             CalibrationConfig.FCF_YIELD_PCT_RANGE,
             ValuationWeights.FCF_YIELD,
             False,
         ),
     ]
-
-    for value, range_val, weight, inverse in valuation_overlays:
-        if value is None:
-            continue
-        i_min, i_med, i_max = range_val
-        score = z_score_map(
-            value,
-            in_min=i_min,
-            in_max=i_max,
-            in_median=i_med,
-            out_min=10.0 if inverse else 0.0,
-            out_max=0.0 if inverse else 10.0,
-        )
-        weighted_scores.append(score * weight)
-        total_w += weight
-
-    return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
+    return _weighted_zscore_average(valuation_factors)
 
 
 def calculate_quality_signal_score(indicator: StockIndicator) -> float | None:
     """Compute market-derived quality score from growth and margin."""
-    configs = [
+    quality_factors: list[WeightedConfig] = [
         (
             indicator.revenue_growth,
             CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
@@ -134,26 +127,7 @@ def calculate_quality_signal_score(indicator: StockIndicator) -> float | None:
             False,
         ),
     ]
-
-    weighted_scores = []
-    total_w = 0.0
-
-    for value, range_val, weight, inverse in configs:
-        if value is None:
-            continue
-        i_min, i_med, i_max = range_val
-        score = z_score_map(
-            value,
-            in_min=i_min,
-            in_max=i_max,
-            in_median=i_med,
-            out_min=10.0 if inverse else 0.0,
-            out_max=0.0 if inverse else 10.0,
-        )
-        weighted_scores.append(score * weight)
-        total_w += weight
-
-    return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
+    return _weighted_zscore_average(quality_factors)
 
 
 def calculate_combined_upside_score(

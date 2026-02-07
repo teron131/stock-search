@@ -44,6 +44,38 @@ class EvaluationResult:
 # --- Primary Entry Points ---
 
 
+def _probabilities_from_scores(
+    bull_score: float | None,
+    bear_score: float | None,
+) -> tuple[float | None, float | None, float | None]:
+    p_up = round(bull_score / 10.0, 4) if bull_score is not None else None
+    p_down = round(bear_score / 10.0, 4) if bear_score is not None else None
+
+    p_flat = None
+    if p_up is not None and p_down is not None:
+        p_flat = max(0.0, round(1.0 - p_up - p_down, 4))
+    return p_up, p_down, p_flat
+
+
+def _blended_quality(
+    research: ResearchEvaluation | None,
+    quality_signal_score: float | None,
+) -> ScoredReason | None:
+    research_quality_score = research.quality.score if research and research.quality else None
+    if research_quality_score is None and quality_signal_score is None:
+        return None
+
+    if research_quality_score is not None and quality_signal_score is not None:
+        score = round((0.7 * research_quality_score) + (0.3 * quality_signal_score), 2)
+    elif research_quality_score is not None:
+        score = round(research_quality_score, 2)
+    else:
+        score = round(quality_signal_score or 0.0, 2)
+
+    reasons = research.quality.reasons if research and research.quality else []
+    return ScoredReason(score=score, reasons=reasons)
+
+
 def build_inputs(ticker: str) -> Evaluation:
     """Fetch metrics and run LLM evaluations to build the Evaluation input model."""
     normalized = parse_ticker(ticker)
@@ -73,14 +105,7 @@ def build_inputs(ticker: str) -> Evaluation:
 
     # 3. Probability Modeling
     bull_score, bear_score = model_probabilities(indicator, outlook)
-
-    p_up = round(bull_score / 10.0, 4) if bull_score is not None else None
-    p_down = round(bear_score / 10.0, 4) if bear_score is not None else None
-
-    # Calculate flat probability
-    p_flat = None
-    if p_up is not None and p_down is not None:
-        p_flat = max(0.0, round(1.0 - p_up - p_down, 4))
+    p_up, p_down, p_flat = _probabilities_from_scores(bull_score, bear_score)
 
     # 4. Input Assembly
     eval_data = {
@@ -101,21 +126,9 @@ def build_inputs(ticker: str) -> Evaluation:
     if research:
         eval_data.update(research.model_dump())
 
-    research_quality = research.quality.score if research and research.quality else None
-    blended_quality = None
-    if research_quality is not None and quality_signal_score is not None:
-        blended_quality = round((0.7 * research_quality) + (0.3 * quality_signal_score), 2)
-    elif research_quality is not None:
-        blended_quality = round(research_quality, 2)
-    elif quality_signal_score is not None:
-        blended_quality = round(quality_signal_score, 2)
-
-    if blended_quality is not None:
-        reasons = research.quality.reasons if research and research.quality else []
-        eval_data["quality"] = ScoredReason(
-            score=blended_quality,
-            reasons=reasons,
-        )
+    quality = _blended_quality(research, quality_signal_score)
+    if quality is not None:
+        eval_data["quality"] = quality
 
     return Evaluation(**eval_data)
 

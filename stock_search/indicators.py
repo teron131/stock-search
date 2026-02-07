@@ -14,6 +14,15 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # --- Configuration ---
 DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 DEFAULT_RSI_PERIOD = 14
+DEFAULT_FX_LOOKBACK_PERIOD = "5d"
+DEFAULT_FX_INTERVAL = "1d"
+
+PERIOD_RETURN_WINDOWS: dict[str, tuple[int, str]] = {
+    "one_month_change_percent": (1, "2y"),
+    "three_month_change_percent": (3, "2y"),
+    "six_month_change_percent": (6, "2y"),
+    "one_year_change_percent": (12, "3y"),
+}
 
 # --- Market State Constants ---
 MARKET_STATE_PRE = "PRE"
@@ -28,14 +37,6 @@ _SESSION_PRE_START = time(4, 0)
 _SESSION_REGULAR_START = time(9, 30)
 _SESSION_REGULAR_END = time(16, 0)
 _SESSION_POST_END = time(20, 0)
-
-# --- Formatting ---
-MARKET_CAP_UNITS = [
-    (1e12, "T"),
-    (1e9, "B"),
-    (1e6, "M"),
-    (1e3, "K"),
-]
 
 # --- Price Keys by Session ---
 _SESSION_PRICE_KEYS: dict[str, str] = {
@@ -71,6 +72,16 @@ def _normalize_yahoo_ticker(ticker: str) -> str:
     return ticker.strip().upper().replace(" ", "-").replace(".", "-")
 
 
+def _latest_close_price(hist: pd.DataFrame) -> float | None:
+    """Get latest non-null close from a history frame."""
+    if not isinstance(hist, pd.DataFrame) or hist.empty or "Close" not in hist:
+        return None
+    close = hist["Close"].dropna()
+    if close.empty:
+        return None
+    return float(close.iloc[-1])
+
+
 @cache
 def _fx_rate(from_currency: str, to_currency: str) -> float | None:
     """Best-effort FX rate from `from_currency` to `to_currency`."""
@@ -85,18 +96,20 @@ def _fx_rate(from_currency: str, to_currency: str) -> float | None:
     inverse_pair = f"{target}{source}=X"
 
     with suppress(Exception):
-        direct_hist = yf.Ticker(direct_pair).history(period="5d", interval="1d")
-        if isinstance(direct_hist, pd.DataFrame) and not direct_hist.empty and "Close" in direct_hist:
-            close = direct_hist["Close"].dropna()
-            if not close.empty:
-                return float(close.iloc[-1])
+        direct_hist = yf.Ticker(direct_pair).history(
+            period=DEFAULT_FX_LOOKBACK_PERIOD,
+            interval=DEFAULT_FX_INTERVAL,
+        )
+        if (price := _latest_close_price(direct_hist)) is not None:
+            return price
 
     with suppress(Exception):
-        inverse_hist = yf.Ticker(inverse_pair).history(period="5d", interval="1d")
-        if isinstance(inverse_hist, pd.DataFrame) and not inverse_hist.empty and "Close" in inverse_hist:
-            close = inverse_hist["Close"].dropna()
-            if not close.empty and float(close.iloc[-1]) != 0:
-                return 1.0 / float(close.iloc[-1])
+        inverse_hist = yf.Ticker(inverse_pair).history(
+            period=DEFAULT_FX_LOOKBACK_PERIOD,
+            interval=DEFAULT_FX_INTERVAL,
+        )
+        if (price := _latest_close_price(inverse_hist)) is not None and price != 0:
+            return 1.0 / price
 
     return None
 
@@ -521,23 +534,27 @@ class StockIndicator:
 
     @property
     def one_month_change_percent(self) -> float | None:
-        today_ny = self._now_ny().date()
-        return self._calculate_period_return_percent(_subtract_months(today_ny, 1), "2y")
+        return self._period_change_percent("one_month_change_percent")
 
     @property
     def three_month_change_percent(self) -> float | None:
-        today_ny = self._now_ny().date()
-        return self._calculate_period_return_percent(_subtract_months(today_ny, 3), "2y")
+        return self._period_change_percent("three_month_change_percent")
 
     @property
     def six_month_change_percent(self) -> float | None:
-        today_ny = self._now_ny().date()
-        return self._calculate_period_return_percent(_subtract_months(today_ny, 6), "2y")
+        return self._period_change_percent("six_month_change_percent")
 
     @property
     def one_year_change_percent(self) -> float | None:
+        return self._period_change_percent("one_year_change_percent")
+
+    def _period_change_percent(self, key: str) -> float | None:
+        months, history_period = PERIOD_RETURN_WINDOWS[key]
         today_ny = self._now_ny().date()
-        return self._calculate_period_return_percent(_subtract_months(today_ny, 12), "3y")
+        return self._calculate_period_return_percent(
+            _subtract_months(today_ny, months),
+            history_period,
+        )
 
     @property
     def mtd_change_percent(self) -> float | None:
