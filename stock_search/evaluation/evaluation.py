@@ -10,6 +10,7 @@ from .research import run_llm_evaluation
 from .scores import (
     calculate_combined_upside_score,
     calculate_elo_delta,
+    calculate_quality_signal_score,
     calculate_strategy_indices,
     calculate_valuation_score,
     check_fomo_conditions,
@@ -62,7 +63,8 @@ def build_inputs(ticker: str) -> Evaluation:
 
     # 2. Market Metrics
     size_score = market_cap_score(normalized, indicator.info)
-    valuation_score = calculate_valuation_score(indicator.info)
+    valuation_score = calculate_valuation_score(indicator)
+    quality_signal_score = calculate_quality_signal_score(indicator)
     upside_score = calculate_combined_upside_score(
         indicator.median_upside,
         indicator.ratings,
@@ -98,6 +100,22 @@ def build_inputs(ticker: str) -> Evaluation:
         )
     if research:
         eval_data.update(research.model_dump())
+
+    research_quality = research.quality.score if research and research.quality else None
+    blended_quality = None
+    if research_quality is not None and quality_signal_score is not None:
+        blended_quality = round((0.7 * research_quality) + (0.3 * quality_signal_score), 2)
+    elif research_quality is not None:
+        blended_quality = round(research_quality, 2)
+    elif quality_signal_score is not None:
+        blended_quality = round(quality_signal_score, 2)
+
+    if blended_quality is not None:
+        reasons = research.quality.reasons if research and research.quality else []
+        eval_data["quality"] = ScoredReason(
+            score=blended_quality,
+            reasons=reasons,
+        )
 
     return Evaluation(**eval_data)
 

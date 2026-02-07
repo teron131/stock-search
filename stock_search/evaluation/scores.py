@@ -11,6 +11,7 @@ from .constants import (
     DiversifierWeights,
     GameTierThresholds,
     MarketCapConfig,
+    QualitySignalWeights,
     SatelliteWeights,
     SpeculativeWeights,
     ThresholdConfig,
@@ -37,8 +38,15 @@ def market_cap_score(
     )
 
 
-def calculate_valuation_score(info: dict) -> float | None:
-    """Compute weighted valuation score from PEG, PE, and Growth."""
+def calculate_valuation_score(indicator: StockIndicator) -> float | None:
+    """Compute weighted valuation score from valuation and balance-sheet metrics."""
+    info = indicator.info
+    market_cap = indicator.market_cap
+    free_cash_flow = indicator.free_cash_flow
+    fcf_yield = None
+    if free_cash_flow is not None and market_cap is not None and market_cap > 0:
+        fcf_yield = (free_cash_flow / market_cap) * 100
+
     configs = [
         (
             "trailingPegRatio",
@@ -58,12 +66,6 @@ def calculate_valuation_score(info: dict) -> float | None:
             ValuationWeights.PE_FORWARD,
             True,
         ),
-        (
-            "earningsGrowth",
-            CalibrationConfig.GROWTH_RANGE,
-            ValuationWeights.GROWTH,
-            False,
-        ),
     ]
 
     weighted_scores = []
@@ -82,6 +84,74 @@ def calculate_valuation_score(info: dict) -> float | None:
             )
             weighted_scores.append(score * weight)
             total_w += weight
+
+    valuation_overlays = [
+        (
+            indicator.debt_to_equity,
+            CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
+            ValuationWeights.DEBT_TO_EQUITY,
+            True,
+        ),
+        (
+            fcf_yield,
+            CalibrationConfig.FCF_YIELD_PCT_RANGE,
+            ValuationWeights.FCF_YIELD,
+            False,
+        ),
+    ]
+
+    for value, range_val, weight, inverse in valuation_overlays:
+        if value is None:
+            continue
+        i_min, i_med, i_max = range_val
+        score = z_score_map(
+            value,
+            in_min=i_min,
+            in_max=i_max,
+            in_median=i_med,
+            out_min=10.0 if inverse else 0.0,
+            out_max=0.0 if inverse else 10.0,
+        )
+        weighted_scores.append(score * weight)
+        total_w += weight
+
+    return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
+
+
+def calculate_quality_signal_score(indicator: StockIndicator) -> float | None:
+    """Compute market-derived quality score from growth and margin."""
+    configs = [
+        (
+            indicator.revenue_growth,
+            CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
+            QualitySignalWeights.REVENUE_GROWTH,
+            False,
+        ),
+        (
+            indicator.gross_margin,
+            CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
+            QualitySignalWeights.GROSS_MARGIN,
+            False,
+        ),
+    ]
+
+    weighted_scores = []
+    total_w = 0.0
+
+    for value, range_val, weight, inverse in configs:
+        if value is None:
+            continue
+        i_min, i_med, i_max = range_val
+        score = z_score_map(
+            value,
+            in_min=i_min,
+            in_max=i_max,
+            in_median=i_med,
+            out_min=10.0 if inverse else 0.0,
+            out_max=0.0 if inverse else 10.0,
+        )
+        weighted_scores.append(score * weight)
+        total_w += weight
 
     return clamp_score(sum(weighted_scores) / total_w) if total_w > 0 else None
 

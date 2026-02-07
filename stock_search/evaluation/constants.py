@@ -18,6 +18,10 @@ class CalibrationConfig:
     PEG_RANGE: Final[tuple[float, float, float]] = (0.5, 1.5, 3.0)
     PE_RANGE: Final[tuple[float, float, float]] = (10.0, 28.0, 50.0)
     GROWTH_RANGE: Final[tuple[float, float, float]] = (0.1, 0.3, 0.5)
+    REVENUE_GROWTH_PCT_RANGE: Final[tuple[float, float, float]] = (-10.0, 12.0, 35.0)
+    GROSS_MARGIN_PCT_RANGE: Final[tuple[float, float, float]] = (10.0, 45.0, 70.0)
+    DEBT_TO_EQUITY_PCT_RANGE: Final[tuple[float, float, float]] = (0.0, 60.0, 200.0)
+    FCF_YIELD_PCT_RANGE: Final[tuple[float, float, float]] = (-2.0, 3.0, 8.0)
     UPSIDE_RANGE: Final[tuple[float, float, float]] = (0.0, 15.0, 50.0)
     PROBABILITY_RANGE: Final[tuple[float, float, float]] = (0.5, 0.55, 0.6)
     RATING_RANGE: Final[tuple[float, float, float]] = (1.0, 3.5, 5.0)
@@ -26,10 +30,18 @@ class CalibrationConfig:
 class ValuationWeights:
     """Weights used for blending PEG, P/E, and Growth into a valuation score."""
 
-    PEG: Final[float] = 0.55
+    PEG: Final[float] = 0.45
     PE: Final[float] = 0.2
     PE_FORWARD: Final[float] = 0.15
-    GROWTH: Final[float] = 0.1
+    DEBT_TO_EQUITY: Final[float] = 0.1
+    FCF_YIELD: Final[float] = 0.1
+
+
+class QualitySignalWeights:
+    """Weights for market-derived quality overlays."""
+
+    REVENUE_GROWTH: Final[float] = 0.50
+    GROSS_MARGIN: Final[float] = 0.50
 
 
 class CoreEngineWeights:
