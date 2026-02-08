@@ -3,6 +3,7 @@ from contextlib import suppress
 from datetime import UTC, date, datetime, time, timedelta
 from functools import cache
 import logging
+import math
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
@@ -63,6 +64,13 @@ _INTRADAY_PRICE_INTERVALS = ("1m", "5m", "15m")
 _DAILY_HISTORY_PERIOD = "5d"
 _DAILY_INTERVAL = "1d"
 _UNSET = object()
+_HV_WINDOWS_TO_WEIGHTS: tuple[tuple[int, int], ...] = (
+    (180, 5),
+    (90, 4),
+    (30, 3),
+    (7, 2),
+    (1, 1),
+)
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
@@ -73,7 +81,8 @@ def _round(value: float | None, decimals: int = 2) -> float | None:
 def _safe_float(value: Any) -> float | None:
     """Convert value to float when possible."""
     with suppress(TypeError, ValueError):
-        return float(value)
+        converted = float(value)
+        return converted if math.isfinite(converted) else None
     return None
 
 
@@ -188,6 +197,7 @@ class StockIndicator:
         self._info: dict[str, Any] = {}
         self._history_cache: dict[str, pd.DataFrame] = {}
         self._parsed_ratings: dict[str, Any] | None | object = _UNSET
+        self._iv_percent: float | None | object = _UNSET
 
     # --- Time Utilities ---
 
@@ -417,6 +427,75 @@ class StockIndicator:
         return _round(_safe_float(self.info.get("trailingPegRatio")))
 
     @property
+    def beta(self) -> float | None:
+        """Beta from Yahoo fundamentals."""
+        beta_value = _safe_float(self.info.get("beta"))
+        if beta_value is None:
+            beta_value = _safe_float(self.info.get("beta3Year"))
+        return _round(beta_value)
+
+    @staticmethod
+    def _iv_to_percent(value: float | None) -> float | None:
+        """Normalize volatility values into percentage points."""
+        if value is None:
+            return None
+        iv_value = float(value)
+        if iv_value <= 0:
+            return None
+        if iv_value <= 3:
+            return _round(iv_value * 100)
+        return _round(iv_value)
+
+    @staticmethod
+    def _annualized_hv_percent(log_returns: pd.Series, window: int) -> float | None:
+        """Annualized historical volatility from trailing log returns."""
+        if len(log_returns) < window:
+            return None
+        value = _safe_float(log_returns.tail(window).std())
+        if value is None:
+            return None
+        return _round(value * (252**0.5) * 100)
+
+    @property
+    def iv(self) -> float | None:
+        """Proxy IV as weighted historical volatility (HV180/HV90/HV30/HV7/HV1)."""
+        if self._iv_percent is not _UNSET:
+            return cast(float | None, self._iv_percent)
+
+        hist = self._history(period="1y", interval="1d")
+        close_series = self._close_series(hist)
+        if close_series is None or len(close_series) < 2:
+            self._iv_percent = None
+            return None
+
+        with suppress(Exception):
+            daily_ratio = (close_series / close_series.shift(1)).replace([float("inf"), float("-inf")], pd.NA)
+            valid_ratio = daily_ratio.where(daily_ratio > 0)
+            log_returns = valid_ratio.map(math.log).dropna()
+            if log_returns.empty:
+                self._iv_percent = None
+                return None
+
+            weighted_sum = 0.0
+            total_weight = 0
+            for window, weight in _HV_WINDOWS_TO_WEIGHTS:
+                hv_value = self._annualized_hv_percent(log_returns, window)
+                if hv_value is None:
+                    continue
+                weighted_sum += float(hv_value) * weight
+                total_weight += weight
+
+            if total_weight == 0:
+                self._iv_percent = None
+                return None
+
+            self._iv_percent = _round(weighted_sum / total_weight)
+            return cast(float | None, self._iv_percent)
+
+        self._iv_percent = None
+        return None
+
+    @property
     def median_upside(self) -> float | None:
         """Median analyst upside from recent ratings."""
         ratings_payload = self._ratings_payload
@@ -609,6 +688,8 @@ class StockIndicator:
             "pe": self.pe,
             "pe_forward": self.pe_forward,
             "peg": self.peg,
+            "beta": self.beta,
+            "iv": self.iv,
             "one_month_change_percent": self.one_month_change_percent,
             "three_month_change_percent": self.three_month_change_percent,
             "six_month_change_percent": self.six_month_change_percent,
