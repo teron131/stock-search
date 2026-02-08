@@ -415,7 +415,7 @@ export function DataTable({
     const isHolding = hasQty && qty > 0 && r.notional != null;
     const hasEvalScore = r.overall != null && r.overall !== "";
     const hasEvalRank = r.rank != null;
-    const isEval = hasEvalScore || hasEvalRank || isHolding;
+    const isEval = hasEvalScore || hasEvalRank;
 
     if (tab === "all") return isHolding || isEval;
     if (tab === "holdings") return isHolding;
