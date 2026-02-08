@@ -17,6 +17,15 @@ DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 DEFAULT_RSI_PERIOD = 14
 DEFAULT_FX_LOOKBACK_PERIOD = "5d"
 DEFAULT_FX_INTERVAL = "1d"
+ETF_QUOTE_TYPE = "ETF"
+
+# Kept as public export for scripts that format market-cap display values.
+MARKET_CAP_UNITS: tuple[tuple[float, str], ...] = (
+    (1_000_000_000_000, "T"),
+    (1_000_000_000, "B"),
+    (1_000_000, "M"),
+    (1_000, "K"),
+)
 
 # --- Market Session Constants ---
 MARKET_STATE_PRE = "PRE"
@@ -121,6 +130,11 @@ def _safe_float(value: Any) -> float | None:
 def _normalize_yahoo_ticker(ticker: str) -> str:
     """Normalize common ticker variants for Yahoo Finance."""
     return ticker.strip().upper().replace(" ", "-").replace(".", "-")
+
+
+def _is_quote_type(info: dict[str, Any], quote_type: str) -> bool:
+    """Check quoteType using normalized uppercase comparison."""
+    return str(info.get("quoteType") or "").upper() == quote_type
 
 
 def _subtract_months(value: date, months: int) -> date:
@@ -364,11 +378,7 @@ class StockIndicator:
     def _select_realtime_price_from_info(self) -> float | None:
         """Pick the best available price from Yahoo `info`, including pre/post market."""
         info = self.info
-        candidates = [
-            (int(info.get(time_key) or 0), price)
-            for price_key, time_key in _PRICE_TIME_KEYS
-            if (price := _safe_float(info.get(price_key))) is not None
-        ]
+        candidates = [(int(info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := _safe_float(info.get(price_key))) is not None]
         if candidates and any(ts > 0 for ts, _ in candidates):
             return _round(max(candidates, key=lambda x: x[0])[1])
 
@@ -381,12 +391,7 @@ class StockIndicator:
     @property
     def price(self) -> float | None:
         """Get latest price based on market state (Pre, Regular, Post)."""
-        return (
-            self._select_realtime_price_from_info()
-            or _round(self._info_float("currentPrice"))
-            or self._last_intraday_price()
-            or self._last_close()
-        )
+        return self._select_realtime_price_from_info() or _round(self._info_float("currentPrice")) or self._last_intraday_price() or self._last_close()
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change."""
@@ -448,18 +453,29 @@ class StockIndicator:
         Year (FY1) using days-to-fiscal-year-end, so the denominator shifts
         naturally through the year from FY0 toward FY1.
         """
-        if str(self.info.get("quoteType") or "").upper() == "ETF":
+        if _is_quote_type(self.info, ETF_QUOTE_TYPE):
             return None
+
         price = self._current_price_from_info()
         if price is None or price <= 0:
             return None
 
-        eps_fy0, eps_fy1 = self._info_float("epsCurrentYear"), self._info_float("forwardEps")
+        eps_fy0 = self._info_float("epsCurrentYear")
+        eps_fy1 = self._info_float("forwardEps")
+        return self._forward_pe_from_eps(price=price, eps_fy0=eps_fy0, eps_fy1=eps_fy1)
 
+    def _forward_pe_from_eps(
+        self,
+        *,
+        price: float,
+        eps_fy0: float | None,
+        eps_fy1: float | None,
+    ) -> float | None:
+        """Calculate forward P/E from weighted NTM EPS, with FY1 fallback."""
         if eps_fy0 is not None and eps_fy1 is not None:
-            w = self._fiscal_weight_fy0(self._info_float("nextFiscalYearEnd"))
-            if w is not None:
-                eps_ntm = w * eps_fy0 + (1 - w) * eps_fy1
+            weight_fy0 = self._fiscal_weight_fy0(self._info_float("nextFiscalYearEnd"))
+            if weight_fy0 is not None:
+                eps_ntm = (weight_fy0 * eps_fy0) + ((1 - weight_fy0) * eps_fy1)
                 if eps_ntm != 0:
                     return _round(price / eps_ntm)
 
@@ -525,20 +541,23 @@ class StockIndicator:
     @property
     def iv(self) -> float | None:
         """Proxy IV as weighted historical volatility (HV180/HV90/HV30/HV7/HV1)."""
+
+        def _store_iv(value: float | None) -> float | None:
+            self._iv_percent = value
+            return value
+
         if self._iv_percent is not _UNSET:
             return cast(float | None, self._iv_percent)
 
         series = _close_series(self._history(period="1y", interval="1d"))
         if series is None or len(series) < 2:
-            self._iv_percent = None
-            return None
+            return _store_iv(None)
 
         with suppress(Exception):
             ratio = (series / series.shift(1)).replace([float("inf"), float("-inf")], pd.NA)
             log_returns = ratio.where(ratio > 0).map(math.log).dropna()
             if log_returns.empty:
-                self._iv_percent = None
-                return None
+                return _store_iv(None)
 
             weighted_sum, total_weight = 0.0, 0
             for window, weight in _HV_WINDOWS_TO_WEIGHTS:
@@ -547,14 +566,11 @@ class StockIndicator:
                     total_weight += weight
 
             if total_weight == 0:
-                self._iv_percent = None
-                return None
+                return _store_iv(None)
 
-            self._iv_percent = _round(weighted_sum / total_weight)
-            return cast(float | None, self._iv_percent)
+            return _store_iv(_round(weighted_sum / total_weight))
 
-        self._iv_percent = None
-        return None
+        return _store_iv(None)
 
     # -------------------------------------------------------------------------
     # Technical Indicators
