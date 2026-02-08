@@ -3,7 +3,10 @@ const FORMATTERS = {
     style: "currency",
     currency: "USD",
   }),
-  number: new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }),
+  number: new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
   sig4: new Intl.NumberFormat("en-US", {
     maximumSignificantDigits: 4,
     minimumSignificantDigits: 4,
