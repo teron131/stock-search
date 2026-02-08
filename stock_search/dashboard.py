@@ -165,7 +165,34 @@ def get_dashboard(
             if isinstance(item, dict) and (t := item.get("ticker")):
                 eval_data[str(t)] = item
 
-    positions = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
+    positions_raw = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
+
+    # Build row universe from portfolio + stats cache tickers.
+    # This lets non-position tickers (qty=0) still receive live stat refreshes.
+    positions: list[dict[str, Any]] = []
+    seen_tickers: set[str] = set()
+
+    for pos in positions_raw:
+        if not isinstance(pos, dict):
+            continue
+        ticker = str(pos.get("ticker") or "").upper().strip()
+        if not ticker:
+            continue
+        seen_tickers.add(ticker)
+        positions.append(
+            {
+                **pos,
+                "ticker": ticker,
+                "quantity": float(pos.get("quantity") or 0),
+                "delta": float(pos.get("delta") if pos.get("delta") is not None else 0.0),
+            }
+        )
+
+    for ticker in stats_data:
+        ticker_str = str(ticker).upper().strip()
+        if not ticker_str or ticker_str in seen_tickers:
+            continue
+        positions.append({"ticker": ticker_str, "quantity": 0.0, "delta": 0.0})
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         rows = list(executor.map(lambda p: _build_row(p, stats_data, eval_data), positions))
