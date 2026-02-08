@@ -34,6 +34,37 @@ Contains cacheable, non-inference data. Populated by `yfinance` or external mark
 - Static metadata: Name, Sector/Bucket classification.
 - **Cache Strategy**: This file is treated as a read-through cache. If a ticker is present and valid, it is used. If missing, the server performs a **live fetch** (see `StockIndicator`).
 
+---
+
+## API Hierarchy & Fallback Policy (Mandatory)
+
+For fundamental statistics, always prefer free public web-source values with cache first, and keep `yfinance` as fallback.
+
+1. Primary: direct web-source extraction from trusted public pages (for example `stockanalysis.com/stocks/{ticker}/statistics`).
+2. Secondary: last successful local cache entry.
+3. Final fallback: `yfinance` values.
+
+Refresh expectations:
+
+- Use a 1-day check/TTL for web-extracted fundamental stats before refreshing.
+- Keep response behavior resilient: if refresh fails, use cached value; if no cache, use fallback source.
+
+Rationale:
+
+- Prioritize low-cost sources and consistency with public-facing website values.
+- Reduce ticker-to-ticker inconsistencies from a single API source.
+
+Known `yfinance` caveats (observed in this repo):
+
+- Stock `PE` / `forward PE` may diverge from website-displayed values.
+- ETF `forward PE` may be stale or inaccurate.
+- ETF holdings can be incomplete and may not match issuer holdings pages.
+- Values may not consistently match Yahoo website views across all tickers/endpoints.
+
+Policy implication:
+
+- Treat `yfinance` as a fallback for sensitive valuation/holdings fields, not the sole source of truth.
+
 ### 3. `eval.json` (AI & Scoring)
 
 Contains inference results, scores, and probabilities.
