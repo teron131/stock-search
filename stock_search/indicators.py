@@ -416,10 +416,40 @@ class StockIndicator:
 
     @property
     def pe_forward(self) -> float | None:
-        """Forward P/E ratio."""
+        """Forward P/E via fiscal-year-weighted NTM EPS (FY0 -> FY1), with FY1 fallback.
+
+        Different platforms label "forward P/E" differently (FY0, FY1, or NTM).
+        To reduce cross-platform drift, we blend EPS This Year (FY0) and EPS Next
+        Year (FY1) using days-to-fiscal-year-end, so the denominator shifts
+        naturally through the year from FY0 toward FY1.
+        """
         if str(self.info.get("quoteType") or "").upper() == "ETF":
             return None
-        return _round(_safe_float(self.info.get("forwardPE")))
+
+        price = _safe_float(self.info.get("currentPrice"))
+        if price is None:
+            price = _safe_float(self.info.get("regularMarketPrice"))
+        if price is None or price <= 0:
+            return None
+
+        eps_fy0 = _safe_float(self.info.get("epsCurrentYear"))
+        eps_fy1 = _safe_float(self.info.get("forwardEps"))
+        next_fiscal_year_end = _safe_float(self.info.get("nextFiscalYearEnd"))
+
+        # Primary: NTM-style weighted blend between FY0 and FY1 EPS.
+        if eps_fy0 is not None and eps_fy1 is not None and next_fiscal_year_end is not None:
+            next_fye = datetime.fromtimestamp(next_fiscal_year_end, tz=UTC)
+            days_to_fye = (next_fye - datetime.now(tz=UTC)).total_seconds() / 86_400
+            weight_fy0 = min(1.0, max(0.0, days_to_fye / 365.0))
+            eps_ntm = (weight_fy0 * eps_fy0) + ((1 - weight_fy0) * eps_fy1)
+            if eps_ntm != 0:
+                return _round(price / eps_ntm)
+
+        # Fallback: pure FY1 definition.
+        if eps_fy1 is not None and eps_fy1 != 0:
+            return _round(price / eps_fy1)
+
+        return None
 
     @property
     def peg(self) -> float | None:

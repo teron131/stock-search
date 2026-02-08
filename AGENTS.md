@@ -65,6 +65,16 @@ Policy implication:
 
 - Treat `yfinance` as a fallback for sensitive valuation/holdings fields, not the sole source of truth.
 
+Forward P/E definition policy:
+
+- `pe_forward` should use a fiscal-year-end weighted NTM EPS blend:
+  - `eps_ntm = w * epsCurrentYear + (1 - w) * forwardEps`
+  - `w = clamp(days_to_next_fiscal_year_end / 365, 0, 1)`
+- Fallback order:
+  1. NTM weighted blend (`PE_NTM_W`)
+  2. FY1 definition (`price / forwardEps`)
+- Rationale: different platforms mix FY0/FY1/NTM definitions; this keeps a smooth, calendar-aware transition from current-year to next-year EPS through the fiscal year.
+
 ### 3. `eval.json` (AI & Scoring)
 
 Contains inference results, scores, and probabilities.
