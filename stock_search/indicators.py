@@ -279,9 +279,21 @@ class StockIndicator:
     def _market_state(self) -> str:
         return str(self.info.get("marketState") or "").upper()
 
+    def _info_float(self, key: str) -> float | None:
+        """Read a float-like value from cached Yahoo info."""
+        return _safe_float(self.info.get(key))
+
+    def _current_price_from_info(self) -> float | None:
+        """Best-effort current/regular price directly from Yahoo info."""
+        return self._info_float("currentPrice") or self._info_float("regularMarketPrice")
+
     # --- Price Resolution ---
 
-    def _extract_session_close(self, hist: pd.DataFrame, window: tuple[datetime, datetime] | None) -> float | None:
+    def _extract_session_close(
+        self,
+        hist: pd.DataFrame,
+        window: tuple[datetime, datetime] | None,
+    ) -> float | None:
         """Extract the last close price from history, optionally scoped to a session window."""
         close_series = self._close_series(hist)
         if close_series is None:
@@ -372,13 +384,13 @@ class StockIndicator:
         """Get latest price based on market state (Pre, Regular, Post)."""
         if (price := self._select_realtime_price_from_info()) is not None:
             return price
-        if (price := _safe_float(self.info.get("currentPrice"))) is not None:
+        if (price := self._info_float("currentPrice")) is not None:
             return _round(price)
         return self._last_intraday_price() or self._last_close()
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change."""
-        if (previous_close := _safe_float(self.info.get("regularMarketPreviousClose"))) is not None:
+        if (previous_close := self._info_float("regularMarketPreviousClose")) is not None:
             return _round(previous_close)
         return self._previous_close_from_history()
 
@@ -407,12 +419,21 @@ class StockIndicator:
     @property
     def market_cap(self) -> float | None:
         """Raw market cap in dollars."""
-        return _safe_float(self.info.get("marketCap"))
+        return self._info_float("marketCap")
 
     @property
     def pe(self) -> float | None:
         """Trailing P/E ratio."""
-        return _round(_safe_float(self.info.get("trailingPE")))
+        return _round(self._info_float("trailingPE"))
+
+    @staticmethod
+    def _fiscal_weight_fy0(next_fiscal_year_end: float | None) -> float | None:
+        """Weight of FY0 in a 12-month lookahead window."""
+        if next_fiscal_year_end is None:
+            return None
+        next_fye = datetime.fromtimestamp(next_fiscal_year_end, tz=UTC)
+        days_to_fye = (next_fye - datetime.now(tz=UTC)).total_seconds() / 86_400
+        return min(1.0, max(0.0, days_to_fye / 365.0))
 
     @property
     def pe_forward(self) -> float | None:
@@ -426,24 +447,21 @@ class StockIndicator:
         if str(self.info.get("quoteType") or "").upper() == "ETF":
             return None
 
-        price = _safe_float(self.info.get("currentPrice"))
-        if price is None:
-            price = _safe_float(self.info.get("regularMarketPrice"))
+        price = self._current_price_from_info()
         if price is None or price <= 0:
             return None
 
-        eps_fy0 = _safe_float(self.info.get("epsCurrentYear"))
-        eps_fy1 = _safe_float(self.info.get("forwardEps"))
-        next_fiscal_year_end = _safe_float(self.info.get("nextFiscalYearEnd"))
+        eps_fy0 = self._info_float("epsCurrentYear")
+        eps_fy1 = self._info_float("forwardEps")
+        next_fiscal_year_end = self._info_float("nextFiscalYearEnd")
 
         # Primary: NTM-style weighted blend between FY0 and FY1 EPS.
-        if eps_fy0 is not None and eps_fy1 is not None and next_fiscal_year_end is not None:
-            next_fye = datetime.fromtimestamp(next_fiscal_year_end, tz=UTC)
-            days_to_fye = (next_fye - datetime.now(tz=UTC)).total_seconds() / 86_400
-            weight_fy0 = min(1.0, max(0.0, days_to_fye / 365.0))
-            eps_ntm = (weight_fy0 * eps_fy0) + ((1 - weight_fy0) * eps_fy1)
-            if eps_ntm != 0:
-                return _round(price / eps_ntm)
+        if eps_fy0 is not None and eps_fy1 is not None:
+            weight_fy0 = self._fiscal_weight_fy0(next_fiscal_year_end)
+            if weight_fy0 is not None:
+                eps_ntm = (weight_fy0 * eps_fy0) + ((1 - weight_fy0) * eps_fy1)
+                if eps_ntm != 0:
+                    return _round(price / eps_ntm)
 
         # Fallback: pure FY1 definition.
         if eps_fy1 is not None and eps_fy1 != 0:
@@ -454,14 +472,14 @@ class StockIndicator:
     @property
     def peg(self) -> float | None:
         """PEG ratio."""
-        return _round(_safe_float(self.info.get("trailingPegRatio")))
+        return _round(self._info_float("trailingPegRatio"))
 
     @property
     def beta(self) -> float | None:
         """Beta from Yahoo fundamentals."""
-        beta_value = _safe_float(self.info.get("beta"))
+        beta_value = self._info_float("beta")
         if beta_value is None:
-            beta_value = _safe_float(self.info.get("beta3Year"))
+            beta_value = self._info_float("beta3Year")
         return _round(beta_value)
 
     @staticmethod
@@ -499,7 +517,10 @@ class StockIndicator:
             return None
 
         with suppress(Exception):
-            daily_ratio = (close_series / close_series.shift(1)).replace([float("inf"), float("-inf")], pd.NA)
+            daily_ratio = (close_series / close_series.shift(1)).replace(
+                [float("inf"), float("-inf")],
+                pd.NA,
+            )
             valid_ratio = daily_ratio.where(daily_ratio > 0)
             log_returns = valid_ratio.map(math.log).dropna()
             if log_returns.empty:
@@ -534,7 +555,7 @@ class StockIndicator:
     @property
     def revenue_growth(self) -> float | None:
         """Revenue growth percentage."""
-        revenue_growth = _safe_float(self.info.get("revenueGrowth"))
+        revenue_growth = self._info_float("revenueGrowth")
         if revenue_growth is None:
             return None
         return _round(revenue_growth * 100)
@@ -542,7 +563,7 @@ class StockIndicator:
     @property
     def gross_margin(self) -> float | None:
         """Gross margin percentage."""
-        gross_margins = _safe_float(self.info.get("grossMargins"))
+        gross_margins = self._info_float("grossMargins")
         if gross_margins is None:
             return None
         return _round(gross_margins * 100)
@@ -550,12 +571,12 @@ class StockIndicator:
     @property
     def debt_to_equity(self) -> float | None:
         """Debt-to-equity percentage from Yahoo Finance."""
-        return _round(_safe_float(self.info.get("debtToEquity")))
+        return _round(self._info_float("debtToEquity"))
 
     @property
     def free_cash_flow(self) -> float | None:
         """Free cash flow converted to the quote currency when needed."""
-        free_cash_flow = _safe_float(self.info.get("freeCashflow"))
+        free_cash_flow = self._info_float("freeCashflow")
         if free_cash_flow is None:
             return None
 
@@ -637,7 +658,11 @@ class StockIndicator:
         except Exception:
             return None
 
-    def _calculate_period_return_percent(self, start_date: date, history_period: str) -> float | None:
+    def _calculate_period_return_percent(
+        self,
+        start_date: date,
+        history_period: str,
+    ) -> float | None:
         """Calculate return percent from the close before `start_date` to current price."""
         current_price = self.price
         if current_price is None:
@@ -687,7 +712,7 @@ class StockIndicator:
         if historical_ytd is not None:
             return historical_ytd
 
-        ytd_return = _safe_float(self.info.get("ytdReturn"))
+        ytd_return = self._info_float("ytdReturn")
         return _round(ytd_return) if ytd_return is not None else None
 
     # --- Analyst Ratings ---
