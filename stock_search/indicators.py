@@ -71,6 +71,29 @@ _HV_WINDOWS_TO_WEIGHTS: tuple[tuple[int, int], ...] = (
     (7, 2),
     (1, 1),
 )
+_INDICATOR_FIELDS: tuple[str, ...] = (
+    "price",
+    "change_percent",
+    "market_cap",
+    "pe",
+    "pe_forward",
+    "peg",
+    "beta",
+    "iv",
+    "one_month_change_percent",
+    "three_month_change_percent",
+    "six_month_change_percent",
+    "one_year_change_percent",
+    "median_upside",
+    "revenue_growth",
+    "gross_margin",
+    "debt_to_equity",
+    "free_cash_flow",
+    "rsi",
+    "change",
+    "mtd_change_percent",
+    "ytd_change_percent",
+)
 
 
 def _round(value: float | None, decimals: int = 2) -> float | None:
@@ -394,23 +417,33 @@ class StockIndicator:
             return _round(previous_close)
         return self._previous_close_from_history()
 
+    def _price_and_previous_close(self) -> tuple[float, float] | None:
+        """Resolve both current and previous close once for change metrics."""
+        current_price = self.price
+        previous_close = self._get_previous_close()
+        if current_price is None or previous_close is None:
+            return None
+        return current_price, previous_close
+
     # --- Change Calculations ---
 
     @property
     def change(self) -> float | None:
         """Calculate change from previous close."""
-        current_price = self.price
-        previous_close = self._get_previous_close()
-        if current_price is None or previous_close is None:
+        price_pair = self._price_and_previous_close()
+        if price_pair is None:
             return None
+        current_price, previous_close = price_pair
         return _round(current_price - previous_close)
 
     @property
     def change_percent(self) -> float | None:
         """Calculate percentage change from previous close."""
-        current_price = self.price
-        previous_close = self._get_previous_close()
-        if current_price is None or previous_close is None or previous_close == 0:
+        price_pair = self._price_and_previous_close()
+        if price_pair is None:
+            return None
+        current_price, previous_close = price_pair
+        if previous_close == 0:
             return None
         return _round(((current_price - previous_close) / previous_close) * 100)
 
@@ -552,21 +585,22 @@ class StockIndicator:
         ratings_payload = self._ratings_payload
         return _safe_float(ratings_payload.get("median_upside_pct")) if ratings_payload else None
 
+    def _percent_from_info(self, key: str) -> float | None:
+        """Read a ratio from Yahoo info and return as percentage points."""
+        ratio = self._info_float(key)
+        if ratio is None:
+            return None
+        return _round(ratio * 100)
+
     @property
     def revenue_growth(self) -> float | None:
         """Revenue growth percentage."""
-        revenue_growth = self._info_float("revenueGrowth")
-        if revenue_growth is None:
-            return None
-        return _round(revenue_growth * 100)
+        return self._percent_from_info("revenueGrowth")
 
     @property
     def gross_margin(self) -> float | None:
         """Gross margin percentage."""
-        gross_margins = self._info_float("grossMargins")
-        if gross_margins is None:
-            return None
-        return _round(gross_margins * 100)
+        return self._percent_from_info("grossMargins")
 
     @property
     def debt_to_equity(self) -> float | None:
@@ -736,26 +770,4 @@ class StockIndicator:
 
     def get_all_indicators(self) -> dict[str, Any]:
         """Get all available indicators as a dictionary."""
-        return {
-            "price": self.price,
-            "change_percent": self.change_percent,
-            "market_cap": self.market_cap,
-            "pe": self.pe,
-            "pe_forward": self.pe_forward,
-            "peg": self.peg,
-            "beta": self.beta,
-            "iv": self.iv,
-            "one_month_change_percent": self.one_month_change_percent,
-            "three_month_change_percent": self.three_month_change_percent,
-            "six_month_change_percent": self.six_month_change_percent,
-            "one_year_change_percent": self.one_year_change_percent,
-            "median_upside": self.median_upside,
-            "revenue_growth": self.revenue_growth,
-            "gross_margin": self.gross_margin,
-            "debt_to_equity": self.debt_to_equity,
-            "free_cash_flow": self.free_cash_flow,
-            "rsi": self.rsi,
-            "change": self.change,
-            "mtd_change_percent": self.mtd_change_percent,
-            "ytd_change_percent": self.ytd_change_percent,
-        }
+        return {field: getattr(self, field) for field in _INDICATOR_FIELDS}
