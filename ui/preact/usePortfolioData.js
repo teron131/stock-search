@@ -8,17 +8,6 @@ import {
 import { CONFIG } from "./config.js";
 import { normalizeTicker } from "./format.js";
 
-const NO_EVAL_TICKERS = new Set([
-  "SCHD",
-  "SHLD",
-  "ITA",
-  "SOXX",
-  "GLD",
-  "VOO",
-  "GRNY",
-  "GRNJ",
-]);
-
 const EVAL_KEYS = [
   "overall",
   "quality",
@@ -69,6 +58,13 @@ function ensureEvalEntries(evalData) {
   return [];
 }
 
+function isEtfLikeRow(row) {
+  const quoteType = String(
+    row?.quote_type ?? row?.quoteType ?? "",
+  ).toUpperCase();
+  return quoteType === "ETF";
+}
+
 function mergeRows(dashData, evalData) {
   const portfolioMap = new Map(
     (dashData.rows || []).map((r) => [normalizeTicker(r.ticker), r]),
@@ -96,7 +92,7 @@ function mergeRows(dashData, evalData) {
     merged.ticker = safeTicker;
     merged.name = merged.name || e.name || safeTicker;
 
-    if (NO_EVAL_TICKERS.has(normalizeTicker(safeTicker))) {
+    if (isEtfLikeRow(merged)) {
       EVAL_KEYS.forEach((key) => {
         merged[key] = null;
       });
@@ -156,6 +152,27 @@ function calculateWeightedChange(rows, totalVal) {
 
   const percent = (absolute / (totalVal - absolute)) * 100;
   return { percent, absolute };
+}
+
+function upsertRow(rows, nextRow) {
+  const ticker = normalizeTicker(nextRow?.ticker);
+  if (!ticker) return rows;
+
+  const index = rows.findIndex(
+    (row) => normalizeTicker(row?.ticker) === ticker,
+  );
+  if (index === -1) return [...rows, nextRow];
+
+  const cloned = [...rows];
+  cloned[index] = nextRow;
+  return cloned;
+}
+
+function removeRow(rows, ticker) {
+  const normalizedTicker = normalizeTicker(ticker);
+  return rows.filter(
+    (row) => normalizeTicker(row?.ticker) !== normalizedTicker,
+  );
 }
 
 async function determineDemoPath() {
@@ -235,7 +252,7 @@ export function usePortfolioData() {
   const [isUsingDemoData, setIsUsingDemoData] = useState(false);
   const [lastError, setLastError] = useState(null);
 
-  const lastLoadWasBackground = useRef(false);
+  const syncInFlightRef = useRef(false);
 
   const stats = useMemo(() => {
     const { totalVal, rows: weighted } = calculateWeights(rows);
@@ -255,11 +272,14 @@ export function usePortfolioData() {
   }, []);
 
   const load = useCallback(
-    async ({ background = false } = {}) => {
-      if (loadingMode !== "idle") return;
+    async ({ background = false, silent = false } = {}) => {
+      if (syncInFlightRef.current) return;
+      if (!silent && loadingMode !== "idle") return;
 
-      lastLoadWasBackground.current = background;
-      setLoadingMode(background ? "background" : "foreground");
+      syncInFlightRef.current = true;
+      if (!silent) {
+        setLoadingMode(background ? "background" : "foreground");
+      }
       setLastError(null);
 
       try {
@@ -313,7 +333,10 @@ export function usePortfolioData() {
           }
         }
       } finally {
-        setLoadingMode("idle");
+        syncInFlightRef.current = false;
+        if (!silent) {
+          setLoadingMode("idle");
+        }
       }
     },
     [applyMergedRows, loadingMode],
@@ -325,6 +348,7 @@ export function usePortfolioData() {
       quantity,
       delta = 0.0,
       bucket = CONFIG.defaultBucket,
+      silent = false,
     }) => {
       const normalizedTicker = normalizeTicker(ticker);
       const normalizedQuantity = Number(quantity);
@@ -347,9 +371,19 @@ export function usePortfolioData() {
       );
 
       if (!res.ok) return { ok: false, reason: "server" };
+      const rowPayload = await tryFetchJson(
+        `${CONFIG.endpoints.portfolio}/${normalizedTicker}`,
+      );
+      if (rowPayload?.row) {
+        setRows((prevRows) =>
+          calculateRanks(upsertRow(prevRows, rowPayload.row)),
+        );
+        setGeneratedAt(new Date().toISOString());
+        return { ok: true };
+      }
 
-      await load({ background: true });
-      return { ok: true };
+      await load({ background: true, silent });
+      return { ok: true, fallback: "full_reload" };
     },
     [load],
   );
@@ -385,6 +419,7 @@ export function usePortfolioData() {
       quantity,
       delta = 0.0,
       bucket = CONFIG.defaultBucket,
+      silent = false,
     }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
 
@@ -393,6 +428,7 @@ export function usePortfolioData() {
         quantity,
         delta,
         bucket,
+        silent,
       });
     },
     [isUsingDemoData, patchPortfolioPosition],
@@ -415,10 +451,11 @@ export function usePortfolioData() {
       });
       if (!res.ok) return { ok: false, reason: "server" };
 
-      await load({ background: true });
+      setRows((prevRows) => calculateRanks(removeRow(prevRows, t)));
+      setGeneratedAt(new Date().toISOString());
       return { ok: true };
     },
-    [isUsingDemoData, load],
+    [isUsingDemoData],
   );
 
   const topTickers = useMemo(() => {

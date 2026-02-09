@@ -39,6 +39,12 @@ function showToast(message) {
   }, 3000);
 }
 
+function showActionError(reason) {
+  if (reason === "demo") showToast("Demo Mode: Changes not saved.");
+  if (reason === "invalid") showToast("INVALID_QTY");
+  if (reason === "server") showToast("UPDATE FAILED");
+}
+
 function updateTickerTape(tickers) {
   const tape = document.getElementById("ticker-tape-widget");
   const container = document.getElementById("ticker-tape-view");
@@ -175,7 +181,7 @@ export function App() {
 
     const intervalId = setInterval(() => {
       if (document.visibilityState !== "visible" || !navigator.onLine) return;
-      syncRef.current?.({ background: true });
+      syncRef.current?.({ background: true, silent: true });
     }, 180_000);
 
     return () => {
@@ -288,7 +294,7 @@ export function App() {
   const onRemove = async (ticker) => {
     const res = await actions.remove({ ticker });
     if (res.ok) showToast("UPDATED");
-    if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
+    showActionError(res.reason);
   };
 
   const onSetQuantity = async ({
@@ -298,12 +304,16 @@ export function App() {
     bucket,
     silent = false,
   }) => {
-    const res = await actions.setQuantity({ ticker, quantity, delta, bucket });
+    const res = await actions.setQuantity({
+      ticker,
+      quantity,
+      delta,
+      bucket,
+      silent,
+    });
 
     if (!res.ok) {
-      if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
-      if (res.reason === "invalid") showToast("INVALID_QTY");
-      if (res.reason === "server") showToast("UPDATE FAILED");
+      showActionError(res.reason);
       return res;
     }
 
@@ -321,7 +331,7 @@ export function App() {
       existingQuantity,
     });
     if (res.ok) showToast("UPDATED");
-    if (res.reason === "demo") showToast("Demo Mode: Changes not saved.");
+    showActionError(res.reason);
   };
 
   return html`

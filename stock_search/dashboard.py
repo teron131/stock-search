@@ -296,6 +296,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
             if "current_price" not in history_data:
                 fetched_info["current_price"] = indicator._current_price_from_info()
             quote_type = str(indicator.info.get("quoteType") or "").upper()
+            fetched_info["quote_type"] = quote_type or None
             if quote_type == "ETF":
                 fetched_info["pe_forward"] = None
             with _LIVE_STATS_CACHE_LOCK:
