@@ -12,8 +12,10 @@ from pydantic import BaseModel
 
 from stock_search.dashboard import get_dashboard
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
+from stock_search.evaluation.evaluation import build_inputs, evaluate_asset
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
+from stock_search.news import get_news
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -239,45 +241,43 @@ def color_standards_api(response: Response) -> dict:
 
 
 @app.get("/api/news/{ticker}")
-def news_api(ticker: str) -> list[dict]:
-    return [
-        {
-            "title": f"Strategic analysis of {ticker} performance",
-            "url": f"https://example.com/{ticker}-news-1",
-            "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
-            "relevancy": "high",
-            "category": "company_news",
-            "sentiment": "bullish",
-        },
-        {
-            "title": f"Market trends affecting {ticker}",
-            "url": f"https://example.com/{ticker}-news-2",
-            "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
-            "relevancy": "medium",
-            "category": "market_news",
-            "sentiment": "neutral",
-        },
-    ]
+def news_api(ticker: str, response: Response, n_days: int = 3, max_results: int = 10) -> list[dict]:
+    _set_no_store(response)
+    try:
+        news_items = get_news(ticker, n_days=n_days, max_results=max_results)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"News fetch failed for {ticker}: {exc}") from exc
+
+    return [item.model_dump() for item in news_items]
 
 
 @app.get("/api/evaluate/{ticker}")
-def evaluate_ticker_api(ticker: str) -> dict:
-    indicator = StockIndicator(ticker)
+def evaluate_ticker_api(ticker: str, response: Response) -> dict:
+    _set_no_store(response)
+    try:
+        inputs = build_inputs(ticker)
+        result = evaluate_asset(inputs, ticker=ticker.upper())
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Evaluation failed for {ticker}: {exc}") from exc
 
     return {
-        "ticker": ticker.upper(),
-        "rank": 1,
-        "overall": 8.5,
-        "moat": 9.0,
-        "quality": 8.0,
-        "valuation": 7.5,
-        "upside": 10.0,
-        "market_cap": 9.0,
-        "bull": 0.7,
-        "bear": 0.2,
-        "current_price": indicator.price,
-        "change_percent": indicator.change_percent,
-        "rsi": indicator.rsi,
+        "ticker": result.ticker or ticker.upper(),
+        "inputs": inputs.model_dump(),
+        "p_up": result.p_up,
+        "p_down": result.p_down,
+        "p_flat": result.p_flat,
+        "edge": result.edge,
+        "confidence": result.confidence,
+        "overall": result.overall,
+        "elo_delta": result.elo_delta,
+        "elo_delta_dir": result.elo_delta_dir,
+        "elo_delta_exp": result.elo_delta_exp,
+        "core_index": result.core_index,
+        "satellite_index": result.satellite_index,
+        "speculative_index": result.speculative_index,
+        "diversifier_index": result.diversifier_index,
+        "fomo_flag": result.fomo_flag,
+        "game_tier": result.game_tier,
     }
 
 
