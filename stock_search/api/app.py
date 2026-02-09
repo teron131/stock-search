@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,10 +11,11 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 from pydantic import BaseModel
 
-from stock_search.dashboard import get_dashboard
+from stock_search.dashboard import _build_row, get_dashboard
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
+from stock_search.news import get_news, get_news_yfinance
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -101,6 +103,30 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
 
     return matched.where(pd.notna(matched), None).iloc[0].to_dict()
+
+
+def _load_eval_cache() -> dict[str, Any]:
+    raw = load_json(EVAL_PATH, default={})
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, list):
+        normalized: dict[str, dict[str, Any]] = {}
+        for entry in raw:
+            if isinstance(entry, dict) and (ticker := entry.get("ticker")):
+                normalized[str(ticker).upper()] = entry
+        return normalized
+    return {}
+
+
+def _load_stats_cache() -> dict[str, Any]:
+    stats = load_json(STATS_PATH, default={})
+    return stats if isinstance(stats, dict) else {}
+
+
+def _build_live_row(ticker: str) -> dict[str, Any]:
+    ticker_upper = ticker.upper()
+    pos = {"ticker": ticker_upper, "quantity": 0.0, "delta": 0.0}
+    return _build_row(pos, _load_stats_cache(), _load_eval_cache())
 
 
 @app.get("/api/portfolio")
@@ -239,45 +265,32 @@ def color_standards_api(response: Response) -> dict:
 
 
 @app.get("/api/news/{ticker}")
-def news_api(ticker: str) -> list[dict]:
-    return [
-        {
-            "title": f"Strategic analysis of {ticker} performance",
-            "url": f"https://example.com/{ticker}-news-1",
-            "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
-            "relevancy": "high",
-            "category": "company_news",
-            "sentiment": "bullish",
-        },
-        {
-            "title": f"Market trends affecting {ticker}",
-            "url": f"https://example.com/{ticker}-news-2",
-            "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
-            "relevancy": "medium",
-            "category": "market_news",
-            "sentiment": "neutral",
-        },
-    ]
+def news_api(ticker: str, response: Response) -> list[dict]:
+    _set_no_store(response)
+    ticker_upper = ticker.upper()
+    news_items: list[Any] = []
+    with suppress(Exception):
+        news_items = get_news(ticker_upper)
+    if not news_items:
+        with suppress(Exception):
+            news_items = get_news_yfinance(ticker_upper)
+    return [item.model_dump() if hasattr(item, "model_dump") else item for item in news_items]
 
 
 @app.get("/api/evaluate/{ticker}")
-def evaluate_ticker_api(ticker: str) -> dict:
-    indicator = StockIndicator(ticker)
+def evaluate_ticker_api(ticker: str, response: Response) -> dict:
+    _set_no_store(response)
+    try:
+        row = _build_live_row(ticker)
+    except Exception as exc:  # pragma: no cover - unexpected errors bubbled as 500s
+        raise HTTPException(status_code=500, detail=f"Failed to evaluate {ticker}: {exc}") from exc
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
 
     return {
-        "ticker": ticker.upper(),
-        "rank": 1,
-        "overall": 8.5,
-        "moat": 9.0,
-        "quality": 8.0,
-        "valuation": 7.5,
-        "upside": 10.0,
-        "market_cap": 9.0,
-        "bull": 0.7,
-        "bear": 0.2,
-        "current_price": indicator.price,
-        "change_percent": indicator.change_percent,
-        "rsi": indicator.rsi,
+        "row": row,
+        "generated_at": datetime.now(tz=UTC).isoformat(),
     }
 
 
