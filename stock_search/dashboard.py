@@ -103,6 +103,7 @@ _UPDATE_TIER_FAST_LABEL = "history_1m"
 _UPDATE_TIER_SLOW_LABEL = "info_1h"
 _UPDATE_TIER_RATINGS_LABEL = "ratings_1d"
 _UPDATE_TIER_EVAL_LABEL = "llm_optional"
+_UPDATE_TIER_ETF_HOLDINGS_LABEL = "llm_optional"
 
 
 def _clamp_score(value: float) -> float:
@@ -424,6 +425,15 @@ def _build_row(
     eval_source = "llm" if llm_count == len(llm_flags) else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
+    quote_type = str(stats.get("quote_type") or stats.get("quoteType") or "").upper()
+    equity_type = "ETF" if quote_type == "ETF" else "STOCK"
+    etf_holdings = stats.get("etf_holdings") or stats.get("holdings") or []
+    if not isinstance(etf_holdings, list):
+        etf_holdings = []
+    etf_holdings_fetched_at = stats.get("etf_holdings_fetched_at")
+    if etf_holdings_fetched_at is not None:
+        etf_holdings_fetched_at = str(etf_holdings_fetched_at)
+    etf_holdings_update_tier = _UPDATE_TIER_ETF_HOLDINGS_LABEL if etf_holdings else None
 
     return {
         "overall": overall,
@@ -439,9 +449,12 @@ def _build_row(
         "indicator_update_tier": _UPDATE_TIER_SLOW_LABEL,
         "ratings_update_tier": _UPDATE_TIER_RATINGS_LABEL,
         "evaluation_update_tier": _UPDATE_TIER_EVAL_LABEL,
+        "etf_holdings_update_tier": etf_holdings_update_tier,
         "rank": None,
         "ticker": ticker,
         "name": stats.get("name"),
+        "equity_type": equity_type,
+        "quote_type": quote_type or None,
         "quantity": qty,
         "delta": delta,
         "current_price": price,
@@ -463,6 +476,8 @@ def _build_row(
         "six_month_change_percent": stats.get("six_month_change_percent"),
         "one_year_change_percent": stats.get("one_year_change_percent"),
         "median_upside": stats.get("median_upside"),
+        "etf_holdings": etf_holdings,
+        "etf_holdings_fetched_at": etf_holdings_fetched_at,
         "bucket": bucket,
         "notional": notional,
         "weight_pct": None,
@@ -528,7 +543,12 @@ def get_dashboard(
             )
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        rows = list(executor.map(lambda p: _build_row(p, stats_data, eval_data), positions))
+        rows = list(
+            executor.map(
+                lambda p: _build_row(p, stats_data, eval_data),
+                positions,
+            )
+        )
 
     total_notional = sum(row.get("notional", 0) for row in rows)
     for row in rows:
