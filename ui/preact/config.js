@@ -7,7 +7,6 @@ export const CONFIG = {
     portfolio: "/api/portfolio",
     eval: "/api/eval",
     colorStandards: "/api/color-standards",
-    position: "/api/portfolio/position",
   },
 
   demoPaths: {
@@ -44,6 +43,10 @@ export const CONFIG = {
 export const COLS = {
   all: [
     { key: "ticker", label: "TICKER" },
+    { key: "market_update_tier", label: "MKT_UPD" },
+    { key: "indicator_update_tier", label: "IND_UPD" },
+    { key: "ratings_update_tier", label: "RTG_UPD" },
+    { key: "evaluation_update_tier", label: "EVAL_UPD" },
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
@@ -78,6 +81,9 @@ export const COLS = {
   ],
   holdings: [
     { key: "ticker", label: "TICKER" },
+    { key: "market_update_tier", label: "MKT_UPD" },
+    { key: "indicator_update_tier", label: "IND_UPD" },
+    { key: "ratings_update_tier", label: "RTG_UPD" },
     { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
@@ -104,6 +110,9 @@ export const COLS = {
   ],
   evaluations: [
     { key: "ticker", label: "TICKER" },
+    { key: "ratings_update_tier", label: "RTG_UPD" },
+    { key: "evaluation_update_tier", label: "EVAL_UPD" },
+    { key: "eval_source", label: "EVAL_SRC" },
     { key: "rank", label: "RANK" },
     { key: "overall", label: "SCORE", format: "score" },
     { key: "quality", label: "QUALITY", format: "score" },

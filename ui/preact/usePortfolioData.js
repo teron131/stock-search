@@ -248,6 +248,12 @@ export function usePortfolioData() {
     };
   }, [rows]);
 
+  const applyMergedRows = useCallback((dashData, evalData) => {
+    const merged = calculateRanks(mergeRows(dashData, evalData));
+    setRows(merged);
+    setGeneratedAt(new Date().toISOString());
+  }, []);
+
   const load = useCallback(
     async ({ background = false } = {}) => {
       if (loadingMode !== "idle") return;
@@ -264,9 +270,7 @@ export function usePortfolioData() {
           setIsUsingDemoData(true);
           const { dashData, evalData } =
             await fetchStaticPortfolioData(basePath);
-          const merged = calculateRanks(mergeRows(dashData, evalData));
-          setRows(merged);
-          setGeneratedAt(new Date().toISOString());
+          applyMergedRows(dashData, evalData);
           return;
         }
 
@@ -292,9 +296,7 @@ export function usePortfolioData() {
         }
 
         setIsUsingDemoData(false);
-        const merged = calculateRanks(mergeRows(dashData, evalData));
-        setRows(merged);
-        setGeneratedAt(new Date().toISOString());
+        applyMergedRows(dashData, evalData);
       } catch (e) {
         setLastError(e);
 
@@ -304,9 +306,7 @@ export function usePortfolioData() {
           const { dashData, evalData } =
             await fetchStaticPortfolioData(basePath);
           setIsUsingDemoData(true);
-          const merged = calculateRanks(mergeRows(dashData, evalData));
-          setRows(merged);
-          setGeneratedAt(new Date().toISOString());
+          applyMergedRows(dashData, evalData);
         } catch {
           if (!background) {
             setRows([]);
@@ -316,7 +316,42 @@ export function usePortfolioData() {
         setLoadingMode("idle");
       }
     },
-    [loadingMode],
+    [applyMergedRows, loadingMode],
+  );
+
+  const patchPortfolioPosition = useCallback(
+    async ({
+      ticker,
+      quantity,
+      delta = 0.0,
+      bucket = CONFIG.defaultBucket,
+    }) => {
+      const normalizedTicker = normalizeTicker(ticker);
+      const normalizedQuantity = Number(quantity);
+      const normalizedDelta = Number(delta);
+      if (!normalizedTicker || Number.isNaN(normalizedQuantity)) {
+        return { ok: false, reason: "invalid" };
+      }
+
+      const res = await fetch(
+        `${CONFIG.endpoints.portfolio}/${normalizedTicker}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quantity: normalizedQuantity,
+            delta: Number.isFinite(normalizedDelta) ? normalizedDelta : 0.0,
+            bucket,
+          }),
+        },
+      );
+
+      if (!res.ok) return { ok: false, reason: "server" };
+
+      await load({ background: true });
+      return { ok: true };
+    },
+    [load],
   );
 
   const addOrUpdate = useCallback(
@@ -334,22 +369,14 @@ export function usePortfolioData() {
         if (!confirmed) return { ok: false, reason: "cancelled" };
       }
 
-      const res = await fetch(CONFIG.endpoints.position, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticker: t,
-          quantity: q,
-          delta: 0.0,
-          bucket: CONFIG.defaultBucket,
-        }),
+      return patchPortfolioPosition({
+        ticker: t,
+        quantity: q,
+        delta: 0.0,
+        bucket: CONFIG.defaultBucket,
       });
-
-      if (!res.ok) return { ok: false, reason: "server" };
-      await load({ background: true });
-      return { ok: true };
     },
-    [isUsingDemoData, load],
+    [isUsingDemoData, patchPortfolioPosition],
   );
 
   const setQuantity = useCallback(
@@ -361,26 +388,14 @@ export function usePortfolioData() {
     }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
 
-      const t = normalizeTicker(ticker);
-      const q = Number(quantity);
-      if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
-
-      const res = await fetch(CONFIG.endpoints.position, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticker: t,
-          quantity: q,
-          delta: Number.isFinite(Number(delta)) ? Number(delta) : 0.0,
-          bucket,
-        }),
+      return patchPortfolioPosition({
+        ticker,
+        quantity,
+        delta,
+        bucket,
       });
-
-      if (!res.ok) return { ok: false, reason: "server" };
-      await load({ background: true });
-      return { ok: true };
     },
-    [isUsingDemoData, load],
+    [isUsingDemoData, patchPortfolioPosition],
   );
 
   const remove = useCallback(
@@ -395,7 +410,7 @@ export function usePortfolioData() {
       );
       if (!confirmed) return { ok: false, reason: "cancelled" };
 
-      const res = await fetch(`${CONFIG.endpoints.position}/${t}`, {
+      const res = await fetch(`${CONFIG.endpoints.portfolio}/${t}`, {
         method: "DELETE",
       });
       if (!res.ok) return { ok: false, reason: "server" };

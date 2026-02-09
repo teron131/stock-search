@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
@@ -10,6 +11,12 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.evaluation.constants import (
+    DEFAULT_BEAR_PROBABILITY,
+    DEFAULT_BULL_PROBABILITY,
+    DEFAULT_SCORE,
+    CalibrationConfig,
+)
 from stock_search.evaluation.evaluation import (
     bucket_from_eval_json,
     normalize_eval_json,
@@ -19,12 +26,22 @@ from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
 
 _MAX_WORKERS = 5
-_LIVE_STATS_TTL_SECONDS = 60
-_LIVE_STATS_STALE_SECONDS = 600
-_LIVE_STATS_FAILURE_COOLDOWN_SECONDS = 180
+_HISTORY_TTL_SECONDS = 60
+_HISTORY_STALE_SECONDS = 600
+_HISTORY_FAILURE_COOLDOWN_SECONDS = 180
+_INFO_TTL_SECONDS = 3_600  # 1 hour
+_INFO_STALE_SECONDS = 172_800  # 48 hours
+_INFO_FAILURE_COOLDOWN_SECONDS = 1_800  # 30 minutes
+_RATINGS_TTL_SECONDS = 86_400  # 1 day
+_RATINGS_STALE_SECONDS = 604_800  # 7 days
+_RATINGS_FAILURE_COOLDOWN_SECONDS = 21_600  # 6 hours
 _LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.3
-_LIVE_STATS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
-_LIVE_STATS_FAILURES: dict[str, datetime] = {}
+_HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
+_HISTORY_FAILURES: dict[str, datetime] = {}
+_INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
+_INFO_FAILURES: dict[str, datetime] = {}
+_RATINGS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
+_RATINGS_FAILURES: dict[str, datetime] = {}
 _LIVE_STATS_CACHE_LOCK = Lock()
 _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
@@ -54,28 +71,133 @@ _MARKET_KEYS = {
     "median_upside",
 }
 
+_HISTORY_FIELDS = {
+    "price",
+    "change",
+    "change_percent",
+    "iv",
+    "rsi",
+    "one_month_change_percent",
+    "three_month_change_percent",
+    "six_month_change_percent",
+    "one_year_change_percent",
+    "mtd_change_percent",
+    "ytd_change_percent",
+}
+_INFO_FIELDS = {
+    "market_cap",
+    "pe",
+    "pe_forward",
+    "peg",
+    "beta",
+    "debt_to_equity",
+    "free_cash_flow",
+    "revenue_growth",
+    "gross_margin",
+}
+_RATINGS_FIELDS = {
+    "median_upside",
+}
 
-def _fetch_live_stats(ticker: str) -> dict[str, Any]:
-    """Fetch live-ish market stats for a ticker.
+_UPDATE_TIER_FAST_LABEL = "history_1m"
+_UPDATE_TIER_SLOW_LABEL = "info_1h"
+_UPDATE_TIER_RATINGS_LABEL = "ratings_1d"
+_UPDATE_TIER_EVAL_LABEL = "llm_optional"
 
-    This intentionally does not fall back to `stats.json` for market fields.
-    """
-    ticker_key = str(ticker).upper().strip()
-    now = datetime.now(tz=UTC)
-    ttl_cutoff = now - timedelta(seconds=_LIVE_STATS_TTL_SECONDS)
-    stale_cutoff = now - timedelta(seconds=_LIVE_STATS_STALE_SECONDS)
-    failure_cooldown_cutoff = now - timedelta(seconds=_LIVE_STATS_FAILURE_COOLDOWN_SECONDS)
 
-    with _LIVE_STATS_CACHE_LOCK:
-        cached_entry = _LIVE_STATS_CACHE.get(ticker_key)
-        last_failure = _LIVE_STATS_FAILURES.get(ticker_key)
-        if cached_entry and cached_entry[0] >= ttl_cutoff:
-            return dict(cached_entry[1])
-        if last_failure and last_failure >= failure_cooldown_cutoff:
-            if cached_entry and cached_entry[0] >= stale_cutoff:
-                return dict(cached_entry[1])
-            return {}
+def _clamp_score(value: float) -> float:
+    return max(0.0, min(10.0, value))
 
+
+def _map_linear(
+    value: float | None,
+    *,
+    in_min: float,
+    in_max: float,
+    out_min: float,
+    out_max: float,
+) -> float | None:
+    if value is None or in_max == in_min:
+        return None
+    ratio = (value - in_min) / (in_max - in_min)
+    return out_min + ratio * (out_max - out_min)
+
+
+def _indicator_eval_fallback(stats: dict[str, Any]) -> dict[str, float]:
+    """Deterministic score fallback when LLM evaluation is missing/partial."""
+    pe_forward = stats.get("pe_forward")
+    pe = stats.get("pe")
+    revenue_growth = stats.get("revenue_growth")
+    gross_margin = stats.get("gross_margin")
+    median_upside = stats.get("median_upside")
+    pe_fwd_min, _, pe_fwd_max = CalibrationConfig.FORWARD_PE_RANGE
+    pe_min, _, pe_max = CalibrationConfig.TRAILING_PE_RANGE
+    rev_g_min, _, rev_g_max = CalibrationConfig.REVENUE_GROWTH_PCT_RANGE
+    margin_min, _, margin_max = CalibrationConfig.GROSS_MARGIN_PCT_RANGE
+    upside_min, _, upside_max = CalibrationConfig.UPSIDE_RANGE
+
+    valuation_parts = [
+        _map_linear(pe_forward, in_min=pe_fwd_min, in_max=pe_fwd_max, out_min=10.0, out_max=2.0),
+        _map_linear(pe, in_min=pe_min, in_max=pe_max, out_min=10.0, out_max=2.0),
+    ]
+    valuation_values = [v for v in valuation_parts if v is not None]
+    valuation = _clamp_score(sum(valuation_values) / len(valuation_values)) if valuation_values else DEFAULT_SCORE
+
+    quality_parts = [
+        _map_linear(revenue_growth, in_min=rev_g_min, in_max=rev_g_max, out_min=2.0, out_max=10.0),
+        _map_linear(gross_margin, in_min=margin_min, in_max=margin_max, out_min=2.0, out_max=10.0),
+    ]
+    quality_values = [v for v in quality_parts if v is not None]
+    quality = _clamp_score(sum(quality_values) / len(quality_values)) if quality_values else DEFAULT_SCORE
+
+    upside_val = _map_linear(median_upside, in_min=upside_min, in_max=upside_max, out_min=2.0, out_max=10.0)
+    upside = _clamp_score(upside_val) if upside_val is not None else DEFAULT_SCORE
+
+    moat = DEFAULT_SCORE
+    overall = _clamp_score((moat + quality + valuation + upside) / 4)
+
+    momentum_fields = (
+        "change_percent",
+        "one_month_change_percent",
+        "three_month_change_percent",
+        "six_month_change_percent",
+        "one_year_change_percent",
+    )
+    momentum_values = [float(stats[name]) for name in momentum_fields if isinstance(stats.get(name), (int, float))]
+    if momentum_values:
+        avg_momentum = sum(momentum_values) / len(momentum_values)
+        bull = max(0.0, min(1.0, 0.5 + (avg_momentum / 100.0)))
+        bear = max(0.0, min(1.0, 0.2 - (avg_momentum / 200.0)))
+    else:
+        bull = DEFAULT_BULL_PROBABILITY
+        bear = DEFAULT_BEAR_PROBABILITY
+
+    return {
+        "overall": round(overall, 2),
+        "quality": round(quality, 2),
+        "valuation": round(valuation, 2),
+        "moat": round(moat, 2),
+        "upside": round(upside, 2),
+        "bull": round(bull, 4),
+        "bear": round(bear, 4),
+    }
+
+
+def _pick_eval_value(
+    *,
+    eval_data: dict[str, Any],
+    normalized_eval: dict[str, Any],
+    fallback_eval: dict[str, float],
+    key: str,
+    aliases: tuple[str, ...] = (),
+) -> tuple[float, bool]:
+    has_llm_value = any(alias in eval_data and eval_data.get(alias) is not None for alias in (key, *aliases))
+    if has_llm_value and key in normalized_eval:
+        return float(normalized_eval[key]), True
+    return float(fallback_eval[key]), False
+
+
+def _rate_limit_wait() -> None:
     global _LAST_LIVE_STATS_REQUEST_AT
     with _LIVE_STATS_RATE_LOCK:
         elapsed = monotonic() - _LAST_LIVE_STATS_REQUEST_AT
@@ -84,29 +206,122 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
             sleep(wait_seconds)
         _LAST_LIVE_STATS_REQUEST_AT = monotonic()
 
-    try:
-        indicator = StockIndicator(ticker)
-        data = indicator.get_all_indicators()
 
-        info = indicator.info
-        quote_type = str(info.get("quoteType") or "").upper()
-        if quote_type == "ETF":
-            # Explicitly clear cached ETF forward P/E values that may be stale.
-            data["pe_forward"] = None
-        data["name"] = info.get("shortName") or info.get("longName")
-        data["current_price"] = data.get("price")
+def _fetch_fields(indicator: StockIndicator, fields: set[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for field in fields:
+        with suppress(Exception):
+            out[field] = getattr(indicator, field)
+    return out
 
-        live_data = {k: v for k, v in data.items() if v is not None or k == "pe_forward"}
-        with _LIVE_STATS_CACHE_LOCK:
-            _LIVE_STATS_CACHE[ticker_key] = (now, live_data)
-            _LIVE_STATS_FAILURES.pop(ticker_key, None)
-        return live_data
-    except Exception:
-        with _LIVE_STATS_CACHE_LOCK:
-            _LIVE_STATS_FAILURES[ticker_key] = now
-            if (cached_entry := _LIVE_STATS_CACHE.get(ticker_key)) and cached_entry[0] >= stale_cutoff:
-                return dict(cached_entry[1])
-        return {}
+
+def _fetch_live_stats(ticker: str) -> dict[str, Any]:
+    """Fetch tiered market stats for a ticker (history + info + ratings)."""
+    ticker_key = str(ticker).upper().strip()
+    now = datetime.now(tz=UTC)
+    history_ttl_cutoff = now - timedelta(seconds=_HISTORY_TTL_SECONDS)
+    history_stale_cutoff = now - timedelta(seconds=_HISTORY_STALE_SECONDS)
+    history_failure_cutoff = now - timedelta(seconds=_HISTORY_FAILURE_COOLDOWN_SECONDS)
+    info_ttl_cutoff = now - timedelta(seconds=_INFO_TTL_SECONDS)
+    info_stale_cutoff = now - timedelta(seconds=_INFO_STALE_SECONDS)
+    info_failure_cutoff = now - timedelta(seconds=_INFO_FAILURE_COOLDOWN_SECONDS)
+    ratings_ttl_cutoff = now - timedelta(seconds=_RATINGS_TTL_SECONDS)
+    ratings_stale_cutoff = now - timedelta(seconds=_RATINGS_STALE_SECONDS)
+    ratings_failure_cutoff = now - timedelta(seconds=_RATINGS_FAILURE_COOLDOWN_SECONDS)
+
+    with _LIVE_STATS_CACHE_LOCK:
+        history_entry = _HISTORY_CACHE.get(ticker_key)
+        info_entry = _INFO_CACHE.get(ticker_key)
+        ratings_entry = _RATINGS_CACHE.get(ticker_key)
+        history_failure = _HISTORY_FAILURES.get(ticker_key)
+        info_failure = _INFO_FAILURES.get(ticker_key)
+        ratings_failure = _RATINGS_FAILURES.get(ticker_key)
+
+    history_data = dict(history_entry[1]) if history_entry else {}
+    info_data = dict(info_entry[1]) if info_entry else {}
+    ratings_data = dict(ratings_entry[1]) if ratings_entry else {}
+    history_fresh = bool(history_entry and history_entry[0] >= history_ttl_cutoff)
+    info_fresh = bool(info_entry and info_entry[0] >= info_ttl_cutoff)
+    ratings_fresh = bool(ratings_entry and ratings_entry[0] >= ratings_ttl_cutoff)
+    history_recent_failure = bool(history_failure and history_failure >= history_failure_cutoff)
+    info_recent_failure = bool(info_failure and info_failure >= info_failure_cutoff)
+    ratings_recent_failure = bool(ratings_failure and ratings_failure >= ratings_failure_cutoff)
+
+    # Most refreshes should be served from cache without live calls.
+    if history_fresh and info_fresh and ratings_fresh:
+        return {**info_data, **ratings_data, **history_data}
+
+    def has_history_stale() -> bool:
+        return bool(history_entry and history_entry[0] >= history_stale_cutoff)
+
+    def has_info_stale() -> bool:
+        return bool(info_entry and info_entry[0] >= info_stale_cutoff)
+
+    def has_ratings_stale() -> bool:
+        return bool(ratings_entry and ratings_entry[0] >= ratings_stale_cutoff)
+
+    need_history_fetch = not history_fresh and not history_recent_failure
+    need_info_fetch = not info_fresh and not info_recent_failure
+    need_ratings_fetch = not ratings_fresh and not ratings_recent_failure
+
+    # If either tier recently failed, keep stale values and skip re-hammering.
+    if history_recent_failure and not has_history_stale():
+        history_data = {}
+    if info_recent_failure and not has_info_stale():
+        info_data = {}
+    if ratings_recent_failure and not has_ratings_stale():
+        ratings_data = {}
+
+    # Cold-start priority: history -> info -> ratings
+    indicator = StockIndicator(ticker) if (need_history_fetch or need_info_fetch or need_ratings_fetch) else None
+
+    if need_history_fetch:
+        _rate_limit_wait()
+        try:
+            fetched_history = _fetch_fields(indicator, _HISTORY_FIELDS)
+            with _LIVE_STATS_CACHE_LOCK:
+                _HISTORY_CACHE[ticker_key] = (now, fetched_history)
+                _HISTORY_FAILURES.pop(ticker_key, None)
+                history_data = dict(fetched_history)
+        except Exception:
+            with _LIVE_STATS_CACHE_LOCK:
+                _HISTORY_FAILURES[ticker_key] = now
+                history_data = dict(_HISTORY_CACHE[ticker_key][1]) if has_history_stale() else {}
+
+    if need_info_fetch:
+        _rate_limit_wait()
+        try:
+            fetched_info = _fetch_fields(indicator, _INFO_FIELDS)
+            fetched_info["name"] = indicator.info.get("shortName") or indicator.info.get("longName")
+            if "current_price" not in history_data:
+                fetched_info["current_price"] = indicator._current_price_from_info()
+            quote_type = str(indicator.info.get("quoteType") or "").upper()
+            if quote_type == "ETF":
+                fetched_info["pe_forward"] = None
+            with _LIVE_STATS_CACHE_LOCK:
+                _INFO_CACHE[ticker_key] = (now, fetched_info)
+                _INFO_FAILURES.pop(ticker_key, None)
+                info_data = dict(fetched_info)
+        except Exception:
+            with _LIVE_STATS_CACHE_LOCK:
+                _INFO_FAILURES[ticker_key] = now
+                info_data = dict(_INFO_CACHE[ticker_key][1]) if has_info_stale() else {}
+
+    if need_ratings_fetch:
+        _rate_limit_wait()
+        try:
+            fetched_ratings = _fetch_fields(indicator, _RATINGS_FIELDS)
+            with _LIVE_STATS_CACHE_LOCK:
+                _RATINGS_CACHE[ticker_key] = (now, fetched_ratings)
+                _RATINGS_FAILURES.pop(ticker_key, None)
+                ratings_data = dict(fetched_ratings)
+        except Exception:
+            with _LIVE_STATS_CACHE_LOCK:
+                _RATINGS_FAILURES[ticker_key] = now
+                ratings_data = dict(_RATINGS_CACHE[ticker_key][1]) if has_ratings_stale() else {}
+
+    merged = {**info_data, **ratings_data, **history_data}
+    return {k: v for k, v in merged.items() if v is not None or k == "pe_forward"}
 
 
 def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
@@ -147,18 +362,81 @@ def _build_row(
     notional = calculate_notional(qty, delta, price) if qty and price else 0.0
 
     normalized_eval = normalize_eval_json(eval_data)
+    fallback_eval = _indicator_eval_fallback(stats)
+
+    overall, overall_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="overall",
+        aliases=("score",),
+    )
+    quality, quality_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="quality",
+    )
+    valuation, valuation_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="valuation",
+    )
+    moat, moat_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="moat",
+    )
+    upside, upside_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="upside",
+    )
+    bull, bull_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="bull",
+        aliases=("bull_probability",),
+    )
+    bear, bear_from_llm = _pick_eval_value(
+        eval_data=eval_data,
+        normalized_eval=normalized_eval,
+        fallback_eval=fallback_eval,
+        key="bear",
+        aliases=("bear_probability",),
+    )
+    llm_flags = (
+        overall_from_llm,
+        quality_from_llm,
+        valuation_from_llm,
+        moat_from_llm,
+        upside_from_llm,
+        bull_from_llm,
+        bear_from_llm,
+    )
+    llm_count = sum(1 for flag in llm_flags if flag)
+    eval_source = "llm" if llm_count == len(llm_flags) else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
 
     return {
-        "overall": normalized_eval.get("overall"),
-        "quality": normalized_eval.get("quality"),
-        "valuation": normalized_eval.get("valuation"),
-        "moat": normalized_eval.get("moat"),
-        "upside": normalized_eval.get("upside"),
+        "overall": overall,
+        "quality": quality,
+        "valuation": valuation,
+        "moat": moat,
+        "upside": upside,
         "market_cap_score": normalized_eval.get("market_cap_score"),
-        "bull": normalized_eval.get("bull"),
-        "bear": normalized_eval.get("bear"),
+        "bull": bull,
+        "bear": bear,
+        "eval_source": eval_source,
+        "market_update_tier": _UPDATE_TIER_FAST_LABEL,
+        "indicator_update_tier": _UPDATE_TIER_SLOW_LABEL,
+        "ratings_update_tier": _UPDATE_TIER_RATINGS_LABEL,
+        "evaluation_update_tier": _UPDATE_TIER_EVAL_LABEL,
         "rank": None,
         "ticker": ticker,
         "name": stats.get("name"),
