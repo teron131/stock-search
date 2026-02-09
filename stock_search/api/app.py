@@ -19,9 +19,14 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
 INDEX_FILE = UI_DIR / "index.html"
 DATA_DIR = BASE_DIR.parent / "data"
+SAMPLE_DATA_DIR = UI_DIR / "sample_data"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 PORTFOLIO_PATH = DATA_DIR / "portfolio.json"
 STATS_PATH = DATA_DIR / "stats.json"
 EVAL_PATH = DATA_DIR / "eval.json"
+SAMPLE_PORTFOLIO_PATH = SAMPLE_DATA_DIR / "portfolio.json"
+SAMPLE_EVAL_PATH = SAMPLE_DATA_DIR / "eval.json"
 
 app = FastAPI(title="Stock Search Dashboard")
 
@@ -103,15 +108,36 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
     return matched.where(pd.notna(matched), None).iloc[0].to_dict()
 
 
+def _load_dashboard_df() -> tuple[pd.DataFrame, str | None]:
+    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
+    if not df.empty:
+        return df.where(pd.notna(df), None), None
+
+    sample_portfolio = load_json(SAMPLE_PORTFOLIO_PATH, default={})
+    sample_rows = sample_portfolio.get("rows") if isinstance(sample_portfolio, dict) else None
+    if isinstance(sample_rows, list) and sample_rows:
+        sample_df = pd.DataFrame(sample_rows)
+        sample_df = sample_df.where(pd.notna(sample_df), None)
+        return sample_df, sample_portfolio.get("generated_at")
+
+    return pd.DataFrame(), None
+
+
+def _load_eval_data() -> dict | list:
+    eval_data = load_json(EVAL_PATH, default=None)
+    if eval_data not in (None, {}, []):
+        return eval_data
+    return load_json(SAMPLE_EVAL_PATH, default={})
+
+
 @app.get("/api/portfolio")
 def portfolio_api(response: Response) -> dict:
     _set_no_store(response)
 
-    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
-    df = df.where(pd.notna(df), None)
+    df, sample_generated_at = _load_dashboard_df()
 
     # Timestamp for *this* response (not the cache file mtime)
-    generated_at = datetime.now(tz=UTC).isoformat()
+    generated_at = sample_generated_at or datetime.now(tz=UTC).isoformat()
 
     return {
         "columns": list(df.columns),
@@ -124,11 +150,11 @@ def portfolio_api(response: Response) -> dict:
 def portfolio_ticker_api(ticker: str, response: Response) -> dict:
     _set_no_store(response)
 
-    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
+    df, sample_generated_at = _load_dashboard_df()
     row = _get_dashboard_row(df, ticker)
     return {
         "row": row,
-        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "generated_at": sample_generated_at or datetime.now(tz=UTC).isoformat(),
     }
 
 
@@ -183,7 +209,7 @@ def remove_position(ticker: str):
 @app.get("/api/eval")
 def eval_api(response: Response) -> dict:
     _set_no_store(response)
-    return load_json(EVAL_PATH, default={})
+    return _load_eval_data()
 
 
 @app.get("/api/color-standards")
