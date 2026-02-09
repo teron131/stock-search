@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -12,8 +13,10 @@ from pydantic import BaseModel
 
 from stock_search.dashboard import get_dashboard
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
+from stock_search.evaluation.evaluation import build_inputs, evaluate_asset, strategy_label
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
+from stock_search.news import get_news
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -239,46 +242,41 @@ def color_standards_api(response: Response) -> dict:
 
 
 @app.get("/api/news/{ticker}")
-def news_api(ticker: str) -> list[dict]:
-    return [
-        {
-            "title": f"Strategic analysis of {ticker} performance",
-            "url": f"https://example.com/{ticker}-news-1",
-            "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
-            "relevancy": "high",
-            "category": "company_news",
-            "sentiment": "bullish",
-        },
-        {
-            "title": f"Market trends affecting {ticker}",
-            "url": f"https://example.com/{ticker}-news-2",
-            "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
-            "relevancy": "medium",
-            "category": "market_news",
-            "sentiment": "neutral",
-        },
-    ]
+def news_api(ticker: str, response: Response) -> list[dict[str, Any]]:
+    _set_no_store(response)
+    try:
+        news_items = get_news(ticker)
+    except Exception as exc:  # pragma: no cover - defensive path for provider failures
+        raise HTTPException(status_code=502, detail="Failed to fetch news") from exc
+
+    normalized: list[dict[str, Any]] = []
+    for item in news_items or []:
+        if hasattr(item, "model_dump"):
+            normalized.append(item.model_dump())
+        elif isinstance(item, dict):
+            normalized.append(item)
+    return normalized
 
 
 @app.get("/api/evaluate/{ticker}")
-def evaluate_ticker_api(ticker: str) -> dict:
-    indicator = StockIndicator(ticker)
+def evaluate_ticker_api(ticker: str, response: Response) -> dict[str, Any]:
+    _set_no_store(response)
+    try:
+        inputs = build_inputs(ticker)
+        result = evaluate_asset(inputs, ticker=ticker.upper())
+    except Exception as exc:  # pragma: no cover - defensive path for provider failures
+        raise HTTPException(status_code=502, detail="Failed to evaluate ticker") from exc
 
-    return {
-        "ticker": ticker.upper(),
-        "rank": 1,
-        "overall": 8.5,
-        "moat": 9.0,
-        "quality": 8.0,
-        "valuation": 7.5,
-        "upside": 10.0,
-        "market_cap": 9.0,
-        "bull": 0.7,
-        "bear": 0.2,
-        "current_price": indicator.price,
-        "change_percent": indicator.change_percent,
-        "rsi": indicator.rsi,
-    }
+    payload = asdict(result)
+    payload["inputs"] = inputs.model_dump()
+    payload["ticker"] = result.ticker or ticker.upper()
+    payload["strategy_label"] = strategy_label(
+        result.core_index,
+        result.satellite_index,
+        result.speculative_index,
+        result.diversifier_index,
+    )
+    return payload
 
 
 app.mount("/", StaticFiles(directory=UI_DIR), name="ui")
