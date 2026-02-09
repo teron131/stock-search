@@ -1,3 +1,4 @@
+from contextlib import suppress
 from dataclasses import dataclass
 import math
 from typing import Any
@@ -17,7 +18,6 @@ from .constants import (
     ROUND_PROBABILITY_DIGITS,
     SCORE_SCALE,
 )
-from .research import run_llm_evaluation
 from .scores import (
     calculate_combined_upside_score,
     calculate_elo_delta,
@@ -102,16 +102,21 @@ def build_inputs(ticker: str) -> Evaluation:
     indicator = StockIndicator(normalized_ticker)
 
     # 1. Qualitative Evaluation (LLM)
-    outlook: FutureOutlook = run_llm_evaluation(
-        ticker,
-        FUTURE_OUTLOOK_DEFINITION,
-        FutureOutlook,
-    )
-    research: ResearchEvaluation = run_llm_evaluation(
-        ticker,
-        RESEARCH_DEFINITION,
-        ResearchEvaluation,
-    )
+    outlook: FutureOutlook | None = None
+    research: ResearchEvaluation | None = None
+    with suppress(Exception):
+        from .research import run_llm_evaluation
+
+        outlook = run_llm_evaluation(
+            ticker,
+            FUTURE_OUTLOOK_DEFINITION,
+            FutureOutlook,
+        )
+        research = run_llm_evaluation(
+            ticker,
+            RESEARCH_DEFINITION,
+            ResearchEvaluation,
+        )
 
     # 2. Market Metrics
     market_cap_value = market_cap_score(indicator.info)

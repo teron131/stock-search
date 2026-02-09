@@ -23,6 +23,9 @@ PORTFOLIO_PATH = DATA_DIR / "portfolio.json"
 STATS_PATH = DATA_DIR / "stats.json"
 EVAL_PATH = DATA_DIR / "eval.json"
 
+# Ensure data directory exists for static mounting and persistence.
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(title="Stock Search Dashboard")
 
 # Expose backend `data/` to the UI (portfolio/eval/stats JSON)
