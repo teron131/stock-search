@@ -165,7 +165,7 @@ export function App() {
   useEffect(() => {
     initSidebarAndNav({ onViewChange: setView });
     initHeatmapTabs();
-    actions.sync({ background: false });
+    actions.sync({ background: false, scope: "priority" });
 
     const refreshBtn = document.getElementById("refresh-btn");
     if (refreshBtn) {

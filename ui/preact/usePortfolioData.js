@@ -272,7 +272,7 @@ export function usePortfolioData() {
   }, []);
 
   const load = useCallback(
-    async ({ background = false, silent = false } = {}) => {
+    async ({ background = false, silent = false, scope = "all" } = {}) => {
       if (syncInFlightRef.current) return;
       if (!silent && loadingMode !== "idle") return;
 
@@ -281,6 +281,7 @@ export function usePortfolioData() {
         setLoadingMode(background ? "background" : "foreground");
       }
       setLastError(null);
+      let shouldBackfill = false;
 
       try {
         const basePath = await determineDemoPath();
@@ -298,7 +299,11 @@ export function usePortfolioData() {
         // - Stats/portfolio always via API (live)
         // - Eval cache-first (static), fallback to API
         const dashData = await (async () => {
-          const res = await fetch(withCacheBuster(CONFIG.endpoints.portfolio));
+          const url =
+            scope === "priority"
+              ? `${CONFIG.endpoints.portfolio}?scope=priority`
+              : CONFIG.endpoints.portfolio;
+          const res = await fetch(withCacheBuster(url));
           if (!res.ok) throw new Error("API Failure");
           return await res.json();
         })();
@@ -317,6 +322,7 @@ export function usePortfolioData() {
 
         setIsUsingDemoData(false);
         applyMergedRows(dashData, evalData);
+        shouldBackfill = scope === "priority" && !background;
       } catch (e) {
         setLastError(e);
 
@@ -336,6 +342,11 @@ export function usePortfolioData() {
         syncInFlightRef.current = false;
         if (!silent) {
           setLoadingMode("idle");
+        }
+        if (shouldBackfill) {
+          setTimeout(() => {
+            load({ background: true, silent: true, scope: "all" });
+          }, 0);
         }
       }
     },

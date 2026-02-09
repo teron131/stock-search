@@ -351,7 +351,8 @@ def _build_row(
     if not isinstance(eval_data, dict):
         eval_data = {}
 
-    live_market = _fetch_live_stats(ticker)
+    cached_only = bool(pos.get("_cached_only"))
+    live_market = {} if cached_only else _fetch_live_stats(ticker)
 
     # Start with metadata, then market (cached -> live overrides)
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
@@ -472,6 +473,7 @@ def get_dashboard(
     portfolio_path: str | Path = "data/portfolio.json",
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
 ) -> pd.DataFrame:
     portfolio_data = load_json(portfolio_path, default=[])
 
@@ -511,11 +513,19 @@ def get_dashboard(
             }
         )
 
-    for ticker in stats_data:
-        ticker_str = str(ticker).upper().strip()
-        if not ticker_str or ticker_str in seen_tickers:
-            continue
-        positions.append({"ticker": ticker_str, "quantity": 0.0, "delta": 0.0})
+    if include_cached_universe:
+        for ticker in stats_data:
+            ticker_str = str(ticker).upper().strip()
+            if not ticker_str or ticker_str in seen_tickers:
+                continue
+            positions.append(
+                {
+                    "ticker": ticker_str,
+                    "quantity": 0.0,
+                    "delta": 0.0,
+                    "_cached_only": True,
+                }
+            )
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
         rows = list(executor.map(lambda p: _build_row(p, stats_data, eval_data), positions))

@@ -104,10 +104,16 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
 
 
 @app.get("/api/portfolio")
-def portfolio_api(response: Response) -> dict:
+def portfolio_api(response: Response, scope: str = "all") -> dict:
     _set_no_store(response)
 
-    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
+    include_cached_universe = scope != "priority"
+    df = get_dashboard(
+        PORTFOLIO_PATH,
+        STATS_PATH,
+        EVAL_PATH,
+        include_cached_universe=include_cached_universe,
+    )
     df = df.where(pd.notna(df), None)
 
     # Timestamp for *this* response (not the cache file mtime)
