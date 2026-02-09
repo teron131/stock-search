@@ -10,10 +10,11 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 from pydantic import BaseModel
 
-from stock_search.dashboard import get_dashboard
+from stock_search.dashboard import _build_row, get_dashboard
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
+from stock_search.news import get_news, get_news_yfinance
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -50,6 +51,34 @@ def _load_positions() -> list[dict[str, Any]]:
     if isinstance(portfolio_data, dict):
         portfolio_data = portfolio_data.get("positions", [])
     return portfolio_data if isinstance(portfolio_data, list) else []
+
+
+def _load_stats_cache() -> dict[str, Any]:
+    raw_stats = load_json(STATS_PATH, default={})
+    if not isinstance(raw_stats, dict):
+        return {}
+    return {
+        str(ticker).upper(): data
+        for ticker, data in raw_stats.items()
+        if isinstance(data, dict) and str(ticker).strip()
+    }
+
+
+def _load_eval_cache() -> dict[str, Any]:
+    raw_eval = load_json(EVAL_PATH, default={})
+    if isinstance(raw_eval, dict):
+        items = raw_eval.items()
+    elif isinstance(raw_eval, list):
+        items = ((item.get("ticker"), item) for item in raw_eval if isinstance(item, dict))
+    else:
+        return {}
+
+    eval_cache: dict[str, Any] = {}
+    for ticker, data in items:
+        ticker_key = str(ticker or "").upper().strip()
+        if ticker_key and isinstance(data, dict):
+            eval_cache[ticker_key] = data
+    return eval_cache
 
 
 def _save_positions(positions: list[dict[str, Any]]) -> None:
@@ -101,6 +130,38 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
 
     return matched.where(pd.notna(matched), None).iloc[0].to_dict()
+
+
+def _build_live_row(ticker: str) -> dict[str, Any]:
+    ticker_upper = ticker.upper()
+
+    stats_cache = _load_stats_cache()
+    eval_cache = _load_eval_cache()
+    positions = _load_positions()
+
+    idx = _find_position_index(positions, ticker_upper)
+    if idx is not None:
+        pos = {
+            **positions[idx],
+            "ticker": ticker_upper,
+            "quantity": float(positions[idx].get("quantity") or 0),
+            "delta": float(positions[idx].get("delta") if positions[idx].get("delta") is not None else 0.0),
+        }
+    else:
+        try:
+            _ensure_valid_new_ticker(ticker_upper)
+        except HTTPException as exc:
+            if exc.status_code == 400:
+                raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker_upper}") from exc
+            raise
+        pos = _normalize_position(ticker=ticker_upper, quantity=0, delta=0.0, bucket=None)
+
+    row = _build_row(pos, stats_cache, eval_cache)
+    has_cache_entry = ticker_upper in stats_cache or ticker_upper in eval_cache
+    has_market_data = any(row.get(field) is not None for field in ("current_price", "price", "market_cap"))
+    if not row or (not has_cache_entry and not has_market_data):
+        raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker_upper}")
+    return row
 
 
 @app.get("/api/portfolio")
@@ -239,45 +300,29 @@ def color_standards_api(response: Response) -> dict:
 
 
 @app.get("/api/news/{ticker}")
-def news_api(ticker: str) -> list[dict]:
-    return [
-        {
-            "title": f"Strategic analysis of {ticker} performance",
-            "url": f"https://example.com/{ticker}-news-1",
-            "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
-            "relevancy": "high",
-            "category": "company_news",
-            "sentiment": "bullish",
-        },
-        {
-            "title": f"Market trends affecting {ticker}",
-            "url": f"https://example.com/{ticker}-news-2",
-            "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
-            "relevancy": "medium",
-            "category": "market_news",
-            "sentiment": "neutral",
-        },
-    ]
+def news_api(ticker: str, response: Response) -> list[dict]:
+    _set_no_store(response)
+    try:
+        news_list = get_news(ticker)
+    except Exception:
+        news_list = []
+
+    if not news_list:
+        try:
+            news_list = get_news_yfinance(ticker=ticker)
+        except Exception:
+            news_list = []
+
+    return [item.model_dump() for item in news_list]
 
 
 @app.get("/api/evaluate/{ticker}")
-def evaluate_ticker_api(ticker: str) -> dict:
-    indicator = StockIndicator(ticker)
-
+def evaluate_ticker_api(ticker: str, response: Response) -> dict:
+    _set_no_store(response)
+    row = _build_live_row(ticker)
     return {
-        "ticker": ticker.upper(),
-        "rank": 1,
-        "overall": 8.5,
-        "moat": 9.0,
-        "quality": 8.0,
-        "valuation": 7.5,
-        "upside": 10.0,
-        "market_cap": 9.0,
-        "bull": 0.7,
-        "bear": 0.2,
-        "current_price": indicator.price,
-        "change_percent": indicator.change_percent,
-        "rsi": indicator.rsi,
+        "row": row,
+        "generated_at": datetime.now(tz=UTC).isoformat(),
     }
 
 
