@@ -174,8 +174,9 @@ export function App() {
     if (CONFIG.isDemoMode) return;
 
     const intervalId = setInterval(() => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
       syncRef.current?.({ background: true });
-    }, 60_000);
+    }, 180_000);
 
     return () => {
       clearInterval(intervalId);

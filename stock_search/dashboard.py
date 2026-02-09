@@ -1,5 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Lock
+from time import monotonic, sleep
 from typing import Any
 
 import pandas as pd
@@ -15,7 +18,16 @@ from stock_search.file_utils import load_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import calculate_notional
 
-_MAX_WORKERS = 10
+_MAX_WORKERS = 5
+_LIVE_STATS_TTL_SECONDS = 60
+_LIVE_STATS_STALE_SECONDS = 600
+_LIVE_STATS_FAILURE_COOLDOWN_SECONDS = 180
+_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.3
+_LIVE_STATS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
+_LIVE_STATS_FAILURES: dict[str, datetime] = {}
+_LIVE_STATS_CACHE_LOCK = Lock()
+_LIVE_STATS_RATE_LOCK = Lock()
+_LAST_LIVE_STATS_REQUEST_AT = 0.0
 
 _MARKET_KEYS = {
     "price",
@@ -48,6 +60,30 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
 
     This intentionally does not fall back to `stats.json` for market fields.
     """
+    ticker_key = str(ticker).upper().strip()
+    now = datetime.now(tz=UTC)
+    ttl_cutoff = now - timedelta(seconds=_LIVE_STATS_TTL_SECONDS)
+    stale_cutoff = now - timedelta(seconds=_LIVE_STATS_STALE_SECONDS)
+    failure_cooldown_cutoff = now - timedelta(seconds=_LIVE_STATS_FAILURE_COOLDOWN_SECONDS)
+
+    with _LIVE_STATS_CACHE_LOCK:
+        cached_entry = _LIVE_STATS_CACHE.get(ticker_key)
+        last_failure = _LIVE_STATS_FAILURES.get(ticker_key)
+        if cached_entry and cached_entry[0] >= ttl_cutoff:
+            return dict(cached_entry[1])
+        if last_failure and last_failure >= failure_cooldown_cutoff:
+            if cached_entry and cached_entry[0] >= stale_cutoff:
+                return dict(cached_entry[1])
+            return {}
+
+    global _LAST_LIVE_STATS_REQUEST_AT
+    with _LIVE_STATS_RATE_LOCK:
+        elapsed = monotonic() - _LAST_LIVE_STATS_REQUEST_AT
+        wait_seconds = _LIVE_STATS_MIN_REQUEST_GAP_SECONDS - elapsed
+        if wait_seconds > 0:
+            sleep(wait_seconds)
+        _LAST_LIVE_STATS_REQUEST_AT = monotonic()
+
     try:
         indicator = StockIndicator(ticker)
         data = indicator.get_all_indicators()
@@ -60,8 +96,16 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
         data["name"] = info.get("shortName") or info.get("longName")
         data["current_price"] = data.get("price")
 
-        return {k: v for k, v in data.items() if v is not None or k == "pe_forward"}
+        live_data = {k: v for k, v in data.items() if v is not None or k == "pe_forward"}
+        with _LIVE_STATS_CACHE_LOCK:
+            _LIVE_STATS_CACHE[ticker_key] = (now, live_data)
+            _LIVE_STATS_FAILURES.pop(ticker_key, None)
+        return live_data
     except Exception:
+        with _LIVE_STATS_CACHE_LOCK:
+            _LIVE_STATS_FAILURES[ticker_key] = now
+            if (cached_entry := _LIVE_STATS_CACHE.get(ticker_key)) and cached_entry[0] >= stale_cutoff:
+                return dict(cached_entry[1])
         return {}
 
 
