@@ -1,6 +1,6 @@
 """StockAnalysis source adapter.
 
-This module currently focuses on ETF holdings extraction and intentionally returns sparse statistics snapshots. Missing fields are expected and surfaced as `None` for downstream fallback orchestration.
+This module defines URL-based schemas and a provider adapter that returns source-ready snapshots. Cross-source fallback belongs in `indicators.py`.
 """
 
 from __future__ import annotations
@@ -139,12 +139,11 @@ class StockAnalysisSource:
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
 
-    def get_statistics_snapshot(self) -> StockAnalysisStatistics:
-        """Fetch statistics snapshot from StockAnalysis statistics page via LLM."""
+    def _load_statistics(self) -> StockAnalysisStatistics:
+        """Fetch statistics once and reuse cached data on later calls."""
         if self._statistics_snapshot is None:
             agent = WebLoaderAgent(
                 model=os.getenv("QUALITY_LLM"),
-                reasoning_effort="low",
                 system_prompt=STATISTICS_SYSTEM_PROMPT.format(ticker=self.ticker),
                 response_format=StockAnalysisStatistics,
             )
@@ -155,25 +154,20 @@ class StockAnalysisSource:
                 self.ticker,
                 self._statistics_fetched_at.isoformat(),
             )
-        else:
-            logger.info(
-                "Using cached StockAnalysis statistics for %s fetched at %s",
-                self.ticker,
-                self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else "unknown",
-            )
+            return self._statistics_snapshot
+
+        logger.info(
+            "Using cached StockAnalysis statistics for %s fetched at %s",
+            self.ticker,
+            self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else "unknown",
+        )
         return self._statistics_snapshot
 
-    @property
-    def statistics_fetched_at(self) -> datetime | None:
-        """Timestamp of the first successful statistics fetch for this instance."""
-        return self._statistics_fetched_at
-
-    def get_financials_snapshot(self) -> StockAnalysisFinancials:
-        """Fetch financials snapshot from StockAnalysis financials page via LLM."""
+    def _load_financials(self) -> StockAnalysisFinancials:
+        """Fetch financials once and reuse cached data on later calls."""
         if self._financials_snapshot is None:
             agent = WebLoaderAgent(
                 model=os.getenv("QUALITY_LLM"),
-                reasoning_effort="low",
                 system_prompt=FINANCIALS_SYSTEM_PROMPT.format(ticker=self.ticker),
                 response_format=StockAnalysisFinancials,
             )
@@ -184,13 +178,35 @@ class StockAnalysisSource:
                 self.ticker,
                 self._financials_fetched_at.isoformat(),
             )
-        else:
-            logger.info(
-                "Using cached StockAnalysis financials for %s fetched at %s",
-                self.ticker,
-                self._financials_fetched_at.isoformat() if self._financials_fetched_at else "unknown",
-            )
+            return self._financials_snapshot
+
+        logger.info(
+            "Using cached StockAnalysis financials for %s fetched at %s",
+            self.ticker,
+            self._financials_fetched_at.isoformat() if self._financials_fetched_at else "unknown",
+        )
         return self._financials_snapshot
+
+    @staticmethod
+    def _coalesce(primary: float | None, fallback: float | None) -> float | None:
+        return primary if primary is not None else fallback
+
+    @staticmethod
+    def _to_percent(value: float | None) -> float | None:
+        return value * 100 if value is not None else None
+
+    def get_statistics_snapshot(self) -> StockAnalysisStatistics:
+        """Fetch statistics snapshot from StockAnalysis statistics page via LLM."""
+        return self._load_statistics()
+
+    @property
+    def statistics_fetched_at(self) -> datetime | None:
+        """Timestamp of the first successful statistics fetch for this instance."""
+        return self._statistics_fetched_at
+
+    def get_financials_snapshot(self) -> StockAnalysisFinancials:
+        """Fetch financials snapshot from StockAnalysis financials page via LLM."""
+        return self._load_financials()
 
     @property
     def financials_fetched_at(self) -> datetime | None:
@@ -201,14 +217,12 @@ class StockAnalysisSource:
         """Fetch ETF holdings snapshot using LLM extraction."""
         if self._etf_snapshot is not None:
             return self._etf_snapshot
-
-        agent = WebLoaderAgent(
-            model=os.getenv("QUALITY_LLM"),
-            reasoning_effort="low",
-            system_prompt=ETF_HOLDINGS_SYSTEM_PROMPT.format(ticker=self.ticker),
-            response_format=ETFHoldings,
-        )
         try:
+            agent = WebLoaderAgent(
+                model=os.getenv("QUALITY_LLM"),
+                system_prompt=ETF_HOLDINGS_SYSTEM_PROMPT.format(ticker=self.ticker),
+                response_format=ETFHoldings,
+            )
             holdings = agent.invoke(self.ticker)
         except Exception:
             return None
@@ -223,22 +237,22 @@ class StockAnalysisSource:
 
         stats = self.get_statistics_snapshot()
         financials = self.get_financials_snapshot()
-        gross_margin = stats.gross_margin if stats.gross_margin is not None else financials.gross_margin
-        operating_margin = stats.operating_margin if stats.operating_margin is not None else financials.operating_margin
+        gross_margin = self._coalesce(stats.gross_margin, financials.gross_margin)
+        operating_margin = self._coalesce(stats.operating_margin, financials.operating_margin)
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
             market_cap=stats.market_cap,
             pe=stats.pe,
             pe_forward=stats.pe_forward,
             peg=stats.peg,
             beta=stats.beta,
-            roic=(stats.roic * 100) if stats.roic is not None else None,
-            revenue_growth=(financials.revenue_growth * 100) if financials.revenue_growth is not None else None,
-            gross_margin=(gross_margin * 100) if gross_margin is not None else None,
-            operating_margin=(operating_margin * 100) if operating_margin is not None else None,
+            roic=self._to_percent(stats.roic),
+            revenue_growth=self._to_percent(financials.revenue_growth),
+            gross_margin=self._to_percent(gross_margin),
+            operating_margin=self._to_percent(operating_margin),
             debt_to_ebitda=stats.debt_to_ebitda,
             free_cash_flow=stats.free_cash_flow,
             eps_diluted=financials.eps_diluted,
-            eps_growth=(financials.eps_growth * 100) if financials.eps_growth is not None else None,
+            eps_growth=self._to_percent(financials.eps_growth),
             fifty_two_week_price_change=stats.fifty_two_week_price_change,
             moving_average_50d=stats.moving_average_50d,
             moving_average_200d=stats.moving_average_200d,
