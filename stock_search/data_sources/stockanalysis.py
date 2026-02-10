@@ -35,6 +35,10 @@ Normalization rules:
 FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics from this page:
 https://stockanalysis.com/stocks/{ticker}/financials/
 
+Column-selection rule (mandatory):
+- Only extract from the first data column (the current/latest column).
+- Ignore all older columns to the right (prior years/quarters).
+
 Normalization rules:
 - revenue_growth: ratio (e.g. 23.4% -> 0.234)
 - eps_diluted: absolute EPS value
