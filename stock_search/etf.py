@@ -1,27 +1,13 @@
-import os
+"""ETF helper entrypoints.
 
-from llm_harness.clients import WebLoaderAgent
+Thin module that fetches ETF holdings through the StockAnalysis source adapter.
+"""
 
+from .data_sources.stockanalysis import StockAnalysisSource
 from .schemas import ETFHoldings
-
-ETF_SYSTEM_PROMPT = """Extract ETF holdings and weightings from these websites:
-https://stockanalysis.com/etf/{ticker}/holdings
-https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
-https://www.tradingview.com/symbols/{ticker}/holdings
-
-Holdings: ticker symbol, name, weight percentage.
-
-Exclude the exchange prefix from the ticker symbol if it is in the US.
-Only include the exchange prefix from the ticker symbol if it is not in the US, such as 'EPA:HO', '1329.T'."""
 
 
 def get_etf_data(etf_ticker: str) -> ETFHoldings:
-    """Get the ETF data for a given ETF ticker."""
-    ticker = etf_ticker.upper().strip()
-    agent = WebLoaderAgent(
-        model=os.getenv("QUALITY_LLM"),
-        reasoning_effort="low",
-        system_prompt=ETF_SYSTEM_PROMPT.format(ticker=ticker),
-        response_format=ETFHoldings,
-    )
-    return agent.invoke(ticker)
+    """Get ETF holdings for a ticker, returning an empty list on fetch failure."""
+    snapshot = StockAnalysisSource(etf_ticker).get_etf_holdings_snapshot()
+    return snapshot.holdings if snapshot else ETFHoldings(holdings=[])

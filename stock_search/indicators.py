@@ -1,14 +1,17 @@
 import calendar
 from contextlib import suppress
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time
 from functools import cache
 import logging
 import math
-from typing import Any, cast
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
+
+from stock_search.data_sources.stockanalysis import StockAnalysisSource
+from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
@@ -110,6 +113,8 @@ _INDICATOR_FIELDS: tuple[str, ...] = (
 
 _UNSET = object()
 
+_FUNDAMENTAL_FALLBACK_ORDER: tuple[str, ...] = ("yahoo", "stockanalysis")
+
 
 # --- Helper Functions ---
 
@@ -125,11 +130,6 @@ def _safe_float(value: Any) -> float | None:
         converted = float(value)
         return converted if math.isfinite(converted) else None
     return None
-
-
-def _normalize_yahoo_ticker(ticker: str) -> str:
-    """Normalize common ticker variants for Yahoo Finance."""
-    return ticker.strip().upper().replace(" ", "-").replace(".", "-")
 
 
 def _is_quote_type(info: dict[str, Any], quote_type: str) -> bool:
@@ -184,50 +184,24 @@ def parse_ratings(
     ticker: str | yf.Ticker,
     days: int = DEFAULT_RATINGS_LOOKBACK_DAYS,
 ) -> dict[str, Any] | None:
-    stock = ticker if isinstance(ticker, yf.Ticker) else yf.Ticker(ticker)
-
-    info: dict[str, Any] = {}
-    with suppress(Exception):
-        info = stock.info or {}
-
-    current_price = info.get("currentPrice") or info.get("regularMarketPrice")
-    if current_price is None:
+    source = YahooFinanceSource(ticker)
+    snapshot = source.get_ratings_snapshot(days=days)
+    if snapshot is None:
         return None
-
-    ratings_data: Any = None
-    with suppress(Exception):
-        ratings_data = stock.upgrades_downgrades
-
-    if ratings_data is None or isinstance(ratings_data, dict):
-        return None
-    if isinstance(ratings_data, pd.DataFrame) and ratings_data.empty:
-        return None
-
-    ratings_df = cast(pd.DataFrame, ratings_data).copy()
-
-    try:
-        ratings_df.index = pd.to_datetime(ratings_df.index, utc=True)
-        cutoff = datetime.now(UTC) - timedelta(days=days)
-        recent = ratings_df[ratings_df.index >= cutoff]
-        if recent.empty:
-            return None
-
-        upside_pct = ((recent["currentPriceTarget"] - current_price) / current_price * 100).round(2)
-        return {
-            "median_upside_pct": float(upside_pct.median()),
-            "ratings": recent.to_dict("records"),
-        }
-    except Exception:
-        return None
+    return {
+        "median_upside_pct": snapshot.median_upside_pct,
+        "ratings": snapshot.ratings,
+    }
 
 
 class StockIndicator:
     """Fetches and calculates technical and fundamental indicators for a stock."""
 
     def __init__(self, ticker: str):
-        self.ticker = yf.Ticker(_normalize_yahoo_ticker(ticker))
-        self._info: dict[str, Any] = {}
-        self._history_cache: dict[str, pd.DataFrame] = {}
+        self._ticker = normalize_yahoo_ticker(ticker)
+        self._yahoo = YahooFinanceSource(self._ticker)
+        self._stockanalysis = StockAnalysisSource(self._ticker)
+        self.ticker = self._yahoo.ticker
         self._parsed_ratings: dict[str, Any] | None | object = _UNSET
         self._iv_percent: float | None | object = _UNSET
 
@@ -279,30 +253,32 @@ class StockIndicator:
         interval: str | None = None,
         prepost: bool = False,
     ) -> pd.DataFrame:
-        """Fetch and cache historical price data."""
-        cache_key = f"{period}|{interval or ''}|prepost={prepost}"
-        if cache_key in self._history_cache:
-            return self._history_cache[cache_key]
-
-        try:
-            kwargs: dict[str, Any] = {"period": period, "prepost": prepost}
-            if interval:
-                kwargs["interval"] = interval
-            hist = self.ticker.history(**kwargs)
-            hist = hist if isinstance(hist, pd.DataFrame) else pd.DataFrame()
-        except Exception:
-            hist = pd.DataFrame()
-
-        self._history_cache[cache_key] = hist
-        return hist
+        """Fetch historical price data from Yahoo source."""
+        return self._yahoo.get_history_snapshot(
+            period=period,
+            interval=interval,
+            prepost=prepost,
+        ).history
 
     @property
     def info(self) -> dict[str, Any]:
-        """Fetch and cache info to avoid repeated network calls."""
-        if not self._info:
-            with suppress(Exception):
-                self._info = self.ticker.info or {}
-        return self._info
+        """Get provider-ready Yahoo info payload."""
+        return self._yahoo.get_info_snapshot().raw_info
+
+    @property
+    def _stockanalysis_stats(self):
+        return self._stockanalysis.get_statistics_snapshot()
+
+    def _resolve_fallback(self, *, yahoo_value: float | None, stockanalysis_value: float | None) -> float | None:
+        """Resolve indicator field value from source precedence."""
+        values = {
+            "yahoo": yahoo_value,
+            "stockanalysis": stockanalysis_value,
+        }
+        for source_name in _FUNDAMENTAL_FALLBACK_ORDER:
+            if (value := values[source_name]) is not None:
+                return value
+        return None
 
     @property
     def _market_state(self) -> str:
@@ -429,12 +405,16 @@ class StockIndicator:
     @property
     def market_cap(self) -> float | None:
         """Raw market cap in dollars."""
-        return self._info_float("marketCap")
+        yahoo_value = self._info_float("marketCap")
+        stockanalysis_value = _safe_float(self._stockanalysis_stats.market_cap)
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def pe(self) -> float | None:
         """Trailing P/E ratio."""
-        return _round(self._info_float("trailingPE"))
+        yahoo_value = _round(self._info_float("trailingPE"))
+        stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.trailing_pe))
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @staticmethod
     def _fiscal_weight_fy0(next_fiscal_year_end: float | None) -> float | None:
@@ -462,7 +442,9 @@ class StockIndicator:
 
         eps_fy0 = self._info_float("epsCurrentYear")
         eps_fy1 = self._info_float("forwardEps")
-        return self._forward_pe_from_eps(price=price, eps_fy0=eps_fy0, eps_fy1=eps_fy1)
+        yahoo_value = self._forward_pe_from_eps(price=price, eps_fy0=eps_fy0, eps_fy1=eps_fy1)
+        stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.forward_pe))
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     def _forward_pe_from_eps(
         self,
@@ -486,12 +468,16 @@ class StockIndicator:
     @property
     def peg(self) -> float | None:
         """PEG ratio."""
-        return _round(self._info_float("trailingPegRatio"))
+        yahoo_value = _round(self._info_float("trailingPegRatio"))
+        stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.peg_ratio))
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def beta(self) -> float | None:
         """Beta from Yahoo fundamentals."""
-        return _round(self._info_float("beta") or self._info_float("beta3Year"))
+        yahoo_value = _round(self._info_float("beta") or self._info_float("beta3Year"))
+        stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.beta_5y))
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     def _percent_from_info(self, key: str) -> float | None:
         """Read a ratio from Yahoo info and return as percentage points."""
@@ -506,12 +492,18 @@ class StockIndicator:
     @property
     def gross_margin(self) -> float | None:
         """Gross margin percentage."""
-        return self._percent_from_info("grossMargins")
+        yahoo_value = self._percent_from_info("grossMargins")
+        stockanalysis_ratio = _safe_float(self._stockanalysis_stats.gross_margin)
+        stockanalysis_value = _round(stockanalysis_ratio * 100) if stockanalysis_ratio is not None else None
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def debt_to_equity(self) -> float | None:
         """Debt-to-equity percentage from Yahoo Finance."""
-        return _round(self._info_float("debtToEquity"))
+        yahoo_value = _round(self._info_float("debtToEquity"))
+        stockanalysis_ratio = _safe_float(self._stockanalysis_stats.debt_to_equity)
+        stockanalysis_value = _round(stockanalysis_ratio * 100) if stockanalysis_ratio is not None else None
+        return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def free_cash_flow(self) -> float | None:
