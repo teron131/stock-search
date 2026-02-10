@@ -1,10 +1,9 @@
 import calendar
 from contextlib import suppress
-from datetime import UTC, date, datetime, time
-from functools import cache
+from datetime import date, datetime, time
 import logging
 import math
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -18,9 +17,6 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # --- Configuration ---
 DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 DEFAULT_RSI_PERIOD = 14
-DEFAULT_FX_LOOKBACK_PERIOD = "5d"
-DEFAULT_FX_INTERVAL = "1d"
-ETF_QUOTE_TYPE = "ETF"
 
 # Kept as public export for scripts that format market-cap display values.
 MARKET_CAP_UNITS: tuple[tuple[float, str], ...] = (
@@ -49,21 +45,6 @@ _SESSION_WINDOWS: dict[str, tuple[time, time]] = {
     MARKET_STATE_POST: (_SESSION_REGULAR_END, _SESSION_POST_END),
     MARKET_STATE_POSTPOST: (_SESSION_REGULAR_END, _SESSION_POST_END),
 }
-
-# --- Price Resolution ---
-_SESSION_PRICE_KEYS: dict[str, str] = {
-    MARKET_STATE_PRE: "preMarketPrice",
-    MARKET_STATE_POST: "postMarketPrice",
-    MARKET_STATE_POSTPOST: "postMarketPrice",
-    MARKET_STATE_CLOSED: "postMarketPrice",
-    MARKET_STATE_REGULAR: "regularMarketPrice",
-}
-_PRICE_FALLBACK_ORDER = ("regularMarketPrice", "postMarketPrice", "preMarketPrice")
-_PRICE_TIME_KEYS: tuple[tuple[str, str], ...] = (
-    ("preMarketPrice", "preMarketTime"),
-    ("regularMarketPrice", "regularMarketTime"),
-    ("postMarketPrice", "postMarketTime"),
-)
 
 # --- History & Volatility ---
 _INTRADAY_INTERVALS = ("1m", "5m", "15m")
@@ -132,11 +113,6 @@ def _safe_float(value: Any) -> float | None:
     return None
 
 
-def _is_quote_type(info: dict[str, Any], quote_type: str) -> bool:
-    """Check quoteType using normalized uppercase comparison."""
-    return str(info.get("quoteType") or "").upper() == quote_type
-
-
 def _subtract_months(value: date, months: int) -> date:
     """Return a date shifted back by N calendar months."""
     year, month = value.year, value.month - months
@@ -152,32 +128,6 @@ def _close_series(hist: pd.DataFrame) -> pd.Series | None:
         return None
     series = hist["Close"].dropna()
     return series if not series.empty else None
-
-
-def _latest_close_price(hist: pd.DataFrame) -> float | None:
-    """Get latest non-null close from a history frame."""
-    series = _close_series(hist)
-    return float(series.iloc[-1]) if series is not None else None
-
-
-@cache
-def _fx_rate(from_currency: str, to_currency: str) -> float | None:
-    """Best-effort FX rate from `from_currency` to `to_currency`."""
-    source, target = from_currency.strip().upper(), to_currency.strip().upper()
-    if not source or not target:
-        return None
-    if source == target:
-        return 1.0
-
-    for pair, invert in ((f"{source}{target}=X", False), (f"{target}{source}=X", True)):
-        with suppress(Exception):
-            hist = yf.Ticker(pair).history(
-                period=DEFAULT_FX_LOOKBACK_PERIOD,
-                interval=DEFAULT_FX_INTERVAL,
-            )
-            if (price := _latest_close_price(hist)) is not None and price != 0:
-                return 1.0 / price if invert else price
-    return None
 
 
 def parse_ratings(
@@ -283,15 +233,7 @@ class StockIndicator:
     @property
     def _market_state(self) -> str:
         """Get current market state from Yahoo info."""
-        return str(self.info.get("marketState") or "").upper()
-
-    def _info_float(self, key: str) -> float | None:
-        """Read a float-like value from cached Yahoo info."""
-        return _safe_float(self.info.get(key))
-
-    def _current_price_from_info(self) -> float | None:
-        """Best-effort current/regular price directly from Yahoo info."""
-        return self._info_float("currentPrice") or self._info_float("regularMarketPrice")
+        return self._yahoo.get_market_state()
 
     # -------------------------------------------------------------------------
     # Price Resolution
@@ -353,25 +295,16 @@ class StockIndicator:
 
     def _select_realtime_price_from_info(self) -> float | None:
         """Pick the best available price from Yahoo `info`, including pre/post market."""
-        info = self.info
-        candidates = [(int(info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := _safe_float(info.get(price_key))) is not None]
-        if candidates and any(ts > 0 for ts, _ in candidates):
-            return _round(max(candidates, key=lambda x: x[0])[1])
-
-        preferred = _SESSION_PRICE_KEYS.get(self._market_state)
-        for key in (preferred, *_PRICE_FALLBACK_ORDER):
-            if key and (price := _safe_float(info.get(key))) is not None:
-                return _round(price)
-        return None
+        return self._yahoo.get_realtime_price(self._market_state)
 
     @property
     def price(self) -> float | None:
         """Get latest price based on market state (Pre, Regular, Post)."""
-        return self._select_realtime_price_from_info() or _round(self._info_float("currentPrice")) or self._last_intraday_price() or self._last_close()
+        return self._select_realtime_price_from_info() or _round(self._yahoo.get_current_price()) or self._last_intraday_price() or self._last_close()
 
     def _get_previous_close(self) -> float | None:
         """Get appropriate baseline price for calculating change."""
-        if (prev := self._info_float("regularMarketPreviousClose")) is not None:
+        if (prev := self._yahoo.get_previous_close()) is not None:
             return _round(prev)
         return self._previous_close_from_history()
 
@@ -405,24 +338,16 @@ class StockIndicator:
     @property
     def market_cap(self) -> float | None:
         """Raw market cap in dollars."""
-        yahoo_value = self._info_float("marketCap")
+        yahoo_value = self._yahoo.get_market_cap()
         stockanalysis_value = _safe_float(self._stockanalysis_stats.market_cap)
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def pe(self) -> float | None:
         """Trailing P/E ratio."""
-        yahoo_value = _round(self._info_float("trailingPE"))
+        yahoo_value = self._yahoo.get_pe_trailing()
         stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.trailing_pe))
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
-
-    @staticmethod
-    def _fiscal_weight_fy0(next_fiscal_year_end: float | None) -> float | None:
-        """Weight of FY0 in a 12-month lookahead window."""
-        if next_fiscal_year_end is None:
-            return None
-        days = (datetime.fromtimestamp(next_fiscal_year_end, tz=UTC) - datetime.now(tz=UTC)).total_seconds() / 86_400
-        return min(1.0, max(0.0, days / 365.0))
 
     @property
     def pe_forward(self) -> float | None:
@@ -433,66 +358,33 @@ class StockIndicator:
         Year (FY1) using days-to-fiscal-year-end, so the denominator shifts
         naturally through the year from FY0 toward FY1.
         """
-        if _is_quote_type(self.info, ETF_QUOTE_TYPE):
-            return None
-
-        price = self._current_price_from_info()
-        if price is None or price <= 0:
-            return None
-
-        eps_fy0 = self._info_float("epsCurrentYear")
-        eps_fy1 = self._info_float("forwardEps")
-        yahoo_value = self._forward_pe_from_eps(price=price, eps_fy0=eps_fy0, eps_fy1=eps_fy1)
+        yahoo_value = self._yahoo.get_forward_pe_ntm()
         stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.forward_pe))
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
-
-    def _forward_pe_from_eps(
-        self,
-        *,
-        price: float,
-        eps_fy0: float | None,
-        eps_fy1: float | None,
-    ) -> float | None:
-        """Calculate forward P/E from weighted NTM EPS, with FY1 fallback."""
-        if eps_fy0 is not None and eps_fy1 is not None:
-            weight_fy0 = self._fiscal_weight_fy0(self._info_float("nextFiscalYearEnd"))
-            if weight_fy0 is not None:
-                eps_ntm = (weight_fy0 * eps_fy0) + ((1 - weight_fy0) * eps_fy1)
-                if eps_ntm != 0:
-                    return _round(price / eps_ntm)
-
-        if eps_fy1 is not None and eps_fy1 != 0:
-            return _round(price / eps_fy1)
-        return None
 
     @property
     def peg(self) -> float | None:
         """PEG ratio."""
-        yahoo_value = _round(self._info_float("trailingPegRatio"))
+        yahoo_value = self._yahoo.get_peg()
         stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.peg_ratio))
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
 
     @property
     def beta(self) -> float | None:
         """Beta from Yahoo fundamentals."""
-        yahoo_value = _round(self._info_float("beta") or self._info_float("beta3Year"))
+        yahoo_value = self._yahoo.get_beta()
         stockanalysis_value = _round(_safe_float(self._stockanalysis_stats.beta_5y))
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
-
-    def _percent_from_info(self, key: str) -> float | None:
-        """Read a ratio from Yahoo info and return as percentage points."""
-        ratio = self._info_float(key)
-        return _round(ratio * 100) if ratio is not None else None
 
     @property
     def revenue_growth(self) -> float | None:
         """Revenue growth percentage."""
-        return self._percent_from_info("revenueGrowth")
+        return self._yahoo.get_revenue_growth_percent()
 
     @property
     def gross_margin(self) -> float | None:
         """Gross margin percentage."""
-        yahoo_value = self._percent_from_info("grossMargins")
+        yahoo_value = self._yahoo.get_gross_margin_percent()
         stockanalysis_ratio = _safe_float(self._stockanalysis_stats.gross_margin)
         stockanalysis_value = _round(stockanalysis_ratio * 100) if stockanalysis_ratio is not None else None
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
@@ -500,7 +392,7 @@ class StockIndicator:
     @property
     def debt_to_equity(self) -> float | None:
         """Debt-to-equity percentage from Yahoo Finance."""
-        yahoo_value = _round(self._info_float("debtToEquity"))
+        yahoo_value = self._yahoo.get_debt_to_equity_percent()
         stockanalysis_ratio = _safe_float(self._stockanalysis_stats.debt_to_equity)
         stockanalysis_value = _round(stockanalysis_ratio * 100) if stockanalysis_ratio is not None else None
         return self._resolve_fallback(yahoo_value=yahoo_value, stockanalysis_value=stockanalysis_value)
@@ -508,15 +400,7 @@ class StockIndicator:
     @property
     def free_cash_flow(self) -> float | None:
         """Free cash flow converted to the quote currency when needed."""
-        fcf = self._info_float("freeCashflow")
-        if fcf is None:
-            return None
-        fin_curr = str(self.info.get("financialCurrency") or "").upper()
-        quote_curr = str(self.info.get("currency") or "").upper()
-        if not fin_curr or not quote_curr or fin_curr == quote_curr:
-            return fcf
-        rate = _fx_rate(fin_curr, quote_curr)
-        return fcf * rate if rate else None
+        return self._yahoo.get_free_cash_flow_in_quote_currency()
 
     # -------------------------------------------------------------------------
     # Volatility & IV
@@ -652,7 +536,7 @@ class StockIndicator:
         today = self._now_ny().date()
         if (ytd := self._calculate_period_return_percent(date(today.year, 1, 1), "2y")) is not None:
             return ytd
-        return _round(self._info_float("ytdReturn"))
+        return self._yahoo.get_ytd_return_percent()
 
     # -------------------------------------------------------------------------
     # Analyst Ratings
