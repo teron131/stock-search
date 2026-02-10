@@ -59,10 +59,8 @@ function ensureEvalEntries(evalData) {
 }
 
 function isEtfLikeRow(row) {
-  const quoteType = String(
-    row?.quote_type ?? row?.quoteType ?? "",
-  ).toUpperCase();
-  return quoteType === "ETF";
+  const equityType = String(row?.equity_type ?? "").toUpperCase();
+  return equityType === "ETF";
 }
 
 function mergeRows(dashData, evalData) {

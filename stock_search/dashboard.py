@@ -425,8 +425,8 @@ def _build_row(
     eval_source = "llm" if llm_count == len(llm_flags) else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
-    quote_type = str(stats.get("quote_type") or stats.get("quoteType") or "").upper()
-    equity_type = "ETF" if quote_type == "ETF" else "STOCK"
+    quote_type = str(stats.get("quote_type") or "").upper()
+    equity_type = "ETF" if quote_type == "ETF" else ("STOCK" if quote_type else "UNKNOWN")
     etf_holdings = stats.get("etf_holdings") or stats.get("holdings") or []
     if not isinstance(etf_holdings, list):
         etf_holdings = []
@@ -454,7 +454,6 @@ def _build_row(
         "ticker": ticker,
         "name": stats.get("name"),
         "equity_type": equity_type,
-        "quote_type": quote_type or None,
         "quantity": qty,
         "delta": delta,
         "current_price": price,
