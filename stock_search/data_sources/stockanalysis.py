@@ -31,6 +31,16 @@ Normalization rules:
 - average_volume_20d: shares (absolute number)
 """
 
+FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics from this page:
+https://stockanalysis.com/stocks/{ticker}/financials/
+
+Normalization rules:
+- revenue_growth_yoy: ratio (e.g. 23.4% -> 0.234)
+- eps_diluted: absolute EPS value
+- eps_growth: ratio (e.g. 18.0% -> 0.18)
+- gross_margin and operating_margin: ratios (e.g. 52.49% -> 0.5249)
+"""
+
 ETF_HOLDINGS_SYSTEM_PROMPT = """Extract ETF holdings and weightings from these websites:
 https://stockanalysis.com/etf/{ticker}/holdings
 https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
@@ -68,6 +78,23 @@ class StockAnalysisStatistics(BaseModel):
     debt_to_ebitda: float | None = Field(default=None, description="Debt / EBITDA")
 
 
+class StockAnalysisFinancials(BaseModel):
+    """Structured output schema for the StockAnalysis financials page.
+
+    Source page:
+    https://stockanalysis.com/stocks/{ticker}/financials/
+
+    All fields default to `None` by design so extraction can degrade safely when
+    values are missing or unclear in the page layout.
+    """
+
+    revenue_growth_yoy: float | None = Field(default=None, description="Revenue Growth (YoY)")
+    eps_diluted: float | None = Field(default=None, description="EPS (Diluted)")
+    eps_growth: float | None = Field(default=None, description="EPS Growth")
+    gross_margin: float | None = Field(default=None, description="Gross Margin")
+    operating_margin: float | None = Field(default=None, description="Operating Margin")
+
+
 @dataclass(frozen=True)
 class StockAnalysisEtfSnapshot:
     """ETF holdings snapshot extracted from supported holdings pages."""
@@ -89,6 +116,8 @@ class StockAnalysisIndicatorsSnapshot:
     gross_margin: float | None = None
     operating_margin: float | None = None
     debt_to_ebitda: float | None = None
+    eps_diluted: float | None = None
+    eps_growth: float | None = None
     free_cash_flow: float | None = None
     fifty_two_week_price_change: float | None = None
     moving_average_50d: float | None = None
@@ -109,6 +138,8 @@ class StockAnalysisSource:
         self.ticker = ticker.upper().strip()
         self._statistics_snapshot: StockAnalysisStatistics | None = None
         self._statistics_fetched_at: datetime | None = None
+        self._financials_snapshot: StockAnalysisFinancials | None = None
+        self._financials_fetched_at: datetime | None = None
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
 
@@ -141,6 +172,35 @@ class StockAnalysisSource:
         """Timestamp of the first successful statistics fetch for this instance."""
         return self._statistics_fetched_at
 
+    def get_financials_snapshot(self) -> StockAnalysisFinancials:
+        """Fetch financials snapshot from StockAnalysis financials page via LLM."""
+        if self._financials_snapshot is None:
+            agent = WebLoaderAgent(
+                model=os.getenv("QUALITY_LLM"),
+                reasoning_effort="low",
+                system_prompt=FINANCIALS_SYSTEM_PROMPT.format(ticker=self.ticker),
+                response_format=StockAnalysisFinancials,
+            )
+            self._financials_snapshot = agent.invoke(self.ticker)
+            self._financials_fetched_at = datetime.now(tz=UTC)
+            logger.info(
+                "Fetched StockAnalysis financials for %s at %s",
+                self.ticker,
+                self._financials_fetched_at.isoformat(),
+            )
+        else:
+            logger.info(
+                "Using cached StockAnalysis financials for %s fetched at %s",
+                self.ticker,
+                self._financials_fetched_at.isoformat() if self._financials_fetched_at else "unknown",
+            )
+        return self._financials_snapshot
+
+    @property
+    def financials_fetched_at(self) -> datetime | None:
+        """Timestamp of the first successful financials fetch for this instance."""
+        return self._financials_fetched_at
+
     def get_etf_holdings_snapshot(self) -> StockAnalysisEtfSnapshot | None:
         """Fetch ETF holdings snapshot using LLM extraction."""
         if self._etf_snapshot is not None:
@@ -166,6 +226,9 @@ class StockAnalysisSource:
             return self._indicators_snapshot
 
         stats = self.get_statistics_snapshot()
+        financials = self.get_financials_snapshot()
+        gross_margin = stats.gross_margin if stats.gross_margin is not None else financials.gross_margin
+        operating_margin = stats.operating_margin if stats.operating_margin is not None else financials.operating_margin
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
             market_cap=stats.market_cap,
             pe=stats.trailing_pe,
@@ -173,9 +236,12 @@ class StockAnalysisSource:
             peg=stats.peg_ratio,
             beta=stats.beta_5y,
             roic=(stats.return_on_invested_capital * 100) if stats.return_on_invested_capital is not None else None,
-            gross_margin=(stats.gross_margin * 100) if stats.gross_margin is not None else None,
-            operating_margin=(stats.operating_margin * 100) if stats.operating_margin is not None else None,
+            revenue_growth=(financials.revenue_growth_yoy * 100) if financials.revenue_growth_yoy is not None else None,
+            gross_margin=(gross_margin * 100) if gross_margin is not None else None,
+            operating_margin=(operating_margin * 100) if operating_margin is not None else None,
             debt_to_ebitda=stats.debt_to_ebitda,
+            eps_diluted=financials.eps_diluted,
+            eps_growth=(financials.eps_growth * 100) if financials.eps_growth is not None else None,
             fifty_two_week_price_change=stats.fifty_two_week_price_change,
             moving_average_50d=stats.moving_average_50d,
             moving_average_200d=stats.moving_average_200d,
