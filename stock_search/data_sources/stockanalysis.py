@@ -22,12 +22,13 @@ https://stockanalysis.com/stocks/{ticker}/statistics/
 
 Normalization rules:
 - market_cap: absolute dollars (not shorthand like B/M)
-- trailing_pe, forward_pe, peg_ratio: numeric ratios
-- return_on_invested_capital, gross_margin, and operating_margin: ratios (e.g. 52.49% -> 0.5249)
+- pe, pe_forward, peg: numeric ratios
+- roic, gross_margin, and operating_margin: ratios (e.g. 52.49% -> 0.5249)
 - debt_to_ebitda: numeric ratio
+- free_cash_flow: absolute dollars
 - fifty_two_week_price_change: percentage points (e.g. 34.5 for 34.5%)
 - moving_average_50d and moving_average_200d: absolute price values
-- rsi_14d: RSI numeric value (0-100)
+- rsi: RSI numeric value (0-100)
 - average_volume_20d: shares (absolute number)
 """
 
@@ -35,7 +36,7 @@ FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics from this page:
 https://stockanalysis.com/stocks/{ticker}/financials/
 
 Normalization rules:
-- revenue_growth_yoy: ratio (e.g. 23.4% -> 0.234)
+- revenue_growth: ratio (e.g. 23.4% -> 0.234)
 - eps_diluted: absolute EPS value
 - eps_growth: ratio (e.g. 18.0% -> 0.18)
 - gross_margin and operating_margin: ratios (e.g. 52.49% -> 0.5249)
@@ -62,20 +63,24 @@ class StockAnalysisStatistics(BaseModel):
     values are missing or unclear in the page layout.
     """
 
+    # Market and price behavior
     market_cap: float | None = Field(default=None, description="Market Cap")
-    beta_5y: float | None = Field(default=None, description="Beta (5Y)")
+    beta: float | None = Field(default=None, description="Beta (5Y)")
     fifty_two_week_price_change: float | None = Field(default=None, description="52-Week Price Change")
     moving_average_50d: float | None = Field(default=None, description="50-Day Moving Average")
     moving_average_200d: float | None = Field(default=None, description="200-Day Moving Average")
-    rsi_14d: float | None = Field(default=None, description="Relative Strength Index (RSI)")
+    rsi: float | None = Field(default=None, description="Relative Strength Index (RSI)")
     average_volume_20d: float | None = Field(default=None, description="Average Volume (20 Days)")
-    trailing_pe: float | None = Field(default=None, description="PE Ratio")
-    forward_pe: float | None = Field(default=None, description="Forward PE")
-    peg_ratio: float | None = Field(default=None, description="PEG Ratio")
-    return_on_invested_capital: float | None = Field(default=None, description="Return on Invested Capital (ROIC)")
+    # Valuation
+    pe: float | None = Field(default=None, description="PE Ratio")
+    pe_forward: float | None = Field(default=None, description="Forward PE")
+    peg: float | None = Field(default=None, description="PEG Ratio")
+    # Profitability and balance-sheet efficiency
+    roic: float | None = Field(default=None, description="Return on Invested Capital (ROIC)")
     gross_margin: float | None = Field(default=None, description="Gross Margin")
     operating_margin: float | None = Field(default=None, description="Operating Margin")
     debt_to_ebitda: float | None = Field(default=None, description="Debt / EBITDA")
+    free_cash_flow: float | None = Field(default=None, description="Free Cash Flow")
 
 
 class StockAnalysisFinancials(BaseModel):
@@ -88,9 +93,11 @@ class StockAnalysisFinancials(BaseModel):
     values are missing or unclear in the page layout.
     """
 
-    revenue_growth_yoy: float | None = Field(default=None, description="Revenue Growth (YoY)")
+    # Growth and per-share metrics from the financials page
+    revenue_growth: float | None = Field(default=None, description="Revenue Growth (YoY)")
     eps_diluted: float | None = Field(default=None, description="EPS (Diluted)")
     eps_growth: float | None = Field(default=None, description="EPS Growth")
+    # Also available on this URL and used as overlap fallback
     gross_margin: float | None = Field(default=None, description="Gross Margin")
     operating_margin: float | None = Field(default=None, description="Operating Margin")
 
@@ -102,29 +109,18 @@ class StockAnalysisEtfSnapshot:
     holdings: ETFHoldings
 
 
-@dataclass(frozen=True)
-class StockAnalysisIndicatorsSnapshot:
-    """Indicator-shaped payload produced by StockAnalysis source."""
+class StockAnalysisIndicatorsSnapshot(
+    StockAnalysisStatistics,
+    StockAnalysisFinancials,
+):
+    """Indicator payload that combines statistics and financials schemas.
 
-    market_cap: float | None = None
-    pe: float | None = None
-    pe_forward: float | None = None
-    peg: float | None = None
-    beta: float | None = None
-    roic: float | None = None
-    revenue_growth: float | None = None
-    gross_margin: float | None = None
-    operating_margin: float | None = None
-    debt_to_ebitda: float | None = None
-    eps_diluted: float | None = None
-    eps_growth: float | None = None
-    free_cash_flow: float | None = None
-    fifty_two_week_price_change: float | None = None
-    moving_average_50d: float | None = None
-    moving_average_200d: float | None = None
-    rsi: float | None = None
-    average_volume_20d: float | None = None
-    fetched_at: str | None = None
+    This model inherits page-level fields from both URL-based schemas and adds
+    normalized indicator aliases consumed by `indicators.py`.
+    """
+
+    # Snapshot metadata used by orchestrator/callers.
+    fetched_at: str | None = Field(default=None)
 
 
 class StockAnalysisSource:
@@ -231,21 +227,22 @@ class StockAnalysisSource:
         operating_margin = stats.operating_margin if stats.operating_margin is not None else financials.operating_margin
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
             market_cap=stats.market_cap,
-            pe=stats.trailing_pe,
-            pe_forward=stats.forward_pe,
-            peg=stats.peg_ratio,
-            beta=stats.beta_5y,
-            roic=(stats.return_on_invested_capital * 100) if stats.return_on_invested_capital is not None else None,
-            revenue_growth=(financials.revenue_growth_yoy * 100) if financials.revenue_growth_yoy is not None else None,
+            pe=stats.pe,
+            pe_forward=stats.pe_forward,
+            peg=stats.peg,
+            beta=stats.beta,
+            roic=(stats.roic * 100) if stats.roic is not None else None,
+            revenue_growth=(financials.revenue_growth * 100) if financials.revenue_growth is not None else None,
             gross_margin=(gross_margin * 100) if gross_margin is not None else None,
             operating_margin=(operating_margin * 100) if operating_margin is not None else None,
             debt_to_ebitda=stats.debt_to_ebitda,
+            free_cash_flow=stats.free_cash_flow,
             eps_diluted=financials.eps_diluted,
             eps_growth=(financials.eps_growth * 100) if financials.eps_growth is not None else None,
             fifty_two_week_price_change=stats.fifty_two_week_price_change,
             moving_average_50d=stats.moving_average_50d,
             moving_average_200d=stats.moving_average_200d,
-            rsi=stats.rsi_14d,
+            rsi=stats.rsi,
             average_volume_20d=stats.average_volume_20d,
             fetched_at=self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else None,
         )
