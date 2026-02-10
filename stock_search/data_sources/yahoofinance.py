@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from functools import cache
 import math
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
@@ -18,6 +19,34 @@ import yfinance as yf
 ETF_QUOTE_TYPE = "ETF"
 DEFAULT_FX_LOOKBACK_PERIOD = "5d"
 DEFAULT_FX_INTERVAL = "1d"
+DEFAULT_RSI_PERIOD = 14
+NY_TZ = ZoneInfo("America/New_York")
+_SESSION_PRE_START = time(4, 0)
+_SESSION_REGULAR_START = time(9, 30)
+_SESSION_REGULAR_END = time(16, 0)
+_SESSION_POST_END = time(20, 0)
+_SESSION_WINDOWS: dict[str, tuple[time, time]] = {
+    "PRE": (_SESSION_PRE_START, _SESSION_REGULAR_START),
+    "REGULAR": (_SESSION_REGULAR_START, _SESSION_REGULAR_END),
+    "POST": (_SESSION_REGULAR_END, _SESSION_POST_END),
+    "POSTPOST": (_SESSION_REGULAR_END, _SESSION_POST_END),
+}
+_INTRADAY_INTERVALS = ("1m", "5m", "15m")
+_DAILY_HISTORY_PERIOD = "5d"
+_DAILY_INTERVAL = "1d"
+_HV_WINDOWS_TO_WEIGHTS: tuple[tuple[int, int], ...] = (
+    (180, 5),
+    (90, 4),
+    (30, 3),
+    (7, 2),
+    (1, 1),
+)
+_PERIOD_CONFIGS: dict[str, tuple[int, str]] = {
+    "one_month_change_percent": (1, "2y"),
+    "three_month_change_percent": (3, "2y"),
+    "six_month_change_percent": (6, "2y"),
+    "one_year_change_percent": (12, "3y"),
+}
 _SESSION_PRICE_KEYS: dict[str, str] = {
     "PRE": "preMarketPrice",
     "POST": "postMarketPrice",
@@ -39,6 +68,19 @@ def _safe_float(value: Any) -> float | None:
         converted = float(value)
         return converted if math.isfinite(converted) else None
     return None
+
+
+def _round(value: float | None, decimals: int = 2) -> float | None:
+    return round(float(value), decimals) if value is not None else None
+
+
+def _subtract_months(value: date, months: int) -> date:
+    year, month = value.year, value.month - months
+    while month <= 0:
+        month += 12
+        year -= 1
+    month_days = [31, 29 if (year % 400 == 0 or (year % 4 == 0 and year % 100 != 0)) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    return date(year, month, min(value.day, month_days[month - 1]))
 
 
 def normalize_yahoo_ticker(ticker: str) -> str:
@@ -113,6 +155,34 @@ class YahooRatingsSnapshot:
     ratings: list[dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class YahooIndicatorsSnapshot:
+    """Indicator-shaped payload produced directly from Yahoo data."""
+
+    price: float | None = None
+    change: float | None = None
+    change_percent: float | None = None
+    market_cap: float | None = None
+    pe: float | None = None
+    pe_forward: float | None = None
+    peg: float | None = None
+    beta: float | None = None
+    iv: float | None = None
+    one_month_change_percent: float | None = None
+    three_month_change_percent: float | None = None
+    six_month_change_percent: float | None = None
+    one_year_change_percent: float | None = None
+    median_upside: float | None = None
+    revenue_growth: float | None = None
+    gross_margin: float | None = None
+    debt_to_equity: float | None = None
+    free_cash_flow: float | None = None
+    rsi: float | None = None
+    mtd_change_percent: float | None = None
+    ytd_change_percent: float | None = None
+    ratings: list[dict[str, Any]] | None = None
+
+
 class YahooFinanceSource:
     """Provider-ready Yahoo Finance adapter."""
 
@@ -127,6 +197,7 @@ class YahooFinanceSource:
         self._info_snapshot: YahooInfoSnapshot | None = None
         self._history_cache: dict[str, YahooHistorySnapshot] = {}
         self._ratings_cache: dict[int, YahooRatingsSnapshot | None] = {}
+        self._indicator_cache: dict[int, YahooIndicatorsSnapshot] = {}
 
     @property
     def info(self) -> dict[str, Any]:
@@ -236,11 +307,7 @@ class YahooFinanceSource:
 
     def get_realtime_price(self, market_state: str) -> float | None:
         """Pick best available realtime price from pre/regular/post values."""
-        candidates = [
-            (int(self.info.get(time_key) or 0), price)
-            for price_key, time_key in _PRICE_TIME_KEYS
-            if (price := _safe_float(self.info.get(price_key))) is not None
-        ]
+        candidates = [(int(self.info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := _safe_float(self.info.get(price_key))) is not None]
         if candidates and any(ts > 0 for ts, _ in candidates):
             return round(max(candidates, key=lambda x: x[0])[1], 2)
 
@@ -325,3 +392,193 @@ class YahooFinanceSource:
         if eps_fy1 is not None and eps_fy1 != 0:
             return round(price / eps_fy1, 2)
         return None
+
+    @staticmethod
+    def _index_to_ny(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+        return index.tz_convert(NY_TZ) if index.tz else index.tz_localize(NY_TZ)
+
+    @staticmethod
+    def _now_ny() -> datetime:
+        return datetime.now(tz=NY_TZ)
+
+    @staticmethod
+    def _infer_session(now_ny: datetime) -> str:
+        if now_ny.weekday() >= 5:
+            return "CLOSED"
+        now_time = now_ny.timetz().replace(tzinfo=None)
+        if _SESSION_PRE_START <= now_time < _SESSION_REGULAR_START:
+            return "PRE"
+        if _SESSION_REGULAR_START <= now_time < _SESSION_REGULAR_END:
+            return "REGULAR"
+        if _SESSION_REGULAR_END <= now_time < _SESSION_POST_END:
+            return "POST"
+        return "CLOSED"
+
+    @staticmethod
+    def _session_window(now_ny: datetime, session: str) -> tuple[datetime, datetime] | None:
+        if session not in _SESSION_WINDOWS:
+            return None
+        start_t, end_t = _SESSION_WINDOWS[session]
+        d = now_ny.date()
+        return datetime.combine(d, start_t, tzinfo=NY_TZ), datetime.combine(d, end_t, tzinfo=NY_TZ)
+
+    def _extract_session_close(
+        self,
+        hist: pd.DataFrame,
+        window: tuple[datetime, datetime] | None,
+    ) -> float | None:
+        series = _close_series(hist)
+        if series is None:
+            return None
+        try:
+            if window:
+                index_ny = self._index_to_ny(hist.index)
+                scoped = hist.loc[(index_ny >= window[0]) & (index_ny < window[1])]
+                scoped_series = _close_series(scoped)
+                if scoped_series is not None:
+                    return _round(float(scoped_series.iloc[-1]))
+            return _round(float(series.iloc[-1]))
+        except Exception:
+            return None
+
+    def _last_intraday_price(self) -> float | None:
+        now_ny = self._now_ny()
+        session = self.get_market_state() or self._infer_session(now_ny)
+        window = self._session_window(now_ny, session)
+        for interval in _INTRADAY_INTERVALS:
+            hist = self.get_history_snapshot(period="1d", interval=interval, prepost=True).history
+            if (price := self._extract_session_close(hist, window)) is not None:
+                return price
+        return None
+
+    def _daily_close_series(self) -> pd.Series | None:
+        return _close_series(self.get_history_snapshot(period=_DAILY_HISTORY_PERIOD, interval=_DAILY_INTERVAL).history)
+
+    def _last_close(self) -> float | None:
+        series = self._daily_close_series()
+        if series is None:
+            return None
+        with suppress(Exception):
+            return _round(float(series.iloc[-1]))
+        return None
+
+    def _previous_close_from_history(self) -> float | None:
+        series = self._daily_close_series()
+        if series is None:
+            return None
+        with suppress(Exception):
+            idx = -2 if len(series) >= 2 else -1
+            return _round(float(series.iloc[idx]))
+        return None
+
+    def _period_baseline_close(self, start_date: date, history_period: str) -> float | None:
+        series = _close_series(self.get_history_snapshot(period=history_period, interval="1d").history)
+        if series is None:
+            return None
+        try:
+            index_dates = self._index_to_ny(series.index).date
+            before = series.loc[index_dates < start_date]
+            if not before.empty:
+                return float(before.iloc[-1])
+            on_or_after = series.loc[index_dates >= start_date]
+            return float(on_or_after.iloc[0]) if not on_or_after.empty else None
+        except Exception:
+            return None
+
+    def _calculate_period_return_percent(self, *, start_date: date, history_period: str, price: float | None) -> float | None:
+        baseline = self._period_baseline_close(start_date, history_period)
+        if price is None or baseline is None or baseline == 0:
+            return None
+        return _round(((price / baseline) - 1) * 100)
+
+    def _calculate_rsi(self, days: int = DEFAULT_RSI_PERIOD) -> float | None:
+        try:
+            series = _close_series(self.get_history_snapshot(period=f"{days + 10}d").history)
+            if series is None or len(series) < days + 1:
+                return None
+            deltas = series.diff()
+            avg_gain = float(deltas.where(deltas > 0, 0.0).rolling(window=days).mean().iloc[-1])
+            avg_loss = float((-deltas.where(deltas < 0, 0.0)).rolling(window=days).mean().iloc[-1])
+            if avg_loss == 0:
+                return 100.0
+            return _round(100 - (100 / (1 + avg_gain / avg_loss)))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _annualized_hv_percent(log_returns: pd.Series, window: int) -> float | None:
+        if len(log_returns) < window:
+            return None
+        val = _safe_float(log_returns.tail(window).std())
+        return _round(val * (252**0.5) * 100) if val is not None else None
+
+    def _calculate_iv(self) -> float | None:
+        series = _close_series(self.get_history_snapshot(period="1y", interval="1d").history)
+        if series is None or len(series) < 2:
+            return None
+        with suppress(Exception):
+            ratio = (series / series.shift(1)).replace([float("inf"), float("-inf")], pd.NA)
+            log_returns = ratio.where(ratio > 0).map(math.log).dropna()
+            if log_returns.empty:
+                return None
+            weighted_sum, total_weight = 0.0, 0
+            for window, weight in _HV_WINDOWS_TO_WEIGHTS:
+                if (hv := self._annualized_hv_percent(log_returns, window)) is not None:
+                    weighted_sum += hv * weight
+                    total_weight += weight
+            if total_weight == 0:
+                return None
+            return _round(weighted_sum / total_weight)
+        return None
+
+    def get_indicators_snapshot(self, ratings_days: int = 90) -> YahooIndicatorsSnapshot:
+        """Build and cache a Yahoo-only indicator set for orchestrator usage."""
+        if ratings_days in self._indicator_cache:
+            return self._indicator_cache[ratings_days]
+
+        price = self.get_realtime_price(self.get_market_state()) or _round(self.get_current_price()) or self._last_intraday_price() or self._last_close()
+        previous_close_info = _round(self.get_previous_close())
+        previous_close = previous_close_info if previous_close_info is not None else self._previous_close_from_history()
+        change = _round(price - previous_close) if price is not None and previous_close is not None else None
+        change_percent = _round(((price - previous_close) / previous_close) * 100) if price is not None and previous_close not in (None, 0) else None
+
+        now = self._now_ny().date()
+        period_values = {
+            field: self._calculate_period_return_percent(
+                start_date=_subtract_months(now, months),
+                history_period=hist_period,
+                price=price,
+            )
+            for field, (months, hist_period) in _PERIOD_CONFIGS.items()
+        }
+        mtd = self._calculate_period_return_percent(start_date=date(now.year, now.month, 1), history_period="3mo", price=price)
+        ytd_period = self._calculate_period_return_percent(start_date=date(now.year, 1, 1), history_period="2y", price=price)
+        ytd = ytd_period if ytd_period is not None else self.get_ytd_return_percent()
+
+        ratings_snapshot = self.get_ratings_snapshot(days=ratings_days)
+        snapshot = YahooIndicatorsSnapshot(
+            price=price,
+            change=change,
+            change_percent=change_percent,
+            market_cap=self.get_market_cap(),
+            pe=self.get_pe_trailing(),
+            pe_forward=self.get_forward_pe_ntm(),
+            peg=self.get_peg(),
+            beta=self.get_beta(),
+            iv=self._calculate_iv(),
+            one_month_change_percent=period_values["one_month_change_percent"],
+            three_month_change_percent=period_values["three_month_change_percent"],
+            six_month_change_percent=period_values["six_month_change_percent"],
+            one_year_change_percent=period_values["one_year_change_percent"],
+            median_upside=ratings_snapshot.median_upside_pct if ratings_snapshot else None,
+            revenue_growth=self.get_revenue_growth_percent(),
+            gross_margin=self.get_gross_margin_percent(),
+            debt_to_equity=self.get_debt_to_equity_percent(),
+            free_cash_flow=self.get_free_cash_flow_in_quote_currency(),
+            rsi=self._calculate_rsi(),
+            mtd_change_percent=mtd,
+            ytd_change_percent=ytd,
+            ratings=ratings_snapshot.ratings if ratings_snapshot else None,
+        )
+        self._indicator_cache[ratings_days] = snapshot
+        return snapshot

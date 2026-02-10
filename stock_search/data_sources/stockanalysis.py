@@ -46,6 +46,21 @@ class StockAnalysisEtfSnapshot:
     holdings: ETFHoldings
 
 
+@dataclass(frozen=True)
+class StockAnalysisIndicatorsSnapshot:
+    """Indicator-shaped payload produced by StockAnalysis source."""
+
+    market_cap: float | None = None
+    pe: float | None = None
+    pe_forward: float | None = None
+    peg: float | None = None
+    beta: float | None = None
+    revenue_growth: float | None = None
+    gross_margin: float | None = None
+    debt_to_equity: float | None = None
+    free_cash_flow: float | None = None
+
+
 class StockAnalysisSource:
     """Provider-ready StockAnalysis adapter.
 
@@ -57,6 +72,7 @@ class StockAnalysisSource:
         self.ticker = ticker.upper().strip()
         self._statistics_snapshot: StockAnalysisStatisticsSnapshot | None = None
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
+        self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
 
     def get_statistics_snapshot(self) -> StockAnalysisStatisticsSnapshot:
         """Return sparse statistics snapshot (placeholder for partial coverage)."""
@@ -83,3 +99,22 @@ class StockAnalysisSource:
 
         self._etf_snapshot = StockAnalysisEtfSnapshot(holdings=holdings)
         return self._etf_snapshot
+
+    def get_indicators_snapshot(self) -> StockAnalysisIndicatorsSnapshot:
+        """Return StockAnalysis indicator set (partial by design)."""
+        if self._indicators_snapshot is not None:
+            return self._indicators_snapshot
+
+        stats = self.get_statistics_snapshot()
+        gross_margin = (stats.gross_margin * 100) if stats.gross_margin is not None else None
+        debt_to_equity = (stats.debt_to_equity * 100) if stats.debt_to_equity is not None else None
+        self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
+            market_cap=stats.market_cap,
+            pe=stats.trailing_pe,
+            pe_forward=stats.forward_pe,
+            peg=stats.peg_ratio,
+            beta=stats.beta_5y,
+            gross_margin=gross_margin,
+            debt_to_equity=debt_to_equity,
+        )
+        return self._indicators_snapshot
