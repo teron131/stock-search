@@ -6,11 +6,30 @@ This module currently focuses on ETF holdings extraction and intentionally retur
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import logging
 import os
 
 from llm_harness.clients import WebLoaderAgent
+from pydantic import BaseModel, Field
 
 from stock_search.schemas import ETFHoldings
+
+logger = logging.getLogger(__name__)
+
+STATISTICS_SYSTEM_PROMPT = """Extract statistics from this page:
+https://stockanalysis.com/stocks/{ticker}/statistics/
+
+Normalization rules:
+- market_cap: absolute dollars (not shorthand like B/M)
+- trailing_pe, forward_pe, peg_ratio: numeric ratios
+- return_on_invested_capital, gross_margin, and operating_margin: ratios (e.g. 52.49% -> 0.5249)
+- debt_to_ebitda: numeric ratio
+- fifty_two_week_price_change: percentage points (e.g. 34.5 for 34.5%)
+- moving_average_50d and moving_average_200d: absolute price values
+- rsi_14d: RSI numeric value (0-100)
+- average_volume_20d: shares (absolute number)
+"""
 
 ETF_HOLDINGS_SYSTEM_PROMPT = """Extract ETF holdings and weightings from these websites:
 https://stockanalysis.com/etf/{ticker}/holdings
@@ -23,20 +42,30 @@ Exclude the exchange prefix from the ticker symbol if it is in the US.
 Only include the exchange prefix from the ticker symbol if it is not in the US, such as 'EPA:HO', '1329.T'."""
 
 
-@dataclass(frozen=True)
-class StockAnalysisStatisticsSnapshot:
-    """Statistics page snapshot.
+class StockAnalysisStatistics(BaseModel):
+    """Structured output schema for the StockAnalysis statistics page.
 
-    This source is intentionally partial for now; fields can be None.
+    Source page:
+    https://stockanalysis.com/stocks/{ticker}/statistics/
+
+    All fields default to `None` by design so extraction can degrade safely when
+    values are missing or unclear in the page layout.
     """
 
-    forward_pe: float | None = None
-    trailing_pe: float | None = None
-    peg_ratio: float | None = None
-    market_cap: float | None = None
-    beta_5y: float | None = None
-    gross_margin: float | None = None  # ratio, e.g. 0.52
-    debt_to_equity: float | None = None  # ratio, e.g. 0.06
+    market_cap: float | None = Field(default=None, description="Market Cap")
+    beta_5y: float | None = Field(default=None, description="Beta (5Y)")
+    fifty_two_week_price_change: float | None = Field(default=None, description="52-Week Price Change")
+    moving_average_50d: float | None = Field(default=None, description="50-Day Moving Average")
+    moving_average_200d: float | None = Field(default=None, description="200-Day Moving Average")
+    rsi_14d: float | None = Field(default=None, description="Relative Strength Index (RSI)")
+    average_volume_20d: float | None = Field(default=None, description="Average Volume (20 Days)")
+    trailing_pe: float | None = Field(default=None, description="PE Ratio")
+    forward_pe: float | None = Field(default=None, description="Forward PE")
+    peg_ratio: float | None = Field(default=None, description="PEG Ratio")
+    return_on_invested_capital: float | None = Field(default=None, description="Return on Invested Capital (ROIC)")
+    gross_margin: float | None = Field(default=None, description="Gross Margin")
+    operating_margin: float | None = Field(default=None, description="Operating Margin")
+    debt_to_ebitda: float | None = Field(default=None, description="Debt / EBITDA")
 
 
 @dataclass(frozen=True)
@@ -55,10 +84,18 @@ class StockAnalysisIndicatorsSnapshot:
     pe_forward: float | None = None
     peg: float | None = None
     beta: float | None = None
+    roic: float | None = None
     revenue_growth: float | None = None
     gross_margin: float | None = None
-    debt_to_equity: float | None = None
+    operating_margin: float | None = None
+    debt_to_ebitda: float | None = None
     free_cash_flow: float | None = None
+    fifty_two_week_price_change: float | None = None
+    moving_average_50d: float | None = None
+    moving_average_200d: float | None = None
+    rsi: float | None = None
+    average_volume_20d: float | None = None
+    fetched_at: str | None = None
 
 
 class StockAnalysisSource:
@@ -70,16 +107,39 @@ class StockAnalysisSource:
     def __init__(self, ticker: str):
         """Initialize source adapter for a single ticker."""
         self.ticker = ticker.upper().strip()
-        self._statistics_snapshot: StockAnalysisStatisticsSnapshot | None = None
+        self._statistics_snapshot: StockAnalysisStatistics | None = None
+        self._statistics_fetched_at: datetime | None = None
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
 
-    def get_statistics_snapshot(self) -> StockAnalysisStatisticsSnapshot:
-        """Return sparse statistics snapshot (placeholder for partial coverage)."""
-        # This provider remains intentionally sparse for now.
+    def get_statistics_snapshot(self) -> StockAnalysisStatistics:
+        """Fetch statistics snapshot from StockAnalysis statistics page via LLM."""
         if self._statistics_snapshot is None:
-            self._statistics_snapshot = StockAnalysisStatisticsSnapshot()
+            agent = WebLoaderAgent(
+                model=os.getenv("QUALITY_LLM"),
+                reasoning_effort="low",
+                system_prompt=STATISTICS_SYSTEM_PROMPT.format(ticker=self.ticker),
+                response_format=StockAnalysisStatistics,
+            )
+            self._statistics_snapshot = agent.invoke(self.ticker)
+            self._statistics_fetched_at = datetime.now(tz=UTC)
+            logger.info(
+                "Fetched StockAnalysis statistics for %s at %s",
+                self.ticker,
+                self._statistics_fetched_at.isoformat(),
+            )
+        else:
+            logger.info(
+                "Using cached StockAnalysis statistics for %s fetched at %s",
+                self.ticker,
+                self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else "unknown",
+            )
         return self._statistics_snapshot
+
+    @property
+    def statistics_fetched_at(self) -> datetime | None:
+        """Timestamp of the first successful statistics fetch for this instance."""
+        return self._statistics_fetched_at
 
     def get_etf_holdings_snapshot(self) -> StockAnalysisEtfSnapshot | None:
         """Fetch ETF holdings snapshot using LLM extraction."""
@@ -106,15 +166,21 @@ class StockAnalysisSource:
             return self._indicators_snapshot
 
         stats = self.get_statistics_snapshot()
-        gross_margin = (stats.gross_margin * 100) if stats.gross_margin is not None else None
-        debt_to_equity = (stats.debt_to_equity * 100) if stats.debt_to_equity is not None else None
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
             market_cap=stats.market_cap,
             pe=stats.trailing_pe,
             pe_forward=stats.forward_pe,
             peg=stats.peg_ratio,
             beta=stats.beta_5y,
-            gross_margin=gross_margin,
-            debt_to_equity=debt_to_equity,
+            roic=(stats.return_on_invested_capital * 100) if stats.return_on_invested_capital is not None else None,
+            gross_margin=(stats.gross_margin * 100) if stats.gross_margin is not None else None,
+            operating_margin=(stats.operating_margin * 100) if stats.operating_margin is not None else None,
+            debt_to_ebitda=stats.debt_to_ebitda,
+            fifty_two_week_price_change=stats.fifty_two_week_price_change,
+            moving_average_50d=stats.moving_average_50d,
+            moving_average_200d=stats.moving_average_200d,
+            rsi=stats.rsi_14d,
+            average_volume_20d=stats.average_volume_20d,
+            fetched_at=self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else None,
         )
         return self._indicators_snapshot
