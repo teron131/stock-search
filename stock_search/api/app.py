@@ -28,6 +28,24 @@ EVAL_PATH = DATA_DIR / "eval.json"
 app = FastAPI(title="Stock Search Dashboard")
 logger = logging.getLogger(__name__)
 
+_PORTFOLIO_SCOPE_CONFIG = {
+    "priority": {
+        "include_cached_universe": False,
+        "include_live_market": False,
+        "use_cache_timestamp": True,
+    },
+    "portfolio_live": {
+        "include_cached_universe": False,
+        "include_live_market": True,
+        "use_cache_timestamp": False,
+    },
+    "all": {
+        "include_cached_universe": True,
+        "include_live_market": True,
+        "use_cache_timestamp": False,
+    },
+}
+
 # Expose backend `data/` to the UI (portfolio/eval/stats JSON)
 # This must be mounted before the UI mount at "/".
 app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
@@ -113,9 +131,9 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     _set_no_store(response)
     started_at = perf_counter()
 
-    is_priority_scope = scope == "priority"
-    include_cached_universe = scope == "all"
-    include_live_market = scope in {"all", "portfolio_live"}
+    scope_config = _PORTFOLIO_SCOPE_CONFIG.get(scope, _PORTFOLIO_SCOPE_CONFIG["all"])
+    include_cached_universe = scope_config["include_cached_universe"]
+    include_live_market = scope_config["include_live_market"]
 
     df = get_dashboard(
         PORTFOLIO_PATH,
@@ -126,7 +144,7 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     )
     df = df.where(pd.notna(df), None)
 
-    generated_at = _stats_cache_generated_at() if is_priority_scope else datetime.now(tz=UTC).isoformat()
+    generated_at = _stats_cache_generated_at() if scope_config["use_cache_timestamp"] else datetime.now(tz=UTC).isoformat()
 
     payload = {
         "columns": list(df.columns),

@@ -19,6 +19,8 @@ const EVAL_KEYS = [
   "bear",
   "rank",
 ];
+const FOREGROUND_TIMEOUT_MS = 30_000;
+const BACKGROUND_TIMEOUT_MS = 12_000;
 
 function withCacheBuster(url) {
   const cacheBuster = `_=${Date.now()}`;
@@ -226,6 +228,14 @@ export function usePortfolioData() {
   const [lastError, setLastError] = useState(null);
 
   const syncInFlightRef = useRef(false);
+  const demoPathRef = useRef(null);
+
+  const resolveDemoPath = useCallback(async () => {
+    if (demoPathRef.current) return demoPathRef.current;
+    const resolved = await determineDemoPath();
+    demoPathRef.current = resolved;
+    return resolved;
+  }, []);
 
   const stats = useMemo(() => {
     const { totalVal, rows: weighted } = calculateWeights(rows);
@@ -264,7 +274,7 @@ export function usePortfolioData() {
       try {
         // Demo mode: static only
         if (CONFIG.isDemoMode) {
-          const basePath = await determineDemoPath();
+          const basePath = await resolveDemoPath();
           setIsUsingDemoData(true);
           const { dashData, evalData } =
             await fetchStaticPortfolioData(basePath);
@@ -285,19 +295,21 @@ export function usePortfolioData() {
             : Promise.resolve(null);
 
         const dashData = await (async () => {
-          const url =
-            scope === "priority"
-              ? `${CONFIG.endpoints.portfolio}?scope=priority`
-              : CONFIG.endpoints.portfolio;
-          const timeoutMs = background ? 12_000 : 30_000;
-          const payload = await fetchJsonWithTimeout(url, timeoutMs);
+          const portfolioUrl =
+            scope === "all"
+              ? CONFIG.endpoints.portfolio
+              : `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
+          const timeoutMs = background
+            ? BACKGROUND_TIMEOUT_MS
+            : FOREGROUND_TIMEOUT_MS;
+          const payload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
           if (!payload) throw new Error("API Failure");
           return payload;
         })();
 
         let evalData = await evalApiPromise;
         if (evalData == null && shouldFetchMetadata) {
-          const basePath = await determineDemoPath();
+          const basePath = await resolveDemoPath();
           evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
         }
 
@@ -320,7 +332,7 @@ export function usePortfolioData() {
 
         // If API fails, fall back to static (read-only)
         try {
-          const basePath = await determineDemoPath();
+          const basePath = await resolveDemoPath();
           const { dashData, evalData } =
             await fetchStaticPortfolioData(basePath);
           setIsUsingDemoData(true);
@@ -342,7 +354,7 @@ export function usePortfolioData() {
         }
       }
     },
-    [applyMergedRows, colorStandards, loadingMode],
+    [applyMergedRows, colorStandards, loadingMode, resolveDemoPath],
   );
 
   const patchPortfolioPosition = useCallback(

@@ -31,17 +31,12 @@ _HISTORY_FAILURE_COOLDOWN_SECONDS = 180
 _INFO_TTL_SECONDS = 3_600  # 1 hour
 _INFO_STALE_SECONDS = 172_800  # 48 hours
 _INFO_FAILURE_COOLDOWN_SECONDS = 1_800  # 30 minutes
-_RATINGS_TTL_SECONDS = 86_400  # 1 day
-_RATINGS_STALE_SECONDS = 604_800  # 7 days
-_RATINGS_FAILURE_COOLDOWN_SECONDS = 21_600  # 6 hours
 # Keep at zero for responsive local dashboard refresh; thread pool size still bounds concurrency.
 _LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.0
 _HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _HISTORY_FAILURES: dict[str, datetime] = {}
 _INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _INFO_FAILURES: dict[str, datetime] = {}
-_RATINGS_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
-_RATINGS_FAILURES: dict[str, datetime] = {}
 _LIVE_STATS_CACHE_LOCK = Lock()
 _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
@@ -70,32 +65,6 @@ _MARKET_KEYS = {
     "ytd_change_percent",
     "median_upside",
 }
-
-_HISTORY_FIELDS = {
-    "price",
-    "change",
-    "change_percent",
-    "iv",
-    "rsi",
-    "one_month_change_percent",
-    "three_month_change_percent",
-    "six_month_change_percent",
-    "one_year_change_percent",
-    "mtd_change_percent",
-    "ytd_change_percent",
-}
-_INFO_FIELDS = {
-    "market_cap",
-    "pe",
-    "pe_forward",
-    "peg",
-    "beta",
-    "debt_to_equity",
-    "free_cash_flow",
-    "revenue_growth",
-    "gross_margin",
-}
-_RATINGS_FIELDS: set[str] = set()
 
 _UPDATE_TIER_FAST_LABEL = "history_1m"
 _UPDATE_TIER_SLOW_LABEL = "info_1h"
@@ -241,7 +210,7 @@ def _rate_limit_wait() -> None:
 
 
 def _fetch_live_stats(ticker: str) -> dict[str, Any]:
-    """Fetch tiered market stats for a ticker (history + info + ratings)."""
+    """Fetch tiered market stats for a ticker (history + info)."""
     ticker_key = str(ticker).upper().strip()
     now = datetime.now(tz=UTC)
     history_ttl_cutoff = now - timedelta(seconds=_HISTORY_TTL_SECONDS)
@@ -250,30 +219,22 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     info_ttl_cutoff = now - timedelta(seconds=_INFO_TTL_SECONDS)
     info_stale_cutoff = now - timedelta(seconds=_INFO_STALE_SECONDS)
     info_failure_cutoff = now - timedelta(seconds=_INFO_FAILURE_COOLDOWN_SECONDS)
-    ratings_ttl_cutoff = now - timedelta(seconds=_RATINGS_TTL_SECONDS)
-    ratings_stale_cutoff = now - timedelta(seconds=_RATINGS_STALE_SECONDS)
-    ratings_failure_cutoff = now - timedelta(seconds=_RATINGS_FAILURE_COOLDOWN_SECONDS)
 
     with _LIVE_STATS_CACHE_LOCK:
         history_entry = _HISTORY_CACHE.get(ticker_key)
         info_entry = _INFO_CACHE.get(ticker_key)
-        ratings_entry = _RATINGS_CACHE.get(ticker_key)
         history_failure = _HISTORY_FAILURES.get(ticker_key)
         info_failure = _INFO_FAILURES.get(ticker_key)
-        ratings_failure = _RATINGS_FAILURES.get(ticker_key)
 
     history_data = dict(history_entry[1]) if history_entry else {}
     info_data = dict(info_entry[1]) if info_entry else {}
-    ratings_data = dict(ratings_entry[1]) if ratings_entry else {}
     history_fresh = bool(history_entry and history_entry[0] >= history_ttl_cutoff)
     info_fresh = bool(info_entry and info_entry[0] >= info_ttl_cutoff)
-    ratings_fresh = bool(ratings_entry and ratings_entry[0] >= ratings_ttl_cutoff)
     history_recent_failure = bool(history_failure and history_failure >= history_failure_cutoff)
     info_recent_failure = bool(info_failure and info_failure >= info_failure_cutoff)
-    ratings_recent_failure = bool(ratings_failure and ratings_failure >= ratings_failure_cutoff)
 
-    if history_fresh and info_fresh and ratings_fresh:
-        return {**info_data, **ratings_data, **history_data}
+    if history_fresh and info_fresh:
+        return {**info_data, **history_data}
 
     def has_history_stale() -> bool:
         return bool(history_entry and history_entry[0] >= history_stale_cutoff)
@@ -281,21 +242,15 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     def has_info_stale() -> bool:
         return bool(info_entry and info_entry[0] >= info_stale_cutoff)
 
-    def has_ratings_stale() -> bool:
-        return bool(ratings_entry and ratings_entry[0] >= ratings_stale_cutoff)
-
     need_history_fetch = not history_fresh and not history_recent_failure
     need_info_fetch = not info_fresh and not info_recent_failure
-    need_ratings_fetch = bool(_RATINGS_FIELDS) and not ratings_fresh and not ratings_recent_failure
 
     if history_recent_failure and not has_history_stale():
         history_data = {}
     if info_recent_failure and not has_info_stale():
         info_data = {}
-    if ratings_recent_failure and not has_ratings_stale():
-        ratings_data = {}
 
-    yahoo_source = YahooFinanceSource(ticker_key) if (need_history_fetch or need_info_fetch or need_ratings_fetch) else None
+    yahoo_source = YahooFinanceSource(ticker_key) if (need_history_fetch or need_info_fetch) else None
 
     if need_history_fetch:
         _rate_limit_wait()
@@ -350,22 +305,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 _INFO_FAILURES[ticker_key] = now
                 info_data = dict(_INFO_CACHE[ticker_key][1]) if has_info_stale() else {}
 
-    if need_ratings_fetch:
-        try:
-            ratings_snapshot = yahoo_source.get_ratings_snapshot(days=90)
-            fetched_ratings = {
-                "median_upside": ratings_snapshot.median_upside_pct if ratings_snapshot else None,
-            }
-            with _LIVE_STATS_CACHE_LOCK:
-                _RATINGS_CACHE[ticker_key] = (now, fetched_ratings)
-                _RATINGS_FAILURES.pop(ticker_key, None)
-                ratings_data = dict(fetched_ratings)
-        except Exception:
-            with _LIVE_STATS_CACHE_LOCK:
-                _RATINGS_FAILURES[ticker_key] = now
-                ratings_data = dict(_RATINGS_CACHE[ticker_key][1]) if has_ratings_stale() else {}
-
-    merged = {**info_data, **ratings_data, **history_data}
+    merged = {**info_data, **history_data}
     return {k: v for k, v in merged.items() if v is not None or k == "pe_forward"}
 
 
