@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import logging
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -24,6 +26,7 @@ STATS_PATH = DATA_DIR / "stats.json"
 EVAL_PATH = DATA_DIR / "eval.json"
 
 app = FastAPI(title="Stock Search Dashboard")
+logger = logging.getLogger(__name__)
 
 # Expose backend `data/` to the UI (portfolio/eval/stats JSON)
 # This must be mounted before the UI mount at "/".
@@ -88,11 +91,7 @@ def _ensure_valid_new_ticker(ticker: str) -> None:
 def _find_position_index(positions: list[dict[str, Any]], ticker: str) -> int | None:
     ticker_upper = ticker.upper()
     return next(
-        (
-            index
-            for index, position in enumerate(positions)
-            if position.get("ticker", "").upper() == ticker_upper
-        ),
+        (index for index, position in enumerate(positions) if position.get("ticker", "").upper() == ticker_upper),
         None,
     )
 
@@ -112,6 +111,7 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
 @app.get("/api/portfolio")
 def portfolio_api(response: Response, scope: str = "all") -> dict:
     _set_no_store(response)
+    started_at = perf_counter()
 
     is_priority_scope = scope == "priority"
     include_cached_universe = scope == "all"
@@ -126,22 +126,37 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     )
     df = df.where(pd.notna(df), None)
 
-    generated_at = (
-        _stats_cache_generated_at() if is_priority_scope else datetime.now(tz=UTC).isoformat()
-    )
+    generated_at = _stats_cache_generated_at() if is_priority_scope else datetime.now(tz=UTC).isoformat()
 
-    return {
+    payload = {
         "columns": list(df.columns),
         "rows": df.to_dict(orient="records"),
         "generated_at": generated_at,
     }
+    elapsed_ms = (perf_counter() - started_at) * 1000
+    logger.info(
+        "portfolio_api scope=%s rows=%s live=%s cached_universe=%s duration_ms=%.1f",
+        scope,
+        len(payload["rows"]),
+        include_live_market,
+        include_cached_universe,
+        elapsed_ms,
+    )
+    return payload
 
 
 @app.get("/api/portfolio/{ticker}")
 def portfolio_ticker_api(ticker: str, response: Response) -> dict:
     _set_no_store(response)
 
-    df = get_dashboard(PORTFOLIO_PATH, STATS_PATH, EVAL_PATH)
+    # Single-row read path: avoid full live/cached-universe rebuild.
+    df = get_dashboard(
+        PORTFOLIO_PATH,
+        STATS_PATH,
+        EVAL_PATH,
+        include_cached_universe=False,
+        include_live_market=False,
+    )
     row = _get_dashboard_row(df, ticker)
     return {
         "row": row,
@@ -188,11 +203,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
 @app.delete("/api/portfolio/{ticker}")
 def remove_position(ticker: str):
     ticker_upper = ticker.upper()
-    positions = [
-        p
-        for p in _load_positions()
-        if p.get("ticker", "").upper() != ticker_upper
-    ]
+    positions = [p for p in _load_positions() if p.get("ticker", "").upper() != ticker_upper]
     _save_positions(positions)
     return {"status": "ok", "ticker": ticker_upper}
 

@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
@@ -12,6 +11,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.evaluation.constants import (
     DEFAULT_BEAR_PROBABILITY,
     DEFAULT_BULL_PROBABILITY,
@@ -22,10 +22,9 @@ from stock_search.evaluation.evaluation import (
     bucket_from_eval_json,
     normalize_eval_json,
 )
-from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.file_utils import load_json
 
-_MAX_WORKERS = 5
+_MAX_WORKERS = 8
 _HISTORY_TTL_SECONDS = 60
 _HISTORY_STALE_SECONDS = 600
 _HISTORY_FAILURE_COOLDOWN_SECONDS = 180
@@ -35,7 +34,8 @@ _INFO_FAILURE_COOLDOWN_SECONDS = 1_800  # 30 minutes
 _RATINGS_TTL_SECONDS = 86_400  # 1 day
 _RATINGS_STALE_SECONDS = 604_800  # 7 days
 _RATINGS_FAILURE_COOLDOWN_SECONDS = 21_600  # 6 hours
-_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.1
+# Keep at zero for responsive local dashboard refresh; thread pool size still bounds concurrency.
+_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.0
 _HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _HISTORY_FAILURES: dict[str, datetime] = {}
 _INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
@@ -229,6 +229,8 @@ def _pick_eval_value(
 
 
 def _rate_limit_wait() -> None:
+    if _LIVE_STATS_MIN_REQUEST_GAP_SECONDS <= 0:
+        return
     global _LAST_LIVE_STATS_REQUEST_AT
     with _LIVE_STATS_RATE_LOCK:
         elapsed = monotonic() - _LAST_LIVE_STATS_REQUEST_AT
@@ -293,11 +295,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     if ratings_recent_failure and not has_ratings_stale():
         ratings_data = {}
 
-    yahoo_source = (
-        YahooFinanceSource(ticker_key)
-        if (need_history_fetch or need_info_fetch or need_ratings_fetch)
-        else None
-    )
+    yahoo_source = YahooFinanceSource(ticker_key) if (need_history_fetch or need_info_fetch or need_ratings_fetch) else None
 
     if need_history_fetch:
         _rate_limit_wait()
@@ -385,6 +383,7 @@ def _build_row(
     ticker = pos.get("ticker")
     if not ticker:
         return {}
+    qty = float(pos.get("quantity") or 0)
 
     cached = stats_cache.get(ticker, {})
     if not isinstance(cached, dict):
@@ -398,12 +397,12 @@ def _build_row(
         eval_data = {}
 
     cached_only = bool(pos.get("_cached_only"))
-    should_fetch_live_market = include_live_market and not cached_only
+    # Background/refresh live fetches are only needed for active holdings.
+    should_fetch_live_market = include_live_market and not cached_only and qty > 0
     live_market = _fetch_live_stats(ticker) if should_fetch_live_market else {}
 
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
-    qty = float(pos.get("quantity") or 0)
     delta = float(pos.get("delta") if pos.get("delta") is not None else 0.0)
     price = stats.get("current_price") or stats.get("price")
 

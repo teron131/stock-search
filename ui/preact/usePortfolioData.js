@@ -35,6 +35,20 @@ async function tryFetchJson(url) {
   }
 }
 
+async function fetchJsonWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(withCacheBuster(url), {
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function ensureEvalEntries(evalData) {
   if (evalData && typeof evalData === "object") {
     return Object.entries(evalData).map(([ticker, data]) => ({
@@ -261,21 +275,28 @@ export function usePortfolioData() {
         // Normal mode:
         // - Portfolio/stats from API (live)
         // - Eval via API first, then static cache fallback
-        const evalApiPromise = tryFetchJson(CONFIG.endpoints.eval);
-        const standardsPromise = tryFetchJson(CONFIG.endpoints.colorStandards);
+        const shouldFetchMetadata = !background;
+        const evalApiPromise = shouldFetchMetadata
+          ? tryFetchJson(CONFIG.endpoints.eval)
+          : Promise.resolve(null);
+        const standardsPromise =
+          shouldFetchMetadata && !colorStandards
+            ? tryFetchJson(CONFIG.endpoints.colorStandards)
+            : Promise.resolve(null);
 
         const dashData = await (async () => {
           const url =
             scope === "priority"
               ? `${CONFIG.endpoints.portfolio}?scope=priority`
               : CONFIG.endpoints.portfolio;
-          const res = await fetch(withCacheBuster(url));
-          if (!res.ok) throw new Error("API Failure");
-          return await res.json();
+          const timeoutMs = background ? 12_000 : 30_000;
+          const payload = await fetchJsonWithTimeout(url, timeoutMs);
+          if (!payload) throw new Error("API Failure");
+          return payload;
         })();
 
         let evalData = await evalApiPromise;
-        if (evalData == null) {
+        if (evalData == null && shouldFetchMetadata) {
           const basePath = await determineDemoPath();
           evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
         }
@@ -287,10 +308,15 @@ export function usePortfolioData() {
         }
 
         setIsUsingDemoData(false);
-        applyMergedRows(dashData, evalData);
+        applyMergedRows(dashData, evalData ?? {});
         shouldBackfill = scope === "priority" && !background;
       } catch (e) {
         setLastError(e);
+
+        // Background refresh failures should not trigger static fallback or mode changes.
+        if (background) {
+          return;
+        }
 
         // If API fails, fall back to static (read-only)
         try {
@@ -316,7 +342,7 @@ export function usePortfolioData() {
         }
       }
     },
-    [applyMergedRows, loadingMode],
+    [applyMergedRows, colorStandards, loadingMode],
   );
 
   const patchPortfolioPosition = useCallback(
