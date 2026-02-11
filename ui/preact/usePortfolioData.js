@@ -216,11 +216,12 @@ export function usePortfolioData() {
   const stats = useMemo(() => {
     const { totalVal, rows: weighted } = calculateWeights(rows);
     const change = calculateWeightedChange(weighted, totalVal);
+    const positions = weighted.filter((row) => Number(row.quantity) > 0).length;
 
     return {
       totalVal,
       change,
-      positions: weighted.length,
+      positions,
     };
   }, [rows]);
 
