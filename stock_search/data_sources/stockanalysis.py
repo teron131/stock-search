@@ -5,17 +5,43 @@ This module defines URL-based schemas and a provider adapter that returns source
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
 import os
+import re
+from typing import TypeVar
 
-from llm_harness.clients import WebLoaderAgent
+from bs4 import BeautifulSoup
+from llm_harness.clients import WebSearchAgent, WebSearchLoaderAgent
 from pydantic import BaseModel, Field
+import requests
 
-from stock_search.schemas import ETFHoldings
+from stock_search.schemas import ETFHoldings, ETFSectors, Holding
 
 logger = logging.getLogger(__name__)
+MODEL_TYPE = TypeVar("MODEL_TYPE")
+
+STOCKANALYSIS_ETF_HOLDINGS_URL = "https://stockanalysis.com/etf/{ticker}/holdings/"
+HOLDINGS_BLOCK_PATTERN = re.compile(r"holdings:\[(.*?)\],asset_allocation:", re.DOTALL)
+HOLDING_ROW_PATTERN = re.compile(r'\{[^{}]*n:"([^"]+)"[^{}]*s:"([^"]+)"[^{}]*as:"([\d.]+)%"', re.DOTALL)
+SECTORS_BLOCK_PATTERN = re.compile(r"sectors:\[(.*?)\],countries:", re.DOTALL)
+SECTOR_ROW_PATTERN = re.compile(r'\{n:"([^"]+)",w:([\d.]+)\}')
+SECTOR_FIELD_BY_LABEL = {
+    "Communication Services": "communication_services",
+    "Consumer Discretionary": "consumer_discretionary",
+    "Consumer Staples": "consumer_staples",
+    "Energy": "energy",
+    "Financials": "financials",
+    "Health Care": "health_care",
+    "Industrials": "industrials",
+    "Materials": "materials",
+    "Real Estate": "real_estate",
+    "Technology": "technology",
+    "Utilities": "utilities",
+    "Other": "other",
+}
 
 STATISTICS_SYSTEM_PROMPT = """Extract statistics from this page:
 https://stockanalysis.com/stocks/{ticker}/statistics/
@@ -46,15 +72,32 @@ Normalization rules:
 - gross_margin and operating_margin: ratios (e.g. 52.49% -> 0.5249)
 """
 
-ETF_HOLDINGS_SYSTEM_PROMPT = """Extract ETF holdings and weightings from these websites:
-https://stockanalysis.com/etf/{ticker}/holdings
-https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
-https://www.tradingview.com/symbols/{ticker}/holdings
+ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT = """Find ETF holdings and weightings for the given ticker.
 
-Holdings: ticker symbol, name, weight percentage.
+Rules:
+- Use web search to gather holdings from this page first:
+  - https://stockanalysis.com/etf/{ticker}/holdings/
+- Return holdings only with fields:
+  - ticker symbol
+  - holding name
+  - weight percentage
+- Exclude US exchange prefixes.
+- Keep non-US exchange prefixes when present.
+- If unavailable, return an empty holdings list."""
 
-Exclude the exchange prefix from the ticker symbol if it is in the US.
-Only include the exchange prefix from the ticker symbol if it is not in the US, such as 'EPA:HO', '1329.T'."""
+ETF_SECTOR_SEARCH_SYSTEM_PROMPT = """Find ETF sector allocation percentages for the given ticker.
+
+Rules:
+- Use web search to gather the latest ETF sector allocation.
+- Only use these pages as sources:
+  - https://stockanalysis.com/etf/{ticker}/holdings/
+  - https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
+- Ignore Yahoo pages and any other domains.
+- Return sectors as normalized category names from the schema.
+- Use numeric weights in 0-100 format.
+- Prefer complete sector breakdowns whose weights sum to approximately 100.
+- If the two allowed sources disagree, prefer StockAnalysis first, then Schwab.
+- If data is unavailable, return an empty sectors list."""
 
 
 class StockAnalysisStatistics(BaseModel):
@@ -111,6 +154,7 @@ class StockAnalysisEtfSnapshot:
     """ETF holdings snapshot extracted from supported holdings pages."""
 
     holdings: ETFHoldings
+    sectors: ETFSectors
 
 
 class StockAnalysisIndicatorsSnapshot(
@@ -136,17 +180,19 @@ class StockAnalysisSource:
     def __init__(self, ticker: str):
         """Initialize source adapter for a single ticker."""
         self.ticker = ticker.upper().strip()
+        self._ticker_lower = self.ticker.lower()
         self._statistics_snapshot: StockAnalysisStatistics | None = None
         self._statistics_fetched_at: datetime | None = None
         self._financials_snapshot: StockAnalysisFinancials | None = None
         self._financials_fetched_at: datetime | None = None
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
+        self._stockanalysis_script_text: str | None = None
 
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
         if self._statistics_snapshot is None:
-            agent = WebLoaderAgent(
+            agent = WebSearchLoaderAgent(
                 model=os.getenv("QUALITY_LLM"),
                 system_prompt=STATISTICS_SYSTEM_PROMPT.format(ticker=self.ticker),
                 response_format=StockAnalysisStatistics,
@@ -170,7 +216,7 @@ class StockAnalysisSource:
     def _load_financials(self) -> StockAnalysisFinancials:
         """Fetch financials once and reuse cached data on later calls."""
         if self._financials_snapshot is None:
-            agent = WebLoaderAgent(
+            agent = WebSearchLoaderAgent(
                 model=os.getenv("QUALITY_LLM"),
                 system_prompt=FINANCIALS_SYSTEM_PROMPT.format(ticker=self.ticker),
                 response_format=StockAnalysisFinancials,
@@ -221,18 +267,158 @@ class StockAnalysisSource:
         """Fetch ETF holdings snapshot using LLM extraction."""
         if self._etf_snapshot is not None:
             return self._etf_snapshot
-        try:
-            agent = WebLoaderAgent(
-                model=os.getenv("QUALITY_LLM"),
-                system_prompt=ETF_HOLDINGS_SYSTEM_PROMPT.format(ticker=self.ticker),
-                response_format=ETFHoldings,
-            )
-            holdings = agent.invoke(self.ticker)
-        except Exception:
+
+        holdings = self._resolve_with_scrape_fallback_search(
+            scrape_getter=self._scrape_stockanalysis_holdings,
+            search_getter=self._search_etf_holdings,
+            has_data=lambda result: bool(result.holdings),
+            label="ETF holdings",
+        )
+        sectors = self._resolve_with_scrape_fallback_search(
+            scrape_getter=self._scrape_stockanalysis_sectors,
+            search_getter=self._search_etf_sectors,
+            has_data=self._has_sector_data,
+            label="ETF sectors",
+        )
+
+        if not holdings.holdings and not self._has_sector_data(sectors):
             return None
 
-        self._etf_snapshot = StockAnalysisEtfSnapshot(holdings=holdings)
+        self._etf_snapshot = StockAnalysisEtfSnapshot(holdings=holdings, sectors=sectors)
         return self._etf_snapshot
+
+    @staticmethod
+    def _has_sector_data(sectors: ETFSectors) -> bool:
+        return any(weight is not None for weight in sectors.model_dump().values())
+
+    def _resolve_with_scrape_fallback_search(
+        self,
+        *,
+        scrape_getter: Callable[[], MODEL_TYPE],
+        search_getter: Callable[[], MODEL_TYPE],
+        has_data: Callable[[MODEL_TYPE], bool],
+        label: str,
+    ) -> MODEL_TYPE:
+        scraped = scrape_getter()
+        if has_data(scraped):
+            return scraped
+        logger.info("Falling back to web search for %s (%s)", label, self.ticker)
+        return search_getter()
+
+    @staticmethod
+    def _clean_symbol(raw_symbol: str) -> str:
+        symbol = raw_symbol.strip()
+        if symbol.startswith("$"):
+            return symbol[1:]
+        if symbol.startswith("!") and "/" in symbol:
+            return symbol.split("/", maxsplit=1)[1]
+        if symbol.startswith("!"):
+            return symbol[1:]
+        return symbol
+
+    def _fetch_stockanalysis_script_text(self) -> str | None:
+        if self._stockanalysis_script_text is not None:
+            return self._stockanalysis_script_text
+
+        url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        for script_tag in soup.find_all("script"):
+            script_text = script_tag.get_text()
+            if "holdings:[" in script_text and "sectors:[" in script_text:
+                self._stockanalysis_script_text = script_text
+                return self._stockanalysis_script_text
+        return None
+
+    def _extract_script_block(self, pattern: re.Pattern[str]) -> str | None:
+        script_text = self._fetch_stockanalysis_script_text()
+        if not script_text:
+            return None
+
+        block_match = pattern.search(script_text)
+        if not block_match:
+            return None
+        return block_match.group(1)
+
+    def _scrape_stockanalysis_holdings(self) -> ETFHoldings:
+        holdings = ETFHoldings()
+        try:
+            items_text = self._extract_script_block(HOLDINGS_BLOCK_PATTERN)
+            if not items_text:
+                return holdings
+
+            parsed_holdings: list[Holding] = []
+            for name, raw_symbol, weight_str in HOLDING_ROW_PATTERN.findall(items_text):
+                ticker = self._clean_symbol(raw_symbol)
+                parsed_holdings.append(Holding(ticker=ticker, name=name, weight=float(weight_str)))
+            holdings = ETFHoldings(holdings=parsed_holdings)
+        except Exception:
+            logger.exception("Failed to scrape ETF holdings from StockAnalysis for %s", self.ticker)
+        return holdings
+
+    def _search_etf_holdings(self) -> ETFHoldings:
+        holdings = ETFHoldings()
+        try:
+            search_agent = WebSearchAgent(
+                model=os.getenv("QUALITY_LLM"),
+                temperature=0,
+                reasoning_effort="medium",
+                system_prompt=ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT.format(ticker=self._ticker_lower),
+                response_format=ETFHoldings,
+                web_search_engine="exa",
+                web_search_max_results=10,
+            )
+            search_query = f"{self.ticker} ETF holdings weights {STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)} -site:yahoo.com -site:finance.yahoo.com"
+            search_result = search_agent.invoke(search_query)
+            if isinstance(search_result, ETFHoldings):
+                holdings = search_result
+        except Exception:
+            logger.exception("Failed to extract ETF holdings via web search for %s", self.ticker)
+        return holdings
+
+    def _scrape_stockanalysis_sectors(self) -> ETFSectors:
+        sectors = ETFSectors()
+        try:
+            items_text = self._extract_script_block(SECTORS_BLOCK_PATTERN)
+            if not items_text:
+                return sectors
+
+            payload: dict[str, float] = {}
+            for sector_name, weight_str in SECTOR_ROW_PATTERN.findall(items_text):
+                field_name = SECTOR_FIELD_BY_LABEL.get(sector_name)
+                if field_name:
+                    payload[field_name] = float(weight_str)
+            if payload:
+                sectors = ETFSectors(**payload)
+        except Exception:
+            logger.exception("Failed to scrape ETF sectors from StockAnalysis for %s", self.ticker)
+        return sectors
+
+    def _search_etf_sectors(self) -> ETFSectors:
+        sectors = ETFSectors()
+        try:
+            search_agent = WebSearchAgent(
+                model=os.getenv("QUALITY_LLM"),
+                temperature=0,
+                reasoning_effort="medium",
+                system_prompt=ETF_SECTOR_SEARCH_SYSTEM_PROMPT.format(ticker=self._ticker_lower),
+                response_format=ETFSectors,
+                web_search_engine="exa",
+                web_search_max_results=10,
+            )
+            search_query = (
+                f"{self.ticker} ETF sector allocation weights "
+                f"{STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)} "
+                f"{'https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol=' + self._ticker_lower} "
+                "-site:yahoo.com -site:finance.yahoo.com"
+            )
+            search_result = search_agent.invoke(search_query)
+            if isinstance(search_result, ETFSectors):
+                sectors = search_result
+        except Exception:
+            logger.exception("Failed to extract ETF sectors via web search for %s", self.ticker)
+        return sectors
 
     def get_indicators_snapshot(self) -> StockAnalysisIndicatorsSnapshot:
         """Return StockAnalysis indicator set (partial by design)."""

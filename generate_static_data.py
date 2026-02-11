@@ -4,8 +4,6 @@ import logging
 from pathlib import Path
 import random
 
-import yfinance as yf
-
 from stock_search.evaluation.evaluation import evaluate_asset
 from stock_search.evaluation.scores import (
     calculate_combined_upside_score,
@@ -13,16 +11,11 @@ from stock_search.evaluation.scores import (
     market_cap_score,
 )
 from stock_search.file_utils import load_json, write_json
-from stock_search.indicators import MARKET_CAP_UNITS, parse_ratings
+from stock_search.indicators import MARKET_CAP_UNITS, StockIndicator
 from stock_search.schemas import Evaluation, ScoredReason
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
-
-# Constants
-RSI_PERIOD = 14
-RSI_HISTORY_BUFFER = 10
-RSI_MAX = 100.0
 
 # Quantity generation
 TARGET_TOTAL_EQUITY = 1_000_000.0
@@ -161,76 +154,60 @@ def _format_market_cap(market_cap: float | None) -> str | None:
     return f"{value:.3f}"
 
 
-def calculate_rsi(ticker_obj, days=RSI_PERIOD):
-    """Calculate RSI indicator for a ticker."""
-    try:
-        hist = ticker_obj.history(period=f"{days + RSI_HISTORY_BUFFER}d")
-        if hist.empty or len(hist) < days + 1:
-            return None
-        deltas = hist["Close"].diff()
-        gains = deltas.where(deltas > 0, 0)
-        losses = -deltas.where(deltas < 0, 0)
-        avg_gain = float(gains.rolling(window=days).mean().iloc[-1])
-        avg_loss = float(losses.rolling(window=days).mean().iloc[-1])
-        if avg_loss == 0:
-            return RSI_MAX
-        rs = avg_gain / avg_loss
-        return round(100 - (100 / (1 + rs)), 2)
-    except Exception:
-        return None
-
-
 def fetch_stats_data(ticker: str) -> dict:
     """Fetch real-time market data + indicator snapshot for a ticker."""
-    stock = yf.Ticker(ticker)
-    info = stock.info or {}
+    indicator = StockIndicator(ticker)
+    info = indicator.info or {}
+    indicators = indicator.get_all_indicators()
 
-    raw_price = info.get("regularMarketPrice") or info.get("currentPrice")
-    price = _round(raw_price, 2)
+    price = _round(indicators.get("price"), 2)
     if price is not None and price <= 0:
         price = None
 
-    raw_change = info.get("regularMarketChangePercent")
-    change_percent = _round(raw_change, 2)
+    change = _round(indicators.get("change"), 2)
+    change_percent = _round(indicators.get("change_percent"), 2)
 
-    market_cap_raw = _round(info.get("marketCap"), 0)
+    market_cap_raw = _round(indicators.get("market_cap"), 0)
     market_cap = _format_market_cap(market_cap_raw)
-    pe = _round(info.get("trailingPE"), 2)
-    pe_forward = _round(info.get("forwardPE"), 2)
-    if str(info.get("quoteType") or "").upper() == "ETF":
-        pe_forward = None
-    peg = _round(info.get("trailingPegRatio"), 2)
+    pe = _round(indicators.get("pe"), 2)
+    pe_forward = _round(indicators.get("pe_forward"), 2)
+    peg = _round(indicators.get("peg"), 2)
+    beta = _round(indicators.get("beta"), 2)
+    iv = _round(indicators.get("iv"), 2)
 
-    gross_margin = None
-    if (raw_margin := info.get("grossMargins")) is not None:
-        gross_margin = _round(raw_margin * 100, 2)
+    one_month_change_percent = _round(indicators.get("one_month_change_percent"), 2)
+    three_month_change_percent = _round(indicators.get("three_month_change_percent"), 2)
+    six_month_change_percent = _round(indicators.get("six_month_change_percent"), 2)
+    one_year_change_percent = _round(indicators.get("one_year_change_percent"), 2)
+    mtd_change_percent = _round(indicators.get("mtd_change_percent"), 2)
+    ytd_change_percent = _round(indicators.get("ytd_change_percent"), 2)
 
-    def pct_from_ratio(key: str) -> float | None:
-        if (raw := info.get(key)) is None:
-            return None
-        return _round(raw * 100, 2)
+    # Backward-compatible aliases kept for older consumers.
+    twenty_day_change_percent = one_month_change_percent
+    fifty_day_change_percent = three_month_change_percent
+    one_hundred_day_change_percent = six_month_change_percent
+    two_hundred_day_change_percent = one_year_change_percent
 
-    twenty_day_change_percent = pct_from_ratio("twentyDayAverageChangePercent")
-    fifty_day_change_percent = pct_from_ratio("fiftyDayAverageChangePercent")
-    one_hundred_day_change_percent = pct_from_ratio("oneHundredDayAverageChangePercent")
-    two_hundred_day_change_percent = pct_from_ratio("twoHundredDayAverageChangePercent")
-
-    rsi = calculate_rsi(stock)
-
-    median_upside = None
-    try:
-        ratings = parse_ratings(stock)
-        if ratings:
-            median_upside = ratings.get("median_upside_pct")
-    except Exception:
-        median_upside = None
+    median_upside = _round(indicators.get("median_upside"), 2)
+    revenue_growth = _round(indicators.get("revenue_growth"), 2)
+    gross_margin = _round(indicators.get("gross_margin"), 2)
+    debt_to_equity = _round(indicators.get("debt_to_equity"), 2)
+    free_cash_flow = _round(indicators.get("free_cash_flow"), 0)
 
     return {
+        "price": price,
         "current_price": price,
+        "change": change,
         "change_percent": change_percent,
         "bucket": random.choice(BUCKETS),
-        "name": info.get("shortName") or info.get("longName"),
-        "rsi": rsi,
+        "name": info.get("shortName") or info.get("longName") or ticker,
+        "rsi": _round(indicators.get("rsi"), 2),
+        "one_month_change_percent": one_month_change_percent,
+        "three_month_change_percent": three_month_change_percent,
+        "six_month_change_percent": six_month_change_percent,
+        "one_year_change_percent": one_year_change_percent,
+        "mtd_change_percent": mtd_change_percent,
+        "ytd_change_percent": ytd_change_percent,
         "twenty_day_change_percent": twenty_day_change_percent,
         "fifty_day_change_percent": fifty_day_change_percent,
         "one_hundred_day_change_percent": one_hundred_day_change_percent,
@@ -241,7 +218,12 @@ def fetch_stats_data(ticker: str) -> dict:
         "pe": pe,
         "pe_forward": pe_forward,
         "peg": peg,
+        "beta": beta,
+        "iv": iv,
+        "revenue_growth": revenue_growth,
         "gross_margin": gross_margin,
+        "debt_to_equity": debt_to_equity,
+        "free_cash_flow": free_cash_flow,
         "_raw_info_snapshot": info,  # Kept for scoring logic
     }
 
@@ -249,11 +231,19 @@ def fetch_stats_data(ticker: str) -> dict:
 def create_fallback_stats(ticker: str) -> dict:
     """Create fallback stats for failed ticker fetches."""
     return {
+        "price": None,
         "current_price": None,
+        "change": None,
         "change_percent": None,
         "bucket": random.choice(BUCKETS),
         "name": ticker,
         "rsi": None,
+        "one_month_change_percent": None,
+        "three_month_change_percent": None,
+        "six_month_change_percent": None,
+        "one_year_change_percent": None,
+        "mtd_change_percent": None,
+        "ytd_change_percent": None,
         "twenty_day_change_percent": None,
         "fifty_day_change_percent": None,
         "one_hundred_day_change_percent": None,
@@ -263,7 +253,12 @@ def create_fallback_stats(ticker: str) -> dict:
         "pe": None,
         "pe_forward": None,
         "peg": None,
+        "beta": None,
+        "iv": None,
+        "revenue_growth": None,
         "gross_margin": None,
+        "debt_to_equity": None,
+        "free_cash_flow": None,
         "_market_cap_raw": None,
         "_raw_info_snapshot": {},
     }
@@ -282,6 +277,10 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
 
     # 2. Momentum proxy (Bull Probability)
     trends = [
+        stats.get("one_month_change_percent"),
+        stats.get("three_month_change_percent"),
+        stats.get("six_month_change_percent"),
+        stats.get("one_year_change_percent"),
         stats.get("twenty_day_change_percent"),
         stats.get("fifty_day_change_percent"),
         stats.get("two_hundred_day_change_percent"),
@@ -292,7 +291,7 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
     p_down = 0.2
 
     # 3. Dynamic placeholders (Moat/Quality) based on proxies
-    mkt_cap = info.get("marketCap") or 0
+    mkt_cap = stats.get("_market_cap_raw") or info.get("marketCap") or 0
     margin_val = (stats.get("gross_margin") or 0) / 100.0
 
     # Moat proxy: Scale + Ecosystem
