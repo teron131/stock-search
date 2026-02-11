@@ -3,7 +3,6 @@ from typing import Any
 
 import yfinance as yf
 
-from stock_search.common_utils import MARKET_CAP_UNITS  # Re-export for backward compatibility
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
 from stock_search.field_definitions import INDICATOR_FIELDS
@@ -13,8 +12,7 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # --- Configuration ---
 DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 
-# Re-export MARKET_CAP_UNITS for backward compatibility with existing scripts
-__all__ = ["MARKET_CAP_UNITS", "StockIndicator", "parse_ratings"]
+__all__ = ["StockIndicator", "parse_ratings"]
 
 _UNSET = object()
 
@@ -68,10 +66,6 @@ class StockIndicator:
             return value
         # Fallback to Yahoo
         return getattr(self._yahoo_snapshot, field, None)
-
-    def _current_price_from_info(self) -> float | None:
-        """Backward-compatible helper used by dashboard code."""
-        return self._yahoo.get_current_price()
 
     @property
     def price(self) -> float | None:

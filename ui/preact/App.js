@@ -307,8 +307,7 @@ export function App() {
 
     const show = isLoading && !isBackgroundLoading;
 
-    // In this first cut, we only show overlay for explicit sync button usage.
-    // The hook still performs background refresh after add/remove.
+    // Show overlay only for foreground sync actions; background refresh stays unobtrusive.
     overlay.style.display = show ? "flex" : "none";
     document.body.classList.toggle("is-loading", show);
 

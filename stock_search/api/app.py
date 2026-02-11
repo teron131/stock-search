@@ -270,7 +270,6 @@ def color_standards_api(response: Response) -> dict:
     }
 
 
-# Experimental endpoint kept for compatibility with earlier UI integrations.
 @app.get("/api/news/{ticker}")
 def news_api(ticker: str) -> list[dict]:
     return [
@@ -293,7 +292,6 @@ def news_api(ticker: str) -> list[dict]:
     ]
 
 
-# Experimental endpoint kept for compatibility with earlier UI integrations.
 @app.get("/api/evaluate/{ticker}")
 def evaluate_ticker_api(ticker: str) -> dict:
     indicator = StockIndicator(ticker)

@@ -466,7 +466,7 @@ def get_dashboard(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
-    """Backward-compatible name for dashboard/API callers."""
+    """Return dashboard dataframe for API and CLI callers."""
     return build_portfolio_dataframe(
         portfolio_path=portfolio_path,
         stats_path=stats_path,
