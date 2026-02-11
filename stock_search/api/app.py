@@ -10,10 +10,10 @@ from fastapi.staticfiles import StaticFiles
 import pandas as pd
 from pydantic import BaseModel
 
-from stock_search.dashboard import get_dashboard
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
+from stock_search.portfolio import get_dashboard
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
