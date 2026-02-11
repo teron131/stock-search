@@ -60,6 +60,7 @@ _PRICE_TIME_KEYS: tuple[tuple[str, str], ...] = (
     ("regularMarketPrice", "regularMarketTime"),
     ("postMarketPrice", "postMarketTime"),
 )
+_STATEMENT_NOT_LOADED = object()
 
 
 def _safe_float(value: Any) -> float | None:
@@ -175,8 +176,11 @@ class YahooIndicatorsSnapshot:
     median_upside: float | None = None
     revenue_growth: float | None = None
     gross_margin: float | None = None
+    operating_margin: float | None = None
     debt_to_equity: float | None = None
     free_cash_flow: float | None = None
+    eps_diluted: float | None = None
+    eps_growth: float | None = None
     rsi: float | None = None
     mtd_change_percent: float | None = None
     ytd_change_percent: float | None = None
@@ -198,6 +202,8 @@ class YahooFinanceSource:
         self._history_cache: dict[str, YahooHistorySnapshot] = {}
         self._ratings_cache: dict[int, YahooRatingsSnapshot | None] = {}
         self._indicator_cache: dict[int, YahooIndicatorsSnapshot] = {}
+        self._quarterly_income_stmt: pd.DataFrame | None | object = _STATEMENT_NOT_LOADED
+        self._annual_income_stmt: pd.DataFrame | None | object = _STATEMENT_NOT_LOADED
 
     @property
     def info(self) -> dict[str, Any]:
@@ -343,18 +349,111 @@ class YahooFinanceSource:
         ratio = self.get_info_float(key)
         return round(ratio * 100, 2) if ratio is not None else None
 
-    def get_revenue_growth_percent(self) -> float | None:
-        """Get revenue growth in percentage points."""
-        return self.get_ratio_percent("revenueGrowth")
+    def _get_quarterly_income_stmt(self) -> pd.DataFrame | None:
+        """Get cached quarterly income statement for TTM-based calculations."""
+        if self._quarterly_income_stmt is _STATEMENT_NOT_LOADED:
+            statement: pd.DataFrame | None = None
+            with suppress(Exception):
+                qinc = self.ticker.quarterly_income_stmt
+                if isinstance(qinc, pd.DataFrame) and not qinc.empty:
+                    statement = qinc
+            self._quarterly_income_stmt = statement
+        return cast(pd.DataFrame | None, self._quarterly_income_stmt)
+
+    def _get_annual_income_stmt(self) -> pd.DataFrame | None:
+        """Get cached annual income statement for fallback calculations."""
+        if self._annual_income_stmt is _STATEMENT_NOT_LOADED:
+            statement: pd.DataFrame | None = None
+            with suppress(Exception):
+                inc = self.ticker.income_stmt
+                if isinstance(inc, pd.DataFrame) and not inc.empty:
+                    statement = inc
+            self._annual_income_stmt = statement
+        return cast(pd.DataFrame | None, self._annual_income_stmt)
+
+    def _quarterly_metric_series(self, row_names: tuple[str, ...]) -> pd.Series | None:
+        """Select a quarterly metric row and coerce it to numeric values."""
+        statement = self._get_quarterly_income_stmt()
+        if statement is None:
+            return None
+        for row_name in row_names:
+            if row_name in statement.index:
+                series = pd.to_numeric(statement.loc[row_name], errors="coerce")
+                return series if isinstance(series, pd.Series) and not series.empty else None
+        return None
+
+    def _annual_metric_series(self, row_names: tuple[str, ...]) -> pd.Series | None:
+        """Select an annual metric row and coerce it to numeric values."""
+        statement = self._get_annual_income_stmt()
+        if statement is None:
+            return None
+        for row_name in row_names:
+            if row_name in statement.index:
+                series = pd.to_numeric(statement.loc[row_name], errors="coerce")
+                return series if isinstance(series, pd.Series) and not series.empty else None
+        return None
+
+    @staticmethod
+    def _sum_quarters(values: pd.Series, *, count: int, offset: int = 0) -> float | None:
+        """Sum a strict quarterly window; returns None if any value is missing."""
+        window = values.iloc[offset : offset + count]
+        if len(window) < count or window.isna().any():
+            return None
+        return float(window.sum())
 
     def get_gross_margin_percent(self) -> float | None:
-        """Get gross margin in percentage points."""
-        return self.get_ratio_percent("grossMargins")
+        """Get TTM gross margin in percentage points from quarterly statements."""
+        revenue_series = self._quarterly_metric_series(("Total Revenue", "Revenue"))
+        gross_profit_series = self._quarterly_metric_series(("Gross Profit",))
+        revenue_ttm = self._sum_quarters(revenue_series, count=4, offset=0) if revenue_series is not None else None
+        gross_profit_ttm = self._sum_quarters(gross_profit_series, count=4, offset=0) if gross_profit_series is not None else None
+        if revenue_ttm in (None, 0) or gross_profit_ttm is None:
+            annual_revenue = self._annual_metric_series(("Total Revenue", "Revenue"))
+            annual_gross_profit = self._annual_metric_series(("Gross Profit",))
+            if annual_revenue is None or annual_gross_profit is None:
+                return None
+            revenue_latest = self._sum_quarters(annual_revenue, count=1, offset=0)
+            gross_profit_latest = self._sum_quarters(annual_gross_profit, count=1, offset=0)
+            if revenue_latest in (None, 0) or gross_profit_latest is None:
+                return None
+            return _round((gross_profit_latest / revenue_latest) * 100)
+        return _round((gross_profit_ttm / revenue_ttm) * 100)
+
+    def get_operating_margin_percent(self) -> float | None:
+        """Get TTM operating margin in percentage points from quarterly statements."""
+        revenue_series = self._quarterly_metric_series(("Total Revenue", "Revenue"))
+        operating_income_series = self._quarterly_metric_series(("Operating Income", "OperatingIncome"))
+        revenue_ttm = self._sum_quarters(revenue_series, count=4, offset=0) if revenue_series is not None else None
+        operating_income_ttm = self._sum_quarters(operating_income_series, count=4, offset=0) if operating_income_series is not None else None
+        if revenue_ttm in (None, 0) or operating_income_ttm is None:
+            annual_revenue = self._annual_metric_series(("Total Revenue", "Revenue"))
+            annual_operating_income = self._annual_metric_series(("Operating Income", "OperatingIncome"))
+            if annual_revenue is None or annual_operating_income is None:
+                return None
+            revenue_latest = self._sum_quarters(annual_revenue, count=1, offset=0)
+            operating_income_latest = self._sum_quarters(annual_operating_income, count=1, offset=0)
+            if revenue_latest in (None, 0) or operating_income_latest is None:
+                return None
+            return _round((operating_income_latest / revenue_latest) * 100)
+        return _round((operating_income_ttm / revenue_ttm) * 100)
 
     def get_debt_to_equity_percent(self) -> float | None:
         """Get debt-to-equity percentage from Yahoo info."""
         value = self.get_info_float("debtToEquity")
         return round(value, 2) if value is not None else None
+
+    def get_eps_diluted(self) -> float | None:
+        """Get TTM diluted EPS from quarterly statements."""
+        values = self._quarterly_metric_series(("Diluted EPS", "DilutedEPS"))
+        if values is not None:
+            eps_ttm = self._sum_quarters(values, count=4, offset=0)
+            if eps_ttm is not None:
+                return _round(eps_ttm)
+        annual_values = self._annual_metric_series(("Diluted EPS", "DilutedEPS"))
+        if annual_values is None:
+            return None
+        eps_latest = self._sum_quarters(annual_values, count=1, offset=0)
+        return _round(eps_latest) if eps_latest is not None else None
 
     def get_ytd_return_percent(self) -> float | None:
         """Get Yahoo ytdReturn and convert to percentage points."""
@@ -571,10 +670,13 @@ class YahooFinanceSource:
             six_month_change_percent=period_values["six_month_change_percent"],
             one_year_change_percent=period_values["one_year_change_percent"],
             median_upside=ratings_snapshot.median_upside_pct if ratings_snapshot else None,
-            revenue_growth=self.get_revenue_growth_percent(),
+            revenue_growth=None,
             gross_margin=self.get_gross_margin_percent(),
+            operating_margin=self.get_operating_margin_percent(),
             debt_to_equity=self.get_debt_to_equity_percent(),
             free_cash_flow=self.get_free_cash_flow_in_quote_currency(),
+            eps_diluted=self.get_eps_diluted(),
+            eps_growth=None,
             rsi=self._calculate_rsi(),
             mtd_change_percent=mtd,
             ytd_change_percent=ytd,

@@ -57,6 +57,7 @@ Rationale:
 Known `yfinance` caveats (observed in this repo):
 
 - Stock `PE` / `forward PE` may diverge from website-displayed values.
+- Stock `revenueGrowth` and `earningsGrowth` from Yahoo `info` are often definition/period misaligned for TTM-style comparisons.
 - ETF `forward PE` may be stale or inaccurate.
 - ETF holdings can be incomplete and may not match issuer holdings pages.
 - Values may not consistently match Yahoo website views across all tickers/endpoints.
@@ -64,6 +65,8 @@ Known `yfinance` caveats (observed in this repo):
 Policy implication:
 
 - Treat `yfinance` as a fallback for sensitive valuation/holdings fields, not the sole source of truth.
+- For `revenue_growth` and `eps_growth`, prefer StockAnalysis period-aligned values.
+- If Yahoo cannot produce a trustworthy period-aligned value, return `None` and let fallback resolution fill from higher-quality sources.
 
 Forward P/E definition policy:
 

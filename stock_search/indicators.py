@@ -91,15 +91,13 @@ class StockIndicator:
             self._stockanalysis_indicators = self._stockanalysis.get_indicators_snapshot()
         return self._stockanalysis_indicators
 
-    def _ordered_source_snapshots(self) -> tuple[object, ...]:
+    def _resolve_fallback_field(self, field: str) -> float | None:
         source_snapshots = {
             "yahoo": self._yahoo_snapshot,
             "stockanalysis": self._stockanalysis_snapshot,
         }
-        return tuple(source_snapshots[source_name] for source_name in _FUNDAMENTAL_FALLBACK_ORDER)
-
-    def _resolve_fallback_field(self, field: str) -> float | None:
-        for snapshot in self._ordered_source_snapshots():
+        for source_name in _FUNDAMENTAL_FALLBACK_ORDER:
+            snapshot = source_snapshots[source_name]
             if (value := getattr(snapshot, field, None)) is not None:
                 return value
         return None
