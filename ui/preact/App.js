@@ -181,7 +181,11 @@ export function App() {
 
     const intervalId = setInterval(() => {
       if (document.visibilityState !== "visible" || !navigator.onLine) return;
-      syncRef.current?.({ background: true, silent: true });
+      syncRef.current?.({
+        background: true,
+        silent: false,
+        scope: "portfolio_live",
+      });
     }, 180_000);
 
     return () => {
@@ -242,7 +246,12 @@ export function App() {
     }
 
     // last updated
-    const time = generatedAt ? new Date(generatedAt) : new Date();
+    if (!generatedAt) {
+      setText("last-update", `LAST UPDATED: --${modeText}`);
+      return;
+    }
+
+    const time = new Date(generatedAt);
     const dateStr = time.toLocaleDateString("en-US", {
       month: "short",
       day: "2-digit",

@@ -231,7 +231,7 @@ export function usePortfolioData() {
     setGeneratedAt(
       typeof dashData?.generated_at === "string" && dashData.generated_at
         ? dashData.generated_at
-        : new Date().toISOString(),
+        : null,
     );
   }, []);
 
@@ -248,10 +248,9 @@ export function usePortfolioData() {
       let shouldBackfill = false;
 
       try {
-        const basePath = await determineDemoPath();
-
         // Demo mode: static only
         if (CONFIG.isDemoMode) {
+          const basePath = await determineDemoPath();
           setIsUsingDemoData(true);
           const { dashData, evalData } =
             await fetchStaticPortfolioData(basePath);
@@ -262,6 +261,9 @@ export function usePortfolioData() {
         // Normal mode:
         // - Portfolio/stats from API (live)
         // - Eval via API first, then static cache fallback
+        const evalApiPromise = tryFetchJson(CONFIG.endpoints.eval);
+        const standardsPromise = tryFetchJson(CONFIG.endpoints.colorStandards);
+
         const dashData = await (async () => {
           const url =
             scope === "priority"
@@ -272,13 +274,13 @@ export function usePortfolioData() {
           return await res.json();
         })();
 
-        const evalData =
-          (await tryFetchJson(CONFIG.endpoints.eval)) ??
-          (await tryFetchJson(`${basePath}/eval.json`)) ??
-          {};
-        const standardsPayload = await tryFetchJson(
-          CONFIG.endpoints.colorStandards,
-        );
+        let evalData = await evalApiPromise;
+        if (evalData == null) {
+          const basePath = await determineDemoPath();
+          evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
+        }
+
+        const standardsPayload = await standardsPromise;
         const standards = standardsPayload?.standards;
         if (standards && typeof standards === "object") {
           setColorStandards(standards);
@@ -309,7 +311,7 @@ export function usePortfolioData() {
         }
         if (shouldBackfill) {
           setTimeout(() => {
-            load({ background: true, silent: true, scope: "all" });
+            load({ background: true, silent: false, scope: "portfolio_live" });
           }, 0);
         }
       }

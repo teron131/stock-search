@@ -45,6 +45,14 @@ def _set_no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
 
 
+def _stats_cache_generated_at() -> str | None:
+    """Return `data/stats.json` mtime as ISO timestamp when available."""
+    if not STATS_PATH.exists():
+        return None
+    modified_at = datetime.fromtimestamp(STATS_PATH.stat().st_mtime, tz=UTC)
+    return modified_at.isoformat()
+
+
 def _load_positions() -> list[dict[str, Any]]:
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
     return portfolio_data if isinstance(portfolio_data, list) else []
@@ -105,17 +113,22 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
 def portfolio_api(response: Response, scope: str = "all") -> dict:
     _set_no_store(response)
 
-    include_cached_universe = scope != "priority"
+    is_priority_scope = scope == "priority"
+    include_cached_universe = scope == "all"
+    include_live_market = scope in {"all", "portfolio_live"}
+
     df = get_dashboard(
         PORTFOLIO_PATH,
         STATS_PATH,
         EVAL_PATH,
         include_cached_universe=include_cached_universe,
+        include_live_market=include_live_market,
     )
     df = df.where(pd.notna(df), None)
 
-    # Timestamp for *this* response (not the cache file mtime)
-    generated_at = datetime.now(tz=UTC).isoformat()
+    generated_at = (
+        _stats_cache_generated_at() if is_priority_scope else datetime.now(tz=UTC).isoformat()
+    )
 
     return {
         "columns": list(df.columns),

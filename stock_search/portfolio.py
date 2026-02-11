@@ -1,10 +1,11 @@
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from time import monotonic, sleep
-from typing import Any, Sequence
+from typing import Any
 
 import pandas as pd
 from rich import box
@@ -21,8 +22,8 @@ from stock_search.evaluation.evaluation import (
     bucket_from_eval_json,
     normalize_eval_json,
 )
+from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.file_utils import load_json
-from stock_search.indicators import StockIndicator
 
 _MAX_WORKERS = 5
 _HISTORY_TTL_SECONDS = 60
@@ -34,7 +35,7 @@ _INFO_FAILURE_COOLDOWN_SECONDS = 1_800  # 30 minutes
 _RATINGS_TTL_SECONDS = 86_400  # 1 day
 _RATINGS_STALE_SECONDS = 604_800  # 7 days
 _RATINGS_FAILURE_COOLDOWN_SECONDS = 21_600  # 6 hours
-_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.3
+_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.1
 _HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _HISTORY_FAILURES: dict[str, datetime] = {}
 _INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
@@ -94,9 +95,7 @@ _INFO_FIELDS = {
     "revenue_growth",
     "gross_margin",
 }
-_RATINGS_FIELDS = {
-    "median_upside",
-}
+_RATINGS_FIELDS: set[str] = set()
 
 _UPDATE_TIER_FAST_LABEL = "history_1m"
 _UPDATE_TIER_SLOW_LABEL = "info_1h"
@@ -239,14 +238,6 @@ def _rate_limit_wait() -> None:
         _LAST_LIVE_STATS_REQUEST_AT = monotonic()
 
 
-def _fetch_fields(indicator: StockIndicator, fields: set[str]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for field in fields:
-        with suppress(Exception):
-            out[field] = getattr(indicator, field)
-    return out
-
-
 def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     """Fetch tiered market stats for a ticker (history + info + ratings)."""
     ticker_key = str(ticker).upper().strip()
@@ -293,7 +284,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
 
     need_history_fetch = not history_fresh and not history_recent_failure
     need_info_fetch = not info_fresh and not info_recent_failure
-    need_ratings_fetch = not ratings_fresh and not ratings_recent_failure
+    need_ratings_fetch = bool(_RATINGS_FIELDS) and not ratings_fresh and not ratings_recent_failure
 
     if history_recent_failure and not has_history_stale():
         history_data = {}
@@ -302,12 +293,28 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     if ratings_recent_failure and not has_ratings_stale():
         ratings_data = {}
 
-    indicator = StockIndicator(ticker) if (need_history_fetch or need_info_fetch or need_ratings_fetch) else None
+    yahoo_source = (
+        YahooFinanceSource(ticker_key)
+        if (need_history_fetch or need_info_fetch or need_ratings_fetch)
+        else None
+    )
 
     if need_history_fetch:
         _rate_limit_wait()
         try:
-            fetched_history = _fetch_fields(indicator, _HISTORY_FIELDS)
+            latest_price = yahoo_source.get_realtime_price(yahoo_source.get_market_state()) or yahoo_source.get_current_price()
+            previous_close = yahoo_source.get_previous_close()
+            change = None
+            change_percent = None
+            if latest_price is not None and previous_close not in (None, 0):
+                change = round(latest_price - previous_close, 2)
+                change_percent = round(((latest_price - previous_close) / previous_close) * 100, 2)
+            fetched_history = {
+                **history_data,
+                "price": latest_price,
+                "change": change,
+                "change_percent": change_percent,
+            }
             with _LIVE_STATS_CACHE_LOCK:
                 _HISTORY_CACHE[ticker_key] = (now, fetched_history)
                 _HISTORY_FAILURES.pop(ticker_key, None)
@@ -318,13 +325,21 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 history_data = dict(_HISTORY_CACHE[ticker_key][1]) if has_history_stale() else {}
 
     if need_info_fetch:
-        _rate_limit_wait()
         try:
-            fetched_info = _fetch_fields(indicator, _INFO_FIELDS)
-            fetched_info["name"] = indicator.info.get("shortName") or indicator.info.get("longName")
-            if "current_price" not in history_data:
-                fetched_info["current_price"] = indicator._current_price_from_info()
-            quote_type = str(indicator.info.get("quoteType") or "").upper()
+            quote_type = yahoo_source.get_quote_type()
+            fetched_info = {
+                **info_data,
+                "name": yahoo_source.info.get("shortName") or yahoo_source.info.get("longName"),
+                "current_price": yahoo_source.get_current_price(),
+                "quote_type": quote_type or None,
+                "market_cap": yahoo_source.get_market_cap(),
+                "pe": yahoo_source.get_pe_trailing(),
+                "pe_forward": yahoo_source.get_forward_pe_ntm(),
+                "peg": yahoo_source.get_peg(),
+                "beta": yahoo_source.get_beta(),
+                "debt_to_equity": yahoo_source.get_debt_to_equity_percent(),
+                "free_cash_flow": yahoo_source.get_free_cash_flow_in_quote_currency(),
+            }
             fetched_info["quote_type"] = quote_type or None
             if quote_type == "ETF":
                 fetched_info["pe_forward"] = None
@@ -338,9 +353,11 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 info_data = dict(_INFO_CACHE[ticker_key][1]) if has_info_stale() else {}
 
     if need_ratings_fetch:
-        _rate_limit_wait()
         try:
-            fetched_ratings = _fetch_fields(indicator, _RATINGS_FIELDS)
+            ratings_snapshot = yahoo_source.get_ratings_snapshot(days=90)
+            fetched_ratings = {
+                "median_upside": ratings_snapshot.median_upside_pct if ratings_snapshot else None,
+            }
             with _LIVE_STATS_CACHE_LOCK:
                 _RATINGS_CACHE[ticker_key] = (now, fetched_ratings)
                 _RATINGS_FAILURES.pop(ticker_key, None)
@@ -362,6 +379,8 @@ def _build_row(
     pos: dict[str, Any],
     stats_cache: dict[str, Any],
     eval_cache: dict[str, Any],
+    *,
+    include_live_market: bool,
 ) -> dict[str, Any]:
     ticker = pos.get("ticker")
     if not ticker:
@@ -379,7 +398,8 @@ def _build_row(
         eval_data = {}
 
     cached_only = bool(pos.get("_cached_only"))
-    live_market = {} if cached_only else _fetch_live_stats(ticker)
+    should_fetch_live_market = include_live_market and not cached_only
+    live_market = _fetch_live_stats(ticker) if should_fetch_live_market else {}
 
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
@@ -513,6 +533,7 @@ def build_portfolio_dataframe(
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
     include_cached_universe: bool = True,
+    include_live_market: bool = True,
 ) -> pd.DataFrame:
     portfolio_data = load_json(portfolio_path, default=[])
 
@@ -565,7 +586,17 @@ def build_portfolio_dataframe(
             )
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-        rows = list(executor.map(lambda pos: _build_row(pos, stats_data, eval_data), positions))
+        rows = list(
+            executor.map(
+                lambda pos: _build_row(
+                    pos,
+                    stats_data,
+                    eval_data,
+                    include_live_market=include_live_market,
+                ),
+                positions,
+            )
+        )
 
     total_notional = sum(row.get("notional", 0) for row in rows)
     for row in rows:
@@ -597,6 +628,7 @@ def get_dashboard(
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
     include_cached_universe: bool = True,
+    include_live_market: bool = True,
 ) -> pd.DataFrame:
     """Backward-compatible name for dashboard/API callers."""
     return build_portfolio_dataframe(
@@ -604,6 +636,7 @@ def get_dashboard(
         stats_path=stats_path,
         eval_path=eval_path,
         include_cached_universe=include_cached_universe,
+        include_live_market=include_live_market,
     )
 
 
@@ -631,7 +664,7 @@ def get_weighted_indicators(
         include_cached_universe=include_cached_universe,
     )
     if dataframe.empty or "weight_pct" not in dataframe.columns:
-        return {name: None for name in indicator_names}
+        return dict.fromkeys(indicator_names)
 
     weights = pd.to_numeric(dataframe["weight_pct"], errors="coerce")
     weighted: dict[str, float | None] = {}
