@@ -65,50 +65,71 @@ class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
 
 
 class Holding(BaseModel):
-    """A single holding within an ETF."""
+    """A single holding within an ETF. Used for structured outputs."""
 
     ticker: Ticker
     name: str | None = Field(default=None, description="Holding name")
     weight: Weight
 
 
-class Sector(BaseModel):
-    """Industry sector allocation."""
+class ETFSector(BaseModel):
+    """Industry sector allocation entry for an ETF. Used for structured outputs."""
 
-    sector: Literal[
-        "Technology",
-        "Materials",
-        "Financials",
-        "Healthcare",
-        "Industrials",
-        "Real Estate",
-        "Energy",
-        "Utilities",
-        "Consumer Discretionary",
-        "Communication Services",
-        "Consumer Staples",
-        "Other",
-    ] = Field(description="Standardized sector name")
+    name: str = Field(description="Sector name")
     weight: Weight
 
 
 class ETFHoldings(BaseModel):
-    """Top holdings of an ETF."""
+    """Top holdings of an ETF. Used for structured outputs."""
 
     holdings: list[Holding] = Field(default_factory=list, description="Holdings list")
 
 
 class ETFSectors(BaseModel):
-    """Sectors of an ETF."""
+    """Sectors of an ETF. Used for structured outputs."""
 
-    sectors: list[Sector] = Field(default_factory=list, description="Sector allocation list")
+    communication_services: Weight | None = Field(default=None, description="Communication Services sector weight")
+    consumer_discretionary: Weight | None = Field(default=None, description="Consumer Discretionary sector weight")
+    consumer_staples: Weight | None = Field(default=None, description="Consumer Staples sector weight")
+    energy: Weight | None = Field(default=None, description="Energy sector weight")
+    financials: Weight | None = Field(default=None, description="Financials sector weight")
+    health_care: Weight | None = Field(default=None, description="Health Care sector weight")
+    industrials: Weight | None = Field(default=None, description="Industrials sector weight")
+    materials: Weight | None = Field(default=None, description="Materials sector weight")
+    real_estate: Weight | None = Field(default=None, description="Real Estate sector weight")
+    technology: Weight | None = Field(default=None, description="Technology sector weight")
+    utilities: Weight | None = Field(default=None, description="Utilities sector weight")
+    other: Weight | None = Field(default=None, description="Other sector weight")
 
 
 class ETF(BaseModel):
     """ETF-specific metadata including holdings and sector breakdown."""
 
-    holdings: ETFHoldings = Field(default_factory=list, description="Top holdings list")
-    sectors: ETFSectors = Field(default_factory=list, description="Sector allocation list")
+    holdings: ETFHoldings = Field(default_factory=ETFHoldings, description="Top holdings list")
+    sectors: ETFSectors = Field(default_factory=ETFSectors, description="Sector allocation list")
+
+    def sector_rows(self) -> list[ETFSector]:
+        labels = {
+            "communication_services": "Communication Services",
+            "consumer_discretionary": "Consumer Discretionary",
+            "consumer_staples": "Consumer Staples",
+            "energy": "Energy",
+            "financials": "Financials",
+            "health_care": "Health Care",
+            "industrials": "Industrials",
+            "materials": "Materials",
+            "real_estate": "Real Estate",
+            "technology": "Technology",
+            "utilities": "Utilities",
+            "other": "Other",
+        }
+        rows: list[ETFSector] = []
+        for key, value in self.sectors.model_dump().items():
+            if value is None:
+                continue
+            rows.append(ETFSector(name=labels[key], weight=float(value)))
+        rows.sort(key=lambda row: row.weight, reverse=True)
+        return rows
 
 
 class NewsAnalysis(BaseModel):
