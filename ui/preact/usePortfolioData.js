@@ -6,6 +6,11 @@ import {
 } from "https://esm.sh/preact@10.19.6/hooks";
 
 import { CONFIG } from "./config.js";
+import {
+  isValidStaticPortfolioPayload,
+  normalizeApiDashboardPayload,
+  normalizeStaticDashboardPayload,
+} from "./dataContract.js";
 import { normalizeTicker } from "./format.js";
 
 const EVAL_KEYS = [
@@ -177,46 +182,49 @@ function removeRow(rows, ticker) {
   );
 }
 
-async function determineDemoPath() {
-  const stripLeadingSlashes = (p) => String(p || "").replace(/^\/+/, "");
-
-  const isValidPortfolioPayload = (payload) =>
-    Boolean(payload && Array.isArray(payload.rows));
-
+function staticPathCandidates() {
   const primary = CONFIG.demoPaths.primary;
   const fallback = CONFIG.demoPaths.fallback;
+  const basePaths = [primary, fallback].filter(Boolean);
 
-  // Prefer relative paths (works for GitHub Pages subpaths), but fall back to absolute
-  // (helps if UI is served from a sub-route while backend mounts /data at root).
-  const candidates = [primary, fallback].flatMap((base) => {
-    if (!base) return [];
-    if (String(base).startsWith("/")) return [base];
-    return [base, `/${stripLeadingSlashes(base)}`];
+  return [...new Set(basePaths)].flatMap((basePath) => {
+    if (String(basePath).startsWith("/")) {
+      return [basePath];
+    }
+    return [basePath, `/${String(basePath).replace(/^\/+/, "")}`];
   });
+}
 
-  for (const base of candidates) {
-    try {
-      const res = await fetch(withCacheBuster(`${base}/portfolio.json`));
-      if (!res.ok) continue;
-      const payload = await res.json();
-      if (isValidPortfolioPayload(payload)) return base;
-    } catch {
-      // keep trying
+async function determineStaticBasePath() {
+  const candidates = staticPathCandidates();
+
+  for (const basePath of candidates) {
+    const payload = await tryFetchJson(`${basePath}/portfolio.json`);
+    if (isValidStaticPortfolioPayload(payload)) {
+      return basePath;
     }
   }
 
-  return fallback;
+  return CONFIG.demoPaths.fallback;
 }
 
 async function fetchStaticPortfolioData(basePath) {
-  const portfolioRaw = await tryFetchJson(`${basePath}/portfolio.json`);
-  if (!portfolioRaw || !Array.isArray(portfolioRaw.rows)) {
+  const [portfolioRaw, statsRaw, evalRaw] = await Promise.all([
+    tryFetchJson(`${basePath}/portfolio.json`),
+    tryFetchJson(`${basePath}/stats.json`),
+    tryFetchJson(`${basePath}/eval.json`),
+  ]);
+
+  const normalized = normalizeStaticDashboardPayload({
+    portfolioPayload: portfolioRaw,
+    statsPayload: statsRaw,
+    evalPayload: evalRaw,
+  });
+  if (!normalized) {
     throw new Error("Static portfolio not found");
   }
 
-  const evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
-
-  return { dashData: portfolioRaw, evalData };
+  return normalized;
 }
 
 export function usePortfolioData() {
@@ -232,7 +240,7 @@ export function usePortfolioData() {
 
   const resolveDemoPath = useCallback(async () => {
     if (demoPathRef.current) return demoPathRef.current;
-    const resolved = await determineDemoPath();
+    const resolved = await determineStaticBasePath();
     demoPathRef.current = resolved;
     return resolved;
   }, []);
@@ -249,7 +257,7 @@ export function usePortfolioData() {
     };
   }, [rows]);
 
-  const applyMergedRows = useCallback((dashData, evalData) => {
+  const applyPayload = useCallback(({ dashData, evalData = {} }) => {
     const merged = calculateRanks(mergeRows(dashData, evalData));
     setRows(merged);
     setGeneratedAt(
@@ -258,6 +266,45 @@ export function usePortfolioData() {
         : null,
     );
   }, []);
+
+  const loadFromStatic = useCallback(async () => {
+    const basePath = await resolveDemoPath();
+    return fetchStaticPortfolioData(basePath);
+  }, [resolveDemoPath]);
+
+  const loadFromApi = useCallback(
+    async ({ background = false, scope = "all" } = {}) => {
+      const shouldFetchMetadata = !background;
+
+      const standardsPromise =
+        shouldFetchMetadata && !colorStandards
+          ? tryFetchJson(CONFIG.endpoints.colorStandards)
+          : Promise.resolve(null);
+
+      const portfolioUrl =
+        scope === "all"
+          ? CONFIG.endpoints.portfolio
+          : `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
+      const timeoutMs = background
+        ? BACKGROUND_TIMEOUT_MS
+        : FOREGROUND_TIMEOUT_MS;
+      const rawPayload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
+      const dashData = normalizeApiDashboardPayload(rawPayload);
+      if (!dashData) {
+        throw new Error("API Failure");
+      }
+
+      const standardsPayload = await standardsPromise;
+      const standards = standardsPayload?.standards;
+
+      return {
+        dashData,
+        standards:
+          standards && typeof standards === "object" ? standards : null,
+      };
+    },
+    [colorStandards],
+  );
 
   const load = useCallback(
     async ({ background = false, silent = false, scope = "all" } = {}) => {
@@ -272,71 +319,36 @@ export function usePortfolioData() {
       let shouldBackfill = false;
 
       try {
-        // Demo mode: static only
         if (CONFIG.isDemoMode) {
-          const basePath = await resolveDemoPath();
           setIsUsingDemoData(true);
-          const { dashData, evalData } =
-            await fetchStaticPortfolioData(basePath);
-          applyMergedRows(dashData, evalData);
+          const payload = await loadFromStatic();
+          applyPayload(payload);
           return;
         }
 
-        // Normal mode:
-        // - Portfolio/stats from API (live)
-        // - Eval via API first, then static cache fallback
-        const shouldFetchMetadata = !background;
-        const evalApiPromise = shouldFetchMetadata
-          ? tryFetchJson(CONFIG.endpoints.eval)
-          : Promise.resolve(null);
-        const standardsPromise =
-          shouldFetchMetadata && !colorStandards
-            ? tryFetchJson(CONFIG.endpoints.colorStandards)
-            : Promise.resolve(null);
+        const { dashData, standards } = await loadFromApi({
+          background,
+          scope,
+        });
 
-        const dashData = await (async () => {
-          const portfolioUrl =
-            scope === "all"
-              ? CONFIG.endpoints.portfolio
-              : `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
-          const timeoutMs = background
-            ? BACKGROUND_TIMEOUT_MS
-            : FOREGROUND_TIMEOUT_MS;
-          const payload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
-          if (!payload) throw new Error("API Failure");
-          return payload;
-        })();
-
-        let evalData = await evalApiPromise;
-        if (evalData == null && shouldFetchMetadata) {
-          const basePath = await resolveDemoPath();
-          evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
-        }
-
-        const standardsPayload = await standardsPromise;
-        const standards = standardsPayload?.standards;
-        if (standards && typeof standards === "object") {
+        if (standards) {
           setColorStandards(standards);
         }
 
         setIsUsingDemoData(false);
-        applyMergedRows(dashData, evalData ?? {});
+        applyPayload({ dashData, evalData: {} });
         shouldBackfill = scope === "priority" && !background;
       } catch (e) {
         setLastError(e);
 
-        // Background refresh failures should not trigger static fallback or mode changes.
         if (background) {
           return;
         }
 
-        // If API fails, fall back to static (read-only)
         try {
-          const basePath = await resolveDemoPath();
-          const { dashData, evalData } =
-            await fetchStaticPortfolioData(basePath);
+          const payload = await loadFromStatic();
           setIsUsingDemoData(true);
-          applyMergedRows(dashData, evalData);
+          applyPayload(payload);
         } catch {
           if (!background) {
             setRows([]);
@@ -354,7 +366,7 @@ export function usePortfolioData() {
         }
       }
     },
-    [applyMergedRows, colorStandards, loadingMode, resolveDemoPath],
+    [applyPayload, loadFromApi, loadFromStatic, loadingMode],
   );
 
   const patchPortfolioPosition = useCallback(

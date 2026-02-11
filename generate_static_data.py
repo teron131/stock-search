@@ -1,5 +1,6 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 import logging
 from pathlib import Path
 import random
@@ -444,7 +445,13 @@ def generate_static_data(
     # Always save to ui/sample_data for frontend dev
     sample_dir = Path("ui/sample_data")
 
-    write_json(sample_dir / "portfolio.json", portfolio_list)
+    write_json(
+        sample_dir / "portfolio.json",
+        {
+            "rows": portfolio_list,
+            "generated_at": datetime.now(tz=UTC).isoformat(),
+        },
+    )
     write_json(sample_dir / "stats.json", stats_map)
     write_json(sample_dir / "eval.json", eval_map)
     print(f"Saved to {sample_dir}")

@@ -75,6 +75,7 @@ function updateTickerTape(tickers) {
 function initSidebarAndNav({ onViewChange }) {
   const sidebar = document.getElementById("sidebar");
   const toggle = document.getElementById("sidebar-toggle");
+  const cleanupFns = [];
 
   const toggleSidebar = () => {
     if (sidebar) sidebar.classList.toggle("collapsed");
@@ -82,16 +83,22 @@ function initSidebarAndNav({ onViewChange }) {
 
   if (toggle) {
     toggle.addEventListener("click", toggleSidebar);
+    cleanupFns.push(() => toggle.removeEventListener("click", toggleSidebar));
   }
 
   if (window.innerWidth <= 1024) {
     const topBarLeft = document.querySelector(".top-bar-left");
-    if (topBarLeft) topBarLeft.addEventListener("click", toggleSidebar);
+    if (topBarLeft) {
+      topBarLeft.addEventListener("click", toggleSidebar);
+      cleanupFns.push(() =>
+        topBarLeft.removeEventListener("click", toggleSidebar),
+      );
+    }
   }
 
   const navItems = document.querySelectorAll(".nav-item");
   navItems.forEach((btn) => {
-    btn.addEventListener("click", () => {
+    const onClick = () => {
       const viewName = btn.dataset.view;
       if (!viewName) return;
 
@@ -103,8 +110,15 @@ function initSidebarAndNav({ onViewChange }) {
       if (window.innerWidth <= 1024 && sidebar) {
         sidebar.classList.add("collapsed");
       }
-    });
+    };
+
+    btn.addEventListener("click", onClick);
+    cleanupFns.push(() => btn.removeEventListener("click", onClick));
   });
+
+  return () => {
+    cleanupFns.forEach((cleanup) => cleanup());
+  };
 }
 
 function createHeatmapWidget(dataSource) {
@@ -124,8 +138,9 @@ function createHeatmapWidget(dataSource) {
 
 function initHeatmapTabs() {
   const tabs = document.querySelectorAll("#heatmap-section .tab-btn");
+  const cleanupFns = [];
   tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
+    const onClick = () => {
       const source = tab.dataset.source;
       if (!source) return;
 
@@ -133,8 +148,15 @@ function initHeatmapTabs() {
         t.classList.toggle("active", t.dataset.source === source),
       );
       createHeatmapWidget(source);
-    });
+    };
+
+    tab.addEventListener("click", onClick);
+    cleanupFns.push(() => tab.removeEventListener("click", onClick));
   });
+
+  return () => {
+    cleanupFns.forEach((cleanup) => cleanup());
+  };
 }
 
 export function App() {
@@ -163,16 +185,23 @@ export function App() {
 
   // Initial boot
   useEffect(() => {
-    initSidebarAndNav({ onViewChange: setView });
-    initHeatmapTabs();
+    const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
+    const cleanupHeatmapTabs = initHeatmapTabs();
     actions.sync({ background: false, scope: "priority" });
 
     const refreshBtn = document.getElementById("refresh-btn");
+    const onRefresh = () => actions.sync({ background: false });
     if (refreshBtn) {
-      refreshBtn.addEventListener("click", () =>
-        actions.sync({ background: false }),
-      );
+      refreshBtn.addEventListener("click", onRefresh);
     }
+
+    return () => {
+      cleanupSidebar?.();
+      cleanupHeatmapTabs?.();
+      if (refreshBtn) {
+        refreshBtn.removeEventListener("click", onRefresh);
+      }
+    };
   }, []);
 
   // Periodic background refresh (skip demo mode)

@@ -10,8 +10,8 @@ export const CONFIG = {
   },
 
   demoPaths: {
-    primary: "data",
-    fallback: "sample_data",
+    primary: "sample_data",
+    fallback: "data",
   },
 
   defaultBucket: "Tactical Opportunities",

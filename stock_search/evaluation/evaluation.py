@@ -1,16 +1,11 @@
 from dataclasses import dataclass
 import math
-from typing import Any
 
-from ..common_utils import to_float
 from ..indicators import StockIndicator
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
 from ..utils import parse_ticker
 from .constants import (
-    DEFAULT_BEAR_PROBABILITY,
-    DEFAULT_BULL_PROBABILITY,
-    DEFAULT_SCORE,
     ELO_K_FACTOR,
     EXPECTED_DRAW_WEIGHT,
     QUALITY_RESEARCH_WEIGHT,
@@ -18,7 +13,7 @@ from .constants import (
     ROUND_PROBABILITY_DIGITS,
     SCORE_SCALE,
 )
-from .research import run_llm_evaluation
+from .normalization import bucket_from_eval_json, eval_from_json, normalize_eval_json
 from .scores import (
     calculate_combined_upside_score,
     calculate_elo_delta,
@@ -30,6 +25,16 @@ from .scores import (
     market_cap_score,
     model_probabilities,
 )
+
+__all__ = [
+    "EvaluationResult",
+    "bucket_from_eval_json",
+    "build_inputs",
+    "eval_from_json",
+    "evaluate_asset",
+    "normalize_eval_json",
+    "strategy_label",
+]
 
 
 @dataclass(frozen=True)
@@ -99,6 +104,8 @@ def _blended_quality(
 
 def build_inputs(ticker: str) -> Evaluation:
     """Fetch metrics and run LLM evaluations to build the Evaluation input model."""
+    from .research import run_llm_evaluation
+
     normalized_ticker = parse_ticker(ticker)
     indicator = StockIndicator(normalized_ticker)
 
@@ -225,57 +232,3 @@ def strategy_label(
         return "Tactical Opportunities"
 
     return max(available_scores.items(), key=lambda score_item: score_item[1])[0]
-
-
-def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
-    """Normalize an eval.json entry to canonical keys used by the app.
-
-    This is the single place where we handle schema drift between generations.
-    """
-    if not data:
-        return {}
-
-    return {
-        "overall": to_float(data.get("overall", data.get("score")), DEFAULT_SCORE),
-        "quality": to_float(data.get("quality"), DEFAULT_SCORE),
-        "moat": to_float(data.get("moat"), DEFAULT_SCORE),
-        "valuation": to_float(data.get("valuation"), DEFAULT_SCORE),
-        "upside": to_float(data.get("upside"), DEFAULT_SCORE),
-        "market_cap_score": to_float(data.get("market_cap_score", data.get("market_cap")), DEFAULT_SCORE),
-        "bull": to_float(data.get("bull", data.get("bull_probability")), DEFAULT_BULL_PROBABILITY),
-        "bear": to_float(data.get("bear", data.get("bear_probability")), DEFAULT_BEAR_PROBABILITY),
-    }
-
-
-def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
-    """Build an `Evaluation` model from an `eval.json` entry."""
-    normalized = normalize_eval_json(data)
-    if not normalized:
-        return None
-
-    return Evaluation(
-        score=normalized["overall"],
-        reasons=[],
-        market_cap=normalized["market_cap_score"],
-        valuation=normalized["valuation"],
-        upside=normalized["upside"],
-        bull_probability=normalized["bull"],
-        bear_probability=normalized["bear"],
-        moat=ScoredReason(score=normalized["moat"], reasons=[]),
-        quality=ScoredReason(score=normalized["quality"], reasons=[]),
-    )
-
-
-def bucket_from_eval_json(ticker: str, data: dict[str, Any]) -> str | None:
-    """Derive the dashboard strategy label from an `eval.json` entry."""
-    inputs = eval_from_json(data)
-    if inputs is None:
-        return None
-
-    result = evaluate_asset(inputs, ticker=ticker)
-    return strategy_label(
-        result.core_index,
-        result.satellite_index,
-        result.speculative_index,
-        result.diversifier_index,
-    )

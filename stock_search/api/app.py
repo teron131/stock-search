@@ -62,8 +62,16 @@ class PortfolioPositionPatch(BaseModel):
     bucket: str | None = None
 
 
-def _set_no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "no-store"
+class StoredPortfolioPosition(BaseModel):
+    ticker: str
+    quantity: float = 0.0
+    delta: float = 0.0
+    bucket: str | None = None
+
+    def to_storage_dict(self) -> dict[str, Any]:
+        payload = self.model_dump(exclude_none=True)
+        payload["ticker"] = self.ticker.upper()
+        return payload
 
 
 def _stats_cache_generated_at() -> str | None:
@@ -81,23 +89,6 @@ def _load_positions() -> list[dict[str, Any]]:
 
 def _save_positions(positions: list[dict[str, Any]]) -> None:
     write_json(PORTFOLIO_PATH, positions)
-
-
-def _normalize_position(
-    *,
-    ticker: str,
-    quantity: float | None,
-    delta: float | None,
-    bucket: str | None = None,
-) -> dict[str, Any]:
-    normalized = {
-        "ticker": ticker.upper(),
-        "quantity": 0 if quantity is None else quantity,
-        "delta": 0.0 if delta is None else delta,
-    }
-    if bucket:
-        normalized["bucket"] = bucket
-    return normalized
 
 
 def _ensure_valid_new_ticker(ticker: str) -> None:
@@ -128,7 +119,7 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
 
 @app.get("/api/portfolio")
 def portfolio_api(response: Response, scope: str = "all") -> dict:
-    _set_no_store(response)
+    response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
 
     scope_config = _PORTFOLIO_SCOPE_CONFIG.get(scope, _PORTFOLIO_SCOPE_CONFIG["all"])
@@ -165,7 +156,7 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
 
 @app.get("/api/portfolio/{ticker}")
 def portfolio_ticker_api(ticker: str, response: Response) -> dict:
-    _set_no_store(response)
+    response.headers["Cache-Control"] = "no-store"
 
     # Single-row read path: avoid full live/cached-universe rebuild.
     df = get_dashboard(
@@ -192,12 +183,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
         if patch.quantity is None and patch.delta is None and patch.bucket is None:
             raise HTTPException(status_code=400, detail="Patch payload is empty.")
         _ensure_valid_new_ticker(ticker_upper)
-        current = _normalize_position(
-            ticker=ticker_upper,
-            quantity=0,
-            delta=0.0,
-            bucket=None,
-        )
+        current = StoredPortfolioPosition(ticker=ticker_upper).to_storage_dict()
         positions.append(current)
         idx = len(positions) - 1
     else:
@@ -213,9 +199,9 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
         else:
             current["bucket"] = patch.bucket
 
-    positions[idx] = current
+    positions[idx] = StoredPortfolioPosition.model_validate(current).to_storage_dict()
     _save_positions(positions)
-    return {"status": "ok", "ticker": ticker_upper, "position": current}
+    return {"status": "ok", "ticker": ticker_upper, "position": positions[idx]}
 
 
 @app.delete("/api/portfolio/{ticker}")
@@ -228,13 +214,13 @@ def remove_position(ticker: str):
 
 @app.get("/api/eval")
 def eval_api(response: Response) -> dict:
-    _set_no_store(response)
+    response.headers["Cache-Control"] = "no-store"
     return load_json(EVAL_PATH, default={})
 
 
 @app.get("/api/color-standards")
 def color_standards_api(response: Response) -> dict:
-    _set_no_store(response)
+    response.headers["Cache-Control"] = "no-store"
     return {
         "standards": {
             "market_cap": {"min": MarketCapConfig.MIN, "max": MarketCapConfig.MAX},
@@ -284,6 +270,7 @@ def color_standards_api(response: Response) -> dict:
     }
 
 
+# Experimental endpoint kept for compatibility with earlier UI integrations.
 @app.get("/api/news/{ticker}")
 def news_api(ticker: str) -> list[dict]:
     return [
@@ -306,6 +293,7 @@ def news_api(ticker: str) -> list[dict]:
     ]
 
 
+# Experimental endpoint kept for compatibility with earlier UI integrations.
 @app.get("/api/evaluate/{ticker}")
 def evaluate_ticker_api(ticker: str) -> dict:
     indicator = StockIndicator(ticker)

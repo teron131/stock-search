@@ -6,6 +6,7 @@ import yfinance as yf
 from stock_search.common_utils import MARKET_CAP_UNITS  # Re-export for backward compatibility
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
+from stock_search.field_definitions import INDICATOR_FIELDS
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
@@ -14,31 +15,6 @@ DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 
 # Re-export MARKET_CAP_UNITS for backward compatibility with existing scripts
 __all__ = ["MARKET_CAP_UNITS", "StockIndicator", "parse_ratings"]
-
-# --- Indicator Fields ---
-_INDICATOR_FIELDS: tuple[str, ...] = (
-    "price",
-    "change_percent",
-    "market_cap",
-    "pe",
-    "pe_forward",
-    "peg",
-    "beta",
-    "iv",
-    "one_month_change_percent",
-    "three_month_change_percent",
-    "six_month_change_percent",
-    "one_year_change_percent",
-    "median_upside",
-    "revenue_growth",
-    "gross_margin",
-    "debt_to_equity",
-    "free_cash_flow",
-    "rsi",
-    "change",
-    "mtd_change_percent",
-    "ytd_change_percent",
-)
 
 _UNSET = object()
 
@@ -186,4 +162,4 @@ class StockIndicator:
         return self._yahoo_snapshot.median_upside
 
     def get_all_indicators(self) -> dict[str, Any]:
-        return {field: getattr(self, field) for field in _INDICATOR_FIELDS}
+        return {field: getattr(self, field) for field in INDICATOR_FIELDS}

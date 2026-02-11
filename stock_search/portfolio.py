@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from time import monotonic, sleep
@@ -11,6 +11,7 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
@@ -20,44 +21,22 @@ from stock_search.evaluation.constants import (
     DEFAULT_SCORE,
     CalibrationConfig,
 )
-from stock_search.evaluation.evaluation import (
-    bucket_from_eval_json,
-    normalize_eval_json,
-)
+from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
+from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
 from stock_search.file_utils import load_json
 
-_HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
-_HISTORY_FAILURES: dict[str, datetime] = {}
-_INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
-_INFO_FAILURES: dict[str, datetime] = {}
-_LIVE_STATS_CACHE_LOCK = Lock()
+_HISTORY_CACHE = TieredCache[dict[str, Any]](
+    ttl_seconds=CacheConfig.HISTORY_TTL_SECONDS,
+    stale_seconds=CacheConfig.HISTORY_STALE_SECONDS,
+    failure_cooldown_seconds=CacheConfig.HISTORY_FAILURE_COOLDOWN_SECONDS,
+)
+_INFO_CACHE = TieredCache[dict[str, Any]](
+    ttl_seconds=CacheConfig.INFO_TTL_SECONDS,
+    stale_seconds=CacheConfig.INFO_STALE_SECONDS,
+    failure_cooldown_seconds=CacheConfig.INFO_FAILURE_COOLDOWN_SECONDS,
+)
 _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
-
-_MARKET_KEYS = {
-    "price",
-    "current_price",
-    "change",
-    "change_percent",
-    "market_cap",
-    "pe",
-    "pe_forward",
-    "peg",
-    "beta",
-    "iv",
-    "debt_to_equity",
-    "free_cash_flow",
-    "revenue_growth",
-    "gross_margin",
-    "rsi",
-    "one_month_change_percent",
-    "three_month_change_percent",
-    "six_month_change_percent",
-    "one_year_change_percent",
-    "mtd_change_percent",
-    "ytd_change_percent",
-    "median_upside",
-}
 
 
 def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
@@ -90,10 +69,6 @@ def calculate_position_weight(notional: float, total_equity: float) -> float:
     if total_equity <= 0:
         return 0.0
     return (notional / total_equity) * 100
-
-
-def _clamp_score(value: float) -> float:
-    return max(0.0, min(10.0, value))
 
 
 def _map_linear(
@@ -200,42 +175,23 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     """Fetch tiered market stats for a ticker (history + info)."""
     ticker_key = str(ticker).upper().strip()
     now = datetime.now(tz=UTC)
-    history_ttl_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_TTL_SECONDS)
-    history_stale_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_STALE_SECONDS)
-    history_failure_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_FAILURE_COOLDOWN_SECONDS)
-    info_ttl_cutoff = now - timedelta(seconds=CacheConfig.INFO_TTL_SECONDS)
-    info_stale_cutoff = now - timedelta(seconds=CacheConfig.INFO_STALE_SECONDS)
-    info_failure_cutoff = now - timedelta(seconds=CacheConfig.INFO_FAILURE_COOLDOWN_SECONDS)
+    history_data = _HISTORY_CACHE.get_fresh(ticker_key, now=now)
+    info_data = _INFO_CACHE.get_fresh(ticker_key, now=now)
+    need_history_fetch = history_data is None and _HISTORY_CACHE.should_retry(ticker_key, now=now)
+    need_info_fetch = info_data is None and _INFO_CACHE.should_retry(ticker_key, now=now)
 
-    with _LIVE_STATS_CACHE_LOCK:
-        history_entry = _HISTORY_CACHE.get(ticker_key)
-        info_entry = _INFO_CACHE.get(ticker_key)
-        history_failure = _HISTORY_FAILURES.get(ticker_key)
-        info_failure = _INFO_FAILURES.get(ticker_key)
+    if history_data is None:
+        history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {}
+    else:
+        history_data = dict(history_data)
 
-    history_data = dict(history_entry[1]) if history_entry else {}
-    info_data = dict(info_entry[1]) if info_entry else {}
-    history_fresh = bool(history_entry and history_entry[0] >= history_ttl_cutoff)
-    info_fresh = bool(info_entry and info_entry[0] >= info_ttl_cutoff)
-    history_recent_failure = bool(history_failure and history_failure >= history_failure_cutoff)
-    info_recent_failure = bool(info_failure and info_failure >= info_failure_cutoff)
+    if info_data is None:
+        info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {}
+    else:
+        info_data = dict(info_data)
 
-    if history_fresh and info_fresh:
+    if not need_history_fetch and not need_info_fetch:
         return {**info_data, **history_data}
-
-    def has_history_stale() -> bool:
-        return bool(history_entry and history_entry[0] >= history_stale_cutoff)
-
-    def has_info_stale() -> bool:
-        return bool(info_entry and info_entry[0] >= info_stale_cutoff)
-
-    need_history_fetch = not history_fresh and not history_recent_failure
-    need_info_fetch = not info_fresh and not info_recent_failure
-
-    if history_recent_failure and not has_history_stale():
-        history_data = {}
-    if info_recent_failure and not has_info_stale():
-        info_data = {}
 
     yahoo_source = YahooFinanceSource(ticker_key) if (need_history_fetch or need_info_fetch) else None
 
@@ -255,14 +211,11 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 "change": change,
                 "change_percent": change_percent,
             }
-            with _LIVE_STATS_CACHE_LOCK:
-                _HISTORY_CACHE[ticker_key] = (now, fetched_history)
-                _HISTORY_FAILURES.pop(ticker_key, None)
-                history_data = dict(fetched_history)
+            _HISTORY_CACHE.set(ticker_key, fetched_history, now=now)
+            history_data = dict(fetched_history)
         except Exception:
-            with _LIVE_STATS_CACHE_LOCK:
-                _HISTORY_FAILURES[ticker_key] = now
-                history_data = dict(_HISTORY_CACHE[ticker_key][1]) if has_history_stale() else {}
+            _HISTORY_CACHE.mark_failure(ticker_key, now=now)
+            history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {}
 
     if need_info_fetch:
         try:
@@ -283,14 +236,11 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
             fetched_info["quote_type"] = quote_type or None
             if quote_type == "ETF":
                 fetched_info["pe_forward"] = None
-            with _LIVE_STATS_CACHE_LOCK:
-                _INFO_CACHE[ticker_key] = (now, fetched_info)
-                _INFO_FAILURES.pop(ticker_key, None)
-                info_data = dict(fetched_info)
+            _INFO_CACHE.set(ticker_key, fetched_info, now=now)
+            info_data = dict(fetched_info)
         except Exception:
-            with _LIVE_STATS_CACHE_LOCK:
-                _INFO_FAILURES[ticker_key] = now
-                info_data = dict(_INFO_CACHE[ticker_key][1]) if has_info_stale() else {}
+            _INFO_CACHE.mark_failure(ticker_key, now=now)
+            info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {}
 
     merged = {**info_data, **history_data}
     return {k: v for k, v in merged.items() if v is not None or k == "pe_forward"}
@@ -316,8 +266,8 @@ def _build_row(
     if not isinstance(cached, dict):
         cached = {}
 
-    cached_meta: dict[str, Any] = {k: v for k, v in cached.items() if k not in _MARKET_KEYS}
-    cached_market: dict[str, Any] = {k: v for k, v in cached.items() if k in _MARKET_KEYS}
+    cached_meta: dict[str, Any] = {k: v for k, v in cached.items() if k not in MARKET_FIELDS}
+    cached_market: dict[str, Any] = {k: v for k, v in cached.items() if k in MARKET_FIELDS}
 
     eval_data = eval_cache.get(ticker, {})
     if not isinstance(eval_data, dict):
@@ -338,62 +288,22 @@ def _build_row(
     normalized_eval = normalize_eval_json(eval_data)
     fallback_eval = _indicator_eval_fallback(stats)
 
-    overall, overall_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="overall",
-        aliases=("score",),
-    )
-    quality, quality_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="quality",
-    )
-    valuation, valuation_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="valuation",
-    )
-    moat, moat_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="moat",
-    )
-    upside, upside_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="upside",
-    )
-    bull, bull_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="bull",
-        aliases=("bull_probability",),
-    )
-    bear, bear_from_llm = _pick_eval_value(
-        eval_data=eval_data,
-        normalized_eval=normalized_eval,
-        fallback_eval=fallback_eval,
-        key="bear",
-        aliases=("bear_probability",),
-    )
-    llm_flags = (
-        overall_from_llm,
-        quality_from_llm,
-        valuation_from_llm,
-        moat_from_llm,
-        upside_from_llm,
-        bull_from_llm,
-        bear_from_llm,
-    )
-    llm_count = sum(1 for flag in llm_flags if flag)
-    eval_source = "llm" if llm_count == len(llm_flags) else ("indicator_fallback" if llm_count == 0 else "hybrid")
+    selected_eval: dict[str, float] = {}
+    llm_count = 0
+    for field in EVAL_FIELD_DEFINITIONS:
+        value, is_from_llm = _pick_eval_value(
+            eval_data=eval_data,
+            normalized_eval=normalized_eval,
+            fallback_eval=fallback_eval,
+            key=field.key,
+            aliases=field.aliases,
+        )
+        selected_eval[field.key] = value
+        if is_from_llm:
+            llm_count += 1
+
+    total_eval_fields = len(EVAL_FIELD_DEFINITIONS)
+    eval_source = "llm" if llm_count == total_eval_fields else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
     bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
     quote_type = str(stats.get("quote_type") or "").upper()
@@ -407,14 +317,14 @@ def _build_row(
     etf_holdings_update_tier = UpdateTierLabels.ETF_HOLDINGS_LABEL if etf_holdings else None
 
     return {
-        "overall": overall,
-        "quality": quality,
-        "valuation": valuation,
-        "moat": moat,
-        "upside": upside,
+        "overall": selected_eval["overall"],
+        "quality": selected_eval["quality"],
+        "valuation": selected_eval["valuation"],
+        "moat": selected_eval["moat"],
+        "upside": selected_eval["upside"],
         "market_cap_score": normalized_eval.get("market_cap_score"),
-        "bull": bull,
-        "bear": bear,
+        "bull": selected_eval["bull"],
+        "bear": selected_eval["bear"],
         "eval_source": eval_source,
         "market_update_tier": UpdateTierLabels.FAST_LABEL,
         "indicator_update_tier": UpdateTierLabels.SLOW_LABEL,
@@ -613,25 +523,6 @@ def get_weighted_indicators(
     return weighted
 
 
-def _fmt_pct(value: Any) -> str:
-    if (parsed := safe_float(value)) is None:
-        return "-"
-    color = "green" if parsed >= 0 else "red"
-    return f"[{color}]{parsed:.2f}%[/{color}]"
-
-
-def _fmt_curr(value: Any) -> str:
-    if (parsed := safe_float(value)) is None:
-        return "-"
-    return f"${parsed:,.2f}"
-
-
-def _fmt_num(value: Any) -> str:
-    if (parsed := safe_float(value)) is None:
-        return "-"
-    return f"{parsed:.2f}"
-
-
 def display_dashboard(
     portfolio_path: str | Path = "data/portfolio.json",
     stats_path: str | Path = "data/stats.json",
@@ -645,6 +536,22 @@ def display_dashboard(
 
     console = Console()
     table = Table(title="Portfolio Dashboard", box=box.ROUNDED, header_style="bold magenta")
+
+    def fmt_pct(value: Any) -> str:
+        if (parsed := safe_float(value)) is None:
+            return "-"
+        color = "green" if parsed >= 0 else "red"
+        return f"[{color}]{parsed:.2f}%[/{color}]"
+
+    def fmt_curr(value: Any) -> str:
+        if (parsed := safe_float(value)) is None:
+            return "-"
+        return f"${parsed:,.2f}"
+
+    def fmt_num(value: Any) -> str:
+        if (parsed := safe_float(value)) is None:
+            return "-"
+        return f"{parsed:.2f}"
 
     table.add_column("Ticker", style="cyan", no_wrap=True)
     table.add_column("Qty", justify="right")
@@ -663,16 +570,16 @@ def display_dashboard(
         table.add_row(
             str(row["ticker"]),
             str(row["quantity"]),
-            _fmt_curr(row["current_price"]),
-            _fmt_pct(row["change_percent"]),
-            _fmt_num(row["rsi"]),
-            _fmt_pct(row["one_month_change_percent"]),
-            _fmt_pct(row["three_month_change_percent"]),
-            _fmt_pct(row["six_month_change_percent"]),
-            _fmt_pct(row["one_year_change_percent"]),
-            _fmt_pct(row["median_upside"]),
-            _fmt_curr(row["notional"]),
-            _fmt_pct(row["weight_pct"]),
+            fmt_curr(row["current_price"]),
+            fmt_pct(row["change_percent"]),
+            fmt_num(row["rsi"]),
+            fmt_pct(row["one_month_change_percent"]),
+            fmt_pct(row["three_month_change_percent"]),
+            fmt_pct(row["six_month_change_percent"]),
+            fmt_pct(row["one_year_change_percent"]),
+            fmt_pct(row["median_upside"]),
+            fmt_curr(row["notional"]),
+            fmt_pct(row["weight_pct"]),
         )
 
     console.print(table)
