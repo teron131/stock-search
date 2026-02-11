@@ -17,8 +17,6 @@ const EVAL_KEYS = [
   "market_cap_score",
   "bull",
   "bear",
-  "bull_probability",
-  "bear_probability",
   "rank",
 ];
 
@@ -38,20 +36,10 @@ async function tryFetchJson(url) {
 }
 
 function ensureEvalEntries(evalData) {
-  if (Array.isArray(evalData)) {
-    return evalData.map((e) => ({
-      ...e,
-      bull: e.bull ?? e.bull_probability,
-      bear: e.bear ?? e.bear_probability,
-    }));
-  }
-
   if (evalData && typeof evalData === "object") {
     return Object.entries(evalData).map(([ticker, data]) => ({
       ...data,
       ticker,
-      bull: data.bull ?? data.bull_probability,
-      bear: data.bear ?? data.bear_probability,
     }));
   }
 
@@ -177,7 +165,7 @@ async function determineDemoPath() {
   const stripLeadingSlashes = (p) => String(p || "").replace(/^\/+/, "");
 
   const isValidPortfolioPayload = (payload) =>
-    Array.isArray(payload) || (payload && Array.isArray(payload.rows));
+    Boolean(payload && Array.isArray(payload.rows));
 
   const primary = CONFIG.demoPaths.primary;
   const fallback = CONFIG.demoPaths.fallback;
@@ -206,40 +194,13 @@ async function determineDemoPath() {
 
 async function fetchStaticPortfolioData(basePath) {
   const portfolioRaw = await tryFetchJson(`${basePath}/portfolio.json`);
-  if (!portfolioRaw) throw new Error("Static portfolio not found");
+  if (!portfolioRaw || !Array.isArray(portfolioRaw.rows)) {
+    throw new Error("Static portfolio not found");
+  }
 
   const evalData = (await tryFetchJson(`${basePath}/eval.json`)) ?? {};
-  const statsData = (await tryFetchJson(`${basePath}/stats.json`)) ?? {};
 
-  if (portfolioRaw?.rows) {
-    return { dashData: portfolioRaw, evalData };
-  }
-
-  if (Array.isArray(portfolioRaw)) {
-    const rows = portfolioRaw.map((pos) => {
-      const stat = statsData[pos.ticker] || {};
-      const quantity = Number(pos.quantity || 0);
-      const price = Number(stat.current_price || 0);
-      const delta = Number(pos.delta ?? 0);
-      const notional = (quantity + delta * 100) * price;
-
-      return {
-        ...stat,
-        ...pos,
-        notional,
-        ticker: pos.ticker,
-        current_price: price,
-        quantity,
-      };
-    });
-
-    return {
-      dashData: { rows, generated_at: new Date().toISOString() },
-      evalData,
-    };
-  }
-
-  return { dashData: { rows: [] }, evalData };
+  return { dashData: portfolioRaw, evalData };
 }
 
 export function usePortfolioData() {
@@ -266,7 +227,11 @@ export function usePortfolioData() {
   const applyMergedRows = useCallback((dashData, evalData) => {
     const merged = calculateRanks(mergeRows(dashData, evalData));
     setRows(merged);
-    setGeneratedAt(new Date().toISOString());
+    setGeneratedAt(
+      typeof dashData?.generated_at === "string" && dashData.generated_at
+        ? dashData.generated_at
+        : new Date().toISOString(),
+    );
   }, []);
 
   const load = useCallback(
@@ -294,8 +259,8 @@ export function usePortfolioData() {
         }
 
         // Normal mode:
-        // - Stats/portfolio always via API (live)
-        // - Eval cache-first (static), fallback to API
+        // - Portfolio/stats from API (live)
+        // - Eval via API first, then static cache fallback
         const dashData = await (async () => {
           const url =
             scope === "priority"
@@ -307,8 +272,8 @@ export function usePortfolioData() {
         })();
 
         const evalData =
-          (await tryFetchJson(`${basePath}/eval.json`)) ??
           (await tryFetchJson(CONFIG.endpoints.eval)) ??
+          (await tryFetchJson(`${basePath}/eval.json`)) ??
           {};
         const standardsPayload = await tryFetchJson(
           CONFIG.endpoints.colorStandards,
@@ -387,7 +352,11 @@ export function usePortfolioData() {
         setRows((prevRows) =>
           calculateRanks(upsertRow(prevRows, rowPayload.row)),
         );
-        setGeneratedAt(new Date().toISOString());
+        setGeneratedAt(
+          typeof rowPayload.generated_at === "string" && rowPayload.generated_at
+            ? rowPayload.generated_at
+            : new Date().toISOString(),
+        );
         return { ok: true };
       }
 

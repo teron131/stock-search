@@ -47,8 +47,6 @@ def _set_no_store(response: Response) -> None:
 
 def _load_positions() -> list[dict[str, Any]]:
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
-    if isinstance(portfolio_data, dict):
-        portfolio_data = portfolio_data.get("positions", [])
     return portfolio_data if isinstance(portfolio_data, list) else []
 
 
