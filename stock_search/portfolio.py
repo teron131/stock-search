@@ -179,16 +179,9 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     info_data = _INFO_CACHE.get_fresh(ticker_key, now=now)
     need_history_fetch = history_data is None and _HISTORY_CACHE.should_retry(ticker_key, now=now)
     need_info_fetch = info_data is None and _INFO_CACHE.should_retry(ticker_key, now=now)
+    history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {} if history_data is None else dict(history_data)
 
-    if history_data is None:
-        history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {}
-    else:
-        history_data = dict(history_data)
-
-    if info_data is None:
-        info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {}
-    else:
-        info_data = dict(info_data)
+    info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {} if info_data is None else dict(info_data)
 
     if not need_history_fetch and not need_info_fetch:
         return {**info_data, **history_data}

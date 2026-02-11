@@ -321,8 +321,20 @@ class StockAnalysisSource:
             return self._stockanalysis_script_text
 
         url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)
-        response = requests.get(url, timeout=20)
-        response.raise_for_status()
+        try:
+            response = requests.get(url, timeout=20)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code == 404:
+                logger.info("StockAnalysis holdings page not found for %s; skipping look-through.", self.ticker)
+                return None
+            logger.warning("StockAnalysis request failed for %s (status=%s); skipping look-through.", self.ticker, status_code)
+            return None
+        except requests.RequestException as exc:
+            logger.warning("StockAnalysis request failed for %s; skipping look-through: %s", self.ticker, exc)
+            return None
+
         soup = BeautifulSoup(response.text, "html.parser")
         for script_tag in soup.find_all("script"):
             script_text = script_tag.get_text()
@@ -353,8 +365,8 @@ class StockAnalysisSource:
                 ticker = self._clean_symbol(raw_symbol)
                 parsed_holdings.append(Holding(ticker=ticker, name=name, weight=float(weight_str)))
             holdings = ETFHoldings(holdings=parsed_holdings)
-        except Exception:
-            logger.exception("Failed to scrape ETF holdings from StockAnalysis for %s", self.ticker)
+        except Exception as exc:
+            logger.warning("Failed to scrape ETF holdings from StockAnalysis for %s: %s", self.ticker, exc)
         return holdings
 
     def _search_etf_holdings(self) -> ETFHoldings:
@@ -391,8 +403,8 @@ class StockAnalysisSource:
                     payload[field_name] = float(weight_str)
             if payload:
                 sectors = ETFSectors(**payload)
-        except Exception:
-            logger.exception("Failed to scrape ETF sectors from StockAnalysis for %s", self.ticker)
+        except Exception as exc:
+            logger.warning("Failed to scrape ETF sectors from StockAnalysis for %s: %s", self.ticker, exc)
         return sectors
 
     def _search_etf_sectors(self) -> ETFSectors:
