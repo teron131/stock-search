@@ -3,6 +3,7 @@ from typing import Any
 
 import yfinance as yf
 
+from stock_search.common_utils import MARKET_CAP_UNITS  # Re-export for backward compatibility
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
 
@@ -11,13 +12,8 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 # --- Configuration ---
 DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 
-# Kept as public export for scripts that format market-cap display values.
-MARKET_CAP_UNITS: tuple[tuple[float, str], ...] = (
-    (1_000_000_000_000, "T"),
-    (1_000_000_000, "B"),
-    (1_000_000, "M"),
-    (1_000, "K"),
-)
+# Re-export MARKET_CAP_UNITS for backward compatibility with existing scripts
+__all__ = ["MARKET_CAP_UNITS", "StockIndicator", "parse_ratings"]
 
 # --- Indicator Fields ---
 _INDICATOR_FIELDS: tuple[str, ...] = (
@@ -45,8 +41,6 @@ _INDICATOR_FIELDS: tuple[str, ...] = (
 )
 
 _UNSET = object()
-
-_FUNDAMENTAL_FALLBACK_ORDER: tuple[str, ...] = ("yahoo", "stockanalysis")
 
 
 def parse_ratings(
@@ -92,15 +86,12 @@ class StockIndicator:
         return self._stockanalysis_indicators
 
     def _resolve_fallback_field(self, field: str) -> float | None:
-        source_snapshots = {
-            "yahoo": self._yahoo_snapshot,
-            "stockanalysis": self._stockanalysis_snapshot,
-        }
-        for source_name in _FUNDAMENTAL_FALLBACK_ORDER:
-            snapshot = source_snapshots[source_name]
-            if (value := getattr(snapshot, field, None)) is not None:
-                return value
-        return None
+        """Resolve field value using source priority (StockAnalysis first, Yahoo fallback)."""
+        # Try StockAnalysis first (primary source)
+        if (value := getattr(self._stockanalysis_snapshot, field, None)) is not None:
+            return value
+        # Fallback to Yahoo
+        return getattr(self._yahoo_snapshot, field, None)
 
     def _current_price_from_info(self) -> float | None:
         """Backward-compatible helper used by dashboard code."""

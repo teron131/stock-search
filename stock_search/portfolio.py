@@ -11,6 +11,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.common_utils import clamp, safe_float
+from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.evaluation.constants import (
     DEFAULT_BEAR_PROBABILITY,
@@ -24,15 +26,6 @@ from stock_search.evaluation.evaluation import (
 )
 from stock_search.file_utils import load_json
 
-_MAX_WORKERS = 8
-_HISTORY_TTL_SECONDS = 60
-_HISTORY_STALE_SECONDS = 600
-_HISTORY_FAILURE_COOLDOWN_SECONDS = 180
-_INFO_TTL_SECONDS = 3_600  # 1 hour
-_INFO_STALE_SECONDS = 172_800  # 48 hours
-_INFO_FAILURE_COOLDOWN_SECONDS = 1_800  # 30 minutes
-# Keep at zero for responsive local dashboard refresh; thread pool size still bounds concurrency.
-_LIVE_STATS_MIN_REQUEST_GAP_SECONDS = 0.0
 _HISTORY_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _HISTORY_FAILURES: dict[str, datetime] = {}
 _INFO_CACHE: dict[str, tuple[datetime, dict[str, Any]]] = {}
@@ -65,12 +58,6 @@ _MARKET_KEYS = {
     "ytd_change_percent",
     "median_upside",
 }
-
-_UPDATE_TIER_FAST_LABEL = "history_1m"
-_UPDATE_TIER_SLOW_LABEL = "info_1h"
-_UPDATE_TIER_RATINGS_LABEL = "ratings_1d"
-_UPDATE_TIER_EVAL_LABEL = "llm_optional"
-_UPDATE_TIER_ETF_HOLDINGS_LABEL = "llm_optional"
 
 
 def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
@@ -141,20 +128,20 @@ def _indicator_eval_fallback(stats: dict[str, Any]) -> dict[str, float]:
         _map_linear(pe, in_min=pe_min, in_max=pe_max, out_min=10.0, out_max=2.0),
     ]
     valuation_values = [v for v in valuation_parts if v is not None]
-    valuation = _clamp_score(sum(valuation_values) / len(valuation_values)) if valuation_values else DEFAULT_SCORE
+    valuation = clamp(sum(valuation_values) / len(valuation_values), 0.0, 10.0) if valuation_values else DEFAULT_SCORE
 
     quality_parts = [
         _map_linear(revenue_growth, in_min=rev_g_min, in_max=rev_g_max, out_min=2.0, out_max=10.0),
         _map_linear(gross_margin, in_min=margin_min, in_max=margin_max, out_min=2.0, out_max=10.0),
     ]
     quality_values = [v for v in quality_parts if v is not None]
-    quality = _clamp_score(sum(quality_values) / len(quality_values)) if quality_values else DEFAULT_SCORE
+    quality = clamp(sum(quality_values) / len(quality_values), 0.0, 10.0) if quality_values else DEFAULT_SCORE
 
     upside_val = _map_linear(median_upside, in_min=upside_min, in_max=upside_max, out_min=2.0, out_max=10.0)
-    upside = _clamp_score(upside_val) if upside_val is not None else DEFAULT_SCORE
+    upside = clamp(upside_val, 0.0, 10.0) if upside_val is not None else DEFAULT_SCORE
 
     moat = DEFAULT_SCORE
-    overall = _clamp_score((moat + quality + valuation + upside) / 4)
+    overall = clamp((moat + quality + valuation + upside) / 4, 0.0, 10.0)
 
     momentum_fields = (
         "change_percent",
@@ -198,12 +185,12 @@ def _pick_eval_value(
 
 
 def _rate_limit_wait() -> None:
-    if _LIVE_STATS_MIN_REQUEST_GAP_SECONDS <= 0:
+    if CacheConfig.LIVE_STATS_MIN_REQUEST_GAP_SECONDS <= 0:
         return
     global _LAST_LIVE_STATS_REQUEST_AT
     with _LIVE_STATS_RATE_LOCK:
         elapsed = monotonic() - _LAST_LIVE_STATS_REQUEST_AT
-        wait_seconds = _LIVE_STATS_MIN_REQUEST_GAP_SECONDS - elapsed
+        wait_seconds = CacheConfig.LIVE_STATS_MIN_REQUEST_GAP_SECONDS - elapsed
         if wait_seconds > 0:
             sleep(wait_seconds)
         _LAST_LIVE_STATS_REQUEST_AT = monotonic()
@@ -213,12 +200,12 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     """Fetch tiered market stats for a ticker (history + info)."""
     ticker_key = str(ticker).upper().strip()
     now = datetime.now(tz=UTC)
-    history_ttl_cutoff = now - timedelta(seconds=_HISTORY_TTL_SECONDS)
-    history_stale_cutoff = now - timedelta(seconds=_HISTORY_STALE_SECONDS)
-    history_failure_cutoff = now - timedelta(seconds=_HISTORY_FAILURE_COOLDOWN_SECONDS)
-    info_ttl_cutoff = now - timedelta(seconds=_INFO_TTL_SECONDS)
-    info_stale_cutoff = now - timedelta(seconds=_INFO_STALE_SECONDS)
-    info_failure_cutoff = now - timedelta(seconds=_INFO_FAILURE_COOLDOWN_SECONDS)
+    history_ttl_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_TTL_SECONDS)
+    history_stale_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_STALE_SECONDS)
+    history_failure_cutoff = now - timedelta(seconds=CacheConfig.HISTORY_FAILURE_COOLDOWN_SECONDS)
+    info_ttl_cutoff = now - timedelta(seconds=CacheConfig.INFO_TTL_SECONDS)
+    info_stale_cutoff = now - timedelta(seconds=CacheConfig.INFO_STALE_SECONDS)
+    info_failure_cutoff = now - timedelta(seconds=CacheConfig.INFO_FAILURE_COOLDOWN_SECONDS)
 
     with _LIVE_STATS_CACHE_LOCK:
         history_entry = _HISTORY_CACHE.get(ticker_key)
@@ -417,7 +404,7 @@ def _build_row(
     etf_holdings_fetched_at = stats.get("etf_holdings_fetched_at")
     if etf_holdings_fetched_at is not None:
         etf_holdings_fetched_at = str(etf_holdings_fetched_at)
-    etf_holdings_update_tier = _UPDATE_TIER_ETF_HOLDINGS_LABEL if etf_holdings else None
+    etf_holdings_update_tier = UpdateTierLabels.ETF_HOLDINGS_LABEL if etf_holdings else None
 
     return {
         "overall": overall,
@@ -429,10 +416,10 @@ def _build_row(
         "bull": bull,
         "bear": bear,
         "eval_source": eval_source,
-        "market_update_tier": _UPDATE_TIER_FAST_LABEL,
-        "indicator_update_tier": _UPDATE_TIER_SLOW_LABEL,
-        "ratings_update_tier": _UPDATE_TIER_RATINGS_LABEL,
-        "evaluation_update_tier": _UPDATE_TIER_EVAL_LABEL,
+        "market_update_tier": UpdateTierLabels.FAST_LABEL,
+        "indicator_update_tier": UpdateTierLabels.SLOW_LABEL,
+        "ratings_update_tier": UpdateTierLabels.RATINGS_LABEL,
+        "evaluation_update_tier": UpdateTierLabels.EVAL_LABEL,
         "etf_holdings_update_tier": etf_holdings_update_tier,
         "rank": None,
         "ticker": ticker,
@@ -524,7 +511,7 @@ def build_portfolio_dataframe(
                 }
             )
 
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
         rows = list(
             executor.map(
                 lambda pos: _build_row(
@@ -626,31 +613,21 @@ def get_weighted_indicators(
     return weighted
 
 
-def _to_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        parsed = float(value)
-        return parsed if parsed == parsed else None
-    except (TypeError, ValueError):
-        return None
-
-
 def _fmt_pct(value: Any) -> str:
-    if (parsed := _to_float(value)) is None:
+    if (parsed := safe_float(value)) is None:
         return "-"
     color = "green" if parsed >= 0 else "red"
     return f"[{color}]{parsed:.2f}%[/{color}]"
 
 
 def _fmt_curr(value: Any) -> str:
-    if (parsed := _to_float(value)) is None:
+    if (parsed := safe_float(value)) is None:
         return "-"
     return f"${parsed:,.2f}"
 
 
 def _fmt_num(value: Any) -> str:
-    if (parsed := _to_float(value)) is None:
+    if (parsed := safe_float(value)) is None:
         return "-"
     return f"{parsed:.2f}"
 

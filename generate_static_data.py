@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 import random
 
+from stock_search.common_utils import format_market_cap, round_optional
+from stock_search.config import PortfolioConfig
 from stock_search.evaluation.evaluation import evaluate_asset
 from stock_search.evaluation.scores import (
     calculate_combined_upside_score,
@@ -11,15 +13,11 @@ from stock_search.evaluation.scores import (
     market_cap_score,
 )
 from stock_search.file_utils import load_json, write_json
-from stock_search.indicators import MARKET_CAP_UNITS, StockIndicator
+from stock_search.indicators import StockIndicator
 from stock_search.schemas import Evaluation, ScoredReason
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
-
-# Quantity generation
-TARGET_TOTAL_EQUITY = 1_000_000.0
-MAX_POSITION_QTY = 500
 
 BUCKETS = [
     "Strategic Core",
@@ -131,56 +129,33 @@ SAMPLE_TICKERS = [
 ]
 
 
-def _round(value: float | None, decimals: int = 2) -> float | None:
-    if value is None:
-        return None
-    try:
-        return round(float(value), decimals)
-    except (TypeError, ValueError):
-        return None
-
-
-def _format_market_cap(market_cap: float | None) -> str | None:
-    if market_cap is None:
-        return None
-    try:
-        value = float(market_cap)
-    except (TypeError, ValueError):
-        return None
-
-    for divisor, suffix in MARKET_CAP_UNITS:
-        if value >= divisor:
-            return f"{value / divisor:.3f}{suffix}"
-    return f"{value:.3f}"
-
-
 def fetch_stats_data(ticker: str) -> dict:
     """Fetch real-time market data + indicator snapshot for a ticker."""
     indicator = StockIndicator(ticker)
     info = indicator.info or {}
     indicators = indicator.get_all_indicators()
 
-    price = _round(indicators.get("price"), 2)
+    price = round_optional(indicators.get("price"), 2)
     if price is not None and price <= 0:
         price = None
 
-    change = _round(indicators.get("change"), 2)
-    change_percent = _round(indicators.get("change_percent"), 2)
+    change = round_optional(indicators.get("change"), 2)
+    change_percent = round_optional(indicators.get("change_percent"), 2)
 
-    market_cap_raw = _round(indicators.get("market_cap"), 0)
-    market_cap = _format_market_cap(market_cap_raw)
-    pe = _round(indicators.get("pe"), 2)
-    pe_forward = _round(indicators.get("pe_forward"), 2)
-    peg = _round(indicators.get("peg"), 2)
-    beta = _round(indicators.get("beta"), 2)
-    iv = _round(indicators.get("iv"), 2)
+    market_cap_raw = round_optional(indicators.get("market_cap"), 0)
+    market_cap = format_market_cap(market_cap_raw)
+    pe = round_optional(indicators.get("pe"), 2)
+    pe_forward = round_optional(indicators.get("pe_forward"), 2)
+    peg = round_optional(indicators.get("peg"), 2)
+    beta = round_optional(indicators.get("beta"), 2)
+    iv = round_optional(indicators.get("iv"), 2)
 
-    one_month_change_percent = _round(indicators.get("one_month_change_percent"), 2)
-    three_month_change_percent = _round(indicators.get("three_month_change_percent"), 2)
-    six_month_change_percent = _round(indicators.get("six_month_change_percent"), 2)
-    one_year_change_percent = _round(indicators.get("one_year_change_percent"), 2)
-    mtd_change_percent = _round(indicators.get("mtd_change_percent"), 2)
-    ytd_change_percent = _round(indicators.get("ytd_change_percent"), 2)
+    one_month_change_percent = round_optional(indicators.get("one_month_change_percent"), 2)
+    three_month_change_percent = round_optional(indicators.get("three_month_change_percent"), 2)
+    six_month_change_percent = round_optional(indicators.get("six_month_change_percent"), 2)
+    one_year_change_percent = round_optional(indicators.get("one_year_change_percent"), 2)
+    mtd_change_percent = round_optional(indicators.get("mtd_change_percent"), 2)
+    ytd_change_percent = round_optional(indicators.get("ytd_change_percent"), 2)
 
     # Backward-compatible aliases kept for older consumers.
     twenty_day_change_percent = one_month_change_percent
@@ -188,11 +163,11 @@ def fetch_stats_data(ticker: str) -> dict:
     one_hundred_day_change_percent = six_month_change_percent
     two_hundred_day_change_percent = one_year_change_percent
 
-    median_upside = _round(indicators.get("median_upside"), 2)
-    revenue_growth = _round(indicators.get("revenue_growth"), 2)
-    gross_margin = _round(indicators.get("gross_margin"), 2)
-    debt_to_equity = _round(indicators.get("debt_to_equity"), 2)
-    free_cash_flow = _round(indicators.get("free_cash_flow"), 0)
+    median_upside = round_optional(indicators.get("median_upside"), 2)
+    revenue_growth = round_optional(indicators.get("revenue_growth"), 2)
+    gross_margin = round_optional(indicators.get("gross_margin"), 2)
+    debt_to_equity = round_optional(indicators.get("debt_to_equity"), 2)
+    free_cash_flow = round_optional(indicators.get("free_cash_flow"), 0)
 
     return {
         "price": price,
@@ -201,7 +176,7 @@ def fetch_stats_data(ticker: str) -> dict:
         "change_percent": change_percent,
         "bucket": random.choice(BUCKETS),
         "name": info.get("shortName") or info.get("longName") or ticker,
-        "rsi": _round(indicators.get("rsi"), 2),
+        "rsi": round_optional(indicators.get("rsi"), 2),
         "one_month_change_percent": one_month_change_percent,
         "three_month_change_percent": three_month_change_percent,
         "six_month_change_percent": six_month_change_percent,
@@ -387,9 +362,9 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
         if numeric_price <= 0:
             continue
 
-        allocation = TARGET_TOTAL_EQUITY * (scores[ticker] / score_sum) if score_sum > 0 else (TARGET_TOTAL_EQUITY / len(tickers))
+        allocation = PortfolioConfig.TARGET_TOTAL_EQUITY * (scores[ticker] / score_sum) if score_sum > 0 else (PortfolioConfig.TARGET_TOTAL_EQUITY / len(tickers))
         qty = round(allocation / numeric_price)
-        qty = max(1, min(qty, MAX_POSITION_QTY))
+        qty = max(1, min(qty, PortfolioConfig.MAX_POSITION_QTY))
 
         portfolio_entries.append({"ticker": ticker, "quantity": float(qty), "delta": 0.0})
 

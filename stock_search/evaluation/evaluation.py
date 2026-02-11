@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
+from ..common_utils import to_float
 from ..indicators import StockIndicator
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
 from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
@@ -157,11 +158,7 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     """Process an Evaluation model into a final EvaluationResult with indices and deltas."""
     bull_probability = inputs.bull_probability
     bear_probability = inputs.bear_probability
-    flat_probability = (
-        inputs.flat_probability
-        if inputs.flat_probability is not None
-        else _flat_probability(bull_probability, bear_probability)
-    )
+    flat_probability = inputs.flat_probability if inputs.flat_probability is not None else _flat_probability(bull_probability, bear_probability)
 
     bull_score = bull_probability * SCORE_SCALE if bull_probability is not None else None
     bear_score = bear_probability * SCORE_SCALE if bear_probability is not None else None
@@ -186,11 +183,7 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
         if bull_probability is not None and bear_probability is not None and bull_probability > 0 and bear_probability > 0
         else None
     )
-    expected_probability = (
-        bull_probability + (EXPECTED_DRAW_WEIGHT * flat_probability)
-        if bull_probability is not None and flat_probability is not None
-        else None
-    )
+    expected_probability = bull_probability + (EXPECTED_DRAW_WEIGHT * flat_probability) if bull_probability is not None and flat_probability is not None else None
 
     return EvaluationResult(
         inputs=inputs,
@@ -234,15 +227,6 @@ def strategy_label(
     return max(available_scores.items(), key=lambda score_item: score_item[1])[0]
 
 
-def _to_float(value: Any, default: float) -> float:
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
     """Normalize an eval.json entry to canonical keys used by the app.
 
@@ -252,14 +236,14 @@ def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     return {
-        "overall": _to_float(data.get("overall", data.get("score")), DEFAULT_SCORE),
-        "quality": _to_float(data.get("quality"), DEFAULT_SCORE),
-        "moat": _to_float(data.get("moat"), DEFAULT_SCORE),
-        "valuation": _to_float(data.get("valuation"), DEFAULT_SCORE),
-        "upside": _to_float(data.get("upside"), DEFAULT_SCORE),
-        "market_cap_score": _to_float(data.get("market_cap_score", data.get("market_cap")), DEFAULT_SCORE),
-        "bull": _to_float(data.get("bull", data.get("bull_probability")), DEFAULT_BULL_PROBABILITY),
-        "bear": _to_float(data.get("bear", data.get("bear_probability")), DEFAULT_BEAR_PROBABILITY),
+        "overall": to_float(data.get("overall", data.get("score")), DEFAULT_SCORE),
+        "quality": to_float(data.get("quality"), DEFAULT_SCORE),
+        "moat": to_float(data.get("moat"), DEFAULT_SCORE),
+        "valuation": to_float(data.get("valuation"), DEFAULT_SCORE),
+        "upside": to_float(data.get("upside"), DEFAULT_SCORE),
+        "market_cap_score": to_float(data.get("market_cap_score", data.get("market_cap")), DEFAULT_SCORE),
+        "bull": to_float(data.get("bull", data.get("bull_probability")), DEFAULT_BULL_PROBABILITY),
+        "bear": to_float(data.get("bear", data.get("bear_probability")), DEFAULT_BEAR_PROBABILITY),
     }
 
 

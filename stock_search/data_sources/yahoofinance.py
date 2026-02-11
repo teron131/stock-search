@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import yfinance as yf
 
+from stock_search.common_utils import round_optional, safe_float
+
 ETF_QUOTE_TYPE = "ETF"
 DEFAULT_FX_LOOKBACK_PERIOD = "5d"
 DEFAULT_FX_INTERVAL = "1d"
@@ -61,18 +63,6 @@ _PRICE_TIME_KEYS: tuple[tuple[str, str], ...] = (
     ("postMarketPrice", "postMarketTime"),
 )
 _STATEMENT_NOT_LOADED = object()
-
-
-def _safe_float(value: Any) -> float | None:
-    """Safely parse finite float values from provider payloads."""
-    with suppress(TypeError, ValueError):
-        converted = float(value)
-        return converted if math.isfinite(converted) else None
-    return None
-
-
-def _round(value: float | None, decimals: int = 2) -> float | None:
-    return round(float(value), decimals) if value is not None else None
 
 
 def _subtract_months(value: date, months: int) -> date:
@@ -255,7 +245,7 @@ class YahooFinanceSource:
             return self._ratings_cache[days]
 
         info = self.get_info_snapshot().raw_info
-        current_price = _safe_float(info.get("currentPrice")) or _safe_float(info.get("regularMarketPrice"))
+        current_price = safe_float(info.get("currentPrice")) or safe_float(info.get("regularMarketPrice"))
         if current_price is None:
             self._ratings_cache[days] = None
             return None
@@ -301,7 +291,7 @@ class YahooFinanceSource:
 
     def get_info_float(self, key: str) -> float | None:
         """Read and parse float-like value from Yahoo info."""
-        return _safe_float(self.info.get(key))
+        return safe_float(self.info.get(key))
 
     def get_current_price(self) -> float | None:
         """Best-effort current/regular price from Yahoo info."""
@@ -313,13 +303,13 @@ class YahooFinanceSource:
 
     def get_realtime_price(self, market_state: str) -> float | None:
         """Pick best available realtime price from pre/regular/post values."""
-        candidates = [(int(self.info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := _safe_float(self.info.get(price_key))) is not None]
+        candidates = [(int(self.info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := safe_float(self.info.get(price_key))) is not None]
         if candidates and any(ts > 0 for ts, _ in candidates):
             return round(max(candidates, key=lambda x: x[0])[1], 2)
 
         preferred = _SESSION_PRICE_KEYS.get(market_state)
         for key in (preferred, *_PRICE_FALLBACK_ORDER):
-            if key and (price := _safe_float(self.info.get(key))) is not None:
+            if key and (price := safe_float(self.info.get(key))) is not None:
                 return round(price, 2)
         return None
 
@@ -416,8 +406,8 @@ class YahooFinanceSource:
             gross_profit_latest = self._sum_quarters(annual_gross_profit, count=1, offset=0)
             if revenue_latest in (None, 0) or gross_profit_latest is None:
                 return None
-            return _round((gross_profit_latest / revenue_latest) * 100)
-        return _round((gross_profit_ttm / revenue_ttm) * 100)
+            return round_optional((gross_profit_latest / revenue_latest) * 100)
+        return round_optional((gross_profit_ttm / revenue_ttm) * 100)
 
     def get_operating_margin_percent(self) -> float | None:
         """Get TTM operating margin in percentage points from quarterly statements."""
@@ -434,8 +424,8 @@ class YahooFinanceSource:
             operating_income_latest = self._sum_quarters(annual_operating_income, count=1, offset=0)
             if revenue_latest in (None, 0) or operating_income_latest is None:
                 return None
-            return _round((operating_income_latest / revenue_latest) * 100)
-        return _round((operating_income_ttm / revenue_ttm) * 100)
+            return round_optional((operating_income_latest / revenue_latest) * 100)
+        return round_optional((operating_income_ttm / revenue_ttm) * 100)
 
     def get_debt_to_equity_percent(self) -> float | None:
         """Get debt-to-equity percentage from Yahoo info."""
@@ -448,12 +438,12 @@ class YahooFinanceSource:
         if values is not None:
             eps_ttm = self._sum_quarters(values, count=4, offset=0)
             if eps_ttm is not None:
-                return _round(eps_ttm)
+                return round_optional(eps_ttm)
         annual_values = self._annual_metric_series(("Diluted EPS", "DilutedEPS"))
         if annual_values is None:
             return None
         eps_latest = self._sum_quarters(annual_values, count=1, offset=0)
-        return _round(eps_latest) if eps_latest is not None else None
+        return round_optional(eps_latest) if eps_latest is not None else None
 
     def get_ytd_return_percent(self) -> float | None:
         """Get Yahoo ytdReturn and convert to percentage points."""
@@ -535,8 +525,8 @@ class YahooFinanceSource:
                 scoped = hist.loc[(index_ny >= window[0]) & (index_ny < window[1])]
                 scoped_series = _close_series(scoped)
                 if scoped_series is not None:
-                    return _round(float(scoped_series.iloc[-1]))
-            return _round(float(series.iloc[-1]))
+                    return round_optional(float(scoped_series.iloc[-1]))
+            return round_optional(float(series.iloc[-1]))
         except Exception:
             return None
 
@@ -558,7 +548,7 @@ class YahooFinanceSource:
         if series is None:
             return None
         with suppress(Exception):
-            return _round(float(series.iloc[-1]))
+            return round_optional(float(series.iloc[-1]))
         return None
 
     def _previous_close_from_history(self) -> float | None:
@@ -567,7 +557,7 @@ class YahooFinanceSource:
             return None
         with suppress(Exception):
             idx = -2 if len(series) >= 2 else -1
-            return _round(float(series.iloc[idx]))
+            return round_optional(float(series.iloc[idx]))
         return None
 
     def _period_baseline_close(self, start_date: date, history_period: str) -> float | None:
@@ -588,7 +578,7 @@ class YahooFinanceSource:
         baseline = self._period_baseline_close(start_date, history_period)
         if price is None or baseline is None or baseline == 0:
             return None
-        return _round(((price / baseline) - 1) * 100)
+        return round_optional(((price / baseline) - 1) * 100)
 
     def _calculate_rsi(self, days: int = DEFAULT_RSI_PERIOD) -> float | None:
         try:
@@ -600,7 +590,7 @@ class YahooFinanceSource:
             avg_loss = float((-deltas.where(deltas < 0, 0.0)).rolling(window=days).mean().iloc[-1])
             if avg_loss == 0:
                 return 100.0
-            return _round(100 - (100 / (1 + avg_gain / avg_loss)))
+            return round_optional(100 - (100 / (1 + avg_gain / avg_loss)))
         except Exception:
             return None
 
@@ -608,8 +598,8 @@ class YahooFinanceSource:
     def _annualized_hv_percent(log_returns: pd.Series, window: int) -> float | None:
         if len(log_returns) < window:
             return None
-        val = _safe_float(log_returns.tail(window).std())
-        return _round(val * (252**0.5) * 100) if val is not None else None
+        val = safe_float(log_returns.tail(window).std())
+        return round_optional(val * (252**0.5) * 100) if val is not None else None
 
     def _calculate_iv(self) -> float | None:
         series = _close_series(self.get_history_snapshot(period="1y", interval="1d").history)
@@ -627,7 +617,7 @@ class YahooFinanceSource:
                     total_weight += weight
             if total_weight == 0:
                 return None
-            return _round(weighted_sum / total_weight)
+            return round_optional(weighted_sum / total_weight)
         return None
 
     def get_indicators_snapshot(self, ratings_days: int = 90) -> YahooIndicatorsSnapshot:
@@ -635,11 +625,11 @@ class YahooFinanceSource:
         if ratings_days in self._indicator_cache:
             return self._indicator_cache[ratings_days]
 
-        price = self.get_realtime_price(self.get_market_state()) or _round(self.get_current_price()) or self._last_intraday_price() or self._last_close()
-        previous_close_info = _round(self.get_previous_close())
+        price = self.get_realtime_price(self.get_market_state()) or round_optional(self.get_current_price()) or self._last_intraday_price() or self._last_close()
+        previous_close_info = round_optional(self.get_previous_close())
         previous_close = previous_close_info if previous_close_info is not None else self._previous_close_from_history()
-        change = _round(price - previous_close) if price is not None and previous_close is not None else None
-        change_percent = _round(((price - previous_close) / previous_close) * 100) if price is not None and previous_close not in (None, 0) else None
+        change = round_optional(price - previous_close) if price is not None and previous_close is not None else None
+        change_percent = round_optional(((price - previous_close) / previous_close) * 100) if price is not None and previous_close not in (None, 0) else None
 
         now = self._now_ny().date()
         period_values = {
