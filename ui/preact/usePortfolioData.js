@@ -130,7 +130,7 @@ function calculateRanks(rows) {
 }
 
 function calculateWeights(rows) {
-  const totalVal = rows.reduce((acc, r) => acc + (Number(r.notional) || 0), 0);
+  const totalVal = rows.reduce((acc, r) => acc + (Number(r.total) || 0), 0);
   if (totalVal <= 0) {
     return { totalVal: 0, rows: rows.map((r) => ({ ...r, weight_pct: 0 })) };
   }
@@ -138,12 +138,12 @@ function calculateWeights(rows) {
   return {
     totalVal,
     rows: rows.map((r) => {
-      const rawNotional = r.notional;
-      const notional = rawNotional == null ? null : Number(rawNotional);
-      if (notional == null || Number.isNaN(notional)) {
+      const rawTotal = r.total;
+      const total = rawTotal == null ? null : Number(rawTotal);
+      if (total == null || Number.isNaN(total)) {
         return { ...r, weight_pct: null };
       }
-      return { ...r, weight_pct: (notional / totalVal) * 100 };
+      return { ...r, weight_pct: (total / totalVal) * 100 };
     }),
   };
 }
@@ -153,8 +153,8 @@ function calculateWeightedChange(rows, totalVal) {
 
   const absolute = rows.reduce((acc, r) => {
     const cp = Number(r.change_percent) || 0;
-    const notional = Number(r.notional) || 0;
-    return acc + ((cp / 100) * notional) / (1 + cp / 100);
+    const total = Number(r.total) || 0;
+    return acc + ((cp / 100) * total) / (1 + cp / 100);
   }, 0);
 
   const percent = (absolute / (totalVal - absolute)) * 100;
@@ -373,13 +373,11 @@ export function usePortfolioData() {
     async ({
       ticker,
       quantity,
-      delta = 0.0,
       bucket = CONFIG.defaultBucket,
       silent = false,
     }) => {
       const normalizedTicker = normalizeTicker(ticker);
       const normalizedQuantity = Number(quantity);
-      const normalizedDelta = Number(delta);
       if (!normalizedTicker || Number.isNaN(normalizedQuantity)) {
         return { ok: false, reason: "invalid" };
       }
@@ -391,7 +389,6 @@ export function usePortfolioData() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             quantity: normalizedQuantity,
-            delta: Number.isFinite(normalizedDelta) ? normalizedDelta : 0.0,
             bucket,
           }),
         },
@@ -405,9 +402,10 @@ export function usePortfolioData() {
         setRows((prevRows) =>
           calculateRanks(upsertRow(prevRows, rowPayload.row)),
         );
+        const generatedAt = rowPayload?.meta?.generated_at;
         setGeneratedAt(
-          typeof rowPayload.generated_at === "string" && rowPayload.generated_at
-            ? rowPayload.generated_at
+          typeof generatedAt === "string" && generatedAt
+            ? generatedAt
             : new Date().toISOString(),
         );
         return { ok: true };
@@ -437,7 +435,6 @@ export function usePortfolioData() {
       return patchPortfolioPosition({
         ticker: t,
         quantity: q,
-        delta: 0.0,
         bucket: CONFIG.defaultBucket,
       });
     },
@@ -448,7 +445,6 @@ export function usePortfolioData() {
     async ({
       ticker,
       quantity,
-      delta = 0.0,
       bucket = CONFIG.defaultBucket,
       silent = false,
     }) => {
@@ -457,7 +453,6 @@ export function usePortfolioData() {
       return patchPortfolioPosition({
         ticker,
         quantity,
-        delta,
         bucket,
         silent,
       });

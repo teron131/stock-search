@@ -40,28 +40,26 @@ _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
 
 
-def calculate_notional(quantity: float, delta: float, current_price: float) -> float:
+def calculate_total(quantity: float, current_price: float) -> float:
     """
-    Calculate notional exposure from shares plus option-equivalent shares.
+    Calculate total position value from held quantity.
 
     Args:
         quantity: Number of underlying shares held
-        delta: Net option delta in contract units; each 1.0 adds 100 share-equivalents
         current_price: Current price in USD
 
     Returns:
-        Notional exposure in USD
+        Total position value in USD
     """
-    effective_shares = quantity + (delta * 100.0)
-    return effective_shares * current_price
+    return quantity * current_price
 
 
-def calculate_position_weight(notional: float, total_equity: float) -> float:
+def calculate_position_weight(total: float, total_equity: float) -> float:
     """
     Calculate position weight as % of equity.
 
     Args:
-        notional: Notional exposure
+        total: Total position value
         total_equity: Total equity
 
     Returns:
@@ -69,7 +67,7 @@ def calculate_position_weight(notional: float, total_equity: float) -> float:
     """
     if total_equity <= 0:
         return 0.0
-    return (notional / total_equity) * 100
+    return (total / total_equity) * 100
 
 
 def _map_linear(
@@ -274,10 +272,9 @@ def _build_row(
 
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
-    delta = float(pos.get("delta") if pos.get("delta") is not None else 0.0)
     price = stats.get("current_price") or stats.get("price")
 
-    notional = calculate_notional(qty, delta, price) if qty and price else 0.0
+    total = calculate_total(qty, price) if qty and price else 0.0
 
     normalized_eval = normalize_eval_json(eval_data)
     fallback_eval = _indicator_eval_fallback(stats)
@@ -330,7 +327,6 @@ def _build_row(
         "name": stats.get("name"),
         "equity_type": equity_type,
         "quantity": qty,
-        "delta": delta,
         "current_price": price,
         "change": stats.get("change"),
         "change_percent": stats.get("change_percent"),
@@ -353,15 +349,15 @@ def _build_row(
         "etf_holdings": etf_holdings,
         "etf_holdings_fetched_at": etf_holdings_fetched_at,
         "bucket": bucket,
-        "notional": notional,
+        "total": total,
         "weight_pct": None,
     }
 
 
-def _compute_weights(notional_by_ticker: dict[str, float], total_notional: float) -> dict[str, float]:
-    if total_notional <= 0:
-        return dict.fromkeys(notional_by_ticker, 0.0)
-    return {ticker: (notional / total_notional) * 100.0 for ticker, notional in notional_by_ticker.items()}
+def _compute_weights(total_by_ticker: dict[str, float], portfolio_total: float) -> dict[str, float]:
+    if portfolio_total <= 0:
+        return dict.fromkeys(total_by_ticker, 0.0)
+    return {ticker: (total / portfolio_total) * 100.0 for ticker, total in total_by_ticker.items()}
 
 
 def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -> dict[str, float]:
@@ -400,13 +396,13 @@ def _build_etf_tables(
     stock_tickers = [str(position["ticker"]).upper().strip() for position in resolution.stock_positions]
     etf_tickers = [str(position["ticker"]).upper().strip() for position in resolution.etf_positions]
 
-    stock_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in stock_tickers}
-    etf_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in etf_tickers}
-    total_notional = sum(stock_notionals.values()) + sum(etf_notionals.values())
-    portfolio_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in target_tickers}
+    stock_totals = {ticker: float(row_by_ticker.get(ticker, {}).get("total") or 0.0) for ticker in stock_tickers}
+    etf_totals = {ticker: float(row_by_ticker.get(ticker, {}).get("total") or 0.0) for ticker in etf_tickers}
+    portfolio_total = sum(stock_totals.values()) + sum(etf_totals.values())
+    holding_totals = {ticker: float(row_by_ticker.get(ticker, {}).get("total") or 0.0) for ticker in target_tickers}
 
-    direct_weights = _compute_weights(portfolio_notionals, total_notional)
-    etf_allocation = _compute_weights(etf_notionals, total_notional)
+    direct_weights = _compute_weights(holding_totals, portfolio_total)
+    etf_allocation = _compute_weights(etf_totals, portfolio_total)
     ticker_exposure: dict[str, dict[str, float]] = {
         ticker: {
             "direct_weight": direct_weights.get(ticker, 0.0),
@@ -528,10 +524,9 @@ def _normalize_positions(
         seen_tickers.add(ticker)
         held_tickers.append(ticker)
         normalized_position = {
-            **pos,
             "ticker": ticker,
             "quantity": float(pos.get("quantity") or 0),
-            "delta": float(pos.get("delta") if pos.get("delta") is not None else 0.0),
+            "bucket": pos.get("bucket"),
         }
         positions.append(normalized_position)
         held_positions.append(normalized_position)
@@ -541,7 +536,7 @@ def _normalize_positions(
             ticker_str = str(ticker).upper().strip()
             if not ticker_str or ticker_str in seen_tickers:
                 continue
-            positions.append({"ticker": ticker_str, "quantity": 0.0, "delta": 0.0, "_cached_only": True})
+            positions.append({"ticker": ticker_str, "quantity": 0.0, "_cached_only": True})
 
     return positions, held_positions, held_tickers
 
@@ -587,9 +582,9 @@ def get_portfolio_payload(
             )
         )
 
-    total_notional = sum(float(row.get("notional") or 0.0) for row in rows)
+    total_value = sum(float(row.get("total") or 0.0) for row in rows)
     for row in rows:
-        row["weight_pct"] = calculate_position_weight(float(row.get("notional") or 0.0), total_notional)
+        row["weight_pct"] = calculate_position_weight(float(row.get("total") or 0.0), total_value)
 
     _rank_rows(rows)
     rows.sort(key=lambda row: float(row.get("weight_pct") or 0.0), reverse=True)
@@ -742,7 +737,7 @@ def display_dashboard(
     table.add_column("6M %", justify="right")
     table.add_column("1Y %", justify="right")
     table.add_column("Upside", justify="right")
-    table.add_column("Notional", justify="right")
+    table.add_column("Total", justify="right")
     table.add_column("Weight %", justify="right")
 
     for _, row in dataframe.iterrows():
@@ -757,7 +752,7 @@ def display_dashboard(
             fmt_pct(row["six_month_change_percent"]),
             fmt_pct(row["one_year_change_percent"]),
             fmt_pct(row["median_upside"]),
-            fmt_curr(row["notional"]),
+            fmt_curr(row["total"]),
             fmt_pct(row["weight_pct"]),
         )
 

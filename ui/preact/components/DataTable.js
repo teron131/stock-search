@@ -215,7 +215,7 @@ export function DataTable({
   const filtered = rows.filter((r) => {
     const qty = Number(r.quantity);
     const hasQty = r.quantity != null && !Number.isNaN(qty);
-    const isHolding = hasQty && qty > 0 && r.notional != null;
+    const isHolding = hasQty && qty > 0 && r.total != null;
     const hasEvalScore = r.overall != null && r.overall !== "";
     const hasEvalRank = r.rank != null;
     const isEval = hasEvalScore || hasEvalRank;

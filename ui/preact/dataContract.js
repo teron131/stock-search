@@ -37,7 +37,9 @@ function normalizeDashboardRowsPayload(payload) {
   return {
     rows,
     generated_at:
-      typeof payload.generated_at === "string" ? payload.generated_at : null,
+      typeof payload.meta?.generated_at === "string"
+        ? payload.meta.generated_at
+        : null,
   };
 }
 
@@ -59,19 +61,16 @@ function buildRowsFromSplitStatic({ portfolioPayload, statsPayload }) {
         : {};
 
     const quantity = toNumber(position.quantity, 0);
-    const delta = toNumber(position.delta, 0);
     const price =
       stats.current_price != null
         ? toNumber(stats.current_price, 0)
         : toNumber(stats.price, 0);
-    const effectiveShares = quantity + delta * 100;
 
     rowsByTicker.set(ticker, {
       ticker,
       quantity,
-      delta,
       current_price: stats.current_price ?? stats.price ?? null,
-      notional: price > 0 ? effectiveShares * price : 0,
+      total: price > 0 ? quantity * price : 0,
       ...stats,
     });
   });
@@ -85,9 +84,8 @@ function buildRowsFromSplitStatic({ portfolioPayload, statsPayload }) {
     rowsByTicker.set(ticker, {
       ticker,
       quantity: 0,
-      delta: 0,
       current_price: stats.current_price ?? stats.price ?? null,
-      notional: 0,
+      total: 0,
       ...stats,
     });
   });

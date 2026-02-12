@@ -175,15 +175,11 @@ class News(NewsAnalysis):
 
 
 class PortfolioPosition(BaseModel):
-    """A single portfolio position with notional exposure metrics."""
+    """A single portfolio position with total value metrics."""
 
     ticker: Ticker
     name: str | None = Field(default=None, description="Company name")
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
-    delta: float | None = Field(
-        default=None,
-        description="Net option delta overlay (defaults to 0.0); each 1.0 adds 100 share-equivalents",
-    )
     current_price: float | None = Field(default=None, description="Current market price")
     bucket: (
         Literal[

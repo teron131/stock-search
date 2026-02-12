@@ -248,7 +248,7 @@ export function App() {
       stats.positions ? String(stats.positions) : "--",
     );
     setText(
-      "total-notional",
+      "total-value",
       stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
     );
 
@@ -337,14 +337,12 @@ export function App() {
   const onSetQuantity = async ({
     ticker,
     quantity,
-    delta,
     bucket,
     silent = false,
   }) => {
     const res = await actions.setQuantity({
       ticker,
       quantity,
-      delta,
       bucket,
       silent,
     });

@@ -18,7 +18,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     isActive: false,
     timer: null,
     startMs: 0,
-    delta: 0,
+    direction: 0,
     step: 1,
     captureTarget: null,
     pointerId: null,
@@ -57,7 +57,6 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     const res = await onSetQuantity({
       ticker: row.ticker,
       quantity: qty,
-      delta: row.delta ?? 0.0,
       bucket: row.bucket,
       silent: true,
     });
@@ -78,12 +77,12 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     }, 3000);
   };
 
-  const applyDelta = (delta, evt, overrideStep) => {
+  const applyStep = (direction, evt, overrideStep) => {
     const step = overrideStep ?? (evt?.shiftKey ? 10 : evt?.altKey ? 100 : 1);
     const base = Number.isFinite(numericDraftRef.current)
       ? numericDraftRef.current
       : lastCommitted.current;
-    const next = Math.max(0, (Number(base) || 0) + delta * step);
+    const next = Math.max(0, (Number(base) || 0) + direction * step);
     numericDraftRef.current = next;
     setDraftQty(String(next));
     scheduleCommit(next);
@@ -114,7 +113,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     holdRef.current.pointerId = null;
   };
 
-  const startHold = (delta, evt) => {
+  const startHold = (direction, evt) => {
     if (!canEdit) return;
 
     ignoreNextClickRef.current = true;
@@ -125,7 +124,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     stopHold();
     holdRef.current.isActive = true;
     holdRef.current.startMs = performance.now();
-    holdRef.current.delta = delta;
+    holdRef.current.direction = direction;
     holdRef.current.step = step;
     holdRef.current.captureTarget = evt.currentTarget;
     holdRef.current.pointerId = evt.pointerId;
@@ -136,7 +135,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
       // ignore
     }
 
-    applyDelta(delta, evt, step);
+    applyStep(direction, evt, step);
 
     const tick = () => {
       if (!holdRef.current.isActive) return;
@@ -147,7 +146,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
         Math.round(220 * Math.pow(0.78, elapsedMs / 650)),
       );
 
-      applyDelta(holdRef.current.delta, null, holdRef.current.step);
+      applyStep(holdRef.current.direction, null, holdRef.current.step);
       holdRef.current.timer = setTimeout(tick, intervalMs);
     };
 
@@ -192,22 +191,22 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     };
   }, []);
 
-  const onSpinClick = (delta) => (evt) => {
+  const onSpinClick = (direction) => (evt) => {
     if (ignoreNextClickRef.current) {
       ignoreNextClickRef.current = false;
       return;
     }
 
-    applyDelta(delta, evt);
+    applyStep(direction, evt);
   };
 
-  const onSpinKeyDown = (delta) => (evt) => {
+  const onSpinKeyDown = (direction) => (evt) => {
     if (evt.key !== "Enter" && evt.key !== " ") return;
     evt.preventDefault();
-    applyDelta(delta, evt);
+    applyStep(direction, evt);
   };
 
-  const onSpinPointerDown = (delta) => (evt) => startHold(delta, evt);
+  const onSpinPointerDown = (direction) => (evt) => startHold(direction, evt);
 
   return {
     canEdit,

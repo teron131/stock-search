@@ -46,6 +46,12 @@ _PORTFOLIO_SCOPE_CONFIG = {
     },
 }
 
+_PORTFOLIO_DATA_SOURCE = {
+    "priority": "cache",
+    "portfolio_live": "live_with_cache_fallback",
+    "all": "live_with_cache_fallback",
+}
+
 # Expose backend `data/` to the UI (portfolio/eval/stats JSON)
 # This must be mounted before the UI mount at "/".
 app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
@@ -58,14 +64,12 @@ def serve_index() -> FileResponse:
 
 class PortfolioPositionPatch(BaseModel):
     quantity: float | None = None
-    delta: float | None = None
     bucket: str | None = None
 
 
 class StoredPortfolioPosition(BaseModel):
     ticker: str
     quantity: float = 0.0
-    delta: float = 0.0
     bucket: str | None = None
 
     def to_storage_dict(self) -> dict[str, Any]:
@@ -122,7 +126,8 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
 
-    scope_config = _PORTFOLIO_SCOPE_CONFIG.get(scope, _PORTFOLIO_SCOPE_CONFIG["all"])
+    resolved_scope = scope if scope in _PORTFOLIO_SCOPE_CONFIG else "all"
+    scope_config = _PORTFOLIO_SCOPE_CONFIG[resolved_scope]
     include_cached_universe = scope_config["include_cached_universe"]
     include_live_market = scope_config["include_live_market"]
 
@@ -135,10 +140,11 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     )
     generated_at = _stats_cache_generated_at() if scope_config["use_cache_timestamp"] else datetime.now(tz=UTC).isoformat()
     payload["meta"]["generated_at"] = generated_at
+    payload["meta"]["data_source"] = _PORTFOLIO_DATA_SOURCE[resolved_scope]
     elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
         "portfolio_api scope=%s rows=%s live=%s cached_universe=%s duration_ms=%.1f",
-        scope,
+        resolved_scope,
         len(payload["rows"]),
         include_live_market,
         include_cached_universe,
@@ -163,7 +169,10 @@ def portfolio_ticker_api(ticker: str, response: Response) -> dict:
     row = _get_dashboard_row(df, ticker)
     return {
         "row": row,
-        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "meta": {
+            "generated_at": datetime.now(tz=UTC).isoformat(),
+            "data_source": "cache",
+        },
     }
 
 
@@ -174,7 +183,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
     idx = _find_position_index(positions, ticker_upper)
 
     if idx is None:
-        if patch.quantity is None and patch.delta is None and patch.bucket is None:
+        if patch.quantity is None and patch.bucket is None:
             raise HTTPException(status_code=400, detail="Patch payload is empty.")
         _ensure_valid_new_ticker(ticker_upper)
         current = StoredPortfolioPosition(ticker=ticker_upper).to_storage_dict()
@@ -185,8 +194,6 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
 
     if patch.quantity is not None:
         current["quantity"] = patch.quantity
-    if patch.delta is not None:
-        current["delta"] = patch.delta
     if patch.bucket is not None:
         if patch.bucket == "":
             current.pop("bucket", None)
