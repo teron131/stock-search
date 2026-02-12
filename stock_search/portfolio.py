@@ -360,6 +360,66 @@ def _compute_weights(total_by_ticker: dict[str, float], portfolio_total: float) 
     return {ticker: (total / portfolio_total) * 100.0 for ticker, total in total_by_ticker.items()}
 
 
+def _weighted_average(rows: list[dict[str, Any]], field_name: str) -> float | None:
+    weighted_sum = 0.0
+    total_weight = 0.0
+
+    for row in rows:
+        total = safe_float(row.get("total"))
+        value = safe_float(row.get(field_name))
+        if total is None or total <= 0 or value is None:
+            continue
+        weighted_sum += value * total
+        total_weight += total
+
+    if total_weight <= 0:
+        return None
+    return weighted_sum / total_weight
+
+
+def _build_portfolio_stats(rows: list[dict[str, Any]], sector_table: list[dict[str, Any]]) -> dict[str, Any]:
+    held_rows = [row for row in rows if safe_float(row.get("quantity")) not in (None, 0.0)]
+
+    total = sum(float(safe_float(row.get("total")) or 0.0) for row in held_rows)
+    change_value = 0.0
+    for row in held_rows:
+        change_percent = safe_float(row.get("change_percent"))
+        row_total = safe_float(row.get("total"))
+        if change_percent is None or row_total is None or row_total <= 0:
+            continue
+        change_value += ((change_percent / 100.0) * row_total) / (1.0 + (change_percent / 100.0))
+
+    denominator = total - change_value
+    change_percent = (change_value / denominator) * 100.0 if denominator > 0 else 0.0
+
+    weighted_beta = _weighted_average(held_rows, "beta")
+    weighted_iv = _weighted_average(held_rows, "iv")
+
+    sector_distribution: list[dict[str, Any]] = []
+    for sector_row in sector_table:
+        sector_name = str(sector_row.get("sector") or "").strip()
+        if not sector_name:
+            continue
+        sector_distribution.append(
+            {
+                "sector": sector_name,
+                "portfolio_weight": float(safe_float(sector_row.get("portfolio_weight")) or 0.0),
+                "stock_weight": float(safe_float(sector_row.get("stock_weight")) or 0.0),
+                "etf_lookthrough_weight": float(safe_float(sector_row.get("etf_lookthrough_weight")) or 0.0),
+            }
+        )
+
+    return {
+        "positions": len(held_rows),
+        "total": total,
+        "change": change_value,
+        "change_percent": change_percent,
+        "weighted_beta": weighted_beta,
+        "weighted_iv": weighted_iv,
+        "sector_distribution": sector_distribution,
+    }
+
+
 def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -> dict[str, float]:
     if not weights:
         return {}
@@ -599,12 +659,14 @@ def get_portfolio_payload(
         resolution=resolution,
         target_tickers=[ticker for ticker in held_tickers if ticker],
     )
+    portfolio_stats = _build_portfolio_stats(rows, sector_table)
     return {
         "rows": rows,
         "tables": {
             "ticker_exposure": ticker_table,
             "sector_exposure": sector_table,
         },
+        "portfolio_stats": portfolio_stats,
         "meta": {
             **table_meta,
             "etf_count": len(resolution.etf_positions),

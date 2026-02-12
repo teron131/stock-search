@@ -229,6 +229,7 @@ async function fetchStaticPortfolioData(basePath) {
 
 export function usePortfolioData() {
   const [rows, setRows] = useState([]);
+  const [portfolioStats, setPortfolioStats] = useState(null);
   const [colorStandards, setColorStandards] = useState(null);
   const [generatedAt, setGeneratedAt] = useState(null);
   const [loadingMode, setLoadingMode] = useState("idle");
@@ -249,17 +250,56 @@ export function usePortfolioData() {
     const { totalVal, rows: weighted } = calculateWeights(rows);
     const change = calculateWeightedChange(weighted, totalVal);
     const positions = weighted.filter((row) => Number(row.quantity) > 0).length;
-
-    return {
+    const derived = {
       totalVal,
       change,
       positions,
+      weightedBeta: null,
+      weightedIv: null,
+      sectorDistribution: [],
     };
-  }, [rows]);
+    if (!portfolioStats || typeof portfolioStats !== "object") {
+      return derived;
+    }
+
+    const totalFromApi = Number(portfolioStats.total);
+    const changeValueFromApi = Number(portfolioStats.change);
+    const changePctFromApi = Number(portfolioStats.change_percent);
+    const positionsFromApi = Number(portfolioStats.positions);
+    const weightedBetaFromApi = Number(portfolioStats.weighted_beta);
+    const weightedIvFromApi = Number(portfolioStats.weighted_iv);
+
+    return {
+      totalVal: Number.isFinite(totalFromApi) ? totalFromApi : derived.totalVal,
+      change: {
+        absolute: Number.isFinite(changeValueFromApi)
+          ? changeValueFromApi
+          : derived.change.absolute,
+        percent: Number.isFinite(changePctFromApi)
+          ? changePctFromApi
+          : derived.change.percent,
+      },
+      positions: Number.isFinite(positionsFromApi)
+        ? positionsFromApi
+        : derived.positions,
+      weightedBeta: Number.isFinite(weightedBetaFromApi)
+        ? weightedBetaFromApi
+        : null,
+      weightedIv: Number.isFinite(weightedIvFromApi) ? weightedIvFromApi : null,
+      sectorDistribution: Array.isArray(portfolioStats.sector_distribution)
+        ? portfolioStats.sector_distribution
+        : [],
+    };
+  }, [portfolioStats, rows]);
 
   const applyPayload = useCallback(({ dashData, evalData = {} }) => {
     const merged = calculateRanks(mergeRows(dashData, evalData));
     setRows(merged);
+    setPortfolioStats(
+      dashData?.portfolio_stats && typeof dashData.portfolio_stats === "object"
+        ? dashData.portfolio_stats
+        : null,
+    );
     setGeneratedAt(
       typeof dashData?.generated_at === "string" && dashData.generated_at
         ? dashData.generated_at
@@ -352,6 +392,7 @@ export function usePortfolioData() {
         } catch {
           if (!background) {
             setRows([]);
+            setPortfolioStats(null);
           }
         }
       } finally {
@@ -402,6 +443,7 @@ export function usePortfolioData() {
         setRows((prevRows) =>
           calculateRanks(upsertRow(prevRows, rowPayload.row)),
         );
+        setPortfolioStats(null);
         const generatedAt = rowPayload?.meta?.generated_at;
         setGeneratedAt(
           typeof generatedAt === "string" && generatedAt
@@ -478,6 +520,7 @@ export function usePortfolioData() {
       if (!res.ok) return { ok: false, reason: "server" };
 
       setRows((prevRows) => calculateRanks(removeRow(prevRows, t)));
+      setPortfolioStats(null);
       setGeneratedAt(new Date().toISOString());
       return { ok: true };
     },

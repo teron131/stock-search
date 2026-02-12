@@ -40,6 +40,10 @@ function normalizeDashboardRowsPayload(payload) {
       typeof payload.meta?.generated_at === "string"
         ? payload.meta.generated_at
         : null,
+    portfolio_stats:
+      payload.portfolio_stats && typeof payload.portfolio_stats === "object"
+        ? payload.portfolio_stats
+        : null,
   };
 }
 
@@ -124,6 +128,7 @@ export function normalizeStaticDashboardPayload({
     dashData: {
       rows,
       generated_at: new Date().toISOString(),
+      portfolio_stats: null,
     },
     evalData,
   };
