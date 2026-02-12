@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 import re
 from typing import Any
 
+from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import ETF_QUOTE_TYPE, YahooFinanceSource
-from stock_search.schemas import SECTOR_LABEL_TO_KEY, SECTOR_LABELS, SECTOR_PATTERN_RULES, ETFSector, Holding
+from stock_search.schemas import SECTOR_LABELS, SECTOR_PATTERN_RULES, ETFSector, Holding
 
 ETF_CACHE_MAX_AGE_DAYS = 7
 
@@ -98,16 +99,20 @@ def _parse_cached_snapshot(
 def load_etf_cache_from_stats(stats_data: dict[str, Any], ticker: str, now: datetime) -> tuple[list[Holding], list[ETFSector]] | None:
     return _parse_cached_snapshot(
         stats_data,
-        ticker=str(ticker).upper().strip(),
+        ticker=normalize_ticker_symbol(ticker),
         now=now,
         require_fresh=True,
     )
 
 
-def _load_stale_cache_from_stats(stats_data: dict[str, Any], ticker: str, now: datetime) -> tuple[list[Holding], list[ETFSector]] | None:
+def _load_stale_cache_from_stats(
+    stats_data: dict[str, Any],
+    ticker: str,
+    now: datetime,
+) -> tuple[list[Holding], list[ETFSector]] | None:
     return _parse_cached_snapshot(
         stats_data,
-        ticker=str(ticker).upper().strip(),
+        ticker=normalize_ticker_symbol(ticker),
         now=now,
         require_fresh=False,
     )
@@ -141,7 +146,7 @@ def store_etf_cache_in_stats(
     sectors: list[ETFSector],
     now: datetime,
 ) -> bool:
-    ticker_key = str(ticker).upper().strip()
+    ticker_key = normalize_ticker_symbol(ticker)
     entry = stats_data.get(ticker_key, {})
     if not isinstance(entry, dict):
         entry = {}
@@ -185,6 +190,16 @@ def _fetch_snapshot(ticker: str) -> tuple[str, list[Holding], list[ETFSector], s
     return ticker, holdings, sectors, error
 
 
+def _is_etf_from_stats(stats_data: dict[str, Any], ticker: str) -> bool | None:
+    entry = stats_data.get(ticker)
+    if not isinstance(entry, dict):
+        return None
+    quote_type = str(entry.get("quote_type") or "").upper().strip()
+    if not quote_type:
+        return None
+    return quote_type == ETF_QUOTE_TYPE
+
+
 def classify_and_resolve_etfs(
     positions: list[dict[str, Any]],
     stats_data: dict[str, Any],
@@ -194,15 +209,23 @@ def classify_and_resolve_etfs(
     etf_positions: list[dict[str, Any]] = []
     snapshot_by_ticker: dict[str, ETFSnapshotResult] = {}
     unresolved_tickers: list[str] = []
-    position_by_ticker = {str(position["ticker"]).upper().strip(): position for position in positions}
+    position_by_ticker = {normalize_ticker_symbol(position["ticker"]): position for position in positions}
 
     for position in positions:
-        ticker = str(position["ticker"]).upper().strip()
+        ticker = normalize_ticker_symbol(position["ticker"])
         cached_snapshot = load_etf_cache_from_stats(stats_data, ticker, now)
         if cached_snapshot is not None and cached_snapshot[1]:
             holdings, sectors = cached_snapshot
             etf_positions.append(position)
             snapshot_by_ticker[ticker] = ETFSnapshotResult(holdings=holdings, sectors=sectors, error=None)
+            continue
+
+        is_etf_from_stats = _is_etf_from_stats(stats_data, ticker)
+        if is_etf_from_stats is True:
+            etf_positions.append(position)
+            continue
+        if is_etf_from_stats is False:
+            stock_positions.append(position)
             continue
         unresolved_tickers.append(ticker)
 
@@ -216,13 +239,13 @@ def classify_and_resolve_etfs(
             else:
                 stock_positions.append(pos)
 
-    etf_tickers = {str(position["ticker"]).upper().strip() for position in etf_positions}
+    etf_tickers = {normalize_ticker_symbol(position["ticker"]) for position in etf_positions}
     for position in positions:
-        ticker = str(position["ticker"]).upper().strip()
+        ticker = normalize_ticker_symbol(position["ticker"])
         if ticker not in etf_tickers and position not in stock_positions:
             stock_positions.append(position)
 
-    missing_tickers = [str(position["ticker"]).upper().strip() for position in etf_positions if str(position["ticker"]).upper().strip() not in snapshot_by_ticker]
+    missing_tickers = [normalize_ticker_symbol(position["ticker"]) for position in etf_positions if normalize_ticker_symbol(position["ticker"]) not in snapshot_by_ticker]
     etf_refreshed_count = 0
     cache_changed = False
     if missing_tickers:
@@ -253,8 +276,3 @@ def classify_and_resolve_etfs(
         etf_refreshed_count=etf_refreshed_count,
         cache_changed=cache_changed,
     )
-
-
-def normalize_sector_key(name: str) -> str:
-    normalized_name = normalize_sector_name(name)
-    return SECTOR_LABEL_TO_KEY.get(normalized_name, "other")

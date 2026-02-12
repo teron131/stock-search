@@ -67,6 +67,11 @@ def to_float(value: Any, default: float) -> float:
         return default
 
 
+def normalize_ticker_symbol(ticker: str) -> str:
+    """Normalize ticker for internal keys without Yahoo-specific symbol rewrites."""
+    return str(ticker).upper().strip()
+
+
 # Market cap formatting constants and function
 MARKET_CAP_UNITS: tuple[tuple[float, str], ...] = (
     (1_000_000_000_000, "T"),

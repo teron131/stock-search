@@ -493,32 +493,32 @@ def _build_etf_tables(
     return ticker_table, sector_table, meta
 
 
-def get_portfolio_payload(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
-    include_cached_universe: bool = True,
-    include_live_market: bool = True,
-) -> dict[str, Any]:
-    portfolio_data = load_json(portfolio_path, default=[])
-    stats_data = load_json(stats_path, default={})
-    if not isinstance(stats_data, dict):
-        stats_data = {}
-
+def _load_eval_cache(eval_path: str | Path) -> dict[str, Any]:
     eval_data_raw = load_json(eval_path, default={})
-    eval_data: dict[str, Any] = {}
     if isinstance(eval_data_raw, dict):
-        eval_data = eval_data_raw
-    elif isinstance(eval_data_raw, list):
-        for item in eval_data_raw:
-            if isinstance(item, dict) and (ticker := item.get("ticker")):
-                eval_data[str(ticker)] = item
+        return eval_data_raw
+    if not isinstance(eval_data_raw, list):
+        return {}
 
+    eval_data: dict[str, Any] = {}
+    for item in eval_data_raw:
+        if isinstance(item, dict) and (ticker := item.get("ticker")):
+            eval_data[str(ticker)] = item
+    return eval_data
+
+
+def _normalize_positions(
+    portfolio_data: Any,
+    stats_data: dict[str, Any],
+    *,
+    include_cached_universe: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     positions_raw = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
     positions: list[dict[str, Any]] = []
     held_positions: list[dict[str, Any]] = []
     held_tickers: list[str] = []
     seen_tickers: set[str] = set()
+
     for pos in positions_raw:
         if not isinstance(pos, dict):
             continue
@@ -543,18 +543,10 @@ def get_portfolio_payload(
                 continue
             positions.append({"ticker": ticker_str, "quantity": 0.0, "delta": 0.0, "_cached_only": True})
 
-    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
-        rows = list(
-            executor.map(
-                lambda pos: _build_row(pos, stats_data, eval_data, include_live_market=include_live_market),
-                positions,
-            )
-        )
+    return positions, held_positions, held_tickers
 
-    total_notional = sum(float(row.get("notional") or 0.0) for row in rows)
-    for row in rows:
-        row["weight_pct"] = calculate_position_weight(float(row.get("notional") or 0.0), total_notional)
 
+def _rank_rows(rows: list[dict[str, Any]]) -> None:
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
         overall = row.get("overall")
@@ -568,6 +560,38 @@ def get_portfolio_payload(
     for rank, (idx, _) in enumerate(scored_rows, start=1):
         rows[idx]["rank"] = rank
 
+
+def get_portfolio_payload(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
+    include_live_market: bool = True,
+) -> dict[str, Any]:
+    portfolio_data = load_json(portfolio_path, default=[])
+    stats_data = load_json(stats_path, default={})
+    if not isinstance(stats_data, dict):
+        stats_data = {}
+    eval_data = _load_eval_cache(eval_path)
+    positions, held_positions, held_tickers = _normalize_positions(
+        portfolio_data,
+        stats_data,
+        include_cached_universe=include_cached_universe,
+    )
+
+    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
+        rows = list(
+            executor.map(
+                lambda pos: _build_row(pos, stats_data, eval_data, include_live_market=include_live_market),
+                positions,
+            )
+        )
+
+    total_notional = sum(float(row.get("notional") or 0.0) for row in rows)
+    for row in rows:
+        row["weight_pct"] = calculate_position_weight(float(row.get("notional") or 0.0), total_notional)
+
+    _rank_rows(rows)
     rows.sort(key=lambda row: float(row.get("weight_pct") or 0.0), reverse=True)
 
     now = datetime.now(tz=UTC)
