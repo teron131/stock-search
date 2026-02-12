@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
-from stock_search.portfolio import get_dashboard
+from stock_search.portfolio import get_portfolio_payload
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -126,22 +126,15 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     include_cached_universe = scope_config["include_cached_universe"]
     include_live_market = scope_config["include_live_market"]
 
-    df = get_dashboard(
+    payload = get_portfolio_payload(
         PORTFOLIO_PATH,
         STATS_PATH,
         EVAL_PATH,
         include_cached_universe=include_cached_universe,
         include_live_market=include_live_market,
     )
-    df = df.where(pd.notna(df), None)
-
     generated_at = _stats_cache_generated_at() if scope_config["use_cache_timestamp"] else datetime.now(tz=UTC).isoformat()
-
-    payload = {
-        "columns": list(df.columns),
-        "rows": df.to_dict(orient="records"),
-        "generated_at": generated_at,
-    }
+    payload["meta"]["generated_at"] = generated_at
     elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
         "portfolio_api scope=%s rows=%s live=%s cached_universe=%s duration_ms=%.1f",
@@ -159,13 +152,14 @@ def portfolio_ticker_api(ticker: str, response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
 
     # Single-row read path: avoid full live/cached-universe rebuild.
-    df = get_dashboard(
+    payload = get_portfolio_payload(
         PORTFOLIO_PATH,
         STATS_PATH,
         EVAL_PATH,
         include_cached_universe=False,
         include_live_market=False,
     )
+    df = pd.DataFrame(payload["rows"])
     row = _get_dashboard_row(df, ticker)
     return {
         "row": row,

@@ -15,6 +15,7 @@ from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
+from stock_search.etf import ETFResolutionResult, classify_and_resolve_etfs, normalize_sector_name
 from stock_search.evaluation.constants import (
     DEFAULT_BEAR_PROBABILITY,
     DEFAULT_BULL_PROBABILITY,
@@ -23,7 +24,7 @@ from stock_search.evaluation.constants import (
 )
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
 from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
-from stock_search.file_utils import load_json
+from stock_search.file_utils import load_json, write_json
 
 _HISTORY_CACHE = TieredCache[dict[str, Any]](
     ttl_seconds=CacheConfig.HISTORY_TTL_SECONDS,
@@ -357,15 +358,149 @@ def _build_row(
     }
 
 
-def build_portfolio_dataframe(
+def _compute_weights(notional_by_ticker: dict[str, float], total_notional: float) -> dict[str, float]:
+    if total_notional <= 0:
+        return dict.fromkeys(notional_by_ticker, 0.0)
+    return {ticker: (notional / total_notional) * 100.0 for ticker, notional in notional_by_ticker.items()}
+
+
+def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -> dict[str, float]:
+    if not weights:
+        return {}
+    if sum(weights.values()) <= 0:
+        return {ticker: round(weight, decimals) for ticker, weight in weights.items()}
+
+    rounded = {ticker: round(weight, decimals) for ticker, weight in weights.items()}
+    adjustment = round(100.0 - sum(rounded.values()), decimals)
+    if adjustment == 0:
+        return rounded
+
+    largest_ticker = max(rounded, key=rounded.get)
+    rounded[largest_ticker] = round(rounded[largest_ticker] + adjustment, decimals)
+    return rounded
+
+
+def _fetch_equity_sector(ticker: str) -> tuple[str, str]:
+    try:
+        source = YahooFinanceSource(ticker)
+        info = source.get_info_snapshot().raw_info
+    except Exception:
+        return ticker, normalize_sector_name(None)
+    raw_sector = str(info.get("sector") or "").strip() or str(info.get("industry") or "").strip() or None
+    return ticker, normalize_sector_name(raw_sector)
+
+
+def _build_etf_tables(
+    *,
+    rows: list[dict[str, Any]],
+    resolution: ETFResolutionResult,
+    target_tickers: list[str],
+) -> tuple[list[dict[str, float | str]], list[dict[str, float | str]], dict[str, float]]:
+    row_by_ticker = {str(row.get("ticker")).upper().strip(): row for row in rows if row.get("ticker")}
+    stock_tickers = [str(position["ticker"]).upper().strip() for position in resolution.stock_positions]
+    etf_tickers = [str(position["ticker"]).upper().strip() for position in resolution.etf_positions]
+
+    stock_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in stock_tickers}
+    etf_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in etf_tickers}
+    total_notional = sum(stock_notionals.values()) + sum(etf_notionals.values())
+    portfolio_notionals = {ticker: float(row_by_ticker.get(ticker, {}).get("notional") or 0.0) for ticker in target_tickers}
+
+    direct_weights = _compute_weights(portfolio_notionals, total_notional)
+    etf_allocation = _compute_weights(etf_notionals, total_notional)
+    ticker_exposure: dict[str, dict[str, float]] = {
+        ticker: {
+            "direct_weight": direct_weights.get(ticker, 0.0),
+            "etf_lookthrough_weight": 0.0,
+            "combined_weight": direct_weights.get(ticker, 0.0),
+        }
+        for ticker in target_tickers
+    }
+
+    etf_distributed_weights = dict.fromkeys(etf_tickers, 0.0)
+    etf_sector_exposure: dict[str, float] = {}
+    for etf_ticker in etf_tickers:
+        snapshot = resolution.snapshot_by_ticker.get(etf_ticker)
+        if snapshot is None:
+            continue
+        etf_weight = etf_allocation.get(etf_ticker, 0.0)
+        for holding in snapshot.holdings:
+            holding_ticker = holding.ticker.upper().strip()
+            if holding_ticker not in ticker_exposure:
+                continue
+            contribution = etf_weight * (holding.weight / 100.0)
+            ticker_exposure[holding_ticker]["etf_lookthrough_weight"] += contribution
+            ticker_exposure[holding_ticker]["combined_weight"] += contribution
+            etf_distributed_weights[etf_ticker] += contribution
+        for sector in snapshot.sectors:
+            contribution = etf_weight * (sector.weight / 100.0)
+            etf_sector_exposure[sector.name] = etf_sector_exposure.get(sector.name, 0.0) + contribution
+
+    for etf_ticker in etf_tickers:
+        if etf_ticker in ticker_exposure:
+            ticker_exposure[etf_ticker]["combined_weight"] -= etf_distributed_weights.get(etf_ticker, 0.0)
+
+    normalized_direct_weights = _normalize_weights_to_100({ticker: data["direct_weight"] for ticker, data in ticker_exposure.items()})
+    normalized_combined_weights = _normalize_weights_to_100({ticker: data["combined_weight"] for ticker, data in ticker_exposure.items()})
+    for ticker, data in ticker_exposure.items():
+        data["direct_weight"] = normalized_direct_weights[ticker]
+        data["etf_lookthrough_weight"] = round(data["etf_lookthrough_weight"], 4)
+        data["combined_weight"] = normalized_combined_weights[ticker]
+
+    stock_sector_exposure: dict[str, float] = {}
+    if stock_tickers:
+        with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
+            stock_sector_results = list(executor.map(_fetch_equity_sector, sorted(set(stock_tickers))))
+        for ticker, sector_name in stock_sector_results:
+            direct_weight = normalized_direct_weights.get(ticker, 0.0)
+            stock_sector_exposure[sector_name] = stock_sector_exposure.get(sector_name, 0.0) + direct_weight
+
+    ticker_table = [
+        {
+            "ticker": ticker,
+            "direct_weight": round(data["direct_weight"], 4),
+            "etf_lookthrough_weight": round(data["etf_lookthrough_weight"], 4),
+            "combined_weight": round(data["combined_weight"], 4),
+        }
+        for ticker, data in sorted(
+            ticker_exposure.items(),
+            key=lambda item: item[1]["combined_weight"],
+            reverse=True,
+        )
+    ]
+
+    combined_sector_exposure = dict(etf_sector_exposure)
+    for sector_name, weight in stock_sector_exposure.items():
+        combined_sector_exposure[sector_name] = combined_sector_exposure.get(sector_name, 0.0) + weight
+
+    etf_sleeve_total = sum(etf_sector_exposure.values())
+    sector_table = [
+        {
+            "sector": sector,
+            "stock_weight": round(stock_sector_exposure.get(sector, 0.0), 4),
+            "etf_lookthrough_weight": round(etf_sector_exposure.get(sector, 0.0), 4),
+            "portfolio_weight": round(weight, 4),
+            "within_etf_sleeve_weight": round(((etf_sector_exposure.get(sector, 0.0) / etf_sleeve_total) * 100.0), 4) if etf_sleeve_total > 0 else 0.0,
+        }
+        for sector, weight in sorted(combined_sector_exposure.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    meta = {
+        "direct_weight_total": round(sum(row["direct_weight"] for row in ticker_table), 4),
+        "combined_weight_total": round(sum(row["combined_weight"] for row in ticker_table), 4),
+        "sector_portfolio_total": round(sum(row["portfolio_weight"] for row in sector_table), 4),
+        "within_etf_sleeve_total": round(sum(row["within_etf_sleeve_weight"] for row in sector_table), 4),
+    }
+    return ticker_table, sector_table, meta
+
+
+def get_portfolio_payload(
     portfolio_path: str | Path = "data/portfolio.json",
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
     include_cached_universe: bool = True,
     include_live_market: bool = True,
-) -> pd.DataFrame:
+) -> dict[str, Any]:
     portfolio_data = load_json(portfolio_path, default=[])
-
     stats_data = load_json(stats_path, default={})
     if not isinstance(stats_data, dict):
         stats_data = {}
@@ -380,10 +515,10 @@ def build_portfolio_dataframe(
                 eval_data[str(ticker)] = item
 
     positions_raw = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
-
     positions: list[dict[str, Any]] = []
+    held_positions: list[dict[str, Any]] = []
+    held_tickers: list[str] = []
     seen_tickers: set[str] = set()
-
     for pos in positions_raw:
         if not isinstance(pos, dict):
             continue
@@ -391,45 +526,34 @@ def build_portfolio_dataframe(
         if not ticker:
             continue
         seen_tickers.add(ticker)
-        positions.append(
-            {
-                **pos,
-                "ticker": ticker,
-                "quantity": float(pos.get("quantity") or 0),
-                "delta": float(pos.get("delta") if pos.get("delta") is not None else 0.0),
-            }
-        )
+        held_tickers.append(ticker)
+        normalized_position = {
+            **pos,
+            "ticker": ticker,
+            "quantity": float(pos.get("quantity") or 0),
+            "delta": float(pos.get("delta") if pos.get("delta") is not None else 0.0),
+        }
+        positions.append(normalized_position)
+        held_positions.append(normalized_position)
 
     if include_cached_universe:
         for ticker in stats_data:
             ticker_str = str(ticker).upper().strip()
             if not ticker_str or ticker_str in seen_tickers:
                 continue
-            positions.append(
-                {
-                    "ticker": ticker_str,
-                    "quantity": 0.0,
-                    "delta": 0.0,
-                    "_cached_only": True,
-                }
-            )
+            positions.append({"ticker": ticker_str, "quantity": 0.0, "delta": 0.0, "_cached_only": True})
 
     with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
         rows = list(
             executor.map(
-                lambda pos: _build_row(
-                    pos,
-                    stats_data,
-                    eval_data,
-                    include_live_market=include_live_market,
-                ),
+                lambda pos: _build_row(pos, stats_data, eval_data, include_live_market=include_live_market),
                 positions,
             )
         )
 
-    total_notional = sum(row.get("notional", 0) for row in rows)
+    total_notional = sum(float(row.get("notional") or 0.0) for row in rows)
     for row in rows:
-        row["weight_pct"] = calculate_position_weight(row.get("notional", 0), total_notional)
+        row["weight_pct"] = calculate_position_weight(float(row.get("notional") or 0.0), total_notional)
 
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
@@ -440,15 +564,54 @@ def build_portfolio_dataframe(
             scored_rows.append((idx, float(overall)))
         except (TypeError, ValueError):
             continue
-
     scored_rows.sort(key=lambda item: item[1], reverse=True)
     for rank, (idx, _) in enumerate(scored_rows, start=1):
         rows[idx]["rank"] = rank
 
-    dataframe = pd.DataFrame(rows)
+    rows.sort(key=lambda row: float(row.get("weight_pct") or 0.0), reverse=True)
+
+    now = datetime.now(tz=UTC)
+    resolution = classify_and_resolve_etfs(held_positions, stats_data, now)
+    if resolution.cache_changed:
+        write_json(stats_path, stats_data)
+
+    ticker_table, sector_table, table_meta = _build_etf_tables(
+        rows=rows,
+        resolution=resolution,
+        target_tickers=[ticker for ticker in held_tickers if ticker],
+    )
+    return {
+        "rows": rows,
+        "tables": {
+            "ticker_exposure": ticker_table,
+            "sector_exposure": sector_table,
+        },
+        "meta": {
+            **table_meta,
+            "etf_count": len(resolution.etf_positions),
+            "etf_refreshed_count": resolution.etf_refreshed_count,
+            "generated_at": now.isoformat(),
+        },
+    }
+
+
+def build_portfolio_dataframe(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
+    include_live_market: bool = True,
+) -> pd.DataFrame:
+    payload = get_portfolio_payload(
+        portfolio_path=portfolio_path,
+        stats_path=stats_path,
+        eval_path=eval_path,
+        include_cached_universe=include_cached_universe,
+        include_live_market=include_live_market,
+    )
+    dataframe = pd.DataFrame(payload.get("rows", []))
     if not dataframe.empty:
         dataframe = dataframe.sort_values(by="weight_pct", ascending=False, na_position="last")
-
     return dataframe
 
 
@@ -459,7 +622,6 @@ def get_dashboard(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
-    """Return dashboard dataframe for API and CLI callers."""
     return build_portfolio_dataframe(
         portfolio_path=portfolio_path,
         stats_path=stats_path,

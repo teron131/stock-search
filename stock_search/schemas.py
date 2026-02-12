@@ -2,6 +2,35 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+SECTOR_LABELS: dict[str, str] = {
+    "communication_services": "Communication Services",
+    "consumer_discretionary": "Consumer Discretionary",
+    "consumer_staples": "Consumer Staples",
+    "energy": "Energy",
+    "financials": "Financials",
+    "health_care": "Health Care",
+    "industrials": "Industrials",
+    "materials": "Materials",
+    "real_estate": "Real Estate",
+    "technology": "Technology",
+    "utilities": "Utilities",
+    "other": "Other",
+}
+SECTOR_LABEL_TO_KEY: dict[str, str] = {label: key for key, label in SECTOR_LABELS.items()}
+SECTOR_PATTERN_RULES: tuple[tuple[str, str], ...] = (
+    (r"\bcommunication\b|\btelecom", "Communication Services"),
+    (r"\bconsumer\b.*\b(cyclical|discretionary)\b|\bdiscretionary\b", "Consumer Discretionary"),
+    (r"\bconsumer\b.*\b(defensive|staples)\b|\bstaples\b", "Consumer Staples"),
+    (r"\benergy\b|oil|gas", "Energy"),
+    (r"\bfinancial\b|financial services|bank|insurance|capital market|asset management", "Financials"),
+    (r"\bhealth\s*care\b|\bhealthcare\b|biotech|pharma|medical", "Health Care"),
+    (r"\bindustrial", "Industrials"),
+    (r"\bmaterial\b|basic materials|chemicals|mining", "Materials"),
+    (r"real estate|reit", "Real Estate"),
+    (r"\btech\b|technology|software|semiconductor|information technology", "Technology"),
+    (r"\butilities?\b", "Utilities"),
+)
+
 # Common Fields
 Ticker = Annotated[str, Field(description="Ticker symbol")]
 Weight = Annotated[float, Field(description="Weight as a percentage (0-100)", ge=0, le=100)]
@@ -109,25 +138,11 @@ class ETF(BaseModel):
     sectors: ETFSectors = Field(default_factory=ETFSectors, description="Sector allocation list")
 
     def sector_rows(self) -> list[ETFSector]:
-        labels = {
-            "communication_services": "Communication Services",
-            "consumer_discretionary": "Consumer Discretionary",
-            "consumer_staples": "Consumer Staples",
-            "energy": "Energy",
-            "financials": "Financials",
-            "health_care": "Health Care",
-            "industrials": "Industrials",
-            "materials": "Materials",
-            "real_estate": "Real Estate",
-            "technology": "Technology",
-            "utilities": "Utilities",
-            "other": "Other",
-        }
         rows: list[ETFSector] = []
         for key, value in self.sectors.model_dump().items():
             if value is None:
                 continue
-            rows.append(ETFSector(name=labels[key], weight=float(value)))
+            rows.append(ETFSector(name=SECTOR_LABELS[key], weight=float(value)))
         rows.sort(key=lambda row: row.weight, reverse=True)
         return rows
 
