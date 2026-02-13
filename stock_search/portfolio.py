@@ -212,6 +212,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     if need_info_fetch:
         try:
             quote_type = yahoo_source.get_quote_type()
+            indicators_snapshot = yahoo_source.get_indicators_snapshot()
             fetched_info = {
                 **info_data,
                 "name": yahoo_source.info.get("shortName") or yahoo_source.info.get("longName"),
@@ -222,6 +223,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 "pe_forward": yahoo_source.get_forward_pe_ntm(),
                 "peg": yahoo_source.get_peg(),
                 "beta": yahoo_source.get_beta(),
+                "iv": indicators_snapshot.iv,
                 "debt_to_equity": yahoo_source.get_debt_to_equity_percent(),
                 "free_cash_flow": yahoo_source.get_free_cash_flow_in_quote_currency(),
             }
