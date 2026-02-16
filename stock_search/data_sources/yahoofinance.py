@@ -339,6 +339,10 @@ class YahooFinanceSource:
         ratio = self.get_info_float(key)
         return round(ratio * 100, 2) if ratio is not None else None
 
+    def get_revenue_growth_percent(self) -> float | None:
+        """Get revenue growth in percentage points from Yahoo info."""
+        return self.get_ratio_percent("revenueGrowth")
+
     def _get_quarterly_income_stmt(self) -> pd.DataFrame | None:
         """Get cached quarterly income statement for TTM-based calculations."""
         if self._quarterly_income_stmt is _STATEMENT_NOT_LOADED:
@@ -660,7 +664,7 @@ class YahooFinanceSource:
             six_month_change_percent=period_values["six_month_change_percent"],
             one_year_change_percent=period_values["one_year_change_percent"],
             median_upside=ratings_snapshot.median_upside_pct if ratings_snapshot else None,
-            revenue_growth=None,
+            revenue_growth=self.get_revenue_growth_percent(),
             gross_margin=self.get_gross_margin_percent(),
             operating_margin=self.get_operating_margin_percent(),
             debt_to_equity=self.get_debt_to_equity_percent(),

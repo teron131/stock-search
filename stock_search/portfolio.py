@@ -14,6 +14,7 @@ from rich.table import Table
 from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
+from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.etf import ETFResolutionResult, classify_and_resolve_etfs, normalize_sector_name
 from stock_search.evaluation.constants import (
@@ -226,6 +227,13 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
         try:
             quote_type = yahoo_source.get_quote_type()
             indicators_snapshot = yahoo_source.get_indicators_snapshot()
+            stockanalysis_revenue_growth = None
+            try:
+                financials_snapshot = StockAnalysisSource(ticker_key).get_financials_snapshot()
+                if financials_snapshot.revenue_growth is not None:
+                    stockanalysis_revenue_growth = round(financials_snapshot.revenue_growth * 100, 2)
+            except Exception:
+                stockanalysis_revenue_growth = None
             fetched_info = {
                 **info_data,
                 "name": yahoo_source.info.get("shortName") or yahoo_source.info.get("longName"),
@@ -243,6 +251,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 "one_year_change_percent": indicators_snapshot.one_year_change_percent,
                 "mtd_change_percent": indicators_snapshot.mtd_change_percent,
                 "ytd_change_percent": indicators_snapshot.ytd_change_percent,
+                "revenue_growth": stockanalysis_revenue_growth if stockanalysis_revenue_growth is not None else indicators_snapshot.revenue_growth,
                 "debt_to_equity": yahoo_source.get_debt_to_equity_percent(),
                 "free_cash_flow": yahoo_source.get_free_cash_flow_in_quote_currency(),
             }
