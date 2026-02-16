@@ -150,7 +150,7 @@ class ResearchAgents:
 
     def __init__(self, system_prompt: str, response_format: type[BaseModel]):
         quality_model = os.getenv("QUALITY_LLM")
-        fast_model = os.getenv("FAST_LLM", quality_model)
+        fast_model = os.getenv("FAST_LLM")
 
         self.supervisor = create_agent(
             model=ChatOpenRouter(

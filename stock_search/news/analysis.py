@@ -24,7 +24,7 @@ from .newsapi import get_news_newsapi
 from .newsdata import get_news_newsdata
 from .yahoofinance import get_news_yfinance
 
-FAST_LLM = os.getenv("FAST_LLM", "google/gemini-3-flash-preview")
+FAST_LLM = os.getenv("FAST_LLM")
 FALLBACK_SUMMARIES = (
     "[TRUNCATED]",
     "[FAILED TO FETCH]",
