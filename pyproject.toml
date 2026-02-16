@@ -25,6 +25,7 @@ dependencies = [
     "yfinance>=0.2.65",
     "pandas>=2.2.3",
     "llm-harness",
+    "exa-py>=2.4.0",
 ]
 
 [build-system]
