@@ -1242,3 +1242,73 @@ tv-ticker-tag {
     padding-right: var(--space-md);
   }
 }
+
+/* Docked terminal layout tune (layout-only, keeps existing theme colors) */
+.content-area {
+  padding: var(--space-sm) 0 0;
+  gap: var(--space-sm);
+}
+
+.overview-panel {
+  margin: 0;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--space-md) var(--space-xl);
+}
+
+.overview-panel::after {
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.ticker-tape-container {
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 2px 0;
+}
+
+#preact-root {
+  min-height: 0;
+}
+
+.tabs-container {
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.tabs-header {
+  height: 52px;
+  padding: 0 var(--space-xl);
+}
+
+.tab-btn {
+  height: 52px;
+}
+
+.table-wrapper {
+  height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
+  min-height: calc((var(--row-height) * var(--table-visible-rows)) + 48px);
+}
+
+@media (max-width: 1024px) {
+  .content-area {
+    padding: var(--space-sm) 0 0;
+    gap: var(--space-sm);
+  }
+
+  .overview-panel {
+    padding: var(--space-md);
+  }
+
+  .tabs-header {
+    padding: 0 var(--space-md);
+  }
+}

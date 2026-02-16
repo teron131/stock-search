@@ -6,9 +6,7 @@ import {
 } from "https://esm.sh/preact@10.19.6/hooks";
 
 import { DataTable } from "./components/DataTable.js";
-import { QuickAdd } from "./components/QuickAdd.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
-import { fmt } from "./format.js";
 import { usePortfolioData } from "./usePortfolioData.js";
 
 const VIEW_TITLES = {
@@ -161,7 +159,6 @@ function initHeatmapTabs() {
 
 export function App() {
   const [view, setView] = useState("dashboard");
-  const [tab, setTab] = useState("all");
   const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
   const [sortDir, setSortDir] = useState("desc");
 
@@ -173,7 +170,6 @@ export function App() {
     isBackgroundLoading,
     isUsingDemoData,
     lastError,
-    stats,
     topTickers,
     actions,
   } = usePortfolioData();
@@ -227,8 +223,6 @@ export function App() {
     setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES.calendar);
 
     const isDashboard = view === "dashboard";
-    const overview = document.querySelector(".overview-panel");
-    if (overview) overview.style.display = isDashboard ? "flex" : "none";
 
     const preactRoot = document.getElementById("preact-root");
     if (preactRoot) preactRoot.style.display = isDashboard ? "block" : "none";
@@ -243,30 +237,6 @@ export function App() {
 
   // Update overview panel + timestamp
   useEffect(() => {
-    setText(
-      "total-positions",
-      stats.positions ? String(stats.positions) : "--",
-    );
-    setText(
-      "total-value",
-      stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
-    );
-
-    if (stats.totalVal > 0) {
-      const { percent, absolute } = stats.change;
-      const sign = absolute >= 0 ? "+" : "";
-      const absFormatted = sign + fmt.currency(Math.abs(absolute));
-      const pctFormatted = fmt.percent(percent);
-      setText("portfolio-change", `${absFormatted} (${pctFormatted})`);
-
-      const trend = document.getElementById("portfolio-change");
-      if (trend) {
-        trend.className = `stat-trend ${percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"}`;
-      }
-    } else {
-      setText("portfolio-change", "--");
-    }
-
     const modeText = isUsingDemoData ? " [DEMO]" : "";
 
     if (isBackgroundLoading) {
@@ -293,7 +263,7 @@ export function App() {
     });
 
     setText("last-update", `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`);
-  }, [generatedAt, isUsingDemoData, isBackgroundLoading, stats]);
+  }, [generatedAt, isUsingDemoData, isBackgroundLoading]);
 
   // Update ticker tape
   useEffect(() => {
@@ -359,49 +329,10 @@ export function App() {
     return res;
   };
 
-  const onSubmit = async ({ ticker, quantity, existingQuantity }) => {
-    const res = await actions.addOrUpdate({
-      ticker,
-      quantity,
-      existingQuantity,
-    });
-    if (res.ok) showToast("UPDATED");
-    showActionError(res.reason);
-  };
-
   return html`
     <div class="tabs-container" id="dashboard-tables">
-      <div class="tabs-header">
-        <div class="tab-group">
-          <button
-            class=${`tab-btn ${tab === "all" ? "active" : ""}`}
-            onClick=${() => setTab("all")}
-          >
-            ALL
-          </button>
-          <button
-            class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
-            onClick=${() => setTab("holdings")}
-          >
-            PORTFOLIO
-          </button>
-          <button
-            class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
-            onClick=${() => setTab("evaluations")}
-          >
-            EVALUATION
-          </button>
-        </div>
-
-        <${QuickAdd}
-          rows=${rows}
-          isUsingDemoData=${isUsingDemoData}
-          onSubmit=${onSubmit}
-        />
-      </div>
-
       <${DataTable}
-        tab=${tab}
+        tab="all"
         rows=${rows}
         sortCol=${sortCol}
         sortDir=${sortDir}
