@@ -39,6 +39,15 @@ _INFO_CACHE = TieredCache[dict[str, Any]](
 _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
 
+_PERIOD_RETURN_FIELDS: tuple[str, ...] = (
+    "one_month_change_percent",
+    "three_month_change_percent",
+    "six_month_change_percent",
+    "one_year_change_percent",
+    "mtd_change_percent",
+    "ytd_change_percent",
+)
+
 
 def calculate_total(quantity: float, current_price: float) -> float:
     """
@@ -182,6 +191,10 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
 
     info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {} if info_data is None else dict(info_data)
 
+    missing_period_fields = any(field not in info_data for field in _PERIOD_RETURN_FIELDS)
+    if missing_period_fields and _INFO_CACHE.should_retry(ticker_key, now=now):
+        need_info_fetch = True
+
     if not need_history_fetch and not need_info_fetch:
         return {**info_data, **history_data}
 
@@ -224,6 +237,12 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 "peg": yahoo_source.get_peg(),
                 "beta": yahoo_source.get_beta(),
                 "iv": indicators_snapshot.iv,
+                "one_month_change_percent": indicators_snapshot.one_month_change_percent,
+                "three_month_change_percent": indicators_snapshot.three_month_change_percent,
+                "six_month_change_percent": indicators_snapshot.six_month_change_percent,
+                "one_year_change_percent": indicators_snapshot.one_year_change_percent,
+                "mtd_change_percent": indicators_snapshot.mtd_change_percent,
+                "ytd_change_percent": indicators_snapshot.ytd_change_percent,
                 "debt_to_equity": yahoo_source.get_debt_to_equity_percent(),
                 "free_cash_flow": yahoo_source.get_free_cash_flow_in_quote_currency(),
             }
