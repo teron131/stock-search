@@ -20,6 +20,7 @@ class EvalFieldDefinition:
 INDICATOR_FIELD_DEFINITIONS: tuple[FieldDefinition, ...] = (
     FieldDefinition(name="price", category="market"),
     FieldDefinition(name="change_percent", category="market"),
+    FieldDefinition(name="change", category="market"),
     FieldDefinition(name="market_cap", category="fundamental"),
     FieldDefinition(name="pe", category="fundamental"),
     FieldDefinition(name="pe_forward", category="fundamental"),
@@ -30,15 +31,14 @@ INDICATOR_FIELD_DEFINITIONS: tuple[FieldDefinition, ...] = (
     FieldDefinition(name="three_month_change_percent", category="market"),
     FieldDefinition(name="six_month_change_percent", category="market"),
     FieldDefinition(name="one_year_change_percent", category="market"),
+    FieldDefinition(name="mtd_change_percent", category="market"),
+    FieldDefinition(name="ytd_change_percent", category="market"),
     FieldDefinition(name="median_upside", category="evaluation"),
     FieldDefinition(name="revenue_growth", category="fundamental"),
     FieldDefinition(name="gross_margin", category="fundamental"),
     FieldDefinition(name="debt_to_equity", category="fundamental"),
     FieldDefinition(name="free_cash_flow", category="fundamental"),
     FieldDefinition(name="rsi", category="technical"),
-    FieldDefinition(name="change", category="market"),
-    FieldDefinition(name="mtd_change_percent", category="market"),
-    FieldDefinition(name="ytd_change_percent", category="market"),
 )
 
 INDICATOR_FIELDS: tuple[str, ...] = tuple(field.name for field in INDICATOR_FIELD_DEFINITIONS)
