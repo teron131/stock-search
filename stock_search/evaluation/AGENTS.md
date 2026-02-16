@@ -4,41 +4,51 @@ This guide is for changes inside `stock_search/evaluation/`.
 
 ## Scope
 
-- Scoring math, normalization, and evaluation assembly.
-- Model-ready evaluation payload shaping.
+- Evaluation input assembly, normalization, and scoring outputs.
+- LLM-backed research integration and deterministic score transforms.
+- Bucket/strategy derivation used by portfolio rows.
 
-Primary files:
+## High-signal locations
 
-- `stock_search/evaluation/evaluation.py` -> `build_inputs`, `evaluate_asset`
-- `stock_search/evaluation/normalization.py` -> eval JSON normalization/bucketing
-- `stock_search/evaluation/scores.py` -> scoring primitives
-- `stock_search/evaluation/constants.py` -> calibration constants
+- `stock_search/evaluation/evaluation.py` -> `build_inputs`, `evaluate_asset`, `strategy_label`.
+- `stock_search/evaluation/normalization.py` -> `normalize_eval_json`, `bucket_from_eval_json`.
+- `stock_search/evaluation/scores.py` -> score primitives and probability modeling.
+- `stock_search/evaluation/constants.py` -> calibration ranges and scoring constants.
+- `stock_search/evaluation/research.py` -> `run_llm_evaluation` for structured research outputs.
 
-## Responsibilities
+## Key takeaways per location
 
-- Convert indicators + optional research signals into consistent 0-10 scores.
-- Normalize flexible `eval.json` keys/aliases into canonical fields.
-- Derive strategy bucket labels from index scores.
+- `stock_search/evaluation/evaluation.py -> build_inputs` builds `Evaluation` using `StockIndicator` metrics plus LLM research outputs.
+- `stock_search/evaluation/evaluation.py -> evaluate_asset` converts normalized probabilities/scores into final strategy-facing result fields.
+- `stock_search/evaluation/normalization.py` is the compatibility layer for alias-rich eval payloads from cache/files.
+- `stock_search/evaluation/constants.py` is the right place for calibration changes; formula behavior should not drift silently in call sites.
 
-## Invariants
+## Project-specific conventions and rationale
 
-- Keep normalization aliases compatible with stored `eval.json` variants:
+- Preserve canonical dashboard-facing fields: `overall`, `quality`, `valuation`, `moat`, `upside`, `bull`, `bear`.
+- Preserve alias compatibility in normalization:
   - `bull` <-> `bull_probability`
   - `bear` <-> `bear_probability`
   - `overall` <-> `score`
-- Preserve output contract used by dashboard rows:
-  - `overall`, `quality`, `valuation`, `moat`, `upside`, `bull`, `bear`.
-- Keep calibration changes explicit in `constants.py`; avoid hidden shifts in formulas.
+- Keep score outputs bounded and deterministic where formulas are intended to be deterministic.
+- Preserve model names unless a coordinated repo-wide change is required.
 
-## Safe Change Pattern
+## Syntax relationship highlights (ast-grep-first)
 
-1. Update constants first when changing behavior.
-2. Keep scoring functions pure and deterministic.
-3. Re-run normalization path against sample eval payloads.
+- `stock_search/evaluation/evaluation.py -> build_inputs` -> uses `stock_search/indicators.py -> StockIndicator`.
+- `stock_search/evaluation/evaluation.py -> build_inputs` -> calls `stock_search/evaluation/research.py -> run_llm_evaluation`.
+- `stock_search/portfolio.py -> _build_row` -> calls `stock_search/evaluation/normalization.py -> normalize_eval_json` and derives eval bucket fallback.
+- `stock_search/portfolio.py -> _build_row` -> mixes normalized eval and deterministic fallback scores for row output.
 
-## Validation
+## General approach (not rigid checklist)
 
-- Scripted sanity check:
+- Change constants first when shifting calibration behavior, then update formulas only when required.
+- Keep scoring functions pure and easy to reason about; avoid hidden side effects.
+- Validate normalization behavior against mixed/legacy `eval.json` payload shapes.
+
+## Validation commands
+
+- Normalization sanity check:
   - `uv run python -c "from stock_search.evaluation.normalization import normalize_eval_json; print(normalize_eval_json({'score':7,'bull_probability':0.6,'bear_probability':0.2}))"`
-- Format/lint:
+- Formatting/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`

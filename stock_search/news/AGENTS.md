@@ -4,39 +4,53 @@ This guide is for changes inside `stock_search/news/`.
 
 ## Scope
 
-- News discovery, article retrieval, and optional LLM enrichment.
-- Provider failover for headlines/articles.
+- Multi-provider news discovery and normalization.
+- URL/content analysis pipeline and enrichment.
+- Provider failover and post-fetch filtering/sorting.
 
-Representative files:
+## High-signal locations
 
-- `stock_search/news/analysis.py`
-- `stock_search/news/yahoofinance.py`
-- `stock_search/news/newsapi.py`
-- `stock_search/news/exa.py`
-- `stock_search/news/newsdata.py`
+- `stock_search/news/analysis.py` -> `get_news` orchestration and enrichment.
+- `stock_search/news/exa.py` -> Exa provider adapter.
+- `stock_search/news/newsapi.py` -> NewsAPI adapter.
+- `stock_search/news/newsdata.py` -> NewsData adapter.
+- `stock_search/news/yahoofinance.py` -> Yahoo Finance adapter.
+- `stock_search/news/massive.py` -> Massive provider adapter.
 
-## Responsibilities
+## Key takeaways per location
 
-- Return consistent article/news structures across providers.
-- Implement provider fallback and graceful degradation.
-- Keep optional enrichment paths isolated from baseline fetch logic.
+- `stock_search/news/analysis.py -> get_news` executes provider fan-in, dedupe, LLM analysis, domain balancing, filtering, and final sorting.
+- `stock_search/news/analysis.py -> _dedupe_news` relies on normalized URL/title key to avoid duplicate stories.
+- `stock_search/news/analysis.py -> _analyze_news` uses `webloader` + structured LLM output and tolerates fetch/analysis failures.
+- Provider modules return `News` items with best-effort metadata and leave cross-provider policy to `analysis.py`.
 
-## Invariants
+## Project-specific conventions and rationale
 
-- Preserve provider fallback behavior (do not hard-fail when one provider fails).
-- Do not log secrets or raw API keys.
-- Keep external calls timeout-aware and failure-tolerant.
-- Keep model names unchanged unless repo references require coordinated updates.
+- Preserve graceful degradation: one provider failure must not collapse the full news result.
+- Preserve fallback summary semantics (`[TRUNCATED]`, `[FAILED TO FETCH]`) because downstream filtering depends on them.
+- Keep requests timeout-aware and avoid logging secrets/API keys.
+- Keep output shape stable for consumers expecting `News` fields.
 
-## Safe Change Pattern
+## Syntax relationship highlights (ast-grep-first)
 
-1. Add provider-specific extraction in the provider module.
-2. Keep shared output schema stable.
-3. Ensure orchestrator-level fallback still executes on partial provider failures.
+- `stock_search/news/__init__.py` re-exports `get_news` and individual provider functions.
+- `stock_search/news/analysis.py -> get_news` -> calls provider functions:
+  - `get_news_newsdata`
+  - `get_news_massive`
+  - `get_news_exa`
+  - `get_news_yfinance`
+  - `get_news_newsapi`
+- `stock_search/news/analysis.py -> _analyze_news` -> calls `llm_harness.tools.webloader` and `ChatOpenRouter(...).with_structured_output(NewsAnalysis)`.
 
-## Validation
+## General approach (not rigid checklist)
+
+- Add provider-specific fetch/parsing logic only in its provider module.
+- Keep orchestration policies (dedupe, filtering, sorting, balancing) centralized in `analysis.py`.
+- If changing filtering rules, preserve deterministic sort order by `days_ago` then `relevancy`.
+
+## Validation commands
 
 - Existing smoke script:
   - `uv run python test_news.py`
-- Format/lint:
+- Formatting/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`
