@@ -64,13 +64,13 @@ def serve_index() -> FileResponse:
 
 class PortfolioPositionPatch(BaseModel):
     quantity: float | None = None
-    bucket: str | None = None
+    strategy: str | None = None
 
 
 class StoredPortfolioPosition(BaseModel):
     ticker: str
     quantity: float = 0.0
-    bucket: str | None = None
+    strategy: str | None = None
 
     def to_storage_dict(self) -> dict[str, Any]:
         payload = self.model_dump(exclude_none=True)
@@ -183,7 +183,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
     idx = _find_position_index(positions, ticker_upper)
 
     if idx is None:
-        if patch.quantity is None and patch.bucket is None:
+        if patch.quantity is None and patch.strategy is None:
             raise HTTPException(status_code=400, detail="Patch payload is empty.")
         _ensure_valid_new_ticker(ticker_upper)
         current = StoredPortfolioPosition(ticker=ticker_upper).to_storage_dict()
@@ -194,11 +194,12 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
 
     if patch.quantity is not None:
         current["quantity"] = patch.quantity
-    if patch.bucket is not None:
-        if patch.bucket == "":
-            current.pop("bucket", None)
+
+    if patch.strategy is not None:
+        if patch.strategy == "":
+            current.pop("strategy", None)
         else:
-            current["bucket"] = patch.bucket
+            current["strategy"] = patch.strategy
 
     positions[idx] = StoredPortfolioPosition.model_validate(current).to_storage_dict()
     _save_positions(positions)
@@ -253,20 +254,20 @@ def color_standards_api(response: Response) -> dict:
                 "min": CalibrationConfig.UPSIDE_RANGE[0],
                 "max": CalibrationConfig.UPSIDE_RANGE[2],
             },
-            "bull": {
+            "bull_probability": {
                 "min": CalibrationConfig.PROBABILITY_RANGE[0],
                 "max": CalibrationConfig.PROBABILITY_RANGE[2],
             },
-            "bear": {
+            "bear_probability": {
                 "min": CalibrationConfig.PROBABILITY_RANGE[0],
                 "max": CalibrationConfig.PROBABILITY_RANGE[2],
             },
             "rsi": {"min": 20.0, "max": 80.0},
-            "overall": {"min": 2.0, "max": 8.0},
-            "quality": {"min": 2.0, "max": 8.0},
-            "valuation": {"min": 2.0, "max": 8.0},
-            "moat": {"min": 2.0, "max": 8.0},
-            "upside": {"min": 2.0, "max": 8.0},
+            "overall_score": {"min": 2.0, "max": 8.0},
+            "quality_score": {"min": 2.0, "max": 8.0},
+            "valuation_score": {"min": 2.0, "max": 8.0},
+            "moat_score": {"min": 2.0, "max": 8.0},
+            "upside_score": {"min": 2.0, "max": 8.0},
         }
     }
 
@@ -300,15 +301,15 @@ def evaluate_ticker_api(ticker: str) -> dict:
     return {
         "ticker": ticker.upper(),
         "rank": 1,
-        "overall": 8.5,
-        "moat": 9.0,
-        "quality": 8.0,
-        "valuation": 7.5,
-        "upside": 10.0,
+        "overall_score": 8.5,
+        "moat_score": 9.0,
+        "quality_score": 8.0,
+        "valuation_score": 7.5,
+        "upside_score": 10.0,
         "market_cap": 9.0,
-        "bull": 0.7,
-        "bear": 0.2,
-        "current_price": indicator.price,
+        "bull_probability": 0.7,
+        "bear_probability": 0.2,
+        "price": indicator.price,
         "change_percent": indicator.change_percent,
         "rsi": indicator.rsi,
     }

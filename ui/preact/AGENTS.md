@@ -29,7 +29,7 @@ Primary files:
 - Preserve two-stage sync behavior:
   - foreground `priority`, optional background `portfolio_live` backfill.
 - Keep ETF behavior:
-  - ETF-like rows should not display evaluation scores (`overall`, `quality`, etc.).
+  - ETF-like rows should not display evaluation scores (`overall_score`, `quality`, etc.).
 - Keep static compatibility for both split and dashboard-style payloads.
 
 ## Safe Change Pattern

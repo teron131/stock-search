@@ -57,7 +57,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
     const res = await onSetQuantity({
       ticker: row.ticker,
       quantity: qty,
-      bucket: row.bucket,
+      strategy: row.strategy,
       silent: true,
     });
 

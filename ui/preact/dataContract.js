@@ -65,15 +65,13 @@ function buildRowsFromSplitStatic({ portfolioPayload, statsPayload }) {
         : {};
 
     const quantity = toNumber(position.quantity, 0);
-    const price =
-      stats.current_price != null
-        ? toNumber(stats.current_price, 0)
-        : toNumber(stats.price, 0);
+    const price = toNumber(stats.price, 0);
 
     rowsByTicker.set(ticker, {
       ticker,
       quantity,
-      current_price: stats.current_price ?? stats.price ?? null,
+      strategy: position.strategy ?? null,
+      price: stats.price ?? null,
       total: price > 0 ? quantity * price : 0,
       ...stats,
     });
@@ -88,7 +86,8 @@ function buildRowsFromSplitStatic({ portfolioPayload, statsPayload }) {
     rowsByTicker.set(ticker, {
       ticker,
       quantity: 0,
-      current_price: stats.current_price ?? stats.price ?? null,
+      strategy: stats.strategy ?? null,
+      price: stats.price ?? null,
       total: 0,
       ...stats,
     });

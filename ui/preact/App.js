@@ -341,13 +341,13 @@ export function App() {
   const onSetQuantity = async ({
     ticker,
     quantity,
-    bucket,
+    strategy,
     silent = false,
   }) => {
     const res = await actions.setQuantity({
       ticker,
       quantity,
-      bucket,
+      strategy,
       silent,
     });
 

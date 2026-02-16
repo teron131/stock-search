@@ -50,18 +50,18 @@ _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
 )
 
 
-def calculate_total(quantity: float, current_price: float) -> float:
+def calculate_total(quantity: float, price: float) -> float:
     """
     Calculate total position value from held quantity.
 
     Args:
         quantity: Number of underlying shares held
-        current_price: Current price in USD
+        price: Current price in USD
 
     Returns:
         Total position value in USD
     """
-    return quantity * current_price
+    return quantity * price
 
 
 def calculate_position_weight(total: float, total_equity: float) -> float:
@@ -144,13 +144,13 @@ def _indicator_eval_fallback(stats: dict[str, Any]) -> dict[str, float]:
         bear = DEFAULT_BEAR_PROBABILITY
 
     return {
-        "overall": round(overall, 2),
-        "quality": round(quality, 2),
-        "valuation": round(valuation, 2),
-        "moat": round(moat, 2),
-        "upside": round(upside, 2),
-        "bull": round(bull, 4),
-        "bear": round(bear, 4),
+        "overall_score": round(overall, 2),
+        "quality_score": round(quality, 2),
+        "valuation_score": round(valuation, 2),
+        "moat_score": round(moat, 2),
+        "upside_score": round(upside, 2),
+        "bull_probability": round(bull, 4),
+        "bear_probability": round(bear, 4),
     }
 
 
@@ -237,7 +237,7 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
             fetched_info = {
                 **info_data,
                 "name": yahoo_source.info.get("shortName") or yahoo_source.info.get("longName"),
-                "current_price": yahoo_source.get_current_price(),
+                "price": yahoo_source.get_current_price(),
                 "quote_type": quote_type or None,
                 "market_cap": yahoo_source.get_market_cap(),
                 "pe": yahoo_source.get_pe_trailing(),
@@ -302,7 +302,7 @@ def _build_row(
 
     stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
 
-    price = stats.get("current_price") or stats.get("price")
+    price = stats.get("price")
 
     total = calculate_total(qty, price) if qty and price else 0.0
 
@@ -326,7 +326,7 @@ def _build_row(
     total_eval_fields = len(EVAL_FIELD_DEFINITIONS)
     eval_source = "llm" if llm_count == total_eval_fields else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
-    bucket = pos.get("bucket") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("bucket")
+    strategy = pos.get("strategy") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("strategy")
     quote_type = str(stats.get("quote_type") or "").upper()
     equity_type = "ETF" if quote_type == "ETF" else ("STOCK" if quote_type else "UNKNOWN")
     etf_holdings = stats.get("etf_holdings") or stats.get("holdings") or []
@@ -338,14 +338,14 @@ def _build_row(
     etf_holdings_update_tier = UpdateTierLabels.ETF_HOLDINGS_LABEL if etf_holdings else None
 
     return {
-        "overall": selected_eval["overall"],
-        "quality": selected_eval["quality"],
-        "valuation": selected_eval["valuation"],
-        "moat": selected_eval["moat"],
-        "upside": selected_eval["upside"],
+        "overall_score": selected_eval["overall_score"],
+        "quality_score": selected_eval["quality_score"],
+        "valuation_score": selected_eval["valuation_score"],
+        "moat_score": selected_eval["moat_score"],
+        "upside_score": selected_eval["upside_score"],
         "market_cap_score": normalized_eval.get("market_cap_score"),
-        "bull": selected_eval["bull"],
-        "bear": selected_eval["bear"],
+        "bull_probability": selected_eval["bull_probability"],
+        "bear_probability": selected_eval["bear_probability"],
         "eval_source": eval_source,
         "market_update_tier": UpdateTierLabels.FAST_LABEL,
         "indicator_update_tier": UpdateTierLabels.SLOW_LABEL,
@@ -357,7 +357,7 @@ def _build_row(
         "name": stats.get("name"),
         "equity_type": equity_type,
         "quantity": qty,
-        "current_price": price,
+        "price": price,
         "change": stats.get("change"),
         "change_percent": stats.get("change_percent"),
         "market_cap": stats.get("market_cap"),
@@ -378,7 +378,7 @@ def _build_row(
         "median_upside": stats.get("median_upside"),
         "etf_holdings": etf_holdings,
         "etf_holdings_fetched_at": etf_holdings_fetched_at,
-        "bucket": bucket,
+        "strategy": strategy,
         "total": total,
         "weight_pct": None,
     }
@@ -616,7 +616,7 @@ def _normalize_positions(
         normalized_position = {
             "ticker": ticker,
             "quantity": float(pos.get("quantity") or 0),
-            "bucket": pos.get("bucket"),
+            "strategy": pos.get("strategy"),
         }
         positions.append(normalized_position)
         held_positions.append(normalized_position)
@@ -634,11 +634,11 @@ def _normalize_positions(
 def _rank_rows(rows: list[dict[str, Any]]) -> None:
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
-        overall = row.get("overall")
-        if overall is None:
+        overall_score = row.get("overall_score")
+        if overall_score is None:
             continue
         try:
-            scored_rows.append((idx, float(overall)))
+            scored_rows.append((idx, float(overall_score)))
         except (TypeError, ValueError):
             continue
     scored_rows.sort(key=lambda item: item[1], reverse=True)
@@ -836,7 +836,7 @@ def display_dashboard(
         table.add_row(
             str(row["ticker"]),
             str(row["quantity"]),
-            fmt_curr(row["current_price"]),
+            fmt_curr(row["price"]),
             fmt_pct(row["change_percent"]),
             fmt_num(row["rsi"]),
             fmt_pct(row["one_month_change_percent"]),

@@ -180,8 +180,8 @@ class PortfolioPosition(BaseModel):
     ticker: Ticker
     name: str | None = Field(default=None, description="Company name")
     quantity: float | None = Field(default=None, description="Number of shares or contracts")
-    current_price: float | None = Field(default=None, description="Current market price")
-    bucket: (
+    price: float | None = Field(default=None, description="Current market price")
+    strategy: (
         Literal[
             "Strategic Core",
             "Growth Satellites",
@@ -189,7 +189,7 @@ class PortfolioPosition(BaseModel):
             "Risk Mitigation",
         ]
         | None
-    ) = Field(default=None, description="Strategy bucket")
+    ) = Field(default=None, description="Strategy")
 
 
 class Portfolio(BaseModel):

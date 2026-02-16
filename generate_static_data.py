@@ -158,12 +158,6 @@ def fetch_stats_data(ticker: str) -> dict:
     mtd_change_percent = round_optional(indicators.get("mtd_change_percent"), 2)
     ytd_change_percent = round_optional(indicators.get("ytd_change_percent"), 2)
 
-    # Backward-compatible aliases kept for older consumers.
-    twenty_day_change_percent = one_month_change_percent
-    fifty_day_change_percent = three_month_change_percent
-    one_hundred_day_change_percent = six_month_change_percent
-    two_hundred_day_change_percent = one_year_change_percent
-
     median_upside = round_optional(indicators.get("median_upside"), 2)
     revenue_growth = round_optional(indicators.get("revenue_growth"), 2)
     gross_margin = round_optional(indicators.get("gross_margin"), 2)
@@ -172,10 +166,9 @@ def fetch_stats_data(ticker: str) -> dict:
 
     return {
         "price": price,
-        "current_price": price,
         "change": change,
         "change_percent": change_percent,
-        "bucket": random.choice(BUCKETS),
+        "strategy": random.choice(BUCKETS),
         "name": info.get("shortName") or info.get("longName") or ticker,
         "rsi": round_optional(indicators.get("rsi"), 2),
         "one_month_change_percent": one_month_change_percent,
@@ -184,10 +177,6 @@ def fetch_stats_data(ticker: str) -> dict:
         "one_year_change_percent": one_year_change_percent,
         "mtd_change_percent": mtd_change_percent,
         "ytd_change_percent": ytd_change_percent,
-        "twenty_day_change_percent": twenty_day_change_percent,
-        "fifty_day_change_percent": fifty_day_change_percent,
-        "one_hundred_day_change_percent": one_hundred_day_change_percent,
-        "two_hundred_day_change_percent": two_hundred_day_change_percent,
         "median_upside": median_upside,
         "market_cap": market_cap,
         "_market_cap_raw": market_cap_raw,
@@ -208,10 +197,9 @@ def create_fallback_stats(ticker: str) -> dict:
     """Create fallback stats for failed ticker fetches."""
     return {
         "price": None,
-        "current_price": None,
         "change": None,
         "change_percent": None,
-        "bucket": random.choice(BUCKETS),
+        "strategy": random.choice(BUCKETS),
         "name": ticker,
         "rsi": None,
         "one_month_change_percent": None,
@@ -220,10 +208,6 @@ def create_fallback_stats(ticker: str) -> dict:
         "one_year_change_percent": None,
         "mtd_change_percent": None,
         "ytd_change_percent": None,
-        "twenty_day_change_percent": None,
-        "fifty_day_change_percent": None,
-        "one_hundred_day_change_percent": None,
-        "two_hundred_day_change_percent": None,
         "median_upside": None,
         "market_cap": None,
         "pe": None,
@@ -257,9 +241,6 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
         stats.get("three_month_change_percent"),
         stats.get("six_month_change_percent"),
         stats.get("one_year_change_percent"),
-        stats.get("twenty_day_change_percent"),
-        stats.get("fifty_day_change_percent"),
-        stats.get("two_hundred_day_change_percent"),
     ]
     valid_trends = [v for v in trends if v is not None]
     avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0
@@ -295,16 +276,14 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
     overall = (moat_score + quality_score + valuation_score + upside_score) / 4.0
 
     return {
-        "overall": round(overall, 1),
-        "quality": round(quality_score, 1),
-        "valuation": round(valuation_score, 1),
-        "moat": round(moat_score, 1),
-        "upside": round(upside_score, 1),
+        "overall_score": round(overall, 1),
+        "quality_score": round(quality_score, 1),
+        "valuation_score": round(valuation_score, 1),
+        "moat_score": round(moat_score, 1),
+        "upside_score": round(upside_score, 1),
         "market_cap_score": round(size_score, 1) if size_score else None,
         "bull_probability": round(p_up, 2),
         "bear_probability": round(p_down, 2),
-        # Internal fields for allocation logic can be re-derived or passed along if needed
-        # But here we just return the "view" data
     }
 
 
@@ -320,15 +299,15 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
         # We use the values already computed in generate_eval_entry
 
         # Note: evaluate_asset needs ScoredReason objects
-        moat_score = eval_data.get("moat") or 5.0
-        quality_score = eval_data.get("quality") or 5.0
+        moat_score = eval_data.get("moat_score") or 5.0
+        quality_score = eval_data.get("quality_score") or 5.0
 
         eval_input = Evaluation(
-            score=eval_data.get("overall") or 5.0,
+            score=eval_data.get("overall_score") or 5.0,
             reasons=["Engine proxy"],
             market_cap=eval_data.get("market_cap_score") or 5.0,
-            valuation=eval_data.get("valuation") or 5.0,
-            upside=eval_data.get("upside") or 5.0,
+            valuation=eval_data.get("valuation_score") or 5.0,
+            upside=eval_data.get("upside_score") or 5.0,
             bull_probability=eval_data.get("bull_probability"),
             bear_probability=eval_data.get("bear_probability"),
             moat=ScoredReason(score=moat_score, reasons=["Proxy"]),
@@ -353,7 +332,7 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
 
     for ticker in tickers:
         stats = stats_map[ticker]
-        price = stats.get("current_price")
+        price = stats.get("price")
 
         try:
             numeric_price = float(price) if price is not None else 0.0

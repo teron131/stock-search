@@ -14,14 +14,14 @@ import {
 import { normalizeTicker } from "./format.js";
 
 const EVAL_KEYS = [
-  "overall",
-  "quality",
-  "valuation",
-  "moat",
-  "upside",
+  "overall_score",
+  "quality_score",
+  "valuation_score",
+  "moat_score",
+  "upside_score",
   "market_cap_score",
-  "bull",
-  "bear",
+  "bull_probability",
+  "bear_probability",
   "rank",
 ];
 const FOREGROUND_TIMEOUT_MS = 30_000;
@@ -115,8 +115,8 @@ function calculateRanks(rows) {
   const ranked = rows
     .map((row, index) => ({
       index,
-      hasScore: row.overall != null && row.overall !== "",
-      score: Number(row.overall),
+      hasScore: row.overall_score != null && row.overall_score !== "",
+      score: Number(row.overall_score),
     }))
     .filter((item) => item.hasScore)
     .filter((item) => Number.isFinite(item.score))
@@ -414,7 +414,7 @@ export function usePortfolioData() {
     async ({
       ticker,
       quantity,
-      bucket = CONFIG.defaultBucket,
+      strategy = CONFIG.defaultStrategy,
       silent = false,
     }) => {
       const normalizedTicker = normalizeTicker(ticker);
@@ -430,7 +430,7 @@ export function usePortfolioData() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             quantity: normalizedQuantity,
-            bucket,
+            strategy,
           }),
         },
       );
@@ -477,7 +477,7 @@ export function usePortfolioData() {
       return patchPortfolioPosition({
         ticker: t,
         quantity: q,
-        bucket: CONFIG.defaultBucket,
+        strategy: CONFIG.defaultStrategy,
       });
     },
     [isUsingDemoData, patchPortfolioPosition],
@@ -487,7 +487,7 @@ export function usePortfolioData() {
     async ({
       ticker,
       quantity,
-      bucket = CONFIG.defaultBucket,
+      strategy = CONFIG.defaultStrategy,
       silent = false,
     }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
@@ -495,7 +495,7 @@ export function usePortfolioData() {
       return patchPortfolioPosition({
         ticker,
         quantity,
-        bucket,
+        strategy,
         silent,
       });
     },

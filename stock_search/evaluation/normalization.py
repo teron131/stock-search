@@ -27,14 +27,14 @@ def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     return {
-        "overall": to_float(data.get("overall", data.get("score")), DEFAULT_SCORE),
-        "quality": to_float(data.get("quality"), DEFAULT_SCORE),
-        "moat": to_float(data.get("moat"), DEFAULT_SCORE),
-        "valuation": to_float(data.get("valuation"), DEFAULT_SCORE),
-        "upside": to_float(data.get("upside"), DEFAULT_SCORE),
-        "market_cap_score": to_float(data.get("market_cap_score", data.get("market_cap")), DEFAULT_SCORE),
-        "bull": to_float(data.get("bull", data.get("bull_probability")), DEFAULT_BULL_PROBABILITY),
-        "bear": to_float(data.get("bear", data.get("bear_probability")), DEFAULT_BEAR_PROBABILITY),
+        "overall_score": to_float(data.get("overall_score"), DEFAULT_SCORE),
+        "quality_score": to_float(data.get("quality_score"), DEFAULT_SCORE),
+        "moat_score": to_float(data.get("moat_score"), DEFAULT_SCORE),
+        "valuation_score": to_float(data.get("valuation_score"), DEFAULT_SCORE),
+        "upside_score": to_float(data.get("upside_score"), DEFAULT_SCORE),
+        "market_cap_score": to_float(data.get("market_cap_score"), DEFAULT_SCORE),
+        "bull_probability": to_float(data.get("bull_probability"), DEFAULT_BULL_PROBABILITY),
+        "bear_probability": to_float(data.get("bear_probability"), DEFAULT_BEAR_PROBABILITY),
     }
 
 
@@ -45,15 +45,15 @@ def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
         return None
 
     return Evaluation(
-        score=normalized["overall"],
+        score=normalized["overall_score"],
         reasons=[],
         market_cap=normalized["market_cap_score"],
-        valuation=normalized["valuation"],
-        upside=normalized["upside"],
-        bull_probability=normalized["bull"],
-        bear_probability=normalized["bear"],
-        moat=ScoredReason(score=normalized["moat"], reasons=[]),
-        quality=ScoredReason(score=normalized["quality"], reasons=[]),
+        valuation=normalized["valuation_score"],
+        upside=normalized["upside_score"],
+        bull_probability=normalized["bull_probability"],
+        bear_probability=normalized["bear_probability"],
+        moat=ScoredReason(score=normalized["moat_score"], reasons=[]),
+        quality=ScoredReason(score=normalized["quality_score"], reasons=[]),
     )
 
 
@@ -74,15 +74,15 @@ def bucket_from_eval_json(ticker: str, data: dict[str, Any]) -> str | None:
         return None
 
     scores = {
-        "moat": normalized["moat"],
-        "quality": normalized["quality"],
-        "valuation": normalized["valuation"],
-        "upside": normalized["upside"],
+        "moat": normalized["moat_score"],
+        "quality": normalized["quality_score"],
+        "valuation": normalized["valuation_score"],
+        "upside": normalized["upside_score"],
         "size": normalized["market_cap_score"],
     }
 
-    bull = normalized.get("bull")
-    bear = normalized.get("bear")
+    bull = normalized.get("bull_probability")
+    bear = normalized.get("bear_probability")
     edge = None
     if bull is not None and bear is not None:
         edge = (bull * SCORE_SCALE) - (bear * SCORE_SCALE)

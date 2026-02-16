@@ -14,7 +14,7 @@ export const CONFIG = {
     fallback: "data",
   },
 
-  defaultBucket: "Tactical Opportunities",
+  defaultStrategy: "Tactical Opportunities",
   maxTickerLength: 10,
   maxTickerTapeCount: 20,
 
@@ -42,7 +42,7 @@ export const CONFIG = {
 
 const BASE_COLUMNS = [
   { key: "ticker", label: "TICKER" },
-  { key: "current_price", label: "PRICE", format: "currency" },
+  { key: "price", label: "PRICE", format: "currency" },
   { key: "change_percent", label: "CHANGE%", format: "percent" },
   { key: "market_cap", label: "MKT_CAP", format: "market_cap" },
   { key: "pe", label: "PE", format: "number" },
@@ -77,17 +77,17 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 
 const EVALUATION_COLUMNS = [
   { key: "rank", label: "RANK" },
-  { key: "overall", label: "SCORE", format: "score" },
-  { key: "quality", label: "QUALITY", format: "score" },
-  { key: "valuation", label: "VALUE", format: "score" },
-  { key: "moat", label: "MOAT", format: "score" },
-  { key: "upside", label: "UPSIDE", format: "score" },
-  { key: "bull", label: "BULL", format: "prob" },
-  { key: "bear", label: "BEAR", format: "prob" },
+  { key: "overall_score", label: "SCORE", format: "score" },
+  { key: "quality_score", label: "QUALITY", format: "score" },
+  { key: "valuation_score", label: "VALUE", format: "score" },
+  { key: "moat_score", label: "MOAT", format: "score" },
+  { key: "upside_score", label: "UPSIDE", format: "score" },
+  { key: "bull_probability", label: "BULL", format: "prob" },
+  { key: "bear_probability", label: "BEAR", format: "prob" },
 ];
 
 const HOLDING_ACTION_COLUMNS = [
-  { key: "bucket", label: "STRATEGY" },
+  { key: "strategy", label: "STRATEGY" },
   { key: "total", label: "VALUE", format: "currency" },
   { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
   { key: "quantity", label: "QTY", format: "number" },
@@ -111,7 +111,7 @@ export const COLS = {
   evaluations: [
     { key: "ticker", label: "TICKER" },
     ...EVALUATION_COLUMNS,
-    { key: "bucket", label: "STRATEGY" },
+    { key: "strategy", label: "STRATEGY" },
     { key: "remove", label: "", format: "action" },
   ],
 };
@@ -119,5 +119,5 @@ export const COLS = {
 export const DEFAULT_SORT_COLS = {
   all: "weight_pct",
   holdings: "weight_pct",
-  evaluations: "overall",
+  evaluations: "overall_score",
 };

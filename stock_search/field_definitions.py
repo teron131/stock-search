@@ -46,7 +46,6 @@ INDICATOR_FIELDS: tuple[str, ...] = tuple(field.name for field in INDICATOR_FIEL
 MARKET_FIELDS: frozenset[str] = frozenset(
     {
         "price",
-        "current_price",
         "change",
         "change_percent",
         "market_cap",
@@ -71,11 +70,11 @@ MARKET_FIELDS: frozenset[str] = frozenset(
 )
 
 EVAL_FIELD_DEFINITIONS: tuple[EvalFieldDefinition, ...] = (
-    EvalFieldDefinition(key="overall", aliases=("score",)),
-    EvalFieldDefinition(key="quality"),
-    EvalFieldDefinition(key="valuation"),
-    EvalFieldDefinition(key="moat"),
-    EvalFieldDefinition(key="upside"),
-    EvalFieldDefinition(key="bull", aliases=("bull_probability",)),
-    EvalFieldDefinition(key="bear", aliases=("bear_probability",)),
+    EvalFieldDefinition(key="overall_score"),
+    EvalFieldDefinition(key="quality_score"),
+    EvalFieldDefinition(key="valuation_score"),
+    EvalFieldDefinition(key="moat_score"),
+    EvalFieldDefinition(key="upside_score"),
+    EvalFieldDefinition(key="bull_probability"),
+    EvalFieldDefinition(key="bear_probability"),
 )
