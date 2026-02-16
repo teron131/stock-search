@@ -1,4 +1,5 @@
 .DS_Store
+uv.lock
 *.json
 data/
 !ui/sample_data/*.json
