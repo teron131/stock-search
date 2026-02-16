@@ -770,7 +770,7 @@ th {
   z-index: 80;
   background: var(--bg-surface-high);
   height: 48px;
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-md);
   text-align: left;
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -790,7 +790,7 @@ th:not(:first-child) {
 
 th:first-child,
 td:first-child {
-  padding-left: var(--space-xl);
+  padding-left: var(--space-md);
   position: sticky;
   left: 0;
   z-index: 85;
@@ -805,7 +805,7 @@ th:first-child {
 }
 th:last-child,
 td:last-child {
-  padding-right: var(--space-xl);
+  padding-right: var(--space-md);
 }
 
 th:hover {
@@ -815,7 +815,7 @@ th:hover {
 
 td {
   height: var(--row-height);
-  padding: 0 var(--space-lg);
+  padding: 0 var(--space-md);
   border-bottom: 1px solid var(--border);
   font-family: var(--font-sans);
   font-size: var(--text-base);
