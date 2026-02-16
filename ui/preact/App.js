@@ -7,6 +7,7 @@ import {
 
 import { DataTable } from "./components/DataTable.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
+import { fmt } from "./format.js";
 import { usePortfolioData } from "./usePortfolioData.js";
 
 const VIEW_TITLES = {
@@ -171,6 +172,7 @@ export function App() {
     isBackgroundLoading,
     isUsingDemoData,
     lastError,
+    stats,
     topTickers,
     actions,
   } = usePortfolioData();
@@ -234,10 +236,35 @@ export function App() {
     // ticker tape handled separately
     const tapeView = document.getElementById("ticker-tape-view");
     if (tapeView) tapeView.style.display = isDashboard ? "block" : "none";
+    setDisplay("stats-strip", isDashboard ? "flex" : "none");
   }, [view]);
 
-  // Update overview panel + timestamp
+  // Update stats strip + timestamp
   useEffect(() => {
+    setText(
+      "total-positions",
+      stats.positions ? String(stats.positions) : "--",
+    );
+    setText(
+      "total-value",
+      stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
+    );
+
+    if (stats.totalVal > 0) {
+      const { percent, absolute } = stats.change;
+      const sign = absolute >= 0 ? "+" : "";
+      const absFormatted = sign + fmt.currency(Math.abs(absolute));
+      const pctFormatted = fmt.percent(percent);
+      setText("portfolio-change", `${absFormatted} (${pctFormatted})`);
+
+      const trend = document.getElementById("portfolio-change");
+      if (trend) {
+        trend.className = `stats-value stats-trend ${percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"}`;
+      }
+    } else {
+      setText("portfolio-change", "--");
+    }
+
     const modeText = isUsingDemoData ? " [DEMO]" : "";
 
     if (isBackgroundLoading) {
@@ -264,7 +291,7 @@ export function App() {
     });
 
     setText("last-update", `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`);
-  }, [generatedAt, isUsingDemoData, isBackgroundLoading]);
+  }, [generatedAt, isUsingDemoData, isBackgroundLoading, stats]);
 
   // Update ticker tape
   useEffect(() => {
