@@ -159,6 +159,7 @@ function initHeatmapTabs() {
 
 export function App() {
   const [view, setView] = useState("dashboard");
+  const [tab, setTab] = useState("all");
   const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
   const [sortDir, setSortDir] = useState("desc");
 
@@ -298,6 +299,12 @@ export function App() {
     setSortCol(key);
   };
 
+  const onTabChange = (nextTab) => {
+    setTab(nextTab);
+    setSortCol(DEFAULT_SORT_COLS[nextTab] ?? DEFAULT_SORT_COLS.all);
+    setSortDir("desc");
+  };
+
   const onRemove = async (ticker) => {
     const res = await actions.remove({ ticker });
     if (res.ok) showToast("UPDATED");
@@ -331,8 +338,31 @@ export function App() {
 
   return html`
     <div class="tabs-container" id="dashboard-tables">
+      <div class="tabs-header">
+        <div class="tab-group">
+          <button
+            class=${`tab-btn ${tab === "all" ? "active" : ""}`}
+            onClick=${() => onTabChange("all")}
+          >
+            ALL
+          </button>
+          <button
+            class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
+            onClick=${() => onTabChange("holdings")}
+          >
+            PORTFOLIO
+          </button>
+          <button
+            class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
+            onClick=${() => onTabChange("evaluations")}
+          >
+            EVALUATION
+          </button>
+        </div>
+      </div>
+
       <${DataTable}
-        tab="all"
+        tab=${tab}
         rows=${rows}
         sortCol=${sortCol}
         sortDir=${sortDir}

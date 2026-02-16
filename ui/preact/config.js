@@ -43,7 +43,6 @@ export const CONFIG = {
 export const COLS = {
   all: [
     { key: "ticker", label: "TICKER" },
-    { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
     { key: "market_cap", label: "MKT_CAP", format: "market_cap" },
@@ -73,11 +72,11 @@ export const COLS = {
     { key: "upside", label: "UPSIDE", format: "score" },
     { key: "bull", label: "BULL", format: "prob" },
     { key: "bear", label: "BEAR", format: "prob" },
+    { key: "quantity", label: "QTY", format: "number" },
     { key: "remove", label: "", format: "action" },
   ],
   holdings: [
     { key: "ticker", label: "TICKER" },
-    { key: "quantity", label: "QTY", format: "number" },
     { key: "current_price", label: "PRICE", format: "currency" },
     { key: "change_percent", label: "CHANGE%", format: "percent" },
     { key: "market_cap", label: "MKT_CAP", format: "market_cap" },
@@ -99,6 +98,7 @@ export const COLS = {
     { key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
     { key: "rsi", label: "RSI", format: "number" },
     { key: "bucket", label: "STRATEGY" },
+    { key: "quantity", label: "QTY", format: "number" },
     { key: "remove", label: "", format: "action" },
   ],
   evaluations: [
