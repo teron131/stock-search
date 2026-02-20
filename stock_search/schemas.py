@@ -38,6 +38,31 @@ Score = Annotated[float, Field(description="Score on a 0-10 scale", ge=0, le=10)
 Probability = Annotated[float, Field(description="Probability (0-1)", ge=0, le=1)]
 
 
+class Portfolio(BaseModel):
+    """Aggregate portfolio data."""
+
+    total_equity: float | None = Field(default=None, description="Total portfolio equity")
+    positions: list["PortfolioPosition"] = Field(default_factory=list, description="Portfolio positions list")
+
+
+class PortfolioPosition(BaseModel):
+    """A single portfolio position with total value metrics."""
+
+    ticker: Ticker
+    name: str | None = Field(default=None, description="Company name")
+    quantity: float | None = Field(default=None, description="Number of shares or contracts")
+    price: float | None = Field(default=None, description="Current market price")
+    strategy: (
+        Literal[
+            "Strategic Core",
+            "Growth Satellites",
+            "Tactical Opportunities",
+            "Risk Mitigation",
+        ]
+        | None
+    ) = Field(default=None, description="Strategy")
+
+
 class Quote(BaseModel):
     """Real-time and regular market quotes."""
 
@@ -50,49 +75,6 @@ class Quote(BaseModel):
     realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percent")
 
 
-class ScoredReason(BaseModel):
-    score: Score
-    reasons: list[str] = Field(description="Bullet list explaining the score.")
-
-
-class MetricsEvaluation(BaseModel):
-    market_cap: Score | None = Field(
-        default=None,
-        description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
-    )
-    valuation: Score | None = Field(
-        default=None,
-        description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
-    )
-    upside: Score | None = Field(
-        default=None,
-        description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
-    )
-
-
-class ResearchEvaluation(BaseModel):
-    moat: ScoredReason | None = Field(
-        default=None,
-        description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
-    )
-    quality: ScoredReason | None = Field(
-        default=None,
-        description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
-    )
-
-
-class FutureOutlook(ScoredReason):
-    bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
-    bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
-
-
-class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
-    flat_probability: Probability | None = Field(
-        default=None,
-        description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
-    )
-
-
 class Holding(BaseModel):
     """A single holding within an ETF. Used for structured outputs."""
 
@@ -101,17 +83,17 @@ class Holding(BaseModel):
     weight: Weight
 
 
+class ETFHoldings(BaseModel):
+    """Top holdings of an ETF. Used for structured outputs."""
+
+    holdings: list[Holding] = Field(default_factory=list, description="Holdings list")
+
+
 class ETFSector(BaseModel):
     """Industry sector allocation entry for an ETF. Used for structured outputs."""
 
     name: str = Field(description="Sector name")
     weight: Weight
-
-
-class ETFHoldings(BaseModel):
-    """Top holdings of an ETF. Used for structured outputs."""
-
-    holdings: list[Holding] = Field(default_factory=list, description="Holdings list")
 
 
 class ETFSectors(BaseModel):
@@ -174,26 +156,44 @@ class News(NewsAnalysis):
     days_ago: int | None = Field(default=None, description="Days since publication")
 
 
-class PortfolioPosition(BaseModel):
-    """A single portfolio position with total value metrics."""
-
-    ticker: Ticker
-    name: str | None = Field(default=None, description="Company name")
-    quantity: float | None = Field(default=None, description="Number of shares or contracts")
-    price: float | None = Field(default=None, description="Current market price")
-    strategy: (
-        Literal[
-            "Strategic Core",
-            "Growth Satellites",
-            "Tactical Opportunities",
-            "Risk Mitigation",
-        ]
-        | None
-    ) = Field(default=None, description="Strategy")
+class ScoredReason(BaseModel):
+    score: Score
+    reasons: list[str] = Field(description="Bullet list explaining the score.")
 
 
-class Portfolio(BaseModel):
-    """Aggregate portfolio data."""
+class MetricsEvaluation(BaseModel):
+    market_cap: Score | None = Field(
+        default=None,
+        description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
+    )
+    valuation: Score | None = Field(
+        default=None,
+        description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
+    )
+    upside: Score | None = Field(
+        default=None,
+        description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
+    )
 
-    total_equity: float | None = Field(default=None, description="Total portfolio equity")
-    positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
+
+class ResearchEvaluation(BaseModel):
+    moat: ScoredReason | None = Field(
+        default=None,
+        description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
+    )
+    quality: ScoredReason | None = Field(
+        default=None,
+        description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
+    )
+
+
+class FutureOutlook(ScoredReason):
+    bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
+    bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
+
+
+class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
+    flat_probability: Probability | None = Field(
+        default=None,
+        description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
+    )
