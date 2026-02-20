@@ -10,7 +10,10 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## High-signal locations
 
-- `stock_search/api/app.py` -> FastAPI entrypoint and HTTP contracts.
+- `stock_search/api/app.py` -> FastAPI entrypoint/bootstrap and router registration.
+- `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
+- `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
+- `stock_search/api/ticker_standalone.py` -> standalone ticker fallback resolver.
 - `stock_search/portfolio.py` -> portfolio payload orchestration and row assembly.
 - `stock_search/indicators.py` -> source precedence wrapper (`StockIndicator`).
 - `stock_search/data_sources/yahoofinance.py` -> Yahoo provider adapter.
@@ -20,7 +23,8 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## Key takeaways per location
 
-- `stock_search/api/app.py` -> `portfolio_api` and `portfolio_ticker_api` call `get_portfolio_payload(...)`; handlers should stay thin and avoid embedding market logic.
+- `stock_search/api/routes/portfolio.py` -> `portfolio_api` calls `get_portfolio_payload_async(...)`; portfolio handlers should stay thin and avoid embedding market logic.
+- `stock_search/api/routes/standalone_ticker.py` -> standalone ticker endpoints delegate to `resolve_standalone_ticker_stats(...)`.
 - `stock_search/portfolio.py` -> `_build_row` merges cache + optional live values, then resolves eval with LLM-first and deterministic fallback.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` is the central assembly point used by API and dataframe helpers.
 - `stock_search/indicators.py` -> `StockIndicator` resolves fundamental fields with StockAnalysis-first and Yahoo fallback; price/momentum remain Yahoo-led.
@@ -39,10 +43,11 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## Syntax relationship highlights (ast-grep-first)
 
-- `stock_search/api/app.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload`.
-- `stock_search/api/app.py -> portfolio_ticker_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload` (single-row cache path).
+- `stock_search/api/app.py` -> includes routers from `stock_search/api/routes/`.
+- `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
+- `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
 - `stock_search/evaluation/evaluation.py -> build_inputs` -> instantiates `stock_search/indicators.py -> StockIndicator`.
-- `stock_search/api/app.py -> _ensure_valid_new_ticker` / `evaluate_ticker_api` -> instantiate `stock_search/indicators.py -> StockIndicator`.
+- `stock_search/api/routes/portfolio.py -> _ensure_valid_new_ticker` and `stock_search/api/routes/misc.py -> evaluate_ticker_api` -> instantiate `stock_search/indicators.py -> StockIndicator`.
 - `stock_search/indicators.py -> StockIndicator` -> composes `YahooFinanceSource` + `StockAnalysisSource` and resolves field-by-field fallback.
 
 ## General approach (not rigid checklist)

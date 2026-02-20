@@ -10,17 +10,21 @@ This guide is for changes inside `stock_search/api/`.
 
 ## High-signal locations
 
-- `stock_search/api/app.py` -> FastAPI app and all routes.
+- `stock_search/api/app.py` -> FastAPI app bootstrap, router registration, static mounts.
+- `stock_search/api/routes/portfolio.py` -> portfolio list/read-write routes and scope policy.
+- `stock_search/api/routes/standalone_ticker.py` -> standalone ticker routes (`/api/portfolio/{ticker}`, `/api/stats/{ticker}`).
+- `stock_search/api/ticker_standalone.py` -> ticker standalone resolver (`source=auto|live|cache`).
+- `stock_search/api/routes/misc.py` -> lightweight eval/news/color utility routes.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` consumed by portfolio routes.
 - `stock_search/file_utils.py` -> JSON load/write helpers used by route write paths.
 
 ## Key takeaways per location
 
-- `stock_search/api/app.py -> portfolio_api` controls scope-to-behavior mapping (`priority`, `portfolio_live`, `all`) and response metadata.
-- `stock_search/api/app.py -> portfolio_ticker_api` is ticker-standalone and does not use portfolio scope/priority.
-- `stock_search/api/app.py -> ticker_stats_api` (`/api/stats/{ticker}`) mirrors ticker-standalone behavior for API-only consumers.
-- `stock_search/api/app.py -> patch_position` validates add/update semantics and normalizes ticker casing before persistence.
-- `stock_search/api/app.py -> remove_position` performs idempotent ticker removal from holdings source-of-truth.
+- `stock_search/api/routes/portfolio.py -> portfolio_api` controls scope-to-behavior mapping (`priority`, `portfolio_live`, `all`) and response metadata.
+- `stock_search/api/routes/standalone_ticker.py` keeps ticker routes standalone and free from portfolio scope/priority behavior.
+- `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats` owns `source=auto|live|cache` fallback semantics and live-failure handling.
+- `stock_search/api/routes/portfolio.py -> patch_position` validates add/update semantics and normalizes ticker casing before persistence.
+- `stock_search/api/routes/portfolio.py -> remove_position` performs idempotent ticker removal from holdings source-of-truth.
 
 ## Project-specific conventions and rationale
 
@@ -40,10 +44,11 @@ This guide is for changes inside `stock_search/api/`.
 
 ## Syntax relationship highlights (ast-grep-first)
 
-- `stock_search/api/app.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
-- `stock_search/api/app.py -> portfolio_ticker_api` / `ticker_stats_api` -> calls `_resolve_ticker_stats` -> `stock_search/portfolio.py -> fetch_live_stats_async` with cache fallback logic in API layer.
-- `stock_search/api/app.py -> patch_position` -> calls `_ensure_valid_new_ticker` -> uses `stock_search/indicators.py -> StockIndicator` for ticker validity.
-- `stock_search/api/app.py -> evaluate_ticker_api` -> uses `stock_search/indicators.py -> StockIndicator`.
+- `stock_search/api/app.py` includes routers from `stock_search/api/routes/`.
+- `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
+- `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
+- `stock_search/api/ticker_standalone.py` -> calls `stock_search/portfolio.py -> fetch_live_stats_async` with cache fallback logic.
+- `stock_search/api/routes/portfolio.py -> patch_position` and `stock_search/api/routes/misc.py -> evaluate_ticker_api` -> use `stock_search/indicators.py -> StockIndicator`.
 
 ## General approach (not rigid checklist)
 
