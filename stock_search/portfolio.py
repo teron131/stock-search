@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -268,6 +269,49 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
     return {k: v for k, v in merged.items() if v is not None or k == "pe_forward"}
 
 
+def fetch_live_stats(ticker: str) -> dict[str, Any]:
+    """Ticker-level market stats entrypoint."""
+    return _fetch_live_stats(ticker)
+
+
+async def fetch_live_stats_async(ticker: str) -> dict[str, Any]:
+    """Async-ready ticker-level market stats entrypoint."""
+    return await asyncio.to_thread(fetch_live_stats, ticker)
+
+
+def _ticker_key(ticker: str) -> str:
+    return str(ticker).upper().strip()
+
+
+def fetch_live_stats_map(tickers: Sequence[str]) -> dict[str, dict[str, Any]]:
+    """Batch wrapper built on ticker-level market stats fetches."""
+    normalized = [_ticker_key(ticker) for ticker in tickers if str(ticker).strip()]
+    ordered_unique = list(dict.fromkeys(normalized))
+    if not ordered_unique:
+        return {}
+
+    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
+        fetched = list(executor.map(fetch_live_stats, ordered_unique))
+    return dict(zip(ordered_unique, fetched, strict=False))
+
+
+async def fetch_live_stats_map_async(tickers: Sequence[str]) -> dict[str, dict[str, Any]]:
+    """Async batch wrapper built on ticker-level async market stats fetches."""
+    normalized = [_ticker_key(ticker) for ticker in tickers if str(ticker).strip()]
+    ordered_unique = list(dict.fromkeys(normalized))
+    if not ordered_unique:
+        return {}
+
+    semaphore = asyncio.Semaphore(max(1, PortfolioConfig.MAX_WORKERS))
+
+    async def _fetch_one(ticker: str) -> tuple[str, dict[str, Any]]:
+        async with semaphore:
+            return ticker, await fetch_live_stats_async(ticker)
+
+    results = await asyncio.gather(*(_fetch_one(ticker) for ticker in ordered_unique))
+    return dict(results)
+
+
 def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
     return bucket_from_eval_json(ticker, eval_data)
 
@@ -276,8 +320,7 @@ def _build_row(
     pos: dict[str, Any],
     stats_cache: dict[str, Any],
     eval_cache: dict[str, Any],
-    *,
-    include_live_market: bool,
+    live_market: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ticker = pos.get("ticker")
     if not ticker:
@@ -295,12 +338,9 @@ def _build_row(
     if not isinstance(eval_data, dict):
         eval_data = {}
 
-    cached_only = bool(pos.get("_cached_only"))
-    # Background/refresh live fetches are only needed for active holdings.
-    should_fetch_live_market = include_live_market and not cached_only and qty > 0
-    live_market = _fetch_live_stats(ticker) if should_fetch_live_market else {}
+    resolved_live_market = live_market if isinstance(live_market, dict) else {}
 
-    stats: dict[str, Any] = {**cached_meta, **cached_market, **live_market}
+    stats: dict[str, Any] = {**cached_meta, **cached_market, **resolved_live_market}
 
     price = stats.get("price")
 
@@ -631,6 +671,27 @@ def _normalize_positions(
     return positions, held_positions, held_tickers
 
 
+def _live_tickers(
+    positions: list[dict[str, Any]],
+    *,
+    include_live_market: bool,
+) -> list[str]:
+    if not include_live_market:
+        return []
+
+    tickers: list[str] = []
+    for position in positions:
+        ticker = _ticker_key(position.get("ticker", ""))
+        if not ticker:
+            continue
+        cached_only = bool(position.get("_cached_only"))
+        quantity = float(position.get("quantity") or 0)
+        if cached_only or quantity <= 0:
+            continue
+        tickers.append(ticker)
+    return list(dict.fromkeys(tickers))
+
+
 def _rank_rows(rows: list[dict[str, Any]]) -> None:
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
@@ -646,13 +707,13 @@ def _rank_rows(rows: list[dict[str, Any]]) -> None:
         rows[idx]["rank"] = rank
 
 
-def get_portfolio_payload(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
-    include_cached_universe: bool = True,
-    include_live_market: bool = True,
-) -> dict[str, Any]:
+def _load_payload_inputs(
+    *,
+    portfolio_path: str | Path,
+    stats_path: str | Path,
+    eval_path: str | Path,
+    include_cached_universe: bool,
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     portfolio_data = load_json(portfolio_path, default=[])
     stats_data = load_json(stats_path, default={})
     if not isinstance(stats_data, dict):
@@ -663,21 +724,81 @@ def get_portfolio_payload(
         stats_data,
         include_cached_universe=include_cached_universe,
     )
+    return stats_data, eval_data, positions, held_positions, held_tickers
 
-    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
-        rows = list(
-            executor.map(
-                lambda pos: _build_row(pos, stats_data, eval_data, include_live_market=include_live_market),
-                positions,
-            )
+
+def _build_rows(
+    *,
+    positions: list[dict[str, Any]],
+    stats_data: dict[str, Any],
+    eval_data: dict[str, Any],
+    live_map: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        _build_row(
+            position,
+            stats_data,
+            eval_data,
+            live_market=live_map.get(_ticker_key(position.get("ticker", ""))),
         )
+        for position in positions
+    ]
 
+
+def _finalize_rows(rows: list[dict[str, Any]]) -> None:
     total_value = sum(float(row.get("total") or 0.0) for row in rows)
     for row in rows:
         row["weight_pct"] = calculate_position_weight(float(row.get("total") or 0.0), total_value)
-
     _rank_rows(rows)
     rows.sort(key=lambda row: float(row.get("weight_pct") or 0.0), reverse=True)
+
+
+def _build_payload_from_rows(
+    *,
+    rows: list[dict[str, Any]],
+    resolution: ETFResolutionResult,
+    sector_table: list[dict[str, float | str]],
+    ticker_table: list[dict[str, float | str]],
+    table_meta: dict[str, float],
+    generated_at: str,
+) -> dict[str, Any]:
+    return {
+        "rows": rows,
+        "tables": {
+            "ticker_exposure": ticker_table,
+            "sector_exposure": sector_table,
+        },
+        "portfolio_stats": _build_portfolio_stats(rows, sector_table),
+        "meta": {
+            **table_meta,
+            "etf_count": len(resolution.etf_positions),
+            "etf_refreshed_count": resolution.etf_refreshed_count,
+            "generated_at": generated_at,
+        },
+    }
+
+
+def get_portfolio_payload(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
+    include_live_market: bool = True,
+) -> dict[str, Any]:
+    stats_data, eval_data, positions, held_positions, held_tickers = _load_payload_inputs(
+        portfolio_path=portfolio_path,
+        stats_path=stats_path,
+        eval_path=eval_path,
+        include_cached_universe=include_cached_universe,
+    )
+    live_map = fetch_live_stats_map(_live_tickers(positions, include_live_market=include_live_market))
+    rows = _build_rows(
+        positions=positions,
+        stats_data=stats_data,
+        eval_data=eval_data,
+        live_map=live_map,
+    )
+    _finalize_rows(rows)
 
     now = datetime.now(tz=UTC)
     resolution = classify_and_resolve_etfs(held_positions, stats_data, now)
@@ -689,21 +810,57 @@ def get_portfolio_payload(
         resolution=resolution,
         target_tickers=[ticker for ticker in held_tickers if ticker],
     )
-    portfolio_stats = _build_portfolio_stats(rows, sector_table)
-    return {
-        "rows": rows,
-        "tables": {
-            "ticker_exposure": ticker_table,
-            "sector_exposure": sector_table,
-        },
-        "portfolio_stats": portfolio_stats,
-        "meta": {
-            **table_meta,
-            "etf_count": len(resolution.etf_positions),
-            "etf_refreshed_count": resolution.etf_refreshed_count,
-            "generated_at": now.isoformat(),
-        },
-    }
+    return _build_payload_from_rows(
+        rows=rows,
+        resolution=resolution,
+        sector_table=sector_table,
+        ticker_table=ticker_table,
+        table_meta=table_meta,
+        generated_at=now.isoformat(),
+    )
+
+
+async def get_portfolio_payload_async(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
+    include_live_market: bool = True,
+) -> dict[str, Any]:
+    stats_data, eval_data, positions, held_positions, held_tickers = _load_payload_inputs(
+        portfolio_path=portfolio_path,
+        stats_path=stats_path,
+        eval_path=eval_path,
+        include_cached_universe=include_cached_universe,
+    )
+    live_map = await fetch_live_stats_map_async(_live_tickers(positions, include_live_market=include_live_market))
+    rows = _build_rows(
+        positions=positions,
+        stats_data=stats_data,
+        eval_data=eval_data,
+        live_map=live_map,
+    )
+    _finalize_rows(rows)
+
+    now = datetime.now(tz=UTC)
+    resolution = await asyncio.to_thread(classify_and_resolve_etfs, held_positions, stats_data, now)
+    if resolution.cache_changed:
+        write_json(stats_path, stats_data)
+
+    ticker_table, sector_table, table_meta = await asyncio.to_thread(
+        _build_etf_tables,
+        rows=rows,
+        resolution=resolution,
+        target_tickers=[ticker for ticker in held_tickers if ticker],
+    )
+    return _build_payload_from_rows(
+        rows=rows,
+        resolution=resolution,
+        sector_table=sector_table,
+        ticker_table=ticker_table,
+        table_meta=table_meta,
+        generated_at=now.isoformat(),
+    )
 
 
 def build_portfolio_dataframe(

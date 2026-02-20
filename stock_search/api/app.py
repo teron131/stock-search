@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
-from stock_search.portfolio import get_portfolio_payload
+from stock_search.portfolio import get_portfolio_payload_async
 from stock_search.schemas import PortfolioPositionInput
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -121,7 +121,7 @@ def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
 
 
 @app.get("/api/portfolio")
-def portfolio_api(response: Response, scope: str = "all") -> dict:
+async def portfolio_api(response: Response, scope: str = "all") -> dict:
     response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
 
@@ -130,7 +130,7 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
     include_cached_universe = scope_config["include_cached_universe"]
     include_live_market = scope_config["include_live_market"]
 
-    payload = get_portfolio_payload(
+    payload = await get_portfolio_payload_async(
         PORTFOLIO_PATH,
         STATS_PATH,
         EVAL_PATH,
@@ -153,11 +153,11 @@ def portfolio_api(response: Response, scope: str = "all") -> dict:
 
 
 @app.get("/api/portfolio/{ticker}")
-def portfolio_ticker_api(ticker: str, response: Response) -> dict:
+async def portfolio_ticker_api(ticker: str, response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
 
     # Single-row read path: avoid full live/cached-universe rebuild.
-    payload = get_portfolio_payload(
+    payload = await get_portfolio_payload_async(
         PORTFOLIO_PATH,
         STATS_PATH,
         EVAL_PATH,

@@ -5,6 +5,7 @@ This module defines URL-based schemas and a provider adapter that returns source
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -249,6 +250,10 @@ class StockAnalysisSource:
         """Fetch statistics snapshot from StockAnalysis statistics page via LLM."""
         return self._load_statistics()
 
+    async def get_statistics_snapshot_async(self) -> StockAnalysisStatistics:
+        """Async-ready ticker-level statistics fetch."""
+        return await asyncio.to_thread(self.get_statistics_snapshot)
+
     @property
     def statistics_fetched_at(self) -> datetime | None:
         """Timestamp of the first successful statistics fetch for this instance."""
@@ -257,6 +262,10 @@ class StockAnalysisSource:
     def get_financials_snapshot(self) -> StockAnalysisFinancials:
         """Fetch financials snapshot from StockAnalysis financials page via LLM."""
         return self._load_financials()
+
+    async def get_financials_snapshot_async(self) -> StockAnalysisFinancials:
+        """Async-ready ticker-level financials fetch."""
+        return await asyncio.to_thread(self.get_financials_snapshot)
 
     @property
     def financials_fetched_at(self) -> datetime | None:
@@ -286,6 +295,10 @@ class StockAnalysisSource:
 
         self._etf_snapshot = StockAnalysisEtfSnapshot(holdings=holdings, sectors=sectors)
         return self._etf_snapshot
+
+    async def get_etf_holdings_snapshot_async(self) -> StockAnalysisEtfSnapshot | None:
+        """Async-ready ticker-level ETF holdings fetch."""
+        return await asyncio.to_thread(self.get_etf_holdings_snapshot)
 
     @staticmethod
     def _has_sector_data(sectors: ETFSectors) -> bool:
@@ -463,3 +476,7 @@ class StockAnalysisSource:
             fetched_at=self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else None,
         )
         return self._indicators_snapshot
+
+    async def get_indicators_snapshot_async(self) -> StockAnalysisIndicatorsSnapshot:
+        """Async-ready ticker-level indicators fetch."""
+        return await asyncio.to_thread(self.get_indicators_snapshot)
