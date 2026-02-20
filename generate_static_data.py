@@ -21,10 +21,10 @@ from stock_search.schemas import Evaluation, ScoredReason
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 BUCKETS = [
-    "Strategic Core",
-    "Growth Satellites",
-    "Tactical Opportunities",
-    "Risk Mitigation",
+    "Core",
+    "Satellite",
+    "Speculation",
+    "Defense",
 ]
 
 SAMPLE_TICKERS = [
@@ -305,13 +305,13 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
         eval_input = Evaluation(
             score=eval_data.get("overall_score") or 5.0,
             reasons=["Engine proxy"],
-            market_cap=eval_data.get("market_cap_score") or 5.0,
-            valuation=eval_data.get("valuation_score") or 5.0,
-            upside=eval_data.get("upside_score") or 5.0,
+            market_cap_score=eval_data.get("market_cap_score") or 5.0,
+            valuation_score=eval_data.get("valuation_score") or 5.0,
+            upside_score=eval_data.get("upside_score") or 5.0,
             bull_probability=eval_data.get("bull_probability"),
             bear_probability=eval_data.get("bear_probability"),
-            moat=ScoredReason(score=moat_score, reasons=["Proxy"]),
-            quality=ScoredReason(score=quality_score, reasons=["Proxy"]),
+            moat_score=ScoredReason(score=moat_score, reasons=["Proxy"]),
+            quality_score=ScoredReason(score=quality_score, reasons=["Proxy"]),
         )
 
         res = evaluate_asset(eval_input, ticker=ticker)

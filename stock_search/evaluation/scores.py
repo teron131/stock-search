@@ -32,22 +32,22 @@ _MOMENTUM_INPUTS = (
 
 _STRATEGY_BUCKETS: dict[str, StrategyBucket] = {
     "core": StrategyBucket(
-        score_keys=("moat", "quality", "valuation", "size"),
+        score_keys=("moat_score", "quality_score", "valuation_score", "size_score"),
         weights=(CoreEngineWeights.MOAT, CoreEngineWeights.QUALITY, CoreEngineWeights.VALUATION, CoreEngineWeights.SIZE),
         edge_weight=CoreEngineWeights.EDGE,
     ),
     "satellite": StrategyBucket(
-        score_keys=("moat", "quality", "valuation", "upside"),
+        score_keys=("moat_score", "quality_score", "valuation_score", "upside_score"),
         weights=(SatelliteWeights.MOAT, SatelliteWeights.QUALITY, SatelliteWeights.VALUATION, SatelliteWeights.UPSIDE),
         edge_weight=SatelliteWeights.EDGE,
     ),
     "speculative": StrategyBucket(
-        score_keys=("moat", "quality", "valuation", "upside"),
+        score_keys=("moat_score", "quality_score", "valuation_score", "upside_score"),
         weights=(SpeculativeWeights.MOAT, SpeculativeWeights.QUALITY, SpeculativeWeights.VALUATION, SpeculativeWeights.UPSIDE),
         edge_weight=0.0,
     ),
     "diversifier": StrategyBucket(
-        score_keys=("quality", "valuation", "size", "upside"),
+        score_keys=("quality_score", "valuation_score", "size_score", "upside_score"),
         weights=(DiversifierWeights.QUALITY, DiversifierWeights.VALUATION, DiversifierWeights.SIZE, DiversifierWeights.UPSIDE),
         edge_weight=0.0,
     ),
@@ -309,8 +309,8 @@ def check_fomo_conditions(
     bull_score: float | None,
 ) -> bool:
     """Return True if an asset looks like a 'chase' opportunity."""
-    valuation_score = scores.get("valuation")
-    upside_score = scores.get("upside")
+    valuation_score = scores.get("valuation_score")
+    upside_score = scores.get("upside_score")
     if valuation_score is None or upside_score is None or bull_score is None:
         return False
     return valuation_score <= ThresholdConfig.FOMO_VALUATION and upside_score >= ThresholdConfig.FOMO_UPSIDE and bull_score <= ThresholdConfig.FOMO_BULL

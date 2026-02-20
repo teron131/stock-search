@@ -54,25 +54,22 @@ class PortfolioPosition(BaseModel):
     price: float | None = Field(default=None, description="Current market price")
     strategy: (
         Literal[
-            "Strategic Core",
-            "Growth Satellites",
-            "Tactical Opportunities",
-            "Risk Mitigation",
+            "Core",
+            "Satellite",
+            "Speculation",
+            "Defense",
         ]
         | None
     ) = Field(default=None, description="Strategy")
 
 
 class Quote(BaseModel):
-    """Real-time and regular market quotes."""
+    """Normalized quote snapshot for a ticker."""
 
     ticker: Ticker
-    regular_price: float | None = Field(default=None, description="Regular market price")
-    regular_change: float | None = Field(default=None, description="Regular market price change")
-    regular_change_percent: float | None = Field(default=None, description="Regular market price change percent")
-    realtime_price: float | None = Field(default=None, description="Pre/post market price")
-    realtime_change: float | None = Field(default=None, description="Pre/post market price change")
-    realtime_change_percent: float | None = Field(default=None, description="Pre/post market price change percent")
+    price: float | None = Field(default=None, description="Latest available trading price.")
+    change: float | None = Field(default=None, description="Absolute price move versus prior close.")
+    change_percent: float | None = Field(default=None, description="Percent move versus prior close.")
 
 
 class Holding(BaseModel):
@@ -162,26 +159,26 @@ class ScoredReason(BaseModel):
 
 
 class MetricsEvaluation(BaseModel):
-    market_cap: Score | None = Field(
+    market_cap_score: Score | None = Field(
         default=None,
         description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
     )
-    valuation: Score | None = Field(
+    valuation_score: Score | None = Field(
         default=None,
         description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
     )
-    upside: Score | None = Field(
+    upside_score: Score | None = Field(
         default=None,
         description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
     )
 
 
 class ResearchEvaluation(BaseModel):
-    moat: ScoredReason | None = Field(
+    moat_score: ScoredReason | None = Field(
         default=None,
         description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
     )
-    quality: ScoredReason | None = Field(
+    quality_score: ScoredReason | None = Field(
         default=None,
         description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
     )

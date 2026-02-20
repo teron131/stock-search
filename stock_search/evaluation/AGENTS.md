@@ -25,11 +25,8 @@ This guide is for changes inside `stock_search/evaluation/`.
 
 ## Project-specific conventions and rationale
 
-- Preserve canonical dashboard-facing fields: `overall`, `quality`, `valuation`, `moat`, `upside`, `bull`, `bear`.
-- Preserve alias compatibility in normalization:
-  - `bull` <-> `bull_probability`
-  - `bear` <-> `bear_probability`
-  - `overall` <-> `score`
+- Preserve canonical dashboard-facing fields: `overall_score`, `quality_score`, `valuation_score`, `moat_score`, `upside_score`, `market_cap_score`, `bull_probability`, `bear_probability`.
+- Preserve strategy labels used by evaluation outputs and portfolio rows: `Core`, `Satellite`, `Speculation`, `Defense`.
 - Keep score outputs bounded and deterministic where formulas are intended to be deterministic.
 - Preserve model names unless a coordinated repo-wide change is required.
 

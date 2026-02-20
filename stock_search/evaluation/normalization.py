@@ -13,12 +13,12 @@ from .constants import (
 from .scores import calculate_strategy_indices
 
 _BUCKET_LABELS: dict[str, str] = {
-    "core": "Strategic Core",
-    "satellite": "Growth Satellites",
-    "speculative": "Tactical Opportunities",
-    "diversifier": "Risk Mitigation",
+    "core": "Core",
+    "satellite": "Satellite",
+    "speculative": "Speculation",
+    "diversifier": "Defense",
 }
-_DEFAULT_BUCKET = "Tactical Opportunities"
+_DEFAULT_BUCKET = "Speculation"
 
 
 def normalize_eval_json(data: dict[str, Any]) -> dict[str, Any]:
@@ -47,13 +47,13 @@ def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
     return Evaluation(
         score=normalized["overall_score"],
         reasons=[],
-        market_cap=normalized["market_cap_score"],
-        valuation=normalized["valuation_score"],
-        upside=normalized["upside_score"],
+        market_cap_score=normalized["market_cap_score"],
+        valuation_score=normalized["valuation_score"],
+        upside_score=normalized["upside_score"],
         bull_probability=normalized["bull_probability"],
         bear_probability=normalized["bear_probability"],
-        moat=ScoredReason(score=normalized["moat_score"], reasons=[]),
-        quality=ScoredReason(score=normalized["quality_score"], reasons=[]),
+        moat_score=ScoredReason(score=normalized["moat_score"], reasons=[]),
+        quality_score=ScoredReason(score=normalized["quality_score"], reasons=[]),
     )
 
 
@@ -74,11 +74,11 @@ def bucket_from_eval_json(ticker: str, data: dict[str, Any]) -> str | None:
         return None
 
     scores = {
-        "moat": normalized["moat_score"],
-        "quality": normalized["quality_score"],
-        "valuation": normalized["valuation_score"],
-        "upside": normalized["upside_score"],
-        "size": normalized["market_cap_score"],
+        "moat_score": normalized["moat_score"],
+        "quality_score": normalized["quality_score"],
+        "valuation_score": normalized["valuation_score"],
+        "upside_score": normalized["upside_score"],
+        "size_score": normalized["market_cap_score"],
     }
 
     bull = normalized.get("bull_probability")

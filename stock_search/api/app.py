@@ -306,7 +306,7 @@ def evaluate_ticker_api(ticker: str) -> dict:
         "quality_score": 8.0,
         "valuation_score": 7.5,
         "upside_score": 10.0,
-        "market_cap": 9.0,
+        "market_cap_score": 9.0,
         "bull_probability": 0.7,
         "bear_probability": 0.2,
         "price": indicator.price,

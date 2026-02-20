@@ -84,7 +84,7 @@ def _blended_quality(
     research: ResearchEvaluation | None,
     quality_signal_score: float | None,
 ) -> ScoredReason | None:
-    research_quality_score = research.quality.score if research and research.quality else None
+    research_quality_score = research.quality_score.score if research and research.quality_score else None
     if research_quality_score is None and quality_signal_score is None:
         return None
 
@@ -98,7 +98,7 @@ def _blended_quality(
     else:
         score = round(quality_signal_score or 0.0, 2)
 
-    reasons = research.quality.reasons if research and research.quality else []
+    reasons = research.quality_score.reasons if research and research.quality_score else []
     return ScoredReason(score=score, reasons=reasons)
 
 
@@ -137,9 +137,9 @@ def build_inputs(ticker: str) -> Evaluation:
 
     # 4. Input Assembly
     eval_data = {
-        "valuation": valuation_score,
-        "upside": upside_score,
-        "market_cap": float(market_cap_value) if market_cap_value is not None else None,
+        "valuation_score": valuation_score,
+        "upside_score": upside_score,
+        "market_cap_score": float(market_cap_value) if market_cap_value is not None else None,
         "bull_probability": bull_probability,
         "bear_probability": bear_probability,
         "flat_probability": flat_probability,
@@ -156,7 +156,7 @@ def build_inputs(ticker: str) -> Evaluation:
 
     quality = _blended_quality(research, quality_signal_score)
     if quality is not None:
-        eval_data["quality"] = quality
+        eval_data["quality_score"] = quality
 
     return Evaluation(**eval_data)
 
@@ -172,15 +172,15 @@ def evaluate_asset(inputs: Evaluation, ticker: str | None = None) -> EvaluationR
     edge = bull_score - bear_score if bull_score is not None and bear_score is not None else None
 
     scores = {
-        "moat": inputs.moat.score if inputs.moat else None,
-        "quality": inputs.quality.score if inputs.quality else None,
-        "valuation": inputs.valuation,
-        "upside": inputs.upside,
-        "size": inputs.market_cap,
+        "moat_score": inputs.moat_score.score if inputs.moat_score else None,
+        "quality_score": inputs.quality_score.score if inputs.quality_score else None,
+        "valuation_score": inputs.valuation_score,
+        "upside_score": inputs.upside_score,
+        "size_score": inputs.market_cap_score,
     }
 
     # Core 4-metric average
-    core_metrics = (scores["moat"], scores["quality"], scores["valuation"], scores["upside"])
+    core_metrics = (scores["moat_score"], scores["quality_score"], scores["valuation_score"], scores["upside_score"])
     overall = sum(core_metrics) / 4 if all(value is not None for value in core_metrics) else None
 
     indices = calculate_strategy_indices(scores, edge)
@@ -221,14 +221,14 @@ def strategy_label(
 ) -> str:
     """Return the strategy label based on the highest index score."""
     strategy_scores = {
-        "Strategic Core": core,
-        "Growth Satellites": satellite,
-        "Tactical Opportunities": speculative,
-        "Risk Mitigation": diversifier,
+        "Core": core,
+        "Satellite": satellite,
+        "Speculation": speculative,
+        "Defense": diversifier,
     }
 
     available_scores = {name: value for name, value in strategy_scores.items() if value is not None}
     if not available_scores:
-        return "Tactical Opportunities"
+        return "Speculation"
 
     return max(available_scores.items(), key=lambda score_item: score_item[1])[0]

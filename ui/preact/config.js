@@ -14,7 +14,7 @@ export const CONFIG = {
     fallback: "data",
   },
 
-  defaultStrategy: "Tactical Opportunities",
+  defaultStrategy: "Speculation",
   maxTickerLength: 10,
   maxTickerTapeCount: 20,
 
