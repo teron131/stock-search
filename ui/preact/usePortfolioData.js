@@ -502,6 +502,35 @@ export function usePortfolioData() {
     [isUsingDemoData, patchPortfolioPosition],
   );
 
+  const importFromImage = useCallback(
+    async ({
+      file,
+      replace = true,
+      strategy = CONFIG.defaultStrategy,
+    } = {}) => {
+      if (isUsingDemoData) return { ok: false, reason: "demo" };
+      if (!(file instanceof File)) return { ok: false, reason: "invalid" };
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("replace", String(Boolean(replace)));
+      if (strategy) {
+        formData.append("strategy", strategy);
+      }
+
+      const res = await fetch(CONFIG.endpoints.portfolioImportImage, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) return { ok: false, reason: "server" };
+
+      const payload = await res.json();
+      await load({ background: false, silent: false, scope: "priority" });
+      return { ok: true, payload };
+    },
+    [isUsingDemoData, load],
+  );
+
   const remove = useCallback(
     async ({ ticker }) => {
       if (isUsingDemoData) return { ok: false, reason: "demo" };
@@ -563,6 +592,7 @@ export function usePortfolioData() {
       sync: load,
       addOrUpdate,
       setQuantity,
+      importFromImage,
       remove,
     },
   };

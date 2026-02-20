@@ -6,6 +6,7 @@ import {
 } from "https://esm.sh/preact@10.19.6/hooks";
 
 import { DataTable } from "./components/DataTable.js";
+import { QuickAdd } from "./components/QuickAdd.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
 import { fmt } from "./format.js";
 import { usePortfolioData } from "./usePortfolioData.js";
@@ -42,6 +43,33 @@ function showActionError(reason) {
   if (reason === "demo") showToast("Demo Mode: Changes not saved.");
   if (reason === "invalid") showToast("INVALID_QTY");
   if (reason === "server") showToast("UPDATE FAILED");
+}
+
+async function importImageFile(file, importImageRef) {
+  if (!file) return;
+  setText("import-status", "IMPORTING...");
+  const res = await importImageRef.current?.({
+    file,
+    replace: true,
+    strategy: CONFIG.defaultStrategy,
+  });
+  if (!res?.ok) {
+    showActionError(res?.reason);
+    setText("import-status", "IMPORT FAILED");
+    return;
+  }
+  const isReplace = Boolean(res?.payload?.replace);
+  const appliedCount = Number(res?.payload?.applied_count || 0);
+  if (appliedCount > 0) {
+    showToast(`IMPORTED ${appliedCount}`);
+    setText(
+      "import-status",
+      isReplace ? `REPLACED ${appliedCount}` : `IMPORTED ${appliedCount}`,
+    );
+  } else {
+    showToast("NO HOLDINGS FOUND");
+    setText("import-status", "NO HOLDINGS");
+  }
 }
 
 function updateTickerTape(tickers) {
@@ -178,9 +206,13 @@ export function App() {
   } = usePortfolioData();
 
   const syncRef = useRef(actions.sync);
+  const importImageRef = useRef(actions.importFromImage);
   useEffect(() => {
     syncRef.current = actions.sync;
   }, [actions.sync]);
+  useEffect(() => {
+    importImageRef.current = actions.importFromImage;
+  }, [actions.importFromImage]);
 
   // Initial boot
   useEffect(() => {
@@ -190,8 +222,54 @@ export function App() {
 
     const refreshBtn = document.getElementById("refresh-btn");
     const onRefresh = () => actions.sync({ background: false });
+    const importBtn = document.getElementById("import-image-btn");
+    const importInput = document.getElementById("import-image-input");
+    const onImportClick = () => importInput?.click();
+    const onImportChange = async (event) => {
+      const file = event?.target?.files?.[0];
+      if (!file) return;
+      await importImageFile(file, importImageRef);
+      event.target.value = "";
+    };
+    const onImportDragEnter = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      importBtn?.classList.add("drag-over");
+    };
+    const onImportDragOver = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      importBtn?.classList.add("drag-over");
+    };
+    const onImportDragLeave = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      importBtn?.classList.remove("drag-over");
+    };
+    const onImportDrop = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      importBtn?.classList.remove("drag-over");
+      const file = event?.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (!String(file.type || "").startsWith("image/")) {
+        showToast("PLEASE DROP AN IMAGE");
+        return;
+      }
+      await importImageFile(file, importImageRef);
+    };
     if (refreshBtn) {
       refreshBtn.addEventListener("click", onRefresh);
+    }
+    if (importBtn) {
+      importBtn.addEventListener("click", onImportClick);
+      importBtn.addEventListener("dragenter", onImportDragEnter);
+      importBtn.addEventListener("dragover", onImportDragOver);
+      importBtn.addEventListener("dragleave", onImportDragLeave);
+      importBtn.addEventListener("drop", onImportDrop);
+    }
+    if (importInput) {
+      importInput.addEventListener("change", onImportChange);
     }
 
     return () => {
@@ -199,6 +277,17 @@ export function App() {
       cleanupHeatmapTabs?.();
       if (refreshBtn) {
         refreshBtn.removeEventListener("click", onRefresh);
+      }
+      if (importBtn) {
+        importBtn.removeEventListener("click", onImportClick);
+        importBtn.removeEventListener("dragenter", onImportDragEnter);
+        importBtn.removeEventListener("dragover", onImportDragOver);
+        importBtn.removeEventListener("dragleave", onImportDragLeave);
+        importBtn.removeEventListener("drop", onImportDrop);
+        importBtn.classList.remove("drag-over");
+      }
+      if (importInput) {
+        importInput.removeEventListener("change", onImportChange);
       }
     };
   }, []);
@@ -363,6 +452,20 @@ export function App() {
     return res;
   };
 
+  const onAddOrUpdate = async ({ ticker, quantity, existingQuantity }) => {
+    const res = await actions.addOrUpdate({
+      ticker,
+      quantity,
+      existingQuantity,
+    });
+    if (!res.ok) {
+      showActionError(res.reason);
+      return res;
+    }
+    showToast("UPDATED");
+    return res;
+  };
+
   return html`
     <div class="tabs-container" id="dashboard-tables">
       <div class="tabs-header">
@@ -386,6 +489,11 @@ export function App() {
             EVALUATION
           </button>
         </div>
+        <${QuickAdd}
+          rows=${rows}
+          isUsingDemoData=${isUsingDemoData}
+          onSubmit=${onAddOrUpdate}
+        />
       </div>
 
       <${DataTable}

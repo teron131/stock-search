@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import logging
+import os
 from pathlib import Path
+import tempfile
 from time import perf_counter
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, File, HTTPException, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from llm_harness.clients import ImageAnalysisAgent
+from pydantic import BaseModel, Field
 
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
@@ -76,6 +79,15 @@ class StoredPortfolioPosition(PortfolioPositionInput):
         return payload
 
 
+class PortfolioLineItem(BaseModel):
+    ticker: str
+    quantity: float
+
+
+class PortfolioImageExtraction(BaseModel):
+    holdings: list[PortfolioLineItem] = Field(default_factory=list)
+
+
 def _stats_cache_generated_at() -> str | None:
     """Return `data/stats.json` mtime as ISO timestamp when available."""
     if not STATS_PATH.exists():
@@ -121,6 +133,52 @@ def _load_portfolio_position(ticker: str) -> dict[str, Any]:
         if str(position.get("ticker", "")).upper() == ticker_upper:
             return position
     return {"ticker": ticker_upper, "quantity": 0.0, "strategy": None}
+
+
+def _extract_holdings_from_image_bytes(
+    image_bytes: bytes,
+    *,
+    image_filename: str,
+    model_override: str | None = None,
+) -> PortfolioImageExtraction:
+    model = model_override or os.getenv("FAST_LLM") or os.getenv("QUALITY_LLM")
+    if not model:
+        raise HTTPException(status_code=500, detail="No model configured for image extraction.")
+
+    suffix = Path(image_filename).suffix or ".jpg"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+        tmp_file.write(image_bytes)
+        temp_path = Path(tmp_file.name)
+
+    try:
+        agent = ImageAnalysisAgent(
+            model=model,
+            response_format=PortfolioImageExtraction,
+            temperature=0,
+            system_prompt="You extract portfolio holdings from screenshots. Return only ticker/quantity pairs that are clearly visible.",
+        )
+        prompt = (
+            "Read this portfolio image and extract holdings.\n"
+            "Rules:\n"
+            "1. Keep ticker uppercase.\n"
+            "2. Quantity must be numeric.\n"
+            "3. Skip rows if ticker or quantity is unreadable.\n"
+            "4. Return only holdings."
+        )
+        result = agent.invoke(image_paths=temp_path, description=prompt)
+        if not isinstance(result, PortfolioImageExtraction):
+            raise HTTPException(status_code=502, detail="Unexpected response from image extraction model.")
+        return result
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed portfolio image extraction.")
+        raise HTTPException(status_code=502, detail="Failed to extract holdings from image.") from None
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except Exception:
+            logger.warning("Failed to delete temp image file: %s", temp_path)
 
 
 async def _resolve_ticker_stats(
@@ -258,6 +316,66 @@ def remove_position(ticker: str):
     positions = [p for p in _load_positions() if p.get("ticker", "").upper() != ticker_upper]
     _save_positions(positions)
     return {"status": "ok", "ticker": ticker_upper}
+
+
+@app.post("/api/portfolio/import-image")
+async def import_portfolio_image_api(
+    response: Response,
+    file: UploadFile = File(...),
+    replace: bool = True,
+    strategy: str | None = None,
+    model: str | None = None,
+) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Image filename is required.")
+    if file.content_type and not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+    extraction = _extract_holdings_from_image_bytes(
+        image_bytes,
+        image_filename=file.filename,
+        model_override=model,
+    )
+    positions = [] if replace else _load_positions()
+    index_by_ticker = {str(pos.get("ticker", "")).upper(): idx for idx, pos in enumerate(positions)}
+    applied: list[dict[str, Any]] = []
+
+    for item in extraction.holdings:
+        ticker = str(item.ticker).upper().strip()
+        quantity = float(item.quantity)
+        if not ticker or quantity <= 0:
+            continue
+
+        payload: dict[str, Any] = {"ticker": ticker, "quantity": quantity}
+        if strategy:
+            payload["strategy"] = strategy
+
+        validated = StoredPortfolioPosition.model_validate(payload).to_storage_dict()
+        if ticker in index_by_ticker:
+            existing = dict(positions[index_by_ticker[ticker]])
+            existing["quantity"] = quantity
+            if strategy:
+                existing["strategy"] = strategy
+            positions[index_by_ticker[ticker]] = StoredPortfolioPosition.model_validate(existing).to_storage_dict()
+        else:
+            positions.append(validated)
+            index_by_ticker[ticker] = len(positions) - 1
+
+        applied.append({"ticker": ticker, "quantity": quantity})
+
+    _save_positions(positions)
+    return {
+        "status": "ok",
+        "applied_count": len(applied),
+        "applied": applied,
+        "replace": replace,
+    }
 
 
 @app.get("/api/eval")

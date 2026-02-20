@@ -456,7 +456,7 @@ body::after {
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--space-xl);
+  gap: var(--space-xs);
 }
 
 .last-update {
@@ -464,6 +464,27 @@ body::after {
   font-size: var(--text-xs);
   color: var(--ink-dim);
   letter-spacing: 0.05em;
+}
+
+.import-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.import-status:empty {
+  display: none;
+}
+
+.action-icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* Buttons */
@@ -920,7 +941,7 @@ td:first-child {
   width: 84px;
   height: 34px;
   padding: 0 30px 0 12px;
-  border-radius: 999px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--ink);
@@ -996,7 +1017,7 @@ td:first-child {
   background: var(--border);
   padding: 1px;
   height: 36px;
-  border-radius: var(--radius-full);
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -1026,7 +1047,70 @@ td:first-child {
   cursor: pointer;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
+}
+
+.image-upload-input {
+  display: none;
+}
+
+.image-upload-input[hidden] {
+  display: none !important;
+}
+
+.btn-image-import-top {
+  height: 36px;
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+  color: var(--accent-text);
+  border: none;
+  background: var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.btn-icon-top {
+  height: 36px;
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+  color: var(--accent-text);
+  border: none;
+  background: var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.btn-image-import-top:hover,
+.btn-icon-top:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-image-import-top:active,
+.btn-icon-top:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn-image-import-top.drag-over {
+  filter: brightness(1.12);
+  box-shadow: 0 0 0 2px rgba(213, 255, 59, 0.3);
+}
+
+.btn-image-import-top:disabled,
+.btn-icon-top:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* TradingView override basics */

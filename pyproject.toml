@@ -24,6 +24,7 @@ dependencies = [
     "pandas>=2.2.3",
     "llm-harness",
     "exa-py>=2.4.0",
+    "python-multipart>=0.0.22",
 ]
 
 [build-system]
