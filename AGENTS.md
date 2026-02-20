@@ -121,6 +121,16 @@ The dashboard implements a **live-first data loading strategy**:
 
 This ensures the dashboard always shows the freshest data available, while remaining resilient to API failures.
 
+## API Scope Boundaries
+
+- `/api/portfolio` is web-app portfolio management and supports scope-based behavior (`priority`, `portfolio_live`, `all`).
+- Scope/priority logic is portfolio-level only; do not reuse it for ticker-level APIs.
+- Ticker APIs (`/api/portfolio/{ticker}` and `/api/stats/{ticker}`) are standalone and use `source=auto|live|cache`:
+  - `auto`: live-first with cache fallback.
+  - `live`: live-only; returns 502 if live fetch fails.
+  - `cache`: cache-only ticker response.
+- Keep ticker endpoints usable independently of portfolio scope for external API consumers.
+
 ---
 
 ## Setup & Commands

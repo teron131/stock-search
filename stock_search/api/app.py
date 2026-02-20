@@ -4,18 +4,17 @@ from datetime import UTC, datetime
 import logging
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-import pandas as pd
 from pydantic import BaseModel
 
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
-from stock_search.portfolio import get_portfolio_payload_async
+from stock_search.portfolio import fetch_live_stats_async, get_portfolio_payload_async
 from stock_search.schemas import PortfolioPositionInput
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -108,16 +107,53 @@ def _find_position_index(positions: list[dict[str, Any]], ticker: str) -> int | 
     )
 
 
-def _get_dashboard_row(df: pd.DataFrame, ticker: str) -> dict[str, Any]:
-    if df.empty or "ticker" not in df:
-        raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
+def _load_cached_ticker_stats(ticker: str) -> dict[str, Any]:
+    stats_data = load_json(STATS_PATH, default={})
+    if not isinstance(stats_data, dict):
+        return {}
+    cached = stats_data.get(ticker.upper())
+    return cached if isinstance(cached, dict) else {}
 
+
+def _load_portfolio_position(ticker: str) -> dict[str, Any]:
     ticker_upper = ticker.upper()
-    matched = df[df["ticker"].astype(str).str.upper() == ticker_upper]
-    if matched.empty:
-        raise HTTPException(status_code=404, detail=f"Ticker not found: {ticker}")
+    for position in _load_positions():
+        if str(position.get("ticker", "")).upper() == ticker_upper:
+            return position
+    return {"ticker": ticker_upper, "quantity": 0.0, "strategy": None}
 
-    return matched.where(pd.notna(matched), None).iloc[0].to_dict()
+
+async def _resolve_ticker_stats(
+    ticker: str,
+    *,
+    source: Literal["auto", "live", "cache"],
+) -> tuple[dict[str, Any], str]:
+    ticker_upper = ticker.upper().strip()
+    cached = _load_cached_ticker_stats(ticker_upper)
+    position = _load_portfolio_position(ticker_upper)
+    base = {
+        "ticker": ticker_upper,
+        "quantity": float(position.get("quantity") or 0.0),
+        "strategy": position.get("strategy"),
+    }
+
+    if source == "cache":
+        row = {**base, **cached}
+        return row, "cache"
+
+    try:
+        live = await fetch_live_stats_async(ticker_upper)
+    except Exception:
+        logger.exception("Failed live stats fetch for %s", ticker_upper)
+        if source == "live":
+            raise HTTPException(status_code=502, detail=f"Live stats unavailable for ticker: {ticker_upper}") from None
+        row = {**base, **cached}
+        return row, "cache"
+
+    row = {**base, **cached, **live}
+    if source == "live":
+        return row, "live"
+    return row, "live_with_cache_fallback"
 
 
 @app.get("/api/portfolio")
@@ -153,24 +189,35 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
 
 
 @app.get("/api/portfolio/{ticker}")
-async def portfolio_ticker_api(ticker: str, response: Response) -> dict:
+async def portfolio_ticker_api(
+    ticker: str,
+    response: Response,
+    source: Literal["auto", "live", "cache"] = "auto",
+) -> dict:
     response.headers["Cache-Control"] = "no-store"
-
-    # Single-row read path: avoid full live/cached-universe rebuild.
-    payload = await get_portfolio_payload_async(
-        PORTFOLIO_PATH,
-        STATS_PATH,
-        EVAL_PATH,
-        include_cached_universe=False,
-        include_live_market=False,
-    )
-    df = pd.DataFrame(payload["rows"])
-    row = _get_dashboard_row(df, ticker)
+    row, data_source = await _resolve_ticker_stats(ticker, source=source)
     return {
         "row": row,
         "meta": {
             "generated_at": datetime.now(tz=UTC).isoformat(),
-            "data_source": "cache",
+            "data_source": data_source,
+        },
+    }
+
+
+@app.get("/api/stats/{ticker}")
+async def ticker_stats_api(
+    ticker: str,
+    response: Response,
+    source: Literal["auto", "live", "cache"] = "auto",
+) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    row, data_source = await _resolve_ticker_stats(ticker, source=source)
+    return {
+        "row": row,
+        "meta": {
+            "generated_at": datetime.now(tz=UTC).isoformat(),
+            "data_source": data_source,
         },
     }
 

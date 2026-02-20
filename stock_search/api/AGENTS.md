@@ -17,7 +17,8 @@ This guide is for changes inside `stock_search/api/`.
 ## Key takeaways per location
 
 - `stock_search/api/app.py -> portfolio_api` controls scope-to-behavior mapping (`priority`, `portfolio_live`, `all`) and response metadata.
-- `stock_search/api/app.py -> portfolio_ticker_api` intentionally uses cache-only single-row path for fast reads.
+- `stock_search/api/app.py -> portfolio_ticker_api` is ticker-standalone and does not use portfolio scope/priority.
+- `stock_search/api/app.py -> ticker_stats_api` (`/api/stats/{ticker}`) mirrors ticker-standalone behavior for API-only consumers.
 - `stock_search/api/app.py -> patch_position` validates add/update semantics and normalizes ticker casing before persistence.
 - `stock_search/api/app.py -> remove_position` performs idempotent ticker removal from holdings source-of-truth.
 
@@ -31,11 +32,16 @@ This guide is for changes inside `stock_search/api/`.
   - `priority`: cache-only holdings rows, no live market, cache timestamp.
   - `portfolio_live`: holdings rows with live market fetch.
   - `all`: cached universe + live market fetch.
+- Scope/priority is portfolio-level only. Do not apply `scope` behavior to ticker endpoints.
+- Ticker endpoints are standalone and accept `source=auto|live|cache`:
+  - `auto`: try live fetch first, fallback to local cache.
+  - `live`: live fetch only; return 502 when live fetch fails.
+  - `cache`: return cache-only row.
 
 ## Syntax relationship highlights (ast-grep-first)
 
-- `stock_search/api/app.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload`.
-- `stock_search/api/app.py -> portfolio_ticker_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload` (cache-only args).
+- `stock_search/api/app.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
+- `stock_search/api/app.py -> portfolio_ticker_api` / `ticker_stats_api` -> calls `_resolve_ticker_stats` -> `stock_search/portfolio.py -> fetch_live_stats_async` with cache fallback logic in API layer.
 - `stock_search/api/app.py -> patch_position` -> calls `_ensure_valid_new_ticker` -> uses `stock_search/indicators.py -> StockIndicator` for ticker validity.
 - `stock_search/api/app.py -> evaluate_ticker_api` -> uses `stock_search/indicators.py -> StockIndicator`.
 
