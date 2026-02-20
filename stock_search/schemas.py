@@ -102,7 +102,7 @@ class Portfolio(BaseModel):
     """Aggregate enriched portfolio payload."""
 
     positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
-    stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics")
+    portfolio_stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics")
 
 
 class Quote(BaseModel):
