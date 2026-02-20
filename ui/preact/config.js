@@ -9,6 +9,11 @@ export const CONFIG = {
     colorStandards: "/api/color-standards",
   },
 
+  requestTimeoutMs: {
+    portfolioForeground: 30_000,
+    portfolioBackground: 120_000,
+  },
+
   demoPaths: {
     primary: "sample_data",
     fallback: "data",

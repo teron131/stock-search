@@ -24,8 +24,6 @@ const EVAL_KEYS = [
   "bear_probability",
   "rank",
 ];
-const FOREGROUND_TIMEOUT_MS = 30_000;
-const BACKGROUND_TIMEOUT_MS = 12_000;
 
 function withCacheBuster(url) {
   const cacheBuster = `_=${Date.now()}`;
@@ -328,8 +326,8 @@ export function usePortfolioData() {
           ? CONFIG.endpoints.portfolio
           : `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
       const timeoutMs = background
-        ? BACKGROUND_TIMEOUT_MS
-        : FOREGROUND_TIMEOUT_MS;
+        ? CONFIG.requestTimeoutMs.portfolioBackground
+        : CONFIG.requestTimeoutMs.portfolioForeground;
       const rawPayload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
       const dashData = normalizeApiDashboardPayload(rawPayload);
       if (!dashData) {
