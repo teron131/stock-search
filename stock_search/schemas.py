@@ -40,20 +40,20 @@ Strategy = Literal["Core", "Satellite", "Speculation", "Defense"]
 
 
 class PortfolioPositionInput(BaseModel):
-    """Input position used before enrichment and portfolio stat generation."""
+    """Input portfolio position before enrichment/stat computation."""
 
     ticker: Ticker
     quantity: float = Field(default=0.0, description="Number of shares or contracts")
 
 
 class PortfolioInput(BaseModel):
-    """Raw portfolio input payload containing only ticker/quantity positions."""
+    """Input portfolio payload containing only ticker/quantity positions."""
 
     positions: list[PortfolioPositionInput] = Field(default_factory=list, description="Input positions list")
 
 
 class PortfolioPosition(PortfolioPositionInput):
-    """A single enriched portfolio position with market/context fields."""
+    """Enriched portfolio position with market/context fields."""
 
     name: str | None = Field(default=None, description="Company name")
     price: float | None = Field(default=None, description="Current market price")
@@ -70,7 +70,7 @@ class PortfolioSectorDistribution(BaseModel):
 
 
 class PortfolioStats(BaseModel):
-    """Aggregate portfolio-level statistics computed from held positions."""
+    """Aggregate portfolio-level statistics for held positions."""
 
     held_positions_count: int = Field(default=0, description="Number of held positions")
     total: float = Field(default=0.0, description="Total held market value")
@@ -98,7 +98,7 @@ class Quote(BaseModel):
 
 
 class Holding(BaseModel):
-    """A single holding within an ETF. Used for structured outputs."""
+    """[STRUCTURED OUTPUTS] A single holding within an ETF."""
 
     ticker: Ticker
     name: str | None = Field(default=None, description="Holding name")
@@ -106,20 +106,20 @@ class Holding(BaseModel):
 
 
 class ETFHoldings(BaseModel):
-    """Top holdings of an ETF. Used for structured outputs."""
+    """[STRUCTURED OUTPUTS] Top holdings of an ETF."""
 
     holdings: list[Holding] = Field(default_factory=list, description="Holdings list")
 
 
 class ETFSector(BaseModel):
-    """Industry sector allocation entry for an ETF. Used for structured outputs."""
+    """Industry sector allocation entry for an ETF."""
 
     name: str = Field(description="Sector name")
     weight: Weight
 
 
 class ETFSectors(BaseModel):
-    """Sectors of an ETF. Used for structured outputs."""
+    """[STRUCTURED OUTPUTS] Sector weights for an ETF."""
 
     communication_services: Weight | None = Field(default=None, description="Communication Services sector weight")
     consumer_discretionary: Weight | None = Field(default=None, description="Consumer Discretionary sector weight")
@@ -136,7 +136,7 @@ class ETFSectors(BaseModel):
 
 
 class ETF(BaseModel):
-    """ETF-specific metadata including holdings and sector breakdown."""
+    """ETF metadata with holdings and sector breakdown."""
 
     holdings: ETFHoldings = Field(default_factory=ETFHoldings, description="Top holdings list")
     sectors: ETFSectors = Field(default_factory=ETFSectors, description="Sector allocation list")
@@ -152,7 +152,7 @@ class ETF(BaseModel):
 
 
 class NewsAnalysis(BaseModel):
-    """Structured analysis of a financial news article."""
+    """[STRUCTURED OUTPUTS] Structured analysis of a financial news article."""
 
     summary: str = Field(default="", description="Summary excluding noise/meta-language.")
     relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
@@ -170,7 +170,7 @@ class NewsAnalysis(BaseModel):
 
 
 class News(NewsAnalysis):
-    """Full news article data including analysis results."""
+    """News article data with attached analysis fields."""
 
     url: str = Field(description="Source URL")
     title: str | None = Field(default=None, description="Headline")
@@ -179,11 +179,15 @@ class News(NewsAnalysis):
 
 
 class ScoredReason(BaseModel):
+    """[STRUCTURED OUTPUTS] Score with supporting reason bullets."""
+
     score: Score
     reasons: list[str] = Field(description="Bullet list explaining the score.")
 
 
 class MetricsEvaluation(BaseModel):
+    """Quantitative evaluation score components."""
+
     market_cap_score: Score | None = Field(
         default=None,
         description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
@@ -199,6 +203,8 @@ class MetricsEvaluation(BaseModel):
 
 
 class ResearchEvaluation(BaseModel):
+    """[STRUCTURED OUTPUTS] LLM research scores for moat and quality."""
+
     moat_score: ScoredReason | None = Field(
         default=None,
         description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
@@ -210,11 +216,15 @@ class ResearchEvaluation(BaseModel):
 
 
 class FutureOutlook(ScoredReason):
+    """[STRUCTURED OUTPUTS] LLM outlook score with bull/bear probabilities."""
+
     bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
     bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
 
 
 class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
+    """Unified evaluation payload (scores + probabilities)."""
+
     flat_probability: Probability | None = Field(
         default=None,
         description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
