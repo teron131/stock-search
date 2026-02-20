@@ -37,6 +37,22 @@ Weight = Annotated[float, Field(description="Weight as a percentage (0-100)", ge
 Score = Annotated[float, Field(description="Score on a 0-10 scale", ge=0, le=10)]
 Probability = Annotated[float, Field(description="Probability (0-1)", ge=0, le=1)]
 Strategy = Literal["Core", "Satellite", "Speculation", "Defense"]
+TickerThemeLabel = Literal["ThemePlaceholderA", "ThemePlaceholderB", "ThemePlaceholderC"]
+TickerStyleLabel = Literal["StylePlaceholderA", "StylePlaceholderB", "StylePlaceholderC"]
+TickerLabel = TickerThemeLabel | TickerStyleLabel
+
+
+def build_ticker_labels(
+    theme_label: TickerThemeLabel | None = None,
+    style_label: TickerStyleLabel | None = None,
+) -> list[TickerLabel]:
+    """Build 0, 1, or 2 labels with max one label from each set."""
+    labels: list[TickerLabel] = []
+    if theme_label is not None:
+        labels.append(theme_label)
+    if style_label is not None:
+        labels.append(style_label)
+    return labels
 
 
 class PortfolioPositionInput(BaseModel):
@@ -58,6 +74,7 @@ class PortfolioPosition(PortfolioPositionInput):
     name: str | None = Field(default=None, description="Company name")
     price: float | None = Field(default=None, description="Current market price")
     strategy: Strategy | None = Field(default=None, description="Strategy")
+    labels: list[TickerLabel] = Field(default_factory=list, description="Ticker labels for grouping and filtering.")
 
 
 class PortfolioSectorDistribution(BaseModel):
