@@ -440,7 +440,7 @@ def _build_portfolio_stats(rows: list[dict[str, Any]], sector_table: list[dict[s
         )
 
     return {
-        "positions": len(held_rows),
+        "held_positions_count": len(held_rows),
         "total": total,
         "change": change_value,
         "change_percent": change_percent,

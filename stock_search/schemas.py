@@ -36,31 +36,56 @@ Ticker = Annotated[str, Field(description="Ticker symbol")]
 Weight = Annotated[float, Field(description="Weight as a percentage (0-100)", ge=0, le=100)]
 Score = Annotated[float, Field(description="Score on a 0-10 scale", ge=0, le=10)]
 Probability = Annotated[float, Field(description="Probability (0-1)", ge=0, le=1)]
+Strategy = Literal["Core", "Satellite", "Speculation", "Defense"]
+
+
+class PortfolioPositionInput(BaseModel):
+    """Input position used before enrichment and portfolio stat generation."""
+
+    ticker: Ticker
+    quantity: float = Field(default=0.0, description="Number of shares or contracts")
+
+
+class PortfolioInput(BaseModel):
+    """Raw portfolio input payload containing only ticker/quantity positions."""
+
+    positions: list[PortfolioPositionInput] = Field(default_factory=list, description="Input positions list")
+
+
+class PortfolioPosition(PortfolioPositionInput):
+    """A single enriched portfolio position with market/context fields."""
+
+    name: str | None = Field(default=None, description="Company name")
+    price: float | None = Field(default=None, description="Current market price")
+    strategy: Strategy | None = Field(default=None, description="Strategy")
+
+
+class PortfolioSectorDistribution(BaseModel):
+    """Portfolio sector exposure split across stock and ETF lookthrough."""
+
+    sector: str = Field(description="Sector name")
+    portfolio_weight: float = Field(description="Combined portfolio sector weight (%)")
+    stock_weight: float = Field(description="Direct stock sector weight (%)")
+    etf_lookthrough_weight: float = Field(description="ETF lookthrough sector weight (%)")
+
+
+class PortfolioStats(BaseModel):
+    """Aggregate portfolio-level statistics computed from held positions."""
+
+    held_positions_count: int = Field(default=0, description="Number of held positions")
+    total: float = Field(default=0.0, description="Total held market value")
+    change: float = Field(default=0.0, description="Portfolio daily change in value")
+    change_percent: float = Field(default=0.0, description="Portfolio daily change percentage")
+    weighted_beta: float | None = Field(default=None, description="Portfolio weighted beta")
+    weighted_iv: float | None = Field(default=None, description="Portfolio weighted implied volatility")
+    sector_distribution: list[PortfolioSectorDistribution] = Field(default_factory=list, description="Sector exposure breakdown")
 
 
 class Portfolio(BaseModel):
-    """Aggregate portfolio data."""
+    """Aggregate enriched portfolio payload."""
 
-    total_equity: float | None = Field(default=None, description="Total portfolio equity")
-    positions: list["PortfolioPosition"] = Field(default_factory=list, description="Portfolio positions list")
-
-
-class PortfolioPosition(BaseModel):
-    """A single portfolio position with total value metrics."""
-
-    ticker: Ticker
-    name: str | None = Field(default=None, description="Company name")
-    quantity: float | None = Field(default=None, description="Number of shares or contracts")
-    price: float | None = Field(default=None, description="Current market price")
-    strategy: (
-        Literal[
-            "Core",
-            "Satellite",
-            "Speculation",
-            "Defense",
-        ]
-        | None
-    ) = Field(default=None, description="Strategy")
+    positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
+    stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics")
 
 
 class Quote(BaseModel):

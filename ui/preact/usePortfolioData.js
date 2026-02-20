@@ -265,7 +265,9 @@ export function usePortfolioData() {
     const totalFromApi = Number(portfolioStats.total);
     const changeValueFromApi = Number(portfolioStats.change);
     const changePctFromApi = Number(portfolioStats.change_percent);
-    const positionsFromApi = Number(portfolioStats.positions);
+    const positionsFromApi = Number(
+      portfolioStats.held_positions_count ?? portfolioStats.positions,
+    );
     const weightedBetaFromApi = Number(portfolioStats.weighted_beta);
     const weightedIvFromApi = Number(portfolioStats.weighted_iv);
 

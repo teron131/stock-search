@@ -16,6 +16,7 @@ from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import get_portfolio_payload
+from stock_search.schemas import PortfolioPositionInput
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
@@ -67,9 +68,7 @@ class PortfolioPositionPatch(BaseModel):
     strategy: str | None = None
 
 
-class StoredPortfolioPosition(BaseModel):
-    ticker: str
-    quantity: float = 0.0
+class StoredPortfolioPosition(PortfolioPositionInput):
     strategy: str | None = None
 
     def to_storage_dict(self) -> dict[str, Any]:

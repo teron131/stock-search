@@ -6,6 +6,7 @@ data/
 *.ipynb
 *test*
 *.png
+*.jpg
 
 
 # Python-generated files
