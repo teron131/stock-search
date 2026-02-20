@@ -4,12 +4,13 @@ Follow a fallback strategy.
 CAUTION: Web search is not reliable for getting specific content from a URL.
 """
 
+import asyncio
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 import math
 import os
 
+import httpx
 from langchain_core.prompts import PromptTemplate
 from llm_harness.clients import ChatOpenRouter
 from llm_harness.tools import webloader
@@ -18,10 +19,10 @@ from tqdm import tqdm
 from ..prompts import NEWS_ANALYSIS_PROMPT
 from ..schemas import News, NewsAnalysis
 from ..utils import extract_domain, normalize_url
-from .exa import get_news_exa
-from .massive import get_news_massive
-from .newsapi import get_news_newsapi
-from .newsdata import get_news_newsdata
+from .exa import get_news_exa_async
+from .massive import get_news_massive_async
+from .newsapi import get_news_newsapi_async
+from .newsdata import get_news_newsdata_async
 from .yahoofinance import get_news_yfinance
 
 FAST_LLM = os.getenv("FAST_LLM")
@@ -112,44 +113,50 @@ def _analyze_news(
     return results
 
 
-def get_news(
+async def get_news_async(
     ticker: str,
     n_days: int = 3,
     max_results: int = 10,
 ) -> list[News]:
     """Fetch news from multiple providers, dedupe by URL, then analyze."""
-    providers = (
-        lambda: get_news_newsdata(query=ticker),
-        lambda: get_news_massive(
-            ticker=ticker,
-            n_days=n_days,
-            max_results=max_results,
-        ),
-        lambda: get_news_exa(
-            query=ticker,
-            n_days=n_days,
-            max_results=max_results,
-        ),
-        lambda: get_news_yfinance(
-            ticker=ticker,
-            max_results=max_results,
-        ),
-        lambda: get_news_newsapi(
-            query=ticker,
-            n_days=n_days,
-            max_results=max_results,
-        ),
-    )
+    async with httpx.AsyncClient(timeout=60) as client:
+        provider_calls = (
+            get_news_newsdata_async(query=ticker, client=client),
+            get_news_massive_async(
+                ticker=ticker,
+                n_days=n_days,
+                max_results=max_results,
+                client=client,
+            ),
+            get_news_exa_async(
+                query=ticker,
+                n_days=n_days,
+                max_results=max_results,
+                client=client,
+            ),
+            get_news_newsapi_async(
+                query=ticker,
+                n_days=n_days,
+                max_results=max_results,
+                client=client,
+            ),
+            asyncio.to_thread(
+                get_news_yfinance,
+                ticker=ticker,
+                max_results=max_results,
+            ),
+        )
+        provider_results = await asyncio.gather(*provider_calls, return_exceptions=True)
 
-    # Fetch from all providers
     raw_news_list: list[News] = []
-    for fetch_fn in providers:
-        with suppress(Exception):
-            raw_news_list.extend(fetch_fn())
+    for result in provider_results:
+        if isinstance(result, Exception):
+            continue
+        raw_news_list.extend(result)
 
     # Dedupe and analyze
     raw_news_list = _dedupe_news(raw_news_list)
-    news_analysis_list = _analyze_news(ticker, raw_news_list)
+    news_analysis_list = await asyncio.to_thread(_analyze_news, ticker, raw_news_list)
 
     # Merge analysis into news objects
     news_list = [
@@ -180,3 +187,18 @@ def get_news(
     sorted_news_list = sorted(filtered_news_list, key=sort_key)
 
     return sorted_news_list
+
+
+def get_news(
+    ticker: str,
+    n_days: int = 3,
+    max_results: int = 10,
+) -> list[News]:
+    """Fetch news from multiple providers, dedupe by URL, then analyze."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        raise RuntimeError("get_news() cannot be called from an active event loop; use get_news_async().")
+    return asyncio.run(get_news_async(ticker=ticker, n_days=n_days, max_results=max_results))

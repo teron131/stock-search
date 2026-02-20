@@ -5,19 +5,24 @@ Documentation: https://docs.exa.ai/reference/search
 - Other LLM analysis costs apply, so disabled here
 """
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 import os
 
-import requests
+import httpx
 
 from ..schemas import News
 from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
+DEFAULT_TIMEOUT_S = 60
 
-def get_news_exa(
+
+async def get_news_exa_async(
     query: str,
     n_days: int = 3,
     max_results: int = 25,
+    *,
+    client: httpx.AsyncClient,
 ) -> list[News]:
     """Search Exa for news results and return raw payload items."""
     payload = {
@@ -33,11 +38,10 @@ def get_news_exa(
         "Authorization": f"Bearer {os.getenv('EXA_API_KEY')}",
         "Content-Type": "application/json",
     }
-    response = requests.post(
+    response = await client.post(
         url="https://api.exa.ai/search",
         json=payload,
         headers=headers,
-        timeout=60,
     )
     response.raise_for_status()
     results = response.json().get("results", [])
@@ -55,3 +59,22 @@ def get_news_exa(
             )
         )
     return news_list
+
+
+def get_news_exa(
+    query: str,
+    n_days: int = 3,
+    max_results: int = 25,
+) -> list[News]:
+    """Search Exa for news results and return raw payload items."""
+
+    async def _fetch() -> list[News]:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
+            return await get_news_exa_async(
+                query=query,
+                n_days=n_days,
+                max_results=max_results,
+                client=client,
+            )
+
+    return asyncio.run(_fetch())

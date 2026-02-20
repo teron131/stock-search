@@ -14,9 +14,9 @@ import re
 from typing import TypeVar
 
 from bs4 import BeautifulSoup
+import httpx
 from llm_harness.clients import WebSearchAgent, WebSearchLoaderAgent
 from pydantic import BaseModel, Field
-import requests
 
 from stock_search.schemas import ETFHoldings, ETFSectors, Holding
 
@@ -322,16 +322,16 @@ class StockAnalysisSource:
 
         url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)
         try:
-            response = requests.get(url, timeout=20)
+            response = httpx.get(url, timeout=20)
             response.raise_for_status()
-        except requests.HTTPError as exc:
-            status_code = exc.response.status_code if exc.response is not None else None
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
             if status_code == 404:
                 logger.info("StockAnalysis holdings page not found for %s; skipping look-through.", self.ticker)
                 return None
             logger.warning("StockAnalysis request failed for %s (status=%s); skipping look-through.", self.ticker, status_code)
             return None
-        except requests.RequestException as exc:
+        except httpx.RequestError as exc:
             logger.warning("StockAnalysis request failed for %s; skipping look-through: %s", self.ticker, exc)
             return None
 

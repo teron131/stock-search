@@ -28,7 +28,7 @@ This guide is for changes inside `stock_search/news/`.
 
 - Preserve graceful degradation: one provider failure must not collapse the full news result.
 - Preserve fallback summary semantics (`[TRUNCATED]`, `[FAILED TO FETCH]`) because downstream filtering depends on them.
-- Keep requests timeout-aware and avoid logging secrets/API keys.
+- Keep HTTP calls timeout-aware (`httpx`) and avoid logging secrets/API keys.
 - Keep output shape stable for consumers expecting `News` fields.
 
 ## Syntax relationship highlights (ast-grep-first)
