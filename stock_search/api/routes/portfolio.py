@@ -15,7 +15,7 @@ from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
-from stock_search.portfolio import get_portfolio_payload_async
+from stock_search.portfolio import get_portfolio_payload_async, normalize_labels
 from stock_search.schemas import PortfolioPositionInput
 
 logger = logging.getLogger(__name__)
@@ -53,10 +53,12 @@ class PortfolioPositionPatch(BaseModel):
 
 class StoredPortfolioPosition(PortfolioPositionInput):
     strategy: str | None = None
+    industry_labels: list[str] = Field(default_factory=list)
 
     def to_storage_dict(self) -> dict[str, Any]:
         payload = self.model_dump(exclude_none=True)
         payload["ticker"] = self.ticker.upper()
+        payload["industry_labels"] = normalize_labels(payload.get("industry_labels"))
         return payload
 
 
@@ -71,11 +73,17 @@ class PortfolioImageExtraction(BaseModel):
 
 def _load_positions() -> list[dict[str, Any]]:
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
-    return portfolio_data if isinstance(portfolio_data, list) else []
+    if isinstance(portfolio_data, list):
+        return [row for row in portfolio_data if isinstance(row, dict)]
+    if isinstance(portfolio_data, dict):
+        positions = portfolio_data.get("positions", [])
+        if isinstance(positions, list):
+            return [row for row in positions if isinstance(row, dict)]
+    return []
 
 
 def _save_positions(positions: list[dict[str, Any]]) -> None:
-    write_json(PORTFOLIO_PATH, positions)
+    write_json(PORTFOLIO_PATH, {"positions": positions})
 
 
 def _ensure_valid_new_ticker(ticker: str) -> None:

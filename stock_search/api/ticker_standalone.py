@@ -6,7 +6,7 @@ from typing import Any, Literal
 from fastapi import HTTPException
 
 from stock_search.file_utils import load_json
-from stock_search.portfolio import fetch_live_stats_async
+from stock_search.portfolio import fetch_live_stats_async, normalize_labels, resolve_portfolio_labels
 
 from .config import PORTFOLIO_PATH, STATS_PATH
 
@@ -15,7 +15,13 @@ logger = logging.getLogger(__name__)
 
 def _load_positions() -> list[dict[str, Any]]:
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
-    return portfolio_data if isinstance(portfolio_data, list) else []
+    if isinstance(portfolio_data, list):
+        return [row for row in portfolio_data if isinstance(row, dict)]
+    if isinstance(portfolio_data, dict):
+        positions = portfolio_data.get("positions", [])
+        if isinstance(positions, list):
+            return [row for row in positions if isinstance(row, dict)]
+    return []
 
 
 def _load_cached_ticker_stats(ticker: str) -> dict[str, Any]:
@@ -26,12 +32,12 @@ def _load_cached_ticker_stats(ticker: str) -> dict[str, Any]:
     return cached if isinstance(cached, dict) else {}
 
 
-def _load_portfolio_position(ticker: str) -> dict[str, Any]:
+def _load_portfolio_position(ticker: str, positions: list[dict[str, Any]]) -> dict[str, Any]:
     ticker_upper = ticker.upper()
-    for position in _load_positions():
+    for position in positions:
         if str(position.get("ticker", "")).upper() == ticker_upper:
             return position
-    return {"ticker": ticker_upper, "quantity": 0.0, "strategy": None}
+    return {"ticker": ticker_upper, "quantity": 0.0, "strategy": None, "industry_labels": []}
 
 
 async def resolve_standalone_ticker_stats(
@@ -40,12 +46,17 @@ async def resolve_standalone_ticker_stats(
     source: Literal["auto", "live", "cache"],
 ) -> tuple[dict[str, Any], str]:
     ticker_upper = ticker.upper().strip()
+    positions = _load_positions()
+    labels_by_ticker = resolve_portfolio_labels(positions, fetch_missing=(source != "cache"))
     cached = _load_cached_ticker_stats(ticker_upper)
-    position = _load_portfolio_position(ticker_upper)
+    position = _load_portfolio_position(ticker_upper, positions)
+    industry_labels = normalize_labels(labels_by_ticker.get(ticker_upper, position.get("industry_labels")))
     base = {
         "ticker": ticker_upper,
         "quantity": float(position.get("quantity") or 0.0),
         "strategy": position.get("strategy"),
+        "industry_labels": industry_labels,
+        "primary_label": industry_labels[0] if industry_labels else None,
     }
 
     if source == "cache":

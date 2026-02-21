@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from stock_search.cache import TieredCache
-from stock_search.common_utils import clamp, safe_float
+from stock_search.common_utils import clamp, normalize_ticker_symbol, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
@@ -27,6 +27,7 @@ from stock_search.evaluation.constants import (
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
 from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
 from stock_search.file_utils import load_json, write_json
+from stock_search.label import aget_labels, get_labels
 
 _HISTORY_CACHE = TieredCache[dict[str, Any]](
     ttl_seconds=CacheConfig.HISTORY_TTL_SECONDS,
@@ -49,6 +50,163 @@ _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
     "mtd_change_percent",
     "ytd_change_percent",
 )
+_LABEL_CACHE_PATH = Path("data/portfolio_labels_cache.json")
+_PORTFOLIO_LABEL_FIELD = "industry_labels"
+
+
+def normalize_labels(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    labels: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        label = item.strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        labels.append(label)
+    return labels
+
+
+def _load_label_cache(path: Path = _LABEL_CACHE_PATH) -> dict[str, list[str]]:
+    raw_cache = load_json(path, default={})
+    if not isinstance(raw_cache, dict):
+        return {}
+    cache: dict[str, list[str]] = {}
+    for ticker, labels in raw_cache.items():
+        ticker_symbol = normalize_ticker_symbol(str(ticker))
+        if not ticker_symbol:
+            continue
+        normalized = normalize_labels(labels)
+        if normalized:
+            cache[ticker_symbol] = normalized
+    return cache
+
+
+def _save_label_cache(cache: dict[str, list[str]], path: Path = _LABEL_CACHE_PATH) -> None:
+    write_json(path, cache)
+
+
+def _extract_labels_from_positions(positions: list[dict[str, Any]]) -> dict[str, list[str]]:
+    labels_by_ticker: dict[str, list[str]] = {}
+    for row in positions:
+        ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
+        if not ticker:
+            continue
+        labels = normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD))
+        if labels:
+            labels_by_ticker[ticker] = labels
+    return labels_by_ticker
+
+
+def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
+    tickers: list[str] = []
+    for row in positions:
+        ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
+        if ticker:
+            tickers.append(ticker)
+    return list(dict.fromkeys(tickers))
+
+
+def _compute_missing_labels(
+    tickers: list[str],
+    *,
+    portfolio_labels: dict[str, list[str]],
+    cache: dict[str, list[str]],
+) -> list[str]:
+    return [ticker for ticker in tickers if not portfolio_labels.get(ticker) and not cache.get(ticker)]
+
+
+def resolve_portfolio_labels(
+    positions: list[dict[str, Any]],
+    *,
+    fetch_missing: bool = True,
+    max_concurrency: int = 4,
+    cache_path: Path = _LABEL_CACHE_PATH,
+) -> dict[str, list[str]]:
+    tickers = _portfolio_tickers(positions)
+    if not tickers:
+        return {}
+
+    cache = _load_label_cache(cache_path)
+    portfolio_labels = _extract_labels_from_positions(positions)
+    missing = _compute_missing_labels(tickers, portfolio_labels=portfolio_labels, cache=cache)
+    fetched: dict[str, list[str]] = {}
+    if fetch_missing and missing:
+        batch = get_labels(missing, max_concurrency=max_concurrency)
+        for ticker, result in batch.items():
+            normalized = normalize_labels(result.labels if result is not None else [])
+            if normalized:
+                fetched[ticker] = normalized
+
+    changed = False
+    for ticker, labels in portfolio_labels.items():
+        if cache.get(ticker) != labels:
+            cache[ticker] = labels
+            changed = True
+    for ticker, labels in fetched.items():
+        if cache.get(ticker) != labels:
+            cache[ticker] = labels
+            changed = True
+    if changed:
+        _save_label_cache(cache, cache_path)
+
+    return {ticker: portfolio_labels.get(ticker) or cache.get(ticker, []) for ticker in tickers}
+
+
+async def resolve_portfolio_labels_async(
+    positions: list[dict[str, Any]],
+    *,
+    fetch_missing: bool = True,
+    max_concurrency: int = 4,
+    cache_path: Path = _LABEL_CACHE_PATH,
+) -> dict[str, list[str]]:
+    tickers = _portfolio_tickers(positions)
+    if not tickers:
+        return {}
+
+    cache = _load_label_cache(cache_path)
+    portfolio_labels = _extract_labels_from_positions(positions)
+    missing = _compute_missing_labels(tickers, portfolio_labels=portfolio_labels, cache=cache)
+    fetched: dict[str, list[str]] = {}
+    if fetch_missing and missing:
+        batch = await aget_labels(missing, max_concurrency=max_concurrency)
+        for ticker, result in batch.items():
+            normalized = normalize_labels(result.labels if result is not None else [])
+            if normalized:
+                fetched[ticker] = normalized
+
+    changed = False
+    for ticker, labels in portfolio_labels.items():
+        if cache.get(ticker) != labels:
+            cache[ticker] = labels
+            changed = True
+    for ticker, labels in fetched.items():
+        if cache.get(ticker) != labels:
+            cache[ticker] = labels
+            changed = True
+    if changed:
+        _save_label_cache(cache, cache_path)
+
+    return {ticker: portfolio_labels.get(ticker) or cache.get(ticker, []) for ticker in tickers}
+
+
+def sync_labels_to_positions(
+    positions: list[dict[str, Any]],
+    labels_by_ticker: dict[str, list[str]],
+) -> bool:
+    changed = False
+    for row in positions:
+        ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
+        if not ticker:
+            continue
+        labels = normalize_labels(labels_by_ticker.get(ticker, []))
+        if normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD)) != labels:
+            row[_PORTFOLIO_LABEL_FIELD] = labels
+            changed = True
+    return changed
 
 
 def calculate_total(quantity: float, price: float) -> float:
@@ -367,6 +525,8 @@ def _build_row(
     eval_source = "llm" if llm_count == total_eval_fields else ("indicator_fallback" if llm_count == 0 else "hybrid")
 
     strategy = pos.get("strategy") or _derive_bucket_from_eval(ticker, eval_data) or stats.get("strategy")
+    industry_labels = normalize_labels(pos.get("industry_labels"))
+    primary_label = industry_labels[0] if industry_labels else None
     quote_type = str(stats.get("quote_type") or "").upper()
     equity_type = "ETF" if quote_type == "ETF" else ("STOCK" if quote_type else "UNKNOWN")
     etf_holdings = stats.get("etf_holdings") or stats.get("holdings") or []
@@ -419,6 +579,8 @@ def _build_row(
         "etf_holdings": etf_holdings,
         "etf_holdings_fetched_at": etf_holdings_fetched_at,
         "strategy": strategy,
+        "industry_labels": industry_labels,
+        "primary_label": primary_label,
         "total": total,
         "weight_pct": None,
     }
@@ -657,6 +819,7 @@ def _normalize_positions(
             "ticker": ticker,
             "quantity": float(pos.get("quantity") or 0),
             "strategy": pos.get("strategy"),
+            "industry_labels": normalize_labels(pos.get("industry_labels") or pos.get("labels")),
         }
         positions.append(normalized_position)
         held_positions.append(normalized_position)
@@ -745,6 +908,18 @@ def _build_rows(
     ]
 
 
+def _apply_position_labels(
+    *,
+    positions: list[dict[str, Any]],
+    labels_by_ticker: dict[str, list[str]],
+) -> None:
+    for position in positions:
+        ticker = _ticker_key(position.get("ticker", ""))
+        if not ticker:
+            continue
+        position["industry_labels"] = normalize_labels(labels_by_ticker.get(ticker, []))
+
+
 def _finalize_rows(rows: list[dict[str, Any]]) -> None:
     total_value = sum(float(row.get("total") or 0.0) for row in rows)
     for row in rows:
@@ -791,6 +966,8 @@ def get_portfolio_payload(
         eval_path=eval_path,
         include_cached_universe=include_cached_universe,
     )
+    labels_by_ticker = resolve_portfolio_labels(held_positions, fetch_missing=include_live_market)
+    _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
     live_map = fetch_live_stats_map(_live_tickers(positions, include_live_market=include_live_market))
     rows = _build_rows(
         positions=positions,
@@ -833,6 +1010,8 @@ async def get_portfolio_payload_async(
         eval_path=eval_path,
         include_cached_universe=include_cached_universe,
     )
+    labels_by_ticker = await resolve_portfolio_labels_async(held_positions, fetch_missing=include_live_market)
+    _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
     live_map = await fetch_live_stats_map_async(_live_tickers(positions, include_live_market=include_live_market))
     rows = _build_rows(
         positions=positions,
