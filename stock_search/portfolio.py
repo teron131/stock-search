@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from time import monotonic, sleep
@@ -52,6 +52,8 @@ _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
 )
 _LABEL_CACHE_STATS_PATH = Path("data/stats.json")
 _PORTFOLIO_LABEL_FIELD = "industry_labels"
+_LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at"
+_LABEL_CACHE_MAX_AGE_DAYS = 30
 
 
 def normalize_labels(value: Any) -> list[str]:
@@ -70,11 +72,20 @@ def normalize_labels(value: Any) -> list[str]:
     return labels
 
 
-def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, list[str]]:
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, dict[str, Any]]:
     stats_data = load_json(path, default={})
     if not isinstance(stats_data, dict):
         return {}
-    cache: dict[str, list[str]] = {}
+    cache: dict[str, dict[str, Any]] = {}
     for ticker, row in stats_data.items():
         if not isinstance(row, dict):
             continue
@@ -83,37 +94,33 @@ def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, list[st
             continue
         normalized = normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD) or row.get("labels"))
         if normalized:
-            cache[ticker_symbol] = normalized
+            cache[ticker_symbol] = {
+                "labels": normalized,
+                "fetched_at": _parse_iso_timestamp(row.get(_LABEL_FETCHED_AT_FIELD)),
+            }
     return cache
 
 
-def _save_label_cache(cache: dict[str, list[str]], path: Path = _LABEL_CACHE_STATS_PATH) -> None:
+def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path = _LABEL_CACHE_STATS_PATH) -> None:
     stats_data = load_json(path, default={})
     if not isinstance(stats_data, dict):
         stats_data = {}
 
-    for ticker, labels in cache.items():
+    for ticker, entry in cache.items():
         ticker_symbol = normalize_ticker_symbol(ticker)
         if not ticker_symbol:
             continue
+        labels = normalize_labels(entry.get("labels"))
+        if not labels:
+            continue
+        fetched_at = entry.get("fetched_at")
         existing = stats_data.get(ticker_symbol, {})
         row = dict(existing) if isinstance(existing, dict) else {}
         row[_PORTFOLIO_LABEL_FIELD] = labels
+        row[_LABEL_FETCHED_AT_FIELD] = fetched_at.isoformat() if isinstance(fetched_at, datetime) else datetime.now(tz=UTC).isoformat()
         stats_data[ticker_symbol] = row
 
     write_json(path, stats_data)
-
-
-def _extract_labels_from_positions(positions: list[dict[str, Any]]) -> dict[str, list[str]]:
-    labels_by_ticker: dict[str, list[str]] = {}
-    for row in positions:
-        ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
-        if not ticker:
-            continue
-        labels = normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD))
-        if labels:
-            labels_by_ticker[ticker] = labels
-    return labels_by_ticker
 
 
 def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
@@ -127,11 +134,19 @@ def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
 
 def _compute_missing_labels(
     tickers: list[str],
-    *,
-    portfolio_labels: dict[str, list[str]],
-    cache: dict[str, list[str]],
+    cache: dict[str, dict[str, Any]],
 ) -> list[str]:
-    return [ticker for ticker in tickers if not portfolio_labels.get(ticker) and not cache.get(ticker)]
+    cutoff = datetime.now(tz=UTC) - timedelta(days=_LABEL_CACHE_MAX_AGE_DAYS)
+    missing: list[str] = []
+    for ticker in tickers:
+        entry = cache.get(ticker)
+        if not entry:
+            missing.append(ticker)
+            continue
+        fetched_at = entry.get("fetched_at")
+        if not isinstance(fetched_at, datetime) or fetched_at < cutoff:
+            missing.append(ticker)
+    return missing
 
 
 def resolve_portfolio_labels(
@@ -146,8 +161,7 @@ def resolve_portfolio_labels(
         return {}
 
     cache = _load_label_cache(cache_path)
-    portfolio_labels = _extract_labels_from_positions(positions)
-    missing = _compute_missing_labels(tickers, portfolio_labels=portfolio_labels, cache=cache)
+    missing = _compute_missing_labels(tickers, cache)
     fetched: dict[str, list[str]] = {}
     if fetch_missing and missing:
         batch = get_labels(missing, max_concurrency=max_concurrency)
@@ -157,18 +171,15 @@ def resolve_portfolio_labels(
                 fetched[ticker] = normalized
 
     changed = False
-    for ticker, labels in portfolio_labels.items():
-        if cache.get(ticker) != labels:
-            cache[ticker] = labels
-            changed = True
     for ticker, labels in fetched.items():
-        if cache.get(ticker) != labels:
-            cache[ticker] = labels
+        existing = cache.get(ticker, {})
+        if existing.get("labels") != labels or existing.get("fetched_at") is None:
             changed = True
+        cache[ticker] = {"labels": labels, "fetched_at": datetime.now(tz=UTC)}
     if changed:
         _save_label_cache(cache, cache_path)
 
-    return {ticker: portfolio_labels.get(ticker) or cache.get(ticker, []) for ticker in tickers}
+    return {ticker: normalize_labels(cache.get(ticker, {}).get("labels")) for ticker in tickers}
 
 
 async def resolve_portfolio_labels_async(
@@ -183,8 +194,7 @@ async def resolve_portfolio_labels_async(
         return {}
 
     cache = _load_label_cache(cache_path)
-    portfolio_labels = _extract_labels_from_positions(positions)
-    missing = _compute_missing_labels(tickers, portfolio_labels=portfolio_labels, cache=cache)
+    missing = _compute_missing_labels(tickers, cache)
     fetched: dict[str, list[str]] = {}
     if fetch_missing and missing:
         batch = await aget_labels(missing, max_concurrency=max_concurrency)
@@ -194,34 +204,15 @@ async def resolve_portfolio_labels_async(
                 fetched[ticker] = normalized
 
     changed = False
-    for ticker, labels in portfolio_labels.items():
-        if cache.get(ticker) != labels:
-            cache[ticker] = labels
-            changed = True
     for ticker, labels in fetched.items():
-        if cache.get(ticker) != labels:
-            cache[ticker] = labels
+        existing = cache.get(ticker, {})
+        if existing.get("labels") != labels or existing.get("fetched_at") is None:
             changed = True
+        cache[ticker] = {"labels": labels, "fetched_at": datetime.now(tz=UTC)}
     if changed:
         _save_label_cache(cache, cache_path)
 
-    return {ticker: portfolio_labels.get(ticker) or cache.get(ticker, []) for ticker in tickers}
-
-
-def sync_labels_to_positions(
-    positions: list[dict[str, Any]],
-    labels_by_ticker: dict[str, list[str]],
-) -> bool:
-    changed = False
-    for row in positions:
-        ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
-        if not ticker:
-            continue
-        labels = normalize_labels(labels_by_ticker.get(ticker, []))
-        if normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD)) != labels:
-            row[_PORTFOLIO_LABEL_FIELD] = labels
-            changed = True
-    return changed
+    return {ticker: normalize_labels(cache.get(ticker, {}).get("labels")) for ticker in tickers}
 
 
 def calculate_total(quantity: float, price: float) -> float:
@@ -834,7 +825,7 @@ def _normalize_positions(
             "ticker": ticker,
             "quantity": float(pos.get("quantity") or 0),
             "strategy": pos.get("strategy"),
-            "industry_labels": normalize_labels(pos.get("industry_labels") or pos.get("labels")),
+            "industry_labels": [],
         }
         positions.append(normalized_position)
         held_positions.append(normalized_position)

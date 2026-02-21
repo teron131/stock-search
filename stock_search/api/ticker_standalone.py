@@ -32,8 +32,16 @@ async def resolve_standalone_ticker_stats(
     labels_by_ticker = resolve_portfolio_labels(positions, fetch_missing=(source != "cache"))
     cached = _load_cached_ticker_stats(ticker_upper)
     idx = find_position_index(positions, ticker_upper)
-    position = positions[idx] if idx is not None else {"ticker": ticker_upper, "quantity": 0.0, "strategy": None, "industry_labels": []}
-    industry_labels = normalize_labels(labels_by_ticker.get(ticker_upper, position.get("industry_labels")))
+    position = (
+        positions[idx]
+        if idx is not None
+        else {
+            "ticker": ticker_upper,
+            "quantity": 0.0,
+            "strategy": None,
+        }
+    )
+    industry_labels = normalize_labels(labels_by_ticker.get(ticker_upper, []))
     base = {
         "ticker": ticker_upper,
         "quantity": float(position.get("quantity") or 0.0),

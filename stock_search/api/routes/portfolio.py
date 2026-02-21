@@ -15,7 +15,7 @@ from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
 from stock_search.indicators import StockIndicator
-from stock_search.portfolio import get_portfolio_payload_async, normalize_labels
+from stock_search.portfolio import get_portfolio_payload_async
 from stock_search.schemas import PortfolioPositionInput
 
 logger = logging.getLogger(__name__)
@@ -53,12 +53,10 @@ class PortfolioPositionPatch(BaseModel):
 
 class StoredPortfolioPosition(PortfolioPositionInput):
     strategy: str | None = None
-    industry_labels: list[str] = Field(default_factory=list)
 
     def to_storage_dict(self) -> dict[str, Any]:
         payload = self.model_dump(exclude_none=True)
         payload["ticker"] = self.ticker.upper()
-        payload["industry_labels"] = normalize_labels(payload.get("industry_labels"))
         return payload
 
 
