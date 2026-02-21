@@ -204,7 +204,7 @@ class ResearchAgents:
 def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) -> Any:
     agents = ResearchAgents(system_prompt, response_format)
 
-    def run_planner(state: ResearchGraphState) -> dict[str, Any]:
+    def planner_node(state: ResearchGraphState) -> dict[str, Any]:
         prompt = f"Create a short todo list for researching this ticker. Do not answer the task.\nTicker: {state.ticker}"
         response = agents.supervisor.invoke(
             {
@@ -215,7 +215,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
             "plan": response["messages"][-1].content,
         }
 
-    def run_fanout(state: ResearchGraphState) -> dict[str, Any]:
+    def fanout_node(state: ResearchGraphState) -> dict[str, Any]:
         return {
             "ticker": state.ticker,
             "research_notes": None,
@@ -223,7 +223,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
             "validation": None,
         }
 
-    def run_websearch(state: ResearchGraphState) -> dict[str, Any]:
+    def websearch_node(state: ResearchGraphState) -> dict[str, Any]:
         ticker = state.ticker or _extract_ticker(state.ticker)
         queries = _extract_todo_items(state.plan) or [state.ticker]
 
@@ -243,7 +243,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
             "research_notes": notes,
         }
 
-    def run_loader(state: ResearchGraphState) -> dict[str, Any]:
+    def loader_node(state: ResearchGraphState) -> dict[str, Any]:
         urls = _filter_allowed_urls(_extract_urls(state.research_notes))
         if not urls:
             return {"loaded_notes": ""}
@@ -258,7 +258,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
             loaded = "\n\n".join(loaded)
         return {"loaded_notes": loaded}
 
-    def run_validator(state: ResearchGraphState) -> dict[str, Any]:
+    def validator_node(state: ResearchGraphState) -> dict[str, Any]:
         evidence = "\n\n".join(
             filter(
                 None,
@@ -277,7 +277,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
             "attempts": state.attempts + 1,
         }
 
-    def run_writer(state: ResearchGraphState) -> dict[str, Any]:
+    def writer_node(state: ResearchGraphState) -> dict[str, Any]:
         evidence = "\n\n".join(filter(None, [state.research_notes, state.loaded_notes]))
         prompt = f"{state.ticker}\n\nEvidence:\n{evidence}"
         response = agents.supervisor.invoke(
@@ -302,12 +302,12 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         input_schema=ResearchGraphInput,
         output_schema=ResearchGraphOutput,
     )
-    graph.add_node("plan", run_planner)
-    graph.add_node("fanout", run_fanout)
-    graph.add_node("websearch", run_websearch)
-    graph.add_node("loader", run_loader)
-    graph.add_node("validator", run_validator)
-    graph.add_node("writer", run_writer)
+    graph.add_node("plan", planner_node)
+    graph.add_node("fanout", fanout_node)
+    graph.add_node("websearch", websearch_node)
+    graph.add_node("loader", loader_node)
+    graph.add_node("validator", validator_node)
+    graph.add_node("writer", writer_node)
 
     graph.add_edge(START, "plan")
     graph.add_edge("plan", "fanout")

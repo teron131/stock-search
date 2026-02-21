@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 
 from langgraph.graph import END, START, StateGraph
 from llm_harness.clients import ExaAgent
@@ -9,6 +8,8 @@ from llm_harness.clients.openrouter import ChatOpenRouter
 from pydantic import BaseModel, Field, model_validator
 from rich import print as rprint
 
+from stock_search.common_utils import normalize_ticker_symbol
+from stock_search.config import ModelConfig
 from stock_search.schemas import INDUSTRY_LABELS
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
@@ -120,20 +121,13 @@ Allowed label pool (must choose only from these):
 LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels and rationale."
 
 
-def _resolve_model_name() -> str:
-    model_name = os.getenv("QUALITY_LLM") or os.getenv("FAST_LLM")
-    if not model_name:
-        raise ValueError("No model configured. Set QUALITY_LLM or FAST_LLM.")
-    return model_name
-
-
 def _normalize_labels(labels: list[str]) -> list[str]:
     ordered_unique_labels = list(dict.fromkeys(labels))
     return [label for label in ordered_unique_labels if label in INDUSTRY_LABEL_SET][:3]
 
 
 def _build_label_graph():
-    async def get_pillars(state: LabelGraphState) -> dict[str, Pillars]:
+    async def pillar_node(state: LabelGraphState) -> dict[str, Pillars]:
         pillars_agent = ExaAgent(
             system_prompt=PILLARS_SYSTEM_PROMPT,
             output_schema=Pillars,
@@ -141,7 +135,7 @@ def _build_label_graph():
         pillars = await asyncio.to_thread(pillars_agent.invoke, state.ticker)
         return {"pillars": pillars}
 
-    async def get_outlook(state: LabelGraphState) -> dict[str, Outlook]:
+    async def outlook_node(state: LabelGraphState) -> dict[str, Outlook]:
         outlook_agent = ExaAgent(
             system_prompt=OUTLOOK_SYSTEM_PROMPT,
             output_schema=Outlook,
@@ -153,9 +147,9 @@ def _build_label_graph():
         outlook = await asyncio.to_thread(outlook_agent.invoke, outlook_query)
         return {"outlook": outlook}
 
-    async def get_labels(state: LabelGraphState) -> dict[str, TickerLabels]:
+    async def label_node(state: LabelGraphState) -> dict[str, TickerLabels]:
         label_model = ChatOpenRouter(
-            model=_resolve_model_name(),
+            model=ModelConfig.quality_or_fast(),
             temperature=0.1,
             reasoning_effort="medium",
         )
@@ -182,9 +176,9 @@ def _build_label_graph():
         output_schema=LabelGraphOutput,
     )
 
-    graph.add_node("pillars", get_pillars)
-    graph.add_node("outlook", get_outlook)
-    graph.add_node("labels", get_labels)
+    graph.add_node("pillars", pillar_node)
+    graph.add_node("outlook", outlook_node)
+    graph.add_node("labels", label_node)
 
     graph.add_edge(START, "pillars")
     graph.add_edge("pillars", "outlook")
@@ -194,8 +188,8 @@ def _build_label_graph():
     return graph.compile()
 
 
-async def arun_label(ticker: str) -> TickerLabels:
-    ticker_symbol = ticker.strip().upper()
+async def aget_label(ticker: str) -> TickerLabels:
+    ticker_symbol = normalize_ticker_symbol(ticker)
     if not ticker_symbol:
         raise ValueError("ticker cannot be empty")
 
@@ -207,13 +201,13 @@ async def arun_label(ticker: str) -> TickerLabels:
     return labels
 
 
-def run_label(ticker: str) -> TickerLabels:
+def get_label(ticker: str) -> TickerLabels:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(arun_label(ticker))
-    raise RuntimeError("run_label cannot be called from an active event loop; use arun_label instead")
+        return asyncio.run(aget_label(ticker))
+    raise RuntimeError("get_label cannot be called from an active event loop; use aget_label instead")
 
 
 if __name__ == "__main__":
-    rprint(run_label("NVDA"))
+    rprint(get_label("NVDA"))

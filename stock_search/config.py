@@ -4,6 +4,7 @@ This module consolidates configuration values that were previously scattered
 across multiple files. Evaluation-specific constants remain in evaluation/constants.py.
 """
 
+import os
 from typing import Final
 
 
@@ -62,3 +63,15 @@ class UpdateTierLabels:
 
     ETF_HOLDINGS_LABEL: Final[str] = "llm_optional"
     """Label for optional ETF holdings data."""
+
+
+class ModelConfig:
+    """Configuration helpers for resolving model names from environment."""
+
+    @staticmethod
+    def quality_or_fast() -> str:
+        """Resolve QUALITY_LLM first, then FAST_LLM."""
+        model_name = os.getenv("QUALITY_LLM") or os.getenv("FAST_LLM")
+        if not model_name:
+            raise ValueError("No model configured. Set QUALITY_LLM or FAST_LLM.")
+        return model_name
