@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, model_validator
 from rich import print as rprint
 
 from stock_search.schemas import INDUSTRY_LABELS
-from test_label import LABEL_QUERY
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
 
