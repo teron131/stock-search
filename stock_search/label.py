@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from langgraph.graph import END, START, StateGraph
 from llm_harness.clients import ExaAgent
 from llm_harness.clients.openrouter import ChatOpenRouter
 from pydantic import BaseModel, Field, model_validator
@@ -37,7 +38,7 @@ class Outlook(BaseModel):
     impact: str = Field(description="Expected impact on the company's sector / industry exposure.")
 
 
-class TickerLabelsResult(BaseModel):
+class TickerLabels(BaseModel):
     labels: list[str] = Field(
         default_factory=list,
         description="Multi-label tags from the provided sector/industry taxonomy.",
@@ -46,7 +47,7 @@ class TickerLabelsResult(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_labels(self) -> TickerLabelsResult:
+    def validate_labels(self) -> TickerLabels:
         invalid_labels = [label for label in self.labels if label not in INDUSTRY_LABEL_SET]
         if invalid_labels:
             raise ValueError(f"labels must come from INDUSTRY_LABELS. Invalid: {invalid_labels}")
@@ -63,7 +64,22 @@ class TickerLabelsRaw(BaseModel):
     rationale: str = Field(description="One concise sentence explaining the selected labels.")
 
 
-PILLARS_SYSTEM_PROMPT = """Perspective 1: Current business pillars.
+class LabelGraphInput(BaseModel):
+    ticker: str
+
+
+class LabelGraphOutput(BaseModel):
+    labels: TickerLabels | None = None
+
+
+class LabelGraphState(BaseModel):
+    ticker: str
+    pillars: Pillars | None = None
+    outlook: Outlook | None = None
+    labels: TickerLabels | None = None
+
+
+PILLARS_SYSTEM_PROMPT = """Perspective: Current business pillars.
 
 Task:
 - Identify the company's current core pillars that drive revenue/profit/value today.
@@ -78,7 +94,7 @@ Rules:
 OUTLOOK_QUERY = "Ticker: {ticker}\nCompany pillars context: {pillars}\nProvide concise outlook and sector/industry exposure impact."
 
 
-OUTLOOK_SYSTEM_PROMPT = """Perspective 2: Forward outlook and exposure shift.
+OUTLOOK_SYSTEM_PROMPT = """Perspective: Forward outlook and exposure shift.
 
 Task:
 - Based on current pillars + fresh evidence, summarize near/medium-term outlook.
@@ -125,46 +141,76 @@ def _normalize_labels(labels: list[str]) -> list[str]:
     return [label for label in ordered_unique_labels if label in INDUSTRY_LABEL_SET][:3]
 
 
-def run_label(ticker: str) -> TickerLabelsResult:
+def _build_label_graph():
+    def run_pillars(state: LabelGraphState) -> dict[str, Pillars]:
+        pillars_agent = ExaAgent(
+            system_prompt=PILLARS_SYSTEM_PROMPT,
+            output_schema=Pillars,
+        )
+        pillars = pillars_agent.invoke(state.ticker)
+        return {"pillars": pillars}
+
+    def run_outlook(state: LabelGraphState) -> dict[str, Outlook]:
+        outlook_agent = ExaAgent(
+            system_prompt=OUTLOOK_SYSTEM_PROMPT,
+            output_schema=Outlook,
+        )
+        outlook_query = OUTLOOK_QUERY.format(
+            ticker=state.ticker,
+            pillars=state.pillars.model_dump_json(),
+        )
+        outlook = outlook_agent.invoke(outlook_query)
+        return {"outlook": outlook}
+
+    def run_label_model(state: LabelGraphState) -> dict[str, TickerLabels]:
+        label_model = ChatOpenRouter(
+            model=_resolve_model_name(),
+            temperature=0.1,
+            reasoning_effort="medium",
+        )
+        label_query = LABEL_QUERY.format(
+            ticker=state.ticker,
+            pillars=state.pillars.model_dump_json(),
+            outlook=state.outlook.model_dump_json(),
+        )
+        structured_label_model = label_model.with_structured_output(TickerLabelsRaw)
+        raw_result = structured_label_model.invoke(f"{LABEL_SYSTEM_PROMPT}\n\n{label_query}")
+
+        normalized_labels = _normalize_labels(raw_result.labels)
+        if not normalized_labels:
+            raise ValueError(f"Could not normalize labels into INDUSTRY_LABELS: {raw_result.labels}")
+
+        return {"labels": TickerLabels(labels=normalized_labels)}
+
+    graph = StateGraph(
+        LabelGraphState,
+        input_schema=LabelGraphInput,
+        output_schema=LabelGraphOutput,
+    )
+
+    graph.add_node("pillars", run_pillars)
+    graph.add_node("outlook", run_outlook)
+    graph.add_node("labels", run_label_model)
+
+    graph.add_edge(START, "pillars")
+    graph.add_edge("pillars", "outlook")
+    graph.add_edge("outlook", "labels")
+    graph.add_edge("labels", END)
+
+    return graph.compile()
+
+
+def run_label(ticker: str) -> TickerLabels:
     ticker_symbol = ticker.strip().upper()
     if not ticker_symbol:
         raise ValueError("ticker cannot be empty")
 
-    pillars_agent = ExaAgent(
-        system_prompt=PILLARS_SYSTEM_PROMPT,
-        output_schema=Pillars,
-    )
-    pillars = pillars_agent.invoke(ticker_symbol)
-
-    outlook_agent = ExaAgent(
-        system_prompt=OUTLOOK_SYSTEM_PROMPT,
-        output_schema=Outlook,
-    )
-    outlook_query = OUTLOOK_QUERY.format(
-        ticker=ticker_symbol,
-        pillars=pillars.model_dump_json(),
-    )
-    outlook = outlook_agent.invoke(outlook_query)
-
-    label_model = ChatOpenRouter(
-        model=_resolve_model_name(),
-        temperature=0.1,
-        reasoning_effort="medium",
-    )
-    label_query = LABEL_QUERY.format(
-        ticker=ticker_symbol,
-        pillars=pillars.model_dump_json(),
-        outlook=outlook.model_dump_json(),
-    )
-    structured_label_model = label_model.with_structured_output(TickerLabelsRaw)
-    result = structured_label_model.invoke(f"{LABEL_SYSTEM_PROMPT}\n\n{label_query}")
-
-    normalized_labels = _normalize_labels(result.labels)
-
-    if not normalized_labels:
-        raise ValueError(f"Could not normalize labels into INDUSTRY_LABELS: {result.labels}")
-
-    return TickerLabelsResult(labels=normalized_labels)
+    graph = _build_label_graph()
+    response = graph.invoke(LabelGraphInput(ticker=ticker_symbol))
+    labels = response.get("labels")
+    if not labels:
+        raise ValueError("Label graph did not produce labels")
+    return labels
 
 
 if __name__ == "__main__":
