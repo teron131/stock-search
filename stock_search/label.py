@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 
 from langgraph.graph import END, START, StateGraph
@@ -52,16 +53,6 @@ class TickerLabels(BaseModel):
         if invalid_labels:
             raise ValueError(f"labels must come from INDUSTRY_LABELS. Invalid: {invalid_labels}")
         return self
-
-
-class TickerLabelsRaw(BaseModel):
-    labels: list[str] = Field(
-        default_factory=list,
-        description="Raw multi-label tags before normalization.",
-        min_length=1,
-        max_length=3,
-    )
-    rationale: str = Field(description="One concise sentence explaining the selected labels.")
 
 
 class LabelGraphInput(BaseModel):
@@ -142,15 +133,15 @@ def _normalize_labels(labels: list[str]) -> list[str]:
 
 
 def _build_label_graph():
-    def run_pillars(state: LabelGraphState) -> dict[str, Pillars]:
+    async def get_pillars(state: LabelGraphState) -> dict[str, Pillars]:
         pillars_agent = ExaAgent(
             system_prompt=PILLARS_SYSTEM_PROMPT,
             output_schema=Pillars,
         )
-        pillars = pillars_agent.invoke(state.ticker)
+        pillars = await asyncio.to_thread(pillars_agent.invoke, state.ticker)
         return {"pillars": pillars}
 
-    def run_outlook(state: LabelGraphState) -> dict[str, Outlook]:
+    async def get_outlook(state: LabelGraphState) -> dict[str, Outlook]:
         outlook_agent = ExaAgent(
             system_prompt=OUTLOOK_SYSTEM_PROMPT,
             output_schema=Outlook,
@@ -159,10 +150,10 @@ def _build_label_graph():
             ticker=state.ticker,
             pillars=state.pillars.model_dump_json(),
         )
-        outlook = outlook_agent.invoke(outlook_query)
+        outlook = await asyncio.to_thread(outlook_agent.invoke, outlook_query)
         return {"outlook": outlook}
 
-    def run_label_model(state: LabelGraphState) -> dict[str, TickerLabels]:
+    async def get_labels(state: LabelGraphState) -> dict[str, TickerLabels]:
         label_model = ChatOpenRouter(
             model=_resolve_model_name(),
             temperature=0.1,
@@ -173,8 +164,11 @@ def _build_label_graph():
             pillars=state.pillars.model_dump_json(),
             outlook=state.outlook.model_dump_json(),
         )
-        structured_label_model = label_model.with_structured_output(TickerLabelsRaw)
-        raw_result = structured_label_model.invoke(f"{LABEL_SYSTEM_PROMPT}\n\n{label_query}")
+        structured_label_model = label_model.with_structured_output(TickerLabels)
+        raw_result = await asyncio.to_thread(
+            structured_label_model.invoke,
+            f"{LABEL_SYSTEM_PROMPT}\n\n{label_query}",
+        )
 
         normalized_labels = _normalize_labels(raw_result.labels)
         if not normalized_labels:
@@ -188,9 +182,9 @@ def _build_label_graph():
         output_schema=LabelGraphOutput,
     )
 
-    graph.add_node("pillars", run_pillars)
-    graph.add_node("outlook", run_outlook)
-    graph.add_node("labels", run_label_model)
+    graph.add_node("pillars", get_pillars)
+    graph.add_node("outlook", get_outlook)
+    graph.add_node("labels", get_labels)
 
     graph.add_edge(START, "pillars")
     graph.add_edge("pillars", "outlook")
@@ -200,17 +194,25 @@ def _build_label_graph():
     return graph.compile()
 
 
-def run_label(ticker: str) -> TickerLabels:
+async def arun_label(ticker: str) -> TickerLabels:
     ticker_symbol = ticker.strip().upper()
     if not ticker_symbol:
         raise ValueError("ticker cannot be empty")
 
     graph = _build_label_graph()
-    response = graph.invoke(LabelGraphInput(ticker=ticker_symbol))
+    response = await graph.ainvoke(LabelGraphInput(ticker=ticker_symbol))
     labels = response.get("labels")
     if not labels:
         raise ValueError("Label graph did not produce labels")
     return labels
+
+
+def run_label(ticker: str) -> TickerLabels:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(arun_label(ticker))
+    raise RuntimeError("run_label cannot be called from an active event loop; use arun_label instead")
 
 
 if __name__ == "__main__":
