@@ -45,7 +45,7 @@ class TickerLabels(BaseModel):
         default_factory=list,
         description="Multi-label tags from the provided sector/industry taxonomy.",
         min_length=1,
-        max_length=3,
+        max_length=5,
     )
 
     @model_validator(mode="after")
