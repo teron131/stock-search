@@ -8,11 +8,9 @@ from pydantic import BaseModel, Field, model_validator
 from rich import print as rprint
 
 from stock_search.schemas import INDUSTRY_LABELS
+from test_label import LABEL_QUERY
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
-
-OUTLOOK_QUERY = "Ticker: {ticker}\nCompany pillars context: {pillars}\nProvide concise outlook and sector/industry exposure impact."
-LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels and rationale."
 
 
 class Pillar(BaseModel):
@@ -78,6 +76,8 @@ Rules:
 - Keep output concise and factual.
 """
 
+OUTLOOK_QUERY = "Ticker: {ticker}\nCompany pillars context: {pillars}\nProvide concise outlook and sector/industry exposure impact."
+
 
 OUTLOOK_SYSTEM_PROMPT = """Perspective 2: Forward outlook and exposure shift.
 
@@ -110,6 +110,8 @@ Rules:
 Allowed label pool (must choose only from these):
 {", ".join(INDUSTRY_LABELS)}
 """
+
+LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels and rationale."
 
 
 def _resolve_model_name() -> str:
