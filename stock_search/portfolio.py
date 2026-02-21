@@ -50,7 +50,7 @@ _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
     "mtd_change_percent",
     "ytd_change_percent",
 )
-_LABEL_CACHE_PATH = Path("data/portfolio_labels_cache.json")
+_LABEL_CACHE_STATS_PATH = Path("data/stats.json")
 _PORTFOLIO_LABEL_FIELD = "industry_labels"
 
 
@@ -70,23 +70,38 @@ def normalize_labels(value: Any) -> list[str]:
     return labels
 
 
-def _load_label_cache(path: Path = _LABEL_CACHE_PATH) -> dict[str, list[str]]:
-    raw_cache = load_json(path, default={})
-    if not isinstance(raw_cache, dict):
+def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, list[str]]:
+    stats_data = load_json(path, default={})
+    if not isinstance(stats_data, dict):
         return {}
     cache: dict[str, list[str]] = {}
-    for ticker, labels in raw_cache.items():
+    for ticker, row in stats_data.items():
+        if not isinstance(row, dict):
+            continue
         ticker_symbol = normalize_ticker_symbol(str(ticker))
         if not ticker_symbol:
             continue
-        normalized = normalize_labels(labels)
+        normalized = normalize_labels(row.get(_PORTFOLIO_LABEL_FIELD) or row.get("labels"))
         if normalized:
             cache[ticker_symbol] = normalized
     return cache
 
 
-def _save_label_cache(cache: dict[str, list[str]], path: Path = _LABEL_CACHE_PATH) -> None:
-    write_json(path, cache)
+def _save_label_cache(cache: dict[str, list[str]], path: Path = _LABEL_CACHE_STATS_PATH) -> None:
+    stats_data = load_json(path, default={})
+    if not isinstance(stats_data, dict):
+        stats_data = {}
+
+    for ticker, labels in cache.items():
+        ticker_symbol = normalize_ticker_symbol(ticker)
+        if not ticker_symbol:
+            continue
+        existing = stats_data.get(ticker_symbol, {})
+        row = dict(existing) if isinstance(existing, dict) else {}
+        row[_PORTFOLIO_LABEL_FIELD] = labels
+        stats_data[ticker_symbol] = row
+
+    write_json(path, stats_data)
 
 
 def _extract_labels_from_positions(positions: list[dict[str, Any]]) -> dict[str, list[str]]:
@@ -124,7 +139,7 @@ def resolve_portfolio_labels(
     *,
     fetch_missing: bool = True,
     max_concurrency: int = 4,
-    cache_path: Path = _LABEL_CACHE_PATH,
+    cache_path: Path = _LABEL_CACHE_STATS_PATH,
 ) -> dict[str, list[str]]:
     tickers = _portfolio_tickers(positions)
     if not tickers:
@@ -161,7 +176,7 @@ async def resolve_portfolio_labels_async(
     *,
     fetch_missing: bool = True,
     max_concurrency: int = 4,
-    cache_path: Path = _LABEL_CACHE_PATH,
+    cache_path: Path = _LABEL_CACHE_STATS_PATH,
 ) -> dict[str, list[str]]:
     tickers = _portfolio_tickers(positions)
     if not tickers:
