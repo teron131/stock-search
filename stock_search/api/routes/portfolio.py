@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from stock_search.api.meta import now_iso, stats_cache_generated_at
-from stock_search.file_utils import load_json, write_json
+from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
 from stock_search.indicators import StockIndicator
 from stock_search.portfolio import get_portfolio_payload_async, normalize_labels
 from stock_search.schemas import PortfolioPositionInput
@@ -71,33 +71,10 @@ class PortfolioImageExtraction(BaseModel):
     holdings: list[PortfolioLineItem] = Field(default_factory=list)
 
 
-def _load_positions() -> list[dict[str, Any]]:
-    portfolio_data = load_json(PORTFOLIO_PATH, default=[])
-    if isinstance(portfolio_data, list):
-        return [row for row in portfolio_data if isinstance(row, dict)]
-    if isinstance(portfolio_data, dict):
-        positions = portfolio_data.get("positions", [])
-        if isinstance(positions, list):
-            return [row for row in positions if isinstance(row, dict)]
-    return []
-
-
-def _save_positions(positions: list[dict[str, Any]]) -> None:
-    write_json(PORTFOLIO_PATH, {"positions": positions})
-
-
 def _ensure_valid_new_ticker(ticker: str) -> None:
     indicator = StockIndicator(ticker)
     if indicator.price is None:
         raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
-
-
-def _find_position_index(positions: list[dict[str, Any]], ticker: str) -> int | None:
-    ticker_upper = ticker.upper()
-    return next(
-        (index for index, position in enumerate(positions) if position.get("ticker", "").upper() == ticker_upper),
-        None,
-    )
 
 
 def _extract_holdings_from_image_bytes(
@@ -181,8 +158,8 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
 @router.patch("/api/portfolio/{ticker}")
 def patch_position(ticker: str, patch: PortfolioPositionPatch):
     ticker_upper = ticker.upper()
-    positions = _load_positions()
-    idx = _find_position_index(positions, ticker_upper)
+    positions = load_positions()
+    idx = find_position_index(positions, ticker_upper)
 
     if idx is None:
         if patch.quantity is None and patch.strategy is None:
@@ -204,15 +181,15 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
             current["strategy"] = patch.strategy
 
     positions[idx] = StoredPortfolioPosition.model_validate(current).to_storage_dict()
-    _save_positions(positions)
+    save_positions(positions)
     return {"status": "ok", "ticker": ticker_upper, "position": positions[idx]}
 
 
 @router.delete("/api/portfolio/{ticker}")
 def remove_position(ticker: str):
     ticker_upper = ticker.upper()
-    positions = [position for position in _load_positions() if position.get("ticker", "").upper() != ticker_upper]
-    _save_positions(positions)
+    positions = [position for position in load_positions() if position.get("ticker", "").upper() != ticker_upper]
+    save_positions(positions)
     return {"status": "ok", "ticker": ticker_upper}
 
 
@@ -240,8 +217,8 @@ async def import_portfolio_image_api(
         image_filename=file.filename,
         model_override=model,
     )
-    positions = [] if replace else _load_positions()
-    index_by_ticker = {str(position.get("ticker", "")).upper(): idx for idx, position in enumerate(positions)}
+    positions = [] if replace else load_positions()
+    position_index = {str(position.get("ticker", "")).upper(): idx for idx, position in enumerate(positions)}
     applied: list[dict[str, Any]] = []
 
     for item in extraction.holdings:
@@ -255,19 +232,19 @@ async def import_portfolio_image_api(
             payload["strategy"] = strategy
 
         validated = StoredPortfolioPosition.model_validate(payload).to_storage_dict()
-        if ticker in index_by_ticker:
-            existing = dict(positions[index_by_ticker[ticker]])
+        if ticker in position_index:
+            existing = dict(positions[position_index[ticker]])
             existing["quantity"] = quantity
             if strategy:
                 existing["strategy"] = strategy
-            positions[index_by_ticker[ticker]] = StoredPortfolioPosition.model_validate(existing).to_storage_dict()
+            positions[position_index[ticker]] = StoredPortfolioPosition.model_validate(existing).to_storage_dict()
         else:
             positions.append(validated)
-            index_by_ticker[ticker] = len(positions) - 1
+            position_index[ticker] = len(positions) - 1
 
         applied.append({"ticker": ticker, "quantity": quantity})
 
-    _save_positions(positions)
+    save_positions(positions)
     return {
         "status": "ok",
         "applied_count": len(applied),
