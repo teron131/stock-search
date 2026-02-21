@@ -201,12 +201,48 @@ async def aget_label(ticker: str) -> TickerLabels:
     return labels
 
 
+async def aget_labels(
+    tickers: list[str],
+    *,
+    max_concurrency: int = 4,
+) -> dict[str, TickerLabels]:
+    normalized_tickers = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
+    ordered_unique_tickers = list(dict.fromkeys(normalized_tickers))
+    if not ordered_unique_tickers:
+        return {}
+
+    semaphore = asyncio.Semaphore(max(1, max_concurrency))
+
+    async def _fetch_one(ticker_symbol: str) -> tuple[str, TickerLabels | None]:
+        async with semaphore:
+            try:
+                labels = await aget_label(ticker_symbol)
+            except Exception:
+                return ticker_symbol, None
+            return ticker_symbol, labels
+
+    results = await asyncio.gather(*(_fetch_one(ticker_symbol) for ticker_symbol in ordered_unique_tickers))
+    return {ticker_symbol: labels for ticker_symbol, labels in results if labels is not None}
+
+
 def get_label(ticker: str) -> TickerLabels:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(aget_label(ticker))
     raise RuntimeError("get_label cannot be called from an active event loop; use aget_label instead")
+
+
+def get_labels(
+    tickers: list[str],
+    *,
+    max_concurrency: int = 4,
+) -> dict[str, TickerLabels]:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(aget_labels(tickers, max_concurrency=max_concurrency))
+    raise RuntimeError("get_labels cannot be called from an active event loop; use aget_labels instead")
 
 
 if __name__ == "__main__":
