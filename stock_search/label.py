@@ -6,13 +6,13 @@ from langgraph.graph import END, START, StateGraph
 from llm_harness.clients import ExaAgent
 from llm_harness.clients.openrouter import ChatOpenRouter
 from pydantic import BaseModel, Field, model_validator
-from rich import print as rprint
 
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.config import ModelConfig
 from stock_search.schemas import INDUSTRY_LABELS
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
+MAX_LABELS = 5
 
 
 class Pillar(BaseModel):
@@ -98,7 +98,7 @@ Rules:
 """
 
 
-LABEL_SYSTEM_PROMPT = f"""Final step: assign industry labels from two perspectives.
+LABEL_SYSTEM_PROMPT_TEMPLATE = """Final step: assign industry labels from two perspectives.
 
 Inputs you receive:
 - Perspective 1: current business pillars.
@@ -106,7 +106,7 @@ Inputs you receive:
 
 Task:
 - Produce final labels using ONLY those two perspectives.
-- Choose 1 to 3 labels from INDUSTRY_LABELS, ranked by importance.
+- Choose 1 to {max_labels} labels from INDUSTRY_LABELS, ranked by importance.
 
 Rules:
 - Do not introduce unsupported labels or synonyms.
@@ -115,7 +115,7 @@ Rules:
 - Keep rationale short and directly tied to Perspective 1 + Perspective 2.
 
 Allowed label pool (must choose only from these):
-{", ".join(INDUSTRY_LABELS)}
+{allowed_labels}
 """
 
 LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels and rationale."
@@ -123,7 +123,14 @@ LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\
 
 def _normalize_labels(labels: list[str]) -> list[str]:
     ordered_unique_labels = list(dict.fromkeys(labels))
-    return [label for label in ordered_unique_labels if label in INDUSTRY_LABEL_SET][:3]
+    return [label for label in ordered_unique_labels if label in INDUSTRY_LABEL_SET][:MAX_LABELS]
+
+
+def _build_label_system_prompt() -> str:
+    return LABEL_SYSTEM_PROMPT_TEMPLATE.format(
+        max_labels=MAX_LABELS,
+        allowed_labels=", ".join(INDUSTRY_LABELS),
+    )
 
 
 def _build_label_graph():
@@ -161,7 +168,7 @@ def _build_label_graph():
         structured_label_model = label_model.with_structured_output(TickerLabels)
         raw_result = await asyncio.to_thread(
             structured_label_model.invoke,
-            f"{LABEL_SYSTEM_PROMPT}\n\n{label_query}",
+            f"{_build_label_system_prompt()}\n\n{label_query}",
         )
 
         normalized_labels = _normalize_labels(raw_result.labels)
@@ -243,7 +250,3 @@ def get_labels(
     except RuntimeError:
         return asyncio.run(aget_labels(tickers, max_concurrency=max_concurrency))
     raise RuntimeError("get_labels cannot be called from an active event loop; use aget_labels instead")
-
-
-if __name__ == "__main__":
-    rprint(get_label("NVDA"))
