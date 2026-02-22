@@ -76,6 +76,12 @@ PILLARS_SYSTEM_PROMPT = """Perspective: Current business pillars.
 Task:
 - Identify the company's current core pillars that drive revenue/profit/value today.
 
+Finance guidance (be economically grounded):
+- Prefer segment reporting and how the company itself breaks out revenue/profit (10-K/20-F, earnings deck, IR materials).
+- Separate distinct business models when relevant (subscription vs usage-based, hardware vs services, ads vs transaction fees).
+- Anchor pillars to cash-flow drivers (where gross profit comes from), not headlines or TAM narratives.
+- If you provide `portion`, base it on reported segment mix or best-effort inference and keep it directionally plausible.
+
 Rules:
 - Use high-signal sources: filings, earnings materials, investor relations, reputable financial reporting.
 - Avoid low-signal aggregation summaries.
@@ -91,6 +97,13 @@ OUTLOOK_SYSTEM_PROMPT = """Perspective: Forward outlook and exposure shift.
 Task:
 - Based on current pillars + fresh evidence, summarize near/medium-term outlook.
 - Explain whether sector/industry exposure is likely to shift or mostly deepen.
+
+Finance guidance (what to cover):
+- Demand drivers: cyclical vs secular, and key end-markets.
+- Competitive dynamics: pricing power, substitutes, switching costs, market share trajectory.
+- Margin structure: mix shift, operating leverage, input costs.
+- Risk factors: regulatory, customer concentration, geopolitics/supply chain, credit cycle (if relevant).
+- Keep it timeframe-aware: near-term (next ~4 quarters) vs medium-term (1-3 years).
 
 Rules:
 - Stay practical and concise; avoid deep speculation.
@@ -108,17 +121,30 @@ Task:
 - Produce final labels using ONLY those two perspectives.
 - Choose 1 to {max_labels} labels from INDUSTRY_LABELS, ranked by importance.
 
-Rules:
+Finance guidance (how to choose labels):
+- Label the company by *economic exposure* (where revenue/gross profit is earned) rather than buzzwords.
+- If the company is a "picks-and-shovels" supplier, label by the primary customer end-market(s) implied by pillars.
+- If the company is diversified, pick labels that correspond to distinct pillars that together explain most of the business.
+
+Selection rubric (consistency rules):
+- Anchor each chosen label to a concrete pillar or outlook statement (revenue/profit/value driver).
+- Prefer the most specific label that fits the described business; avoid overly broad labels.
+- Do not pick "adjacent" labels just because they are related; pick the best-fit exposure.
+- If two labels overlap, keep the more specific one unless there are clearly separate pillars.
+- Order labels by estimated contribution to valuation/revenue today, then by near-term direction from outlook.
+
+Hard rules:
 - Do not introduce unsupported labels or synonyms.
-- Do not rely on website taxonomies; use your own reasoning.
+- Do not rely on website taxonomies or third-party label sets.
+- Do not copy labels from what you may have seen on websites; decide labels yourself based on the facts in the pillars/outlook.
 - Do not perform web search in this final step.
-- Keep rationale short and directly tied to Perspective 1 + Perspective 2.
+- Output only the `labels` field (no extra text).
 
 Allowed label pool (must choose only from these):
 {allowed_labels}
 """
 
-LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels and rationale."
+LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels."
 
 
 def _normalize_labels(labels: list[str]) -> list[str]:
