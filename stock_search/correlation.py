@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
@@ -280,12 +281,11 @@ def _slice_returns_to_lookback(returns: pd.DataFrame, years: int) -> pd.DataFram
     return returns.loc[returns.index >= start_ts]
 
 
-def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFrame:
-    if returns.empty or market_ticker not in returns.columns:
-        return pd.DataFrame(index=returns.index)
-
+def _iter_market_aligned_arrays(
+    returns: pd.DataFrame,
+    market_ticker: str,
+) -> Iterator[tuple[str, pd.Index, np.ndarray, np.ndarray]]:
     market_returns = returns[market_ticker].dropna()
-    residual_series_by_ticker: dict[str, pd.Series] = {}
     for ticker in returns.columns:
         if ticker == market_ticker:
             continue
@@ -296,6 +296,15 @@ def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFr
 
         aligned_market = market_returns.loc[aligned_index].to_numpy(dtype="float64")
         aligned_ticker = ticker_returns.loc[aligned_index].to_numpy(dtype="float64")
+        yield ticker, aligned_index, aligned_ticker, aligned_market
+
+
+def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFrame:
+    if returns.empty or market_ticker not in returns.columns:
+        return pd.DataFrame(index=returns.index)
+
+    residual_series_by_ticker: dict[str, pd.Series] = {}
+    for ticker, aligned_index, aligned_ticker, aligned_market in _iter_market_aligned_arrays(returns, market_ticker):
         centered_market = aligned_market - aligned_market.mean()
         market_sum_squares = float(centered_market @ centered_market)
         if market_sum_squares <= 0:
@@ -316,18 +325,8 @@ def _estimate_market_betas(returns: pd.DataFrame, market_ticker: str) -> dict[st
     if returns.empty or market_ticker not in returns.columns:
         return {}
 
-    market_returns = returns[market_ticker].dropna()
     betas: dict[str, float] = {}
-    for ticker in returns.columns:
-        if ticker == market_ticker:
-            continue
-        ticker_returns = returns[ticker].dropna()
-        aligned_index = market_returns.index.intersection(ticker_returns.index)
-        if len(aligned_index) < MIN_RESIDUAL_OBSERVATIONS:
-            continue
-
-        aligned_market = market_returns.loc[aligned_index].to_numpy(dtype="float64")
-        aligned_ticker = ticker_returns.loc[aligned_index].to_numpy(dtype="float64")
+    for ticker, _aligned_index, aligned_ticker, aligned_market in _iter_market_aligned_arrays(returns, market_ticker):
         centered_market = aligned_market - aligned_market.mean()
         market_sum_squares = float(centered_market @ centered_market)
         if market_sum_squares <= 0:
@@ -355,12 +354,11 @@ def _build_blended_matrix(
     for horizon in horizons:
         full_horizon_returns = return_frames.by_name(horizon.name)
         if tail_market_ticker:
-            if tail_market_ticker not in full_horizon_returns.columns:
-                full_horizon_returns = full_horizon_returns.iloc[0:0]
-            else:
-                full_horizon_returns = full_horizon_returns.loc[full_horizon_returns[tail_market_ticker] < 0.0]
+            market_returns = full_horizon_returns.get(tail_market_ticker)
+            full_horizon_returns = full_horizon_returns.iloc[0:0] if market_returns is None else full_horizon_returns.loc[market_returns < 0.0]
         if correlation_mode == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker:
             full_horizon_returns = _residualize_returns(full_horizon_returns, market_proxy_ticker)
+        min_observations = HORIZON_MIN_OBSERVATIONS.get(horizon.name, MIN_OBSERVATIONS_FOR_FISHER)
         for lookback in lookbacks:
             horizon_returns = _slice_returns_to_lookback(full_horizon_returns, lookback.years)
             horizon_returns = horizon_returns.reindex(columns=tickers)
@@ -368,7 +366,6 @@ def _build_blended_matrix(
                 continue
             combined_intent_weight = horizon.intent_weight * lookback.intent_weight
             component_name = f"{horizon.name}_{lookback.years}y"
-            min_observations = HORIZON_MIN_OBSERVATIONS.get(horizon.name, MIN_OBSERVATIONS_FOR_FISHER)
             source_inputs.append(
                 CorrelationInputs(
                     name=component_name,
@@ -494,26 +491,21 @@ def main() -> dict[str, Any]:
     correlation_closes = closes.reindex(columns=correlation_tickers).dropna(how="all")
     stats_closes = closes.reindex(columns=active_tickers).dropna(how="all")
     residual_market_ticker = market_proxy_ticker if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL else None
-    raw_matrix, psd_matrix, diagnostics = _build_blended_matrix(
-        closes=correlation_closes,
-        tickers=active_tickers,
-        horizons=HORIZONS,
-        lookbacks=LOOKBACKS,
-        blend_weight_mode=BLEND_WEIGHT_MODE,
-        correlation_mode=CORRELATION_MODE,
-        market_proxy_ticker=residual_market_ticker,
-    )
+    blend_kwargs = {
+        "closes": correlation_closes,
+        "tickers": active_tickers,
+        "horizons": HORIZONS,
+        "lookbacks": LOOKBACKS,
+        "blend_weight_mode": BLEND_WEIGHT_MODE,
+        "correlation_mode": CORRELATION_MODE,
+        "market_proxy_ticker": residual_market_ticker,
+    }
+    raw_matrix, psd_matrix, diagnostics = _build_blended_matrix(**blend_kwargs)
     tail_raw_matrix = pd.DataFrame()
     tail_psd_matrix = pd.DataFrame()
     if market_proxy_ticker and market_proxy_ticker in correlation_closes.columns:
         tail_raw_matrix, tail_psd_matrix, tail_diagnostics = _build_blended_matrix(
-            closes=correlation_closes,
-            tickers=active_tickers,
-            horizons=HORIZONS,
-            lookbacks=LOOKBACKS,
-            blend_weight_mode=BLEND_WEIGHT_MODE,
-            correlation_mode=CORRELATION_MODE,
-            market_proxy_ticker=residual_market_ticker,
+            **blend_kwargs,
             tail_market_ticker=market_proxy_ticker,
         )
         diagnostics["tail"] = tail_diagnostics
