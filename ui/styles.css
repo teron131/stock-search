@@ -17,46 +17,44 @@
   --positive: #089981; /* TradingView Green */
   --negative: #f23645; /* TradingView Red */
 
-  /* Spatial */
-  --sidebar-width: 200px;
-  --sidebar-collapsed-width: 60px;
-  --header-height: 60px;
-  --row-height: 60px;
-  --table-visible-rows: 10;
+  /* Spatial - Bloomberg Dense */
+  --header-height: 56px;
+  --row-height: 28px;
+  --table-visible-rows: 25;
 
   /* Border Radius */
-  --radius-sm: 8px; /* Small elements (icons, buttons) */
-  --radius-md: 12px; /* Cards, panels */
-  --radius-full: 999px; /* Pills, fully rounded */
+  --radius-sm: 0px; 
+  --radius-md: 2px; 
+  --radius-full: 4px; 
 
-  /* Spacing Scale */
-  --space-xs: 0.5rem; /* 8px - Tight spacing */
-  --space-sm: 0.75rem; /* 12px - Small gaps */
-  --space-md: 1rem; /* 16px - Standard spacing */
-  --space-lg: 1.5rem; /* 24px - Section padding */
-  --space-xl: 2rem; /* 32px - Large gaps */
-  --space-2xl: 2.5rem; /* 40px - Panel padding */
-  --space-3xl: 3rem; /* 48px - Major sections */
-  --space-4xl: 4rem; /* 64px - Page margins */
+  /* Spacing Scale - Condensed */
+  --space-xs: 0.25rem; /* 4px */
+  --space-sm: 0.5rem; /* 8px */
+  --space-md: 0.75rem; /* 12px */
+  --space-lg: 1rem; /* 16px */
+  --space-xl: 1.5rem; /* 24px */
+  --space-2xl: 2rem; /* 32px */
+  --space-3xl: 2.5rem; /* 40px */
+  --space-4xl: 3rem; /* 48px */
 
   /* Legacy spatial variables */
   --card-radius: var(--radius-md);
-  --panel-glow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  --panel-glow: none;
 
   /* Typography */
-  --font-display: "Fraunces", serif;
-  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-display: "IBM Plex Mono", monospace;
+  --font-sans: "IBM Plex Mono", monospace;
   --font-mono: "IBM Plex Mono", monospace;
 
   /* Typography Scale */
-  --text-xs: 10px; /* Labels, timestamps, system text */
-  --text-sm: 11px; /* Buttons, badges, table headers */
-  --text-base: 13px; /* Body text, table cells */
-  --text-lg: 16px; /* Meta values */
-  --text-display: 32px; /* Large stats */
+  --text-xs: 9px;
+  --text-sm: 10px;
+  --text-base: 11px;
+  --text-lg: 13px;
+  --text-display: 20px;
 
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.8);
+  --shadow-sm: none;
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
 
   /* Legacy variable mappings to minimize breaks */
   --bg-dark: var(--bg-deep);
@@ -1446,4 +1444,133 @@ tv-ticker-tag {
     flex-wrap: wrap;
     min-height: 44px;
   }
+}
+
+/* Bloomberg Style Layout Additions */
+.terminal-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.slide-menu {
+  position: fixed;
+  top: 0;
+  left: -250px;
+  width: 250px;
+  height: 100vh;
+  background-color: var(--bg-surface-high);
+  z-index: 1000;
+  transition: left 0.3s ease;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-menu.open {
+  left: 0;
+}
+
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.menu-overlay.active {
+  display: block;
+  opacity: 1;
+}
+
+.menu-header {
+  padding: var(--space-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  padding: 0 var(--space-sm);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.top-bar-left, .top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs);
+}
+
+.stats-strip {
+  display: flex;
+  background-color: var(--bg-surface-high);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  gap: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  flex-shrink: 0;
+}
+
+.terminal-grid {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Force table density */
+.data-table th, .data-table td {
+  padding: var(--space-xs) !important;
+  font-size: var(--text-xs) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-right: 1px solid var(--border) !important;
+  white-space: nowrap;
+}
+
+.data-table tr {
+  height: var(--row-height) !important;
+}
+
+.data-table {
+  border: 1px solid var(--border) !important;
+  border-spacing: 0;
+  width: 100%;
 }
