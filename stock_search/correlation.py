@@ -1,3 +1,9 @@
+"""Build a Fisher-z blended, market-neutral correlation engine for portfolio risk sizing.
+
+The matrix combines multi-horizon correlations, removes market beta when requested,
+and outputs a PSD-safe version for downstream risk math.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -10,9 +16,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from stock_search.common_utils import normalize_ticker_symbol
-from stock_search.data_sources.yahoofinance import YahooFinanceSource
-from stock_search.file_utils import load_json
+from .common_utils import normalize_ticker_symbol
+from .data_sources.yahoofinance import YahooFinanceSource
+from .file_utils import load_json
 
 PORTFOLIO_PATH = Path("data/portfolio.json")
 HISTORY_PERIOD = "5y"
@@ -387,11 +393,6 @@ def _build_blended_matrix(
         "blend_weight_mode": blend_weight_mode.value,
         "correlation_mode": correlation_mode.value,
     }
-    if market_proxy_ticker:
-        diagnostics["market_proxy_ticker"] = market_proxy_ticker
-    if tail_market_ticker:
-        diagnostics["tail_market_ticker"] = tail_market_ticker
-        diagnostics["tail_filter"] = "market_return_lt_0"
 
     raw_blended = _fisher_blended_correlation(
         tickers=tickers,
@@ -409,7 +410,6 @@ def _build_blended_matrix(
     normalized_psd_values = psd_values / np.outer(scale, scale)
     normalized_psd_values = np.clip(normalized_psd_values, -1.0, 1.0)
     np.fill_diagonal(normalized_psd_values, 1.0)
-    diagnostics["matrix_projection"] = "psd_shrink_then_eigen_clip"
     diagnostics["matrix_shrinkage"] = PSD_SHRINKAGE
     diagnostics["matrix_min_eigenvalue_raw"] = float(np.min(eigenvalues))
     diagnostics["matrix_min_eigenvalue_shrunk"] = float(np.min(shrunk_eigenvalues))
