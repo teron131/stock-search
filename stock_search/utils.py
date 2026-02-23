@@ -48,6 +48,11 @@ def _normalize_ticker(ticker: str) -> str:
     return ticker.replace(" ", "-").replace(".", "-")
 
 
+def normalize_ticker_symbol(value: str) -> str:
+    """Normalize ticker for internal storage keys (uppercase + trim)."""
+    return str(value).upper().strip()
+
+
 def parse_ticker(ticker_or_query: str) -> str:
     """Return the display name for a ticker, falling back to the ticker itself."""
     ticker_or_query = _normalize_ticker(ticker_or_query.strip().upper())

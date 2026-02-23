@@ -1,23 +1,21 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Literal
 
 from fastapi import HTTPException
 
-from stock_search.file_utils import load_json
 from stock_search.portfolio import fetch_live_stats_async, normalize_labels, resolve_portfolio_labels
 
-from .config import STATS_PATH
+from .data_store import load_stats_map
 from .portfolio_store import find_position_index, load_positions
 
 logger = logging.getLogger(__name__)
 
 
 def _load_cached_ticker_stats(ticker: str) -> dict[str, Any]:
-    stats_data = load_json(STATS_PATH, default={})
-    if not isinstance(stats_data, dict):
-        return {}
+    stats_data = load_stats_map()
     cached = stats_data.get(ticker.upper())
     return cached if isinstance(cached, dict) else {}
 
@@ -28,9 +26,9 @@ async def resolve_standalone_ticker_stats(
     source: Literal["auto", "live", "cache"],
 ) -> tuple[dict[str, Any], str]:
     ticker_upper = ticker.upper().strip()
-    positions = load_positions()
+    positions = await asyncio.to_thread(load_positions)
     labels_by_ticker = resolve_portfolio_labels(positions, fetch_missing=(source != "cache"))
-    cached = _load_cached_ticker_stats(ticker_upper)
+    cached = await asyncio.to_thread(_load_cached_ticker_stats, ticker_upper)
     idx = find_position_index(positions, ticker_upper)
     position = (
         positions[idx]

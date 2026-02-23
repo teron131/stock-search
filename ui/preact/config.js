@@ -8,6 +8,7 @@ export const CONFIG = {
     portfolioImportImage: "/api/portfolio/import-image",
     eval: "/api/eval",
     colorStandards: "/api/color-standards",
+    realtimeConfig: "/api/realtime-config",
   },
 
   requestTimeoutMs: {

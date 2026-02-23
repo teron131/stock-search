@@ -12,6 +12,7 @@ from llm_harness.clients import ImageAnalysisAgent
 from pydantic import BaseModel, Field
 
 from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
+from stock_search.api.data_store import backend_name
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
 from stock_search.indicators import StockIndicator
@@ -141,6 +142,8 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
     generated_at = stats_cache_generated_at(STATS_PATH) if scope_config["use_cache_timestamp"] else now_iso()
     payload["meta"]["generated_at"] = generated_at
     payload["meta"]["data_source"] = PORTFOLIO_DATA_SOURCE[resolved_scope]
+    payload["meta"]["backend_store"] = backend_name()
+    payload["meta"]["sync_mode"] = "realtime_subscription"
     elapsed_ms = (perf_counter() - started_at) * 1000
     logger.info(
         "portfolio_api scope=%s rows=%s live=%s cached_universe=%s duration_ms=%.1f",

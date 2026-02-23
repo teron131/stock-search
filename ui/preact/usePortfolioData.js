@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -236,6 +237,11 @@ export function usePortfolioData() {
 
   const syncInFlightRef = useRef(false);
   const demoPathRef = useRef(null);
+  const syncActionRef = useRef(null);
+  const realtimeClientRef = useRef(null);
+  const realtimeUnsubscribersRef = useRef([]);
+  const realtimeRefreshTimeoutRef = useRef(null);
+  const realtimeEnabledRef = useRef(false);
 
   const resolveDemoPath = useCallback(async () => {
     if (demoPathRef.current) return demoPathRef.current;
@@ -312,6 +318,69 @@ export function usePortfolioData() {
     return fetchStaticPortfolioData(basePath);
   }, [resolveDemoPath]);
 
+  const stopRealtimeSync = useCallback(async () => {
+    if (realtimeRefreshTimeoutRef.current != null) {
+      clearTimeout(realtimeRefreshTimeoutRef.current);
+      realtimeRefreshTimeoutRef.current = null;
+    }
+    realtimeUnsubscribersRef.current.forEach((unsubscribe) => {
+      try {
+        unsubscribe();
+      } catch {
+        // no-op
+      }
+    });
+    realtimeUnsubscribersRef.current = [];
+    const client = realtimeClientRef.current;
+    realtimeClientRef.current = null;
+    realtimeEnabledRef.current = false;
+    if (client && typeof client.close === "function") {
+      try {
+        await client.close();
+      } catch {
+        // no-op
+      }
+    }
+  }, []);
+
+  const startRealtimeSync = useCallback(async () => {
+    if (CONFIG.isDemoMode || realtimeEnabledRef.current) return false;
+    const realtimeConfig = await tryFetchJson(CONFIG.endpoints.realtimeConfig);
+    if (!realtimeConfig?.enabled || !realtimeConfig?.convex_url) {
+      return false;
+    }
+
+    const convex = await import("https://esm.sh/convex@1.32.0/browser");
+    const { BaseConvexClient } = convex || {};
+    if (!BaseConvexClient) {
+      return false;
+    }
+
+    const triggerSync = () => {
+      if (syncInFlightRef.current) return;
+      if (realtimeRefreshTimeoutRef.current != null) {
+        clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
+      realtimeRefreshTimeoutRef.current = setTimeout(() => {
+        const sync = syncActionRef.current;
+        if (typeof sync === "function") {
+          sync({ background: true, silent: true, scope: "all" });
+        }
+      }, 250);
+    };
+
+    const client = new BaseConvexClient(realtimeConfig.convex_url, triggerSync);
+    const subscriptions = ["positions:list", "stats:list", "evals:list"].map(
+      (queryName) => client.subscribe(queryName, {}),
+    );
+    realtimeUnsubscribersRef.current = subscriptions.map(
+      ({ unsubscribe }) => unsubscribe,
+    );
+    realtimeClientRef.current = client;
+    realtimeEnabledRef.current = true;
+    return true;
+  }, []);
+
   const loadFromApi = useCallback(
     async ({ background = false, scope = "all" } = {}) => {
       const shouldFetchMetadata = !background;
@@ -360,6 +429,7 @@ export function usePortfolioData() {
 
       try {
         if (CONFIG.isDemoMode) {
+          await stopRealtimeSync();
           setIsUsingDemoData(true);
           const payload = await loadFromStatic();
           applyPayload(payload);
@@ -377,6 +447,7 @@ export function usePortfolioData() {
 
         setIsUsingDemoData(false);
         applyPayload({ dashData, evalData: {} });
+        await startRealtimeSync();
         shouldBackfill = scope === "priority" && !background;
       } catch (e) {
         setLastError(e);
@@ -387,6 +458,7 @@ export function usePortfolioData() {
 
         try {
           const payload = await loadFromStatic();
+          await stopRealtimeSync();
           setIsUsingDemoData(true);
           applyPayload(payload);
         } catch {
@@ -407,8 +479,23 @@ export function usePortfolioData() {
         }
       }
     },
-    [applyPayload, loadFromApi, loadFromStatic, loadingMode],
+    [
+      applyPayload,
+      loadFromApi,
+      loadFromStatic,
+      loadingMode,
+      startRealtimeSync,
+      stopRealtimeSync,
+    ],
   );
+
+  syncActionRef.current = load;
+
+  useEffect(() => {
+    return () => {
+      stopRealtimeSync();
+    };
+  }, [stopRealtimeSync]);
 
   const patchPortfolioPosition = useCallback(
     async ({

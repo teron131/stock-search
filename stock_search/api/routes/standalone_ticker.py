@@ -2,6 +2,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Response
 
+from stock_search.api.data_store import backend_name
 from stock_search.api.meta import now_iso
 from stock_search.api.ticker_standalone import resolve_standalone_ticker_stats
 
@@ -21,6 +22,8 @@ async def portfolio_ticker_api(
         "meta": {
             "generated_at": now_iso(),
             "data_source": data_source,
+            "backend_store": backend_name(),
+            "sync_mode": "realtime_subscription",
         },
     }
 
@@ -38,5 +41,7 @@ async def ticker_stats_api(
         "meta": {
             "generated_at": now_iso(),
             "data_source": data_source,
+            "backend_store": backend_name(),
+            "sync_mode": "realtime_subscription",
         },
     }

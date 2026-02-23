@@ -12,6 +12,13 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from stock_search.api.data_store import (
+    load_eval_map,
+    load_positions as load_positions_store,
+    load_stats_map,
+    save_stats_map,
+    set_stats_generated_at_iso,
+)
 from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, normalize_ticker_symbol, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
@@ -26,7 +33,6 @@ from stock_search.evaluation.constants import (
 )
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
 from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
-from stock_search.file_utils import load_json, write_json
 from stock_search.label import aget_labels, get_labels
 
 _HISTORY_CACHE = TieredCache[dict[str, Any]](
@@ -50,7 +56,6 @@ _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
     "mtd_change_percent",
     "ytd_change_percent",
 )
-_LABEL_CACHE_STATS_PATH = Path("data/stats.json")
 _PORTFOLIO_LABEL_FIELD = "industry_labels"
 _LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at"
 _LABEL_CACHE_MAX_AGE_DAYS = 30
@@ -81,10 +86,9 @@ def _parse_iso_timestamp(value: Any) -> datetime | None:
         return None
 
 
-def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, dict[str, Any]]:
-    stats_data = load_json(path, default={})
-    if not isinstance(stats_data, dict):
-        return {}
+def _load_label_cache(path: Path | None = None) -> dict[str, dict[str, Any]]:
+    _ = path
+    stats_data = load_stats_map()
     cache: dict[str, dict[str, Any]] = {}
     for ticker, row in stats_data.items():
         if not isinstance(row, dict):
@@ -101,10 +105,9 @@ def _load_label_cache(path: Path = _LABEL_CACHE_STATS_PATH) -> dict[str, dict[st
     return cache
 
 
-def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path = _LABEL_CACHE_STATS_PATH) -> None:
-    stats_data = load_json(path, default={})
-    if not isinstance(stats_data, dict):
-        stats_data = {}
+def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path | None = None) -> None:
+    _ = path
+    stats_data = load_stats_map()
 
     for ticker, entry in cache.items():
         ticker_symbol = normalize_ticker_symbol(ticker)
@@ -120,7 +123,7 @@ def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path = _LABEL_CACH
         row[_LABEL_FETCHED_AT_FIELD] = fetched_at.isoformat() if isinstance(fetched_at, datetime) else datetime.now(tz=UTC).isoformat()
         stats_data[ticker_symbol] = row
 
-    write_json(path, stats_data)
+    save_stats_map(stats_data)
 
 
 def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
@@ -154,7 +157,7 @@ def resolve_portfolio_labels(
     *,
     fetch_missing: bool = True,
     max_concurrency: int = 4,
-    cache_path: Path = _LABEL_CACHE_STATS_PATH,
+    cache_path: Path | None = None,
 ) -> dict[str, list[str]]:
     tickers = _portfolio_tickers(positions)
     if not tickers:
@@ -187,7 +190,7 @@ async def resolve_portfolio_labels_async(
     *,
     fetch_missing: bool = True,
     max_concurrency: int = 4,
-    cache_path: Path = _LABEL_CACHE_STATS_PATH,
+    cache_path: Path | None = None,
 ) -> dict[str, list[str]]:
     tickers = _portfolio_tickers(positions)
     if not tickers:
@@ -787,20 +790,6 @@ def _build_etf_tables(
     return ticker_table, sector_table, meta
 
 
-def _load_eval_cache(eval_path: str | Path) -> dict[str, Any]:
-    eval_data_raw = load_json(eval_path, default={})
-    if isinstance(eval_data_raw, dict):
-        return eval_data_raw
-    if not isinstance(eval_data_raw, list):
-        return {}
-
-    eval_data: dict[str, Any] = {}
-    for item in eval_data_raw:
-        if isinstance(item, dict) and (ticker := item.get("ticker")):
-            eval_data[str(ticker)] = item
-    return eval_data
-
-
 def _normalize_positions(
     portfolio_data: Any,
     stats_data: dict[str, Any],
@@ -883,11 +872,10 @@ def _load_payload_inputs(
     eval_path: str | Path,
     include_cached_universe: bool,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    portfolio_data = load_json(portfolio_path, default=[])
-    stats_data = load_json(stats_path, default={})
-    if not isinstance(stats_data, dict):
-        stats_data = {}
-    eval_data = _load_eval_cache(eval_path)
+    _ = portfolio_path, stats_path, eval_path
+    portfolio_data = load_positions_store()
+    stats_data = load_stats_map()
+    eval_data = load_eval_map()
     positions, held_positions, held_tickers = _normalize_positions(
         portfolio_data,
         stats_data,
@@ -986,7 +974,8 @@ def get_portfolio_payload(
     now = datetime.now(tz=UTC)
     resolution = classify_and_resolve_etfs(held_positions, stats_data, now)
     if resolution.cache_changed:
-        write_json(stats_path, stats_data)
+        save_stats_map(stats_data)
+        set_stats_generated_at_iso(now.isoformat())
 
     ticker_table, sector_table, table_meta = _build_etf_tables(
         rows=rows,
@@ -1010,7 +999,8 @@ async def get_portfolio_payload_async(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> dict[str, Any]:
-    stats_data, eval_data, positions, held_positions, held_tickers = _load_payload_inputs(
+    stats_data, eval_data, positions, held_positions, held_tickers = await asyncio.to_thread(
+        _load_payload_inputs,
         portfolio_path=portfolio_path,
         stats_path=stats_path,
         eval_path=eval_path,
@@ -1030,7 +1020,8 @@ async def get_portfolio_payload_async(
     now = datetime.now(tz=UTC)
     resolution = await asyncio.to_thread(classify_and_resolve_etfs, held_positions, stats_data, now)
     if resolution.cache_changed:
-        write_json(stats_path, stats_data)
+        await asyncio.to_thread(save_stats_map, stats_data)
+        await asyncio.to_thread(set_stats_generated_at_iso, now.isoformat())
 
     ticker_table, sector_table, table_meta = await asyncio.to_thread(
         _build_etf_tables,

@@ -10,6 +10,8 @@ from contextlib import suppress
 import math
 from typing import Any
 
+from .utils import normalize_ticker_symbol as _normalize_ticker_symbol
+
 
 def safe_float(value: Any) -> float | None:
     """Safely parse finite float values from any input.
@@ -69,7 +71,7 @@ def to_float(value: Any, default: float) -> float:
 
 def normalize_ticker_symbol(ticker: str) -> str:
     """Normalize ticker for internal keys without Yahoo-specific symbol rewrites."""
-    return str(ticker).upper().strip()
+    return _normalize_ticker_symbol(ticker)
 
 
 # Market cap formatting constants and function

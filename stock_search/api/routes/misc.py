@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Response
 
-from stock_search.api.config import EVAL_PATH
+from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
+from stock_search.api.data_store import load_eval_map
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
-from stock_search.file_utils import load_json
 from stock_search.indicators import StockIndicator
 
 router = APIRouter()
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/api/eval")
 def eval_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
-    return load_json(EVAL_PATH, default={})
+    return load_eval_map()
 
 
 @router.get("/api/color-standards")
@@ -63,6 +63,17 @@ def color_standards_api(response: Response) -> dict:
             "moat_score": {"min": 2.0, "max": 8.0},
             "upside_score": {"min": 2.0, "max": 8.0},
         }
+    }
+
+
+@router.get("/api/realtime-config")
+def realtime_config_api(response: Response) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "provider": "convex",
+        "enabled": bool(CONVEX_SYNC_ENABLED and CONVEX_URL),
+        "convex_url": CONVEX_URL or None,
+        "audience": CONVEX_AUDIENCE or None,
     }
 
 
