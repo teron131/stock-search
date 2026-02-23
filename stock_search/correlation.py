@@ -2,6 +2,9 @@
 
 The matrix combines multi-horizon correlations, removes market beta when requested,
 and outputs a PSD-safe version for downstream risk math.
+
+Implementation note:
+- This module is NumPy/Pandas heavy; deployment targets may need compatible binary wheels and runtime tuning (for example CPU architecture and BLAS-linked builds).
 """
 
 from __future__ import annotations
@@ -473,16 +476,11 @@ def _as_percent(value: float | None) -> str:
 
 
 def _resolve_ticker_markers(ticker: str) -> list[str]:
-    metadata = TICKER_METADATA_PLACEHOLDER.get(ticker, {})
-    markers = metadata.get("markers", [])
+    markers = TICKER_METADATA_PLACEHOLDER.get(ticker, {}).get("markers", [])
     return markers if isinstance(markers, list) else []
 
 
-def _normalize_marker(marker: str) -> str:
-    return marker.strip().lower()
-
-
-def _mean_off_diagonal_correlation(correlation_matrix: pd.DataFrame, members: list[str]) -> float:
+def _mean_pair_correlation(correlation_matrix: pd.DataFrame, members: list[str]) -> float:
     if len(members) < 2:
         return 0.0
     subset = correlation_matrix.reindex(index=members, columns=members)
@@ -505,25 +503,22 @@ def _build_sleeve_weight_recommendations(
     correlation_matrix: pd.DataFrame,
     effective_sleeve_cap: float = DEFAULT_EFFECTIVE_SLEEVE_CAP,
 ) -> list[dict[str, Any]]:
-    sleeve_members_by_marker: dict[str, list[str]] = {}
-    sleeve_label_by_marker: dict[str, str] = {}
+    members_by_marker: dict[str, list[str]] = {}
     for ticker in tickers:
         for marker in _resolve_ticker_markers(ticker):
-            normalized_marker = _normalize_marker(str(marker))
-            if not normalized_marker:
+            marker_key = str(marker).strip().lower()
+            if not marker_key:
                 continue
-            sleeve_members_by_marker.setdefault(normalized_marker, []).append(ticker)
-            sleeve_label_by_marker.setdefault(normalized_marker, str(marker).strip())
+            members_by_marker.setdefault(marker_key, []).append(ticker)
 
     recommendations: list[dict[str, Any]] = []
-    for marker in sorted(sleeve_members_by_marker):
-        marker_members = sleeve_members_by_marker[marker]
-        members = _dedupe_preserve_order(marker_members)
+    for marker in sorted(members_by_marker):
+        members = _dedupe_preserve_order(members_by_marker[marker])
         if len(members) < 2:
             continue
 
         member_count = len(members)
-        mean_correlation = _mean_off_diagonal_correlation(correlation_matrix, members)
+        mean_correlation = _mean_pair_correlation(correlation_matrix, members)
         diversification_multiplier = _sleeve_diversification_multiplier(member_count, mean_correlation)
         if diversification_multiplier <= 0:
             continue
@@ -532,7 +527,7 @@ def _build_sleeve_weight_recommendations(
         recommended_member_weight = max_total_weight / member_count
         recommendations.append(
             {
-                "marker": sleeve_label_by_marker.get(marker, marker),
+                "marker": marker,
                 "members": members,
                 "member_count": member_count,
                 "mean_pair_correlation": mean_correlation,
@@ -549,10 +544,10 @@ def main() -> dict[str, Any]:
     portfolio_tickers = _resolve_tickers()
     if not portfolio_tickers:
         raise ValueError("No tickers found. Set DEFAULT_TICKERS or add positions to data/portfolio.json.")
-    market_proxy_ticker = normalize_ticker_symbol(MARKET_PROXY_TICKER)
+    market_ticker = normalize_ticker_symbol(MARKET_PROXY_TICKER)
     fetch_tickers = portfolio_tickers.copy()
-    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker:
-        fetch_tickers.append(market_proxy_ticker)
+    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_ticker:
+        fetch_tickers.append(market_ticker)
     fetch_tickers = _dedupe_preserve_order(fetch_tickers)
 
     closes, names = _build_close_matrix_and_names(fetch_tickers)
@@ -564,12 +559,12 @@ def main() -> dict[str, Any]:
         raise ValueError("No valid close price history available for requested tickers.")
 
     correlation_tickers = active_tickers.copy()
-    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker and market_proxy_ticker in closes.columns:
-        correlation_tickers.append(market_proxy_ticker)
+    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_ticker and market_ticker in closes.columns:
+        correlation_tickers.append(market_ticker)
 
     correlation_closes = closes.reindex(columns=correlation_tickers).dropna(how="all")
     stats_closes = closes.reindex(columns=active_tickers).dropna(how="all")
-    residual_market_ticker = market_proxy_ticker if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL else None
+    blend_market_ticker = market_ticker if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL else None
     blend_kwargs = {
         "closes": correlation_closes,
         "tickers": active_tickers,
@@ -577,20 +572,20 @@ def main() -> dict[str, Any]:
         "lookbacks": LOOKBACKS,
         "blend_weight_mode": BLEND_WEIGHT_MODE,
         "correlation_mode": CORRELATION_MODE,
-        "market_proxy_ticker": residual_market_ticker,
+        "market_proxy_ticker": blend_market_ticker,
     }
     raw_matrix, psd_matrix, diagnostics = _build_blended_matrix(**blend_kwargs)
     tail_raw_matrix = pd.DataFrame()
     tail_psd_matrix = pd.DataFrame()
-    if market_proxy_ticker and market_proxy_ticker in correlation_closes.columns:
+    if market_ticker and market_ticker in correlation_closes.columns:
         tail_raw_matrix, tail_psd_matrix, tail_diagnostics = _build_blended_matrix(
             **blend_kwargs,
-            tail_market_ticker=market_proxy_ticker,
+            tail_market_ticker=market_ticker,
         )
         diagnostics["tail"] = tail_diagnostics
-    if residual_market_ticker:
+    if blend_market_ticker:
         daily_returns = _build_return_frames(correlation_closes).daily
-        diagnostics["market_betas"] = _estimate_market_betas(daily_returns, residual_market_ticker)
+        diagnostics["market_betas"] = _estimate_market_betas(daily_returns, blend_market_ticker)
     stats = _per_ticker_stats(stats_closes, names)
     stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
     sleeve_weight_recommendations = _build_sleeve_weight_recommendations(
