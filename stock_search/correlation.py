@@ -31,6 +31,7 @@ MAX_FETCH_WORKERS = 12
 MARKET_PROXY_TICKER = "SPY"
 PSD_EIGENVALUE_FLOOR = 1e-8
 PSD_SHRINKAGE = 0.05
+DEFAULT_EFFECTIVE_SLEEVE_CAP = 0.15
 HORIZON_RETURN_FRAME_KEYS: dict[str, str] = {
     "daily": "daily",
     "weekly": "weekly",
@@ -47,6 +48,11 @@ PERCENT_STATS_COLUMNS: tuple[str, ...] = (
     "monthly_std_dev",
     "annualized_std_dev",
 )
+# Placeholder until marker metadata is stored with portfolio positions.
+# Example:
+# "ITA": {"markers": ["sleeve:defense"]},
+# "SHLD": {"markers": ["sleeve:defense"]},
+TICKER_METADATA_PLACEHOLDER: dict[str, dict[str, list[str]]] = {}
 
 
 @dataclass(frozen=True)
@@ -466,6 +472,79 @@ def _as_percent(value: float | None) -> str:
     return f"{value * 100.0:.2f}%"
 
 
+def _resolve_ticker_markers(ticker: str) -> list[str]:
+    metadata = TICKER_METADATA_PLACEHOLDER.get(ticker, {})
+    markers = metadata.get("markers", [])
+    return markers if isinstance(markers, list) else []
+
+
+def _normalize_marker(marker: str) -> str:
+    return marker.strip().lower()
+
+
+def _mean_off_diagonal_correlation(correlation_matrix: pd.DataFrame, members: list[str]) -> float:
+    if len(members) < 2:
+        return 0.0
+    subset = correlation_matrix.reindex(index=members, columns=members)
+    mask = ~np.eye(len(members), dtype=bool)
+    values = subset.to_numpy(dtype="float64")[mask]
+    finite_values = values[np.isfinite(values)]
+    if len(finite_values) == 0:
+        return 0.0
+    return float(np.clip(np.mean(finite_values), -0.99, 0.99))
+
+
+def _sleeve_diversification_multiplier(member_count: int, mean_correlation: float) -> float:
+    variance_ratio = (1.0 + (member_count - 1) * mean_correlation) / member_count
+    return float(np.sqrt(max(variance_ratio, 0.0)))
+
+
+def _build_sleeve_weight_recommendations(
+    *,
+    tickers: list[str],
+    correlation_matrix: pd.DataFrame,
+    effective_sleeve_cap: float = DEFAULT_EFFECTIVE_SLEEVE_CAP,
+) -> list[dict[str, Any]]:
+    sleeve_members_by_marker: dict[str, list[str]] = {}
+    sleeve_label_by_marker: dict[str, str] = {}
+    for ticker in tickers:
+        for marker in _resolve_ticker_markers(ticker):
+            normalized_marker = _normalize_marker(str(marker))
+            if not normalized_marker:
+                continue
+            sleeve_members_by_marker.setdefault(normalized_marker, []).append(ticker)
+            sleeve_label_by_marker.setdefault(normalized_marker, str(marker).strip())
+
+    recommendations: list[dict[str, Any]] = []
+    for marker in sorted(sleeve_members_by_marker):
+        marker_members = sleeve_members_by_marker[marker]
+        members = _dedupe_preserve_order(marker_members)
+        if len(members) < 2:
+            continue
+
+        member_count = len(members)
+        mean_correlation = _mean_off_diagonal_correlation(correlation_matrix, members)
+        diversification_multiplier = _sleeve_diversification_multiplier(member_count, mean_correlation)
+        if diversification_multiplier <= 0:
+            continue
+
+        max_total_weight = float(np.clip(effective_sleeve_cap / diversification_multiplier, 0.0, 1.0))
+        recommended_member_weight = max_total_weight / member_count
+        recommendations.append(
+            {
+                "marker": sleeve_label_by_marker.get(marker, marker),
+                "members": members,
+                "member_count": member_count,
+                "mean_pair_correlation": mean_correlation,
+                "effective_sleeve_cap": effective_sleeve_cap,
+                "diversification_multiplier": diversification_multiplier,
+                "recommended_total_weight": max_total_weight,
+                "recommended_member_weight_equal": recommended_member_weight,
+            }
+        )
+    return recommendations
+
+
 def main() -> dict[str, Any]:
     portfolio_tickers = _resolve_tickers()
     if not portfolio_tickers:
@@ -514,6 +593,10 @@ def main() -> dict[str, Any]:
         diagnostics["market_betas"] = _estimate_market_betas(daily_returns, residual_market_ticker)
     stats = _per_ticker_stats(stats_closes, names)
     stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
+    sleeve_weight_recommendations = _build_sleeve_weight_recommendations(
+        tickers=active_tickers,
+        correlation_matrix=psd_matrix,
+    )
     return {
         "tickers": active_tickers,
         "matrix": psd_matrix,
@@ -523,6 +606,7 @@ def main() -> dict[str, Any]:
         "corr_normal": psd_matrix,
         "corr_tail": tail_psd_matrix,
         "corr_tail_raw": tail_raw_matrix,
+        "sleeve_weight_recommendations": sleeve_weight_recommendations,
         "stats": stats,
         "stats_percent": stats_percent,
         "diagnostics": diagnostics,
