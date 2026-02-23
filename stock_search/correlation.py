@@ -29,6 +29,11 @@ HORIZON_RETURN_FRAME_KEYS: dict[str, str] = {
     "weekly": "weekly",
     "monthly": "monthly",
 }
+HORIZON_MIN_OBSERVATIONS: dict[str, int] = {
+    "daily": 60,
+    "weekly": 26,
+    "monthly": 12,
+}
 PERCENT_STATS_COLUMNS: tuple[str, ...] = (
     "annualized_return",
     "daily_std_dev",
@@ -55,6 +60,7 @@ class CorrelationInputs:
     correlation: pd.DataFrame
     pair_counts: pd.DataFrame
     intent_weight: float
+    min_observations: int
 
 
 @dataclass(frozen=True)
@@ -204,7 +210,7 @@ def _calculate_blended_pair_correlation(
         pair_count = item.pair_counts.loc[left_ticker, right_ticker]
         if pd.isna(corr_value) or pd.isna(pair_count):
             continue
-        if pair_count < MIN_OBSERVATIONS_FOR_FISHER:
+        if pair_count < item.min_observations:
             continue
 
         clipped = float(np.clip(corr_value, -1.0 + ATANH_EPSILON, 1.0 - ATANH_EPSILON))
@@ -341,12 +347,18 @@ def _build_blended_matrix(
     blend_weight_mode: BlendWeightMode,
     correlation_mode: CorrelationMode,
     market_proxy_ticker: str | None = None,
+    tail_market_ticker: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     return_frames = _build_return_frames(closes)
     source_inputs: list[CorrelationInputs] = []
     component_diagnostics: dict[str, dict[str, float | int]] = {}
     for horizon in horizons:
         full_horizon_returns = return_frames.by_name(horizon.name)
+        if tail_market_ticker:
+            if tail_market_ticker not in full_horizon_returns.columns:
+                full_horizon_returns = full_horizon_returns.iloc[0:0]
+            else:
+                full_horizon_returns = full_horizon_returns.loc[full_horizon_returns[tail_market_ticker] < 0.0]
         if correlation_mode == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker:
             full_horizon_returns = _residualize_returns(full_horizon_returns, market_proxy_ticker)
         for lookback in lookbacks:
@@ -356,12 +368,14 @@ def _build_blended_matrix(
                 continue
             combined_intent_weight = horizon.intent_weight * lookback.intent_weight
             component_name = f"{horizon.name}_{lookback.years}y"
+            min_observations = HORIZON_MIN_OBSERVATIONS.get(horizon.name, MIN_OBSERVATIONS_FOR_FISHER)
             source_inputs.append(
                 CorrelationInputs(
                     name=component_name,
                     correlation=horizon_returns.corr(),
                     pair_counts=_pair_counts(horizon_returns, tickers),
                     intent_weight=combined_intent_weight,
+                    min_observations=min_observations,
                 )
             )
             component_diagnostics[component_name] = {
@@ -369,6 +383,7 @@ def _build_blended_matrix(
                 "horizon_intent_weight": horizon.intent_weight,
                 "lookback_intent_weight": lookback.intent_weight,
                 "combined_intent_weight": combined_intent_weight,
+                "min_observations": min_observations,
             }
     diagnostics: dict[str, Any] = {
         "components": component_diagnostics,
@@ -377,6 +392,9 @@ def _build_blended_matrix(
     }
     if market_proxy_ticker:
         diagnostics["market_proxy_ticker"] = market_proxy_ticker
+    if tail_market_ticker:
+        diagnostics["tail_market_ticker"] = tail_market_ticker
+        diagnostics["tail_filter"] = "market_return_lt_0"
 
     raw_blended = _fisher_blended_correlation(
         tickers=tickers,
@@ -485,6 +503,20 @@ def main() -> dict[str, Any]:
         correlation_mode=CORRELATION_MODE,
         market_proxy_ticker=residual_market_ticker,
     )
+    tail_raw_matrix = pd.DataFrame()
+    tail_psd_matrix = pd.DataFrame()
+    if market_proxy_ticker and market_proxy_ticker in correlation_closes.columns:
+        tail_raw_matrix, tail_psd_matrix, tail_diagnostics = _build_blended_matrix(
+            closes=correlation_closes,
+            tickers=active_tickers,
+            horizons=HORIZONS,
+            lookbacks=LOOKBACKS,
+            blend_weight_mode=BLEND_WEIGHT_MODE,
+            correlation_mode=CORRELATION_MODE,
+            market_proxy_ticker=residual_market_ticker,
+            tail_market_ticker=market_proxy_ticker,
+        )
+        diagnostics["tail"] = tail_diagnostics
     if residual_market_ticker:
         daily_returns = _build_return_frames(correlation_closes).daily
         diagnostics["market_betas"] = _estimate_market_betas(daily_returns, residual_market_ticker)
@@ -496,6 +528,9 @@ def main() -> dict[str, Any]:
         "matrix_raw": raw_matrix,
         "matrix_psd": psd_matrix,
         "matrix_rounded": psd_matrix.round(2),
+        "corr_normal": psd_matrix,
+        "corr_tail": tail_psd_matrix,
+        "corr_tail_raw": tail_raw_matrix,
         "stats": stats,
         "stats_percent": stats_percent,
         "diagnostics": diagnostics,
