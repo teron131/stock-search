@@ -306,6 +306,32 @@ def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFr
     return pd.DataFrame(residual_series_by_ticker).sort_index().dropna(how="all")
 
 
+def _estimate_market_betas(returns: pd.DataFrame, market_ticker: str) -> dict[str, float]:
+    if returns.empty or market_ticker not in returns.columns:
+        return {}
+
+    market_returns = returns[market_ticker].dropna()
+    betas: dict[str, float] = {}
+    for ticker in returns.columns:
+        if ticker == market_ticker:
+            continue
+        ticker_returns = returns[ticker].dropna()
+        aligned_index = market_returns.index.intersection(ticker_returns.index)
+        if len(aligned_index) < MIN_RESIDUAL_OBSERVATIONS:
+            continue
+
+        aligned_market = market_returns.loc[aligned_index].to_numpy(dtype="float64")
+        aligned_ticker = ticker_returns.loc[aligned_index].to_numpy(dtype="float64")
+        centered_market = aligned_market - aligned_market.mean()
+        market_sum_squares = float(centered_market @ centered_market)
+        if market_sum_squares <= 0:
+            continue
+
+        centered_ticker = aligned_ticker - aligned_ticker.mean()
+        betas[ticker] = float((centered_ticker @ centered_market) / market_sum_squares)
+    return betas
+
+
 def _build_blended_matrix(
     closes: pd.DataFrame,
     tickers: list[str],
@@ -325,7 +351,8 @@ def _build_blended_matrix(
             full_horizon_returns = _residualize_returns(full_horizon_returns, market_proxy_ticker)
         for lookback in lookbacks:
             horizon_returns = _slice_returns_to_lookback(full_horizon_returns, lookback.years)
-            if horizon_returns.empty:
+            horizon_returns = horizon_returns.reindex(columns=tickers)
+            if horizon_returns.empty or not horizon_returns.notna().any().any():
                 continue
             combined_intent_weight = horizon.intent_weight * lookback.intent_weight
             component_name = f"{horizon.name}_{lookback.years}y"
@@ -384,7 +411,8 @@ def _annualized_return(daily_returns: pd.Series) -> float | None:
     if np.any(clean_values <= -1.0):
         return None
     log_growth = np.log1p(clean_values).sum()
-    years = len(clean) / TRADING_DAYS_PER_YEAR
+    time_span = clean.index.max() - clean.index.min()
+    years = time_span / pd.Timedelta(days=365.25)
     if years <= 0:
         return None
     return float(np.expm1(log_growth / years))
@@ -457,6 +485,9 @@ def main() -> dict[str, Any]:
         correlation_mode=CORRELATION_MODE,
         market_proxy_ticker=residual_market_ticker,
     )
+    if residual_market_ticker:
+        daily_returns = _build_return_frames(correlation_closes).daily
+        diagnostics["market_betas"] = _estimate_market_betas(daily_returns, residual_market_ticker)
     stats = _per_ticker_stats(stats_closes, names)
     stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
     return {
