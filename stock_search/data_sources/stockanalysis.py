@@ -10,13 +10,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
-import os
 import re
 from typing import TypeVar
 
 from bs4 import BeautifulSoup
 import httpx
-from llm_harness.clients import WebSearchAgent, WebSearchLoaderAgent
+from llm_harness.clients import ExaAgent
 from pydantic import BaseModel, Field
 
 from stock_search.schemas import ETFHoldings, ETFSectors, Holding
@@ -44,8 +43,8 @@ SECTOR_FIELD_BY_LABEL = {
     "Other": "other",
 }
 
-STATISTICS_SYSTEM_PROMPT = """Extract statistics from this page:
-https://stockanalysis.com/stocks/{ticker}/statistics/
+STATISTICS_SYSTEM_PROMPT = """Extract statistics for {ticker}.
+Prioritize stockanalysis.com domain.
 
 Normalization rules:
 - market_cap: absolute dollars (not shorthand like B/M)
@@ -59,8 +58,8 @@ Normalization rules:
 - average_volume_20d: shares (absolute number)
 """
 
-FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics from this page:
-https://stockanalysis.com/stocks/{ticker}/financials/
+FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics for {ticker}.
+Prioritize stockanalysis.com domain.
 
 Column-selection rule (mandatory):
 - Only extract from the first data column (the current/latest column).
@@ -73,11 +72,10 @@ Normalization rules:
 - gross_margin and operating_margin: ratios (e.g. 52.49% -> 0.5249)
 """
 
-ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT = """Find ETF holdings and weightings for the given ticker.
+ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT = """Find ETF holdings and weightings for {ticker}.
 
 Rules:
-- Use web search to gather holdings from this page first:
-  - https://stockanalysis.com/etf/{ticker}/holdings/
+- Prioritize stockanalysis.com domain.
 - Return holdings only with fields:
   - ticker symbol
   - holding name
@@ -86,13 +84,10 @@ Rules:
 - Keep non-US exchange prefixes when present.
 - If unavailable, return an empty holdings list."""
 
-ETF_SECTOR_SEARCH_SYSTEM_PROMPT = """Find ETF sector allocation percentages for the given ticker.
+ETF_SECTOR_SEARCH_SYSTEM_PROMPT = """Find ETF sector allocation percentages for {ticker}.
 
 Rules:
-- Use web search to gather the latest ETF sector allocation.
-- Only use these pages as sources:
-  - https://stockanalysis.com/etf/{ticker}/holdings/
-  - https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol={ticker}
+- Prioritize stockanalysis.com and schwab.wallst.com domains.
 - Ignore Yahoo pages and any other domains.
 - Return sectors as normalized category names from the schema.
 - Use numeric weights in 0-100 format.
@@ -193,12 +188,12 @@ class StockAnalysisSource:
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
         if self._statistics_snapshot is None:
-            agent = WebSearchLoaderAgent(
-                model=os.getenv("QUALITY_LLM"),
+            agent = ExaAgent(
                 system_prompt=STATISTICS_SYSTEM_PROMPT.format(ticker=self.ticker),
-                response_format=StockAnalysisStatistics,
+                output_schema=StockAnalysisStatistics,
             )
-            self._statistics_snapshot = agent.invoke(self.ticker)
+            query = f"{self.ticker} statistics key ratios valuation market cap"
+            self._statistics_snapshot = agent.invoke(query)
             self._statistics_fetched_at = datetime.now(tz=UTC)
             logger.info(
                 "Fetched StockAnalysis statistics for %s at %s",
@@ -217,12 +212,12 @@ class StockAnalysisSource:
     def _load_financials(self) -> StockAnalysisFinancials:
         """Fetch financials once and reuse cached data on later calls."""
         if self._financials_snapshot is None:
-            agent = WebSearchLoaderAgent(
-                model=os.getenv("QUALITY_LLM"),
+            agent = ExaAgent(
                 system_prompt=FINANCIALS_SYSTEM_PROMPT.format(ticker=self.ticker),
-                response_format=StockAnalysisFinancials,
+                output_schema=StockAnalysisFinancials,
             )
-            self._financials_snapshot = agent.invoke(self.ticker)
+            query = f"{self.ticker} financials revenue growth eps growth gross margin"
+            self._financials_snapshot = agent.invoke(query)
             self._financials_fetched_at = datetime.now(tz=UTC)
             logger.info(
                 "Fetched StockAnalysis financials for %s at %s",
@@ -385,16 +380,11 @@ class StockAnalysisSource:
     def _search_etf_holdings(self) -> ETFHoldings:
         holdings = ETFHoldings()
         try:
-            search_agent = WebSearchAgent(
-                model=os.getenv("QUALITY_LLM"),
-                temperature=0,
-                reasoning_effort="medium",
+            search_agent = ExaAgent(
                 system_prompt=ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT.format(ticker=self._ticker_lower),
-                response_format=ETFHoldings,
-                web_search_engine="exa",
-                web_search_max_results=10,
+                output_schema=ETFHoldings,
             )
-            search_query = f"{self.ticker} ETF holdings weights {STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)} -site:yahoo.com -site:finance.yahoo.com"
+            search_query = f"{self.ticker} ETF holdings weights stock analysis"
             search_result = search_agent.invoke(search_query)
             if isinstance(search_result, ETFHoldings):
                 holdings = search_result
@@ -423,21 +413,11 @@ class StockAnalysisSource:
     def _search_etf_sectors(self) -> ETFSectors:
         sectors = ETFSectors()
         try:
-            search_agent = WebSearchAgent(
-                model=os.getenv("QUALITY_LLM"),
-                temperature=0,
-                reasoning_effort="medium",
+            search_agent = ExaAgent(
                 system_prompt=ETF_SECTOR_SEARCH_SYSTEM_PROMPT.format(ticker=self._ticker_lower),
-                response_format=ETFSectors,
-                web_search_engine="exa",
-                web_search_max_results=10,
+                output_schema=ETFSectors,
             )
-            search_query = (
-                f"{self.ticker} ETF sector allocation weights "
-                f"{STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)} "
-                f"{'https://www.schwab.wallst.com/schwab/Prospect/research/etfs/schwabETF/index.asp?type=holdings&symbol=' + self._ticker_lower} "
-                "-site:yahoo.com -site:finance.yahoo.com"
-            )
+            search_query = f"{self.ticker} ETF sector allocation weights stock analysis schwab"
             search_result = search_agent.invoke(search_query)
             if isinstance(search_result, ETFSectors):
                 sectors = search_result
