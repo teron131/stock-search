@@ -23,9 +23,9 @@
   --table-visible-rows: 25;
 
   /* Border Radius */
-  --radius-sm: 0px; 
-  --radius-md: 2px; 
-  --radius-full: 4px; 
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-full: 4px;
 
   /* Spacing Scale - Condensed */
   --space-xs: 0.25rem; /* 4px */
@@ -1519,7 +1519,8 @@ tv-ticker-tag {
   flex-shrink: 0;
 }
 
-.top-bar-left, .top-bar-right {
+.top-bar-left,
+.top-bar-right {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -1538,9 +1539,9 @@ tv-ticker-tag {
 
 .stats-strip {
   display: flex;
-  background-color: var(--bg-surface-high);
+  background-color: transparent; /* Changed from surface-high */
   padding: var(--space-xs) var(--space-sm);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none; /* Removed border */
   gap: var(--space-lg);
   font-family: var(--font-mono);
   font-size: var(--text-base);
@@ -1557,11 +1558,12 @@ tv-ticker-tag {
 }
 
 /* Force table density */
-.data-table th, .data-table td {
+.data-table th,
+.data-table td {
   padding: var(--space-xs) !important;
   font-size: var(--text-xs) !important;
   border-bottom: 1px solid var(--border) !important;
-  border-right: 1px solid var(--border) !important;
+  border-right: none !important;
   white-space: nowrap;
 }
 
@@ -1570,7 +1572,132 @@ tv-ticker-tag {
 }
 
 .data-table {
-  border: 1px solid var(--border) !important;
+  border: none !important;
   border-spacing: 0;
   width: 100%;
+}
+
+/* Starker Table Styling & Hover States (Bloomberg Style) */
+.data-table {
+  background-color: var(--bg-deep); /* Darker background */
+}
+
+.data-table tr {
+  transition: background-color 0.1s ease;
+  border-bottom: 1px solid var(--border-bright) !important; /* Starker borders */
+}
+
+.data-table tbody tr:hover {
+  background-color: rgba(
+    217,
+    255,
+    63,
+    0.05
+  ); /* Very subtle accent background */
+  outline: 1px solid var(--accent); /* Neon border on hover */
+  outline-offset: -1px;
+  z-index: 1;
+  position: relative;
+  cursor: crosshair; /* Terminal cursor */
+}
+
+.data-table td {
+  border-right: none !important;
+}
+
+/* Quick Add Terminal Prompt Style */
+.quick-add-container {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-deep);
+  border: 1px solid var(--accent); /* Command line is always "active" */
+  padding: 2px var(--space-xs);
+  margin-bottom: var(--space-sm);
+  font-family: var(--font-mono);
+}
+
+.quick-add-container::before {
+  content: ">";
+  color: var(--accent);
+  margin-right: var(--space-xs);
+  font-weight: bold;
+}
+
+.quick-add-input {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  outline: none;
+  width: 100%;
+  text-transform: uppercase;
+}
+
+.quick-add-input::placeholder {
+  color: var(--ink-ghost);
+}
+
+/* Hide default input stuff if needed */
+.quick-add-container input[type="text"] {
+  all: unset; /* Remove default styles */
+  width: 100%;
+  color: var(--accent);
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+.quick-add-container input[type="text"]:focus {
+  outline: none;
+}
+
+/* Denser "Cards" (Panels) & Global Spacing Fixes */
+
+/* Main content wrapper padding to pull things slightly off the exact edges */
+.content-area {
+  padding: var(--space-sm) var(--space-md) !important;
+  gap: var(--space-md) !important;
+}
+
+/* Base Panel Reset for Terminal Style */
+.overview-panel,
+.heatmap-container,
+.calendar-container {
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: var(--space-sm) 0 !important;
+  padding: 0 !important;
+  position: relative;
+}
+
+/* Make sure the tabs header inside heatmap respects the square look */
+.tabs-header {
+  border-bottom: none !important;
+  padding: 0 var(--space-xs) !important;
+  margin-bottom: var(--space-md); /* Good space below tabs, no border */
+}
+
+.tab-btn {
+  border-radius: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.tab-btn.active {
+  border: none !important;
+  color: var(--accent);
+}
+
+/* Widget containers inside panels */
+.tradingview-widget-container {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+/* Force iframe and inner widgets to have no borders */
+.tradingview-widget-container iframe,
+.tradingview-widget-container__widget {
+  border: none !important;
+  outline: none !important;
 }

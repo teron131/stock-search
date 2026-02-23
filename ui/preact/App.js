@@ -322,9 +322,22 @@ export function App() {
     setDisplay("heatmap-section", view === "heatmap" ? "block" : "none");
     setDisplay("calendar-section", view === "calendar" ? "block" : "none");
 
-    // ticker tape handled separately
+    // Ticker tape is only for dashboard. In Preact, updating standard display sometimes conflicts
+    // with TradingView widget life cycles, so we force visibility hidden as well if necessary,
+    // or rely on strict display:none to hide the whole container safely.
     const tapeView = document.getElementById("ticker-tape-view");
-    if (tapeView) tapeView.style.display = isDashboard ? "block" : "none";
+    if (tapeView) {
+      if (isDashboard) {
+        tapeView.style.display = "block";
+        tapeView.style.visibility = "visible";
+        tapeView.style.height = "auto";
+      } else {
+        tapeView.style.display = "none";
+        tapeView.style.visibility = "hidden";
+        tapeView.style.height = "0";
+      }
+    }
+
     setDisplay("stats-strip", isDashboard ? "flex" : "none");
   }, [view]);
 
