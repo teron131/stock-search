@@ -22,6 +22,8 @@ MIN_RESIDUAL_OBSERVATIONS = 30
 ATANH_EPSILON = 1e-6
 MAX_FETCH_WORKERS = 12
 MARKET_PROXY_TICKER = "SPY"
+PSD_EIGENVALUE_FLOOR = 1e-8
+PSD_SHRINKAGE = 0.05
 HORIZON_RETURN_FRAME_KEYS: dict[str, str] = {
     "daily": "daily",
     "weekly": "weekly",
@@ -172,7 +174,7 @@ def _resolve_blend_weight(
     pair_count: float,
     intent_weight: float,
 ) -> float:
-    reliability_weight = max(pair_count - 3.0, 0.0)
+    reliability_weight = float(np.sqrt(max(pair_count - 3.0, 0.0)))
     if mode == BlendWeightMode.RELIABILITY:
         return reliability_weight
     if mode == BlendWeightMode.INTENT:
@@ -288,11 +290,13 @@ def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFr
 
         aligned_market = market_returns.loc[aligned_index].to_numpy(dtype="float64")
         aligned_ticker = ticker_returns.loc[aligned_index].to_numpy(dtype="float64")
-        market_variance = np.var(aligned_market, ddof=1)
-        if market_variance <= 0:
+        centered_market = aligned_market - aligned_market.mean()
+        market_sum_squares = float(centered_market @ centered_market)
+        if market_sum_squares <= 0:
             continue
 
-        beta = np.cov(aligned_ticker, aligned_market, ddof=1)[0, 1] / market_variance
+        centered_ticker = aligned_ticker - aligned_ticker.mean()
+        beta = float((centered_ticker @ centered_market) / market_sum_squares)
         alpha = aligned_ticker.mean() - beta * aligned_market.mean()
         residual_values = aligned_ticker - (alpha + beta * aligned_market)
         residual_series_by_ticker[ticker] = pd.Series(residual_values, index=aligned_index)
@@ -311,7 +315,7 @@ def _build_blended_matrix(
     blend_weight_mode: BlendWeightMode,
     correlation_mode: CorrelationMode,
     market_proxy_ticker: str | None = None,
-) -> tuple[pd.DataFrame, dict[str, Any]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     return_frames = _build_return_frames(closes)
     source_inputs: list[CorrelationInputs] = []
     component_diagnostics: dict[str, dict[str, float | int]] = {}
@@ -347,12 +351,29 @@ def _build_blended_matrix(
     if market_proxy_ticker:
         diagnostics["market_proxy_ticker"] = market_proxy_ticker
 
-    blended = _fisher_blended_correlation(
+    raw_blended = _fisher_blended_correlation(
         tickers=tickers,
         inputs=source_inputs,
         blend_weight_mode=blend_weight_mode,
     )
-    return blended, diagnostics
+    filled_blended = raw_blended.fillna(0.0)
+    symmetric_values = ((filled_blended + filled_blended.T) / 2.0).to_numpy(dtype="float64")
+    shrunk_values = (1.0 - PSD_SHRINKAGE) * symmetric_values + PSD_SHRINKAGE * np.eye(len(tickers))
+    eigenvalues, _ = np.linalg.eigh(symmetric_values)
+    shrunk_eigenvalues, shrunk_eigenvectors = np.linalg.eigh(shrunk_values)
+    clipped_eigenvalues = np.clip(shrunk_eigenvalues, PSD_EIGENVALUE_FLOOR, None)
+    psd_values = (shrunk_eigenvectors * clipped_eigenvalues) @ shrunk_eigenvectors.T
+    scale = np.sqrt(np.clip(np.diag(psd_values), PSD_EIGENVALUE_FLOOR, None))
+    normalized_psd_values = psd_values / np.outer(scale, scale)
+    normalized_psd_values = np.clip(normalized_psd_values, -1.0, 1.0)
+    np.fill_diagonal(normalized_psd_values, 1.0)
+    diagnostics["matrix_projection"] = "psd_shrink_then_eigen_clip"
+    diagnostics["matrix_shrinkage"] = PSD_SHRINKAGE
+    diagnostics["matrix_min_eigenvalue_raw"] = float(np.min(eigenvalues))
+    diagnostics["matrix_min_eigenvalue_shrunk"] = float(np.min(shrunk_eigenvalues))
+    diagnostics["matrix_min_eigenvalue_psd"] = float(np.min(clipped_eigenvalues))
+    psd_blended = pd.DataFrame(normalized_psd_values, index=tickers, columns=tickers)
+    return raw_blended, psd_blended, diagnostics
 
 
 def _annualized_return(daily_returns: pd.Series) -> float | None:
@@ -427,7 +448,7 @@ def main() -> dict[str, Any]:
     correlation_closes = closes.reindex(columns=correlation_tickers).dropna(how="all")
     stats_closes = closes.reindex(columns=active_tickers).dropna(how="all")
     residual_market_ticker = market_proxy_ticker if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL else None
-    blended_matrix, diagnostics = _build_blended_matrix(
+    raw_matrix, psd_matrix, diagnostics = _build_blended_matrix(
         closes=correlation_closes,
         tickers=active_tickers,
         horizons=HORIZONS,
@@ -440,8 +461,10 @@ def main() -> dict[str, Any]:
     stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
     return {
         "tickers": active_tickers,
-        "matrix": blended_matrix,
-        "matrix_rounded": blended_matrix.round(2),
+        "matrix": psd_matrix,
+        "matrix_raw": raw_matrix,
+        "matrix_psd": psd_matrix,
+        "matrix_rounded": psd_matrix.round(2),
         "stats": stats,
         "stats_percent": stats_percent,
         "diagnostics": diagnostics,
