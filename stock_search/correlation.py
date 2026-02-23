@@ -20,6 +20,17 @@ TRADING_DAYS_PER_YEAR = 252
 MIN_OBSERVATIONS_FOR_FISHER = 4
 ATANH_EPSILON = 1e-6
 MAX_FETCH_WORKERS = 12
+HORIZON_RETURN_FRAME_KEYS: dict[str, str] = {
+    "daily": "daily",
+    "weekly": "weekly",
+    "monthly": "monthly",
+}
+PERCENT_STATS_COLUMNS: tuple[str, ...] = (
+    "annualized_return",
+    "daily_std_dev",
+    "monthly_std_dev",
+    "annualized_std_dev",
+)
 
 
 @dataclass(frozen=True)
@@ -49,12 +60,8 @@ class ReturnFrames:
     monthly: pd.DataFrame
 
     def by_name(self, horizon_name: str) -> pd.DataFrame:
-        mapping = {
-            "daily": self.daily,
-            "weekly": self.weekly,
-            "monthly": self.monthly,
-        }
-        return mapping[horizon_name]
+        frame_key = HORIZON_RETURN_FRAME_KEYS[horizon_name]
+        return getattr(self, frame_key)
 
 
 HORIZONS: tuple[HorizonConfig, ...] = (
@@ -81,25 +88,26 @@ class BlendWeightMode(StrEnum):
 BLEND_WEIGHT_MODE = BlendWeightMode.INTENT
 
 
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
+
+
 def _load_tickers_from_portfolio(path: Path) -> list[str]:
     raw_portfolio = load_json(path, default={})
-    positions = raw_portfolio.get("positions", []) if isinstance(raw_portfolio, dict) else []
-    if not isinstance(positions, list):
-        return []
+    positions = raw_portfolio.get("positions", [])
+
     tickers: list[str] = []
     for row in positions:
-        if not isinstance(row, dict):
-            continue
         ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
         if ticker:
             tickers.append(ticker)
-    return list(dict.fromkeys(tickers))
+    return _dedupe_preserve_order(tickers)
 
 
 def _resolve_tickers() -> list[str]:
     configured = [ticker for raw in DEFAULT_TICKERS if (ticker := normalize_ticker_symbol(raw))]
     if configured:
-        return list(dict.fromkeys(configured))
+        return _dedupe_preserve_order(configured)
     return _load_tickers_from_portfolio(PORTFOLIO_PATH)
 
 
@@ -163,6 +171,41 @@ def _resolve_blend_weight(
     return reliability_weight * intent_weight
 
 
+def _calculate_blended_pair_correlation(
+    *,
+    left_ticker: str,
+    right_ticker: str,
+    inputs: list[CorrelationInputs],
+    blend_weight_mode: BlendWeightMode,
+) -> float | None:
+    weighted_sum = 0.0
+    weight_total = 0.0
+
+    for item in inputs:
+        corr_value = item.correlation.loc[left_ticker, right_ticker]
+        pair_count = item.pair_counts.loc[left_ticker, right_ticker]
+        if pd.isna(corr_value) or pd.isna(pair_count):
+            continue
+        if pair_count < MIN_OBSERVATIONS_FOR_FISHER:
+            continue
+
+        clipped = float(np.clip(corr_value, -1.0 + ATANH_EPSILON, 1.0 - ATANH_EPSILON))
+        z_value = float(np.arctanh(clipped))
+        final_weight = _resolve_blend_weight(
+            mode=blend_weight_mode,
+            pair_count=float(pair_count),
+            intent_weight=item.intent_weight,
+        )
+        if final_weight <= 0:
+            continue
+        weighted_sum += final_weight * z_value
+        weight_total += final_weight
+
+    if weight_total <= 0:
+        return None
+    return float(np.tanh(weighted_sum / weight_total))
+
+
 def _fisher_blended_correlation(
     tickers: list[str],
     inputs: list[CorrelationInputs],
@@ -173,35 +216,18 @@ def _fisher_blended_correlation(
     for ticker in tickers:
         combined.loc[ticker, ticker] = 1.0
 
-    for left_ticker in tickers:
-        for right_ticker in tickers:
-            if left_ticker == right_ticker:
+    for left_index, left_ticker in enumerate(tickers):
+        for right_ticker in tickers[left_index + 1 :]:
+            pair_correlation = _calculate_blended_pair_correlation(
+                left_ticker=left_ticker,
+                right_ticker=right_ticker,
+                inputs=inputs,
+                blend_weight_mode=blend_weight_mode,
+            )
+            if pair_correlation is None:
                 continue
-
-            weighted_sum = 0.0
-            weight_total = 0.0
-            for item in inputs:
-                corr_value = item.correlation.loc[left_ticker, right_ticker]
-                pair_count = item.pair_counts.loc[left_ticker, right_ticker]
-                if pd.isna(corr_value) or pd.isna(pair_count):
-                    continue
-                if pair_count < MIN_OBSERVATIONS_FOR_FISHER:
-                    continue
-
-                clipped = float(np.clip(corr_value, -1.0 + ATANH_EPSILON, 1.0 - ATANH_EPSILON))
-                z_value = float(np.arctanh(clipped))
-                final_weight = _resolve_blend_weight(
-                    mode=blend_weight_mode,
-                    pair_count=float(pair_count),
-                    intent_weight=item.intent_weight,
-                )
-                if final_weight <= 0:
-                    continue
-                weighted_sum += final_weight * z_value
-                weight_total += final_weight
-
-            if weight_total > 0:
-                combined.loc[left_ticker, right_ticker] = float(np.tanh(weighted_sum / weight_total))
+            combined.loc[left_ticker, right_ticker] = pair_correlation
+            combined.loc[right_ticker, left_ticker] = pair_correlation
     return combined
 
 
@@ -230,34 +256,6 @@ def _slice_returns_to_lookback(returns: pd.DataFrame, years: int) -> pd.DataFram
     return returns.loc[returns.index >= start_ts]
 
 
-def _build_component_input(
-    *,
-    tickers: list[str],
-    horizon: HorizonConfig,
-    lookback: LookbackConfig,
-    full_horizon_returns: pd.DataFrame,
-) -> tuple[CorrelationInputs | None, dict[str, float | int]]:
-    horizon_returns = _slice_returns_to_lookback(full_horizon_returns, lookback.years)
-    if horizon_returns.empty:
-        return None, {}
-
-    component_name = f"{horizon.name}_{lookback.years}y"
-    combined_intent_weight = horizon.intent_weight * lookback.intent_weight
-    input_item = CorrelationInputs(
-        name=component_name,
-        correlation=horizon_returns.corr(),
-        pair_counts=_pair_counts(horizon_returns, tickers),
-        intent_weight=combined_intent_weight,
-    )
-    diagnostics = {
-        "rows": len(horizon_returns),
-        "horizon_intent_weight": horizon.intent_weight,
-        "lookback_intent_weight": lookback.intent_weight,
-        "combined_intent_weight": combined_intent_weight,
-    }
-    return input_item, diagnostics
-
-
 def _build_blended_matrix(
     closes: pd.DataFrame,
     horizons: tuple[HorizonConfig, ...],
@@ -268,22 +266,33 @@ def _build_blended_matrix(
     tickers = list(closes.columns)
     return_frames = _build_return_frames(closes)
     source_inputs: list[CorrelationInputs] = []
-    diagnostics: dict[str, Any] = {"components": {}}
-
+    component_diagnostics: dict[str, dict[str, float | int]] = {}
     for horizon in horizons:
         full_horizon_returns = return_frames.by_name(horizon.name)
         for lookback in lookbacks:
-            input_item, component_diagnostics = _build_component_input(
-                tickers=tickers,
-                horizon=horizon,
-                lookback=lookback,
-                full_horizon_returns=full_horizon_returns,
-            )
-            if input_item is None:
+            horizon_returns = _slice_returns_to_lookback(full_horizon_returns, lookback.years)
+            if horizon_returns.empty:
                 continue
-            source_inputs.append(input_item)
-            diagnostics["components"][input_item.name] = component_diagnostics
-    diagnostics["blend_weight_mode"] = blend_weight_mode.value
+            combined_intent_weight = horizon.intent_weight * lookback.intent_weight
+            component_name = f"{horizon.name}_{lookback.years}y"
+            source_inputs.append(
+                CorrelationInputs(
+                    name=component_name,
+                    correlation=horizon_returns.corr(),
+                    pair_counts=_pair_counts(horizon_returns, tickers),
+                    intent_weight=combined_intent_weight,
+                )
+            )
+            component_diagnostics[component_name] = {
+                "rows": len(horizon_returns),
+                "horizon_intent_weight": horizon.intent_weight,
+                "lookback_intent_weight": lookback.intent_weight,
+                "combined_intent_weight": combined_intent_weight,
+            }
+    diagnostics: dict[str, Any] = {
+        "components": component_diagnostics,
+        "blend_weight_mode": blend_weight_mode.value,
+    }
 
     blended = _fisher_blended_correlation(
         tickers=tickers,
@@ -312,8 +321,8 @@ def _per_ticker_stats(closes: pd.DataFrame, names: dict[str, str]) -> pd.DataFra
 
     for ticker in closes.columns:
         ticker_daily = daily_returns[ticker]
-        ticker_monthly = monthly_returns[ticker]
         daily_std = float(ticker_daily.std()) if ticker_daily.notna().any() else None
+        ticker_monthly = monthly_returns[ticker]
         monthly_std = float(ticker_monthly.std()) if ticker_monthly.notna().any() else None
         annualized_std = daily_std * np.sqrt(TRADING_DAYS_PER_YEAR) if daily_std is not None else None
 
@@ -354,16 +363,12 @@ def main() -> dict[str, Any]:
         blend_weight_mode=BLEND_WEIGHT_MODE,
     )
     stats = _per_ticker_stats(closes, names)
+    stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
     return {
         "tickers": active_tickers,
         "matrix": blended_matrix,
         "matrix_rounded": blended_matrix.round(2),
         "stats": stats,
-        "stats_percent": stats.assign(
-            annualized_return=lambda dataframe: dataframe["annualized_return"].apply(_as_percent),
-            daily_std_dev=lambda dataframe: dataframe["daily_std_dev"].apply(_as_percent),
-            monthly_std_dev=lambda dataframe: dataframe["monthly_std_dev"].apply(_as_percent),
-            annualized_std_dev=lambda dataframe: dataframe["annualized_std_dev"].apply(_as_percent),
-        ),
+        "stats_percent": stats_percent,
         "diagnostics": diagnostics,
     }
