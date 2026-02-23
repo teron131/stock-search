@@ -18,8 +18,10 @@ HISTORY_PERIOD = "5y"
 DEFAULT_TICKERS: list[str] = []
 TRADING_DAYS_PER_YEAR = 252
 MIN_OBSERVATIONS_FOR_FISHER = 4
+MIN_RESIDUAL_OBSERVATIONS = 30
 ATANH_EPSILON = 1e-6
 MAX_FETCH_WORKERS = 12
+MARKET_PROXY_TICKER = "SPY"
 HORIZON_RETURN_FRAME_KEYS: dict[str, str] = {
     "daily": "daily",
     "weekly": "weekly",
@@ -82,10 +84,16 @@ class BlendWeightMode(StrEnum):
     HYBRID = "hybrid"
 
 
+class CorrelationMode(StrEnum):
+    RAW = "raw"
+    MARKET_NEUTRAL = "market_neutral"
+
+
 # reliability -> weight = n - 3
 # intent -> weight = configured horizon intent weights only
 # hybrid -> weight = (n - 3) * horizon intent weight
-BLEND_WEIGHT_MODE = BlendWeightMode.INTENT
+BLEND_WEIGHT_MODE = BlendWeightMode.HYBRID
+CORRELATION_MODE = CorrelationMode.MARKET_NEUTRAL
 
 
 def _dedupe_preserve_order(values: list[str]) -> list[str]:
@@ -115,10 +123,11 @@ def _fetch_single_ticker_history(ticker: str) -> tuple[str, pd.Series, str]:
     source = YahooFinanceSource(ticker)
     snapshot = source.get_history_snapshot(period=HISTORY_PERIOD, interval="1d")
     history = snapshot.history.copy()
-    if history.empty or "Close" not in history:
+    price_column = "Adj Close" if "Adj Close" in history else "Close"
+    if history.empty or price_column not in history:
         return ticker, pd.Series(dtype="float64"), ticker
 
-    close_series = pd.to_numeric(history["Close"], errors="coerce").dropna()
+    close_series = pd.to_numeric(history[price_column], errors="coerce").dropna()
     close_series.index = pd.to_datetime(close_series.index, utc=True)
     close_series = close_series[~close_series.index.duplicated(keep="last")]
     close_series.name = ticker
@@ -152,7 +161,7 @@ def _build_close_matrix_and_names(tickers: list[str]) -> tuple[pd.DataFrame, dic
 
 
 def _pair_counts(returns: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
-    valid_mask = returns[tickers].notna().astype("float64")
+    valid_mask = returns.reindex(columns=tickers).notna().astype("float64")
     counts = valid_mask.T.dot(valid_mask)
     return counts.reindex(index=tickers, columns=tickers).astype("float64")
 
@@ -182,6 +191,13 @@ def _calculate_blended_pair_correlation(
     weight_total = 0.0
 
     for item in inputs:
+        if (
+            left_ticker not in item.correlation.index
+            or right_ticker not in item.correlation.columns
+            or left_ticker not in item.pair_counts.index
+            or right_ticker not in item.pair_counts.columns
+        ):
+            continue
         corr_value = item.correlation.loc[left_ticker, right_ticker]
         pair_count = item.pair_counts.loc[left_ticker, right_ticker]
         if pd.isna(corr_value) or pd.isna(pair_count):
@@ -238,7 +254,7 @@ def _pct_change_frame(prices: pd.DataFrame) -> pd.DataFrame:
 def _build_return_frames(closes: pd.DataFrame) -> ReturnFrames:
     daily_returns = _pct_change_frame(closes)
     weekly_returns = _pct_change_frame(closes.resample("W-FRI").last().dropna(how="all"))
-    monthly_returns = _pct_change_frame(closes.resample("ME").last().dropna(how="all"))
+    monthly_returns = _pct_change_frame(closes.resample("M").last().dropna(how="all"))
     return ReturnFrames(
         daily=daily_returns,
         weekly=weekly_returns,
@@ -256,19 +272,53 @@ def _slice_returns_to_lookback(returns: pd.DataFrame, years: int) -> pd.DataFram
     return returns.loc[returns.index >= start_ts]
 
 
+def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFrame:
+    if returns.empty or market_ticker not in returns.columns:
+        return pd.DataFrame(index=returns.index)
+
+    market_returns = returns[market_ticker].dropna()
+    residual_series_by_ticker: dict[str, pd.Series] = {}
+    for ticker in returns.columns:
+        if ticker == market_ticker:
+            continue
+        ticker_returns = returns[ticker].dropna()
+        aligned_index = market_returns.index.intersection(ticker_returns.index)
+        if len(aligned_index) < MIN_RESIDUAL_OBSERVATIONS:
+            continue
+
+        aligned_market = market_returns.loc[aligned_index].to_numpy(dtype="float64")
+        aligned_ticker = ticker_returns.loc[aligned_index].to_numpy(dtype="float64")
+        market_variance = np.var(aligned_market, ddof=1)
+        if market_variance <= 0:
+            continue
+
+        beta = np.cov(aligned_ticker, aligned_market, ddof=1)[0, 1] / market_variance
+        alpha = aligned_ticker.mean() - beta * aligned_market.mean()
+        residual_values = aligned_ticker - (alpha + beta * aligned_market)
+        residual_series_by_ticker[ticker] = pd.Series(residual_values, index=aligned_index)
+
+    if not residual_series_by_ticker:
+        return pd.DataFrame(index=returns.index)
+    return pd.DataFrame(residual_series_by_ticker).sort_index().dropna(how="all")
+
+
 def _build_blended_matrix(
     closes: pd.DataFrame,
+    tickers: list[str],
     horizons: tuple[HorizonConfig, ...],
     lookbacks: tuple[LookbackConfig, ...],
     *,
     blend_weight_mode: BlendWeightMode,
+    correlation_mode: CorrelationMode,
+    market_proxy_ticker: str | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    tickers = list(closes.columns)
     return_frames = _build_return_frames(closes)
     source_inputs: list[CorrelationInputs] = []
     component_diagnostics: dict[str, dict[str, float | int]] = {}
     for horizon in horizons:
         full_horizon_returns = return_frames.by_name(horizon.name)
+        if correlation_mode == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker:
+            full_horizon_returns = _residualize_returns(full_horizon_returns, market_proxy_ticker)
         for lookback in lookbacks:
             horizon_returns = _slice_returns_to_lookback(full_horizon_returns, lookback.years)
             if horizon_returns.empty:
@@ -292,7 +342,10 @@ def _build_blended_matrix(
     diagnostics: dict[str, Any] = {
         "components": component_diagnostics,
         "blend_weight_mode": blend_weight_mode.value,
+        "correlation_mode": correlation_mode.value,
     }
+    if market_proxy_ticker:
+        diagnostics["market_proxy_ticker"] = market_proxy_ticker
 
     blended = _fisher_blended_correlation(
         tickers=tickers,
@@ -306,11 +359,14 @@ def _annualized_return(daily_returns: pd.Series) -> float | None:
     clean = daily_returns.dropna()
     if clean.empty:
         return None
-    compounded = float(np.prod(1.0 + clean.values))
+    clean_values = clean.to_numpy(dtype="float64")
+    if np.any(clean_values <= -1.0):
+        return None
+    log_growth = np.log1p(clean_values).sum()
     years = len(clean) / TRADING_DAYS_PER_YEAR
     if years <= 0:
         return None
-    return compounded ** (1.0 / years) - 1.0
+    return float(np.expm1(log_growth / years))
 
 
 def _per_ticker_stats(closes: pd.DataFrame, names: dict[str, str]) -> pd.DataFrame:
@@ -347,22 +403,40 @@ def _as_percent(value: float | None) -> str:
 
 
 def main() -> dict[str, Any]:
-    tickers = _resolve_tickers()
-    if not tickers:
+    portfolio_tickers = _resolve_tickers()
+    if not portfolio_tickers:
         raise ValueError("No tickers found. Set DEFAULT_TICKERS or add positions to data/portfolio.json.")
+    market_proxy_ticker = normalize_ticker_symbol(MARKET_PROXY_TICKER)
+    fetch_tickers = portfolio_tickers.copy()
+    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker:
+        fetch_tickers.append(market_proxy_ticker)
+    fetch_tickers = _dedupe_preserve_order(fetch_tickers)
 
-    closes, names = _build_close_matrix_and_names(tickers)
+    closes, names = _build_close_matrix_and_names(fetch_tickers)
     if closes.empty:
         raise ValueError("No valid close price history available for requested tickers.")
 
-    active_tickers = list(closes.columns)
+    active_tickers = [ticker for ticker in portfolio_tickers if ticker in closes.columns]
+    if not active_tickers:
+        raise ValueError("No valid close price history available for requested tickers.")
+
+    correlation_tickers = active_tickers.copy()
+    if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_proxy_ticker and market_proxy_ticker in closes.columns:
+        correlation_tickers.append(market_proxy_ticker)
+
+    correlation_closes = closes.reindex(columns=correlation_tickers).dropna(how="all")
+    stats_closes = closes.reindex(columns=active_tickers).dropna(how="all")
+    residual_market_ticker = market_proxy_ticker if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL else None
     blended_matrix, diagnostics = _build_blended_matrix(
-        closes,
-        HORIZONS,
-        LOOKBACKS,
+        closes=correlation_closes,
+        tickers=active_tickers,
+        horizons=HORIZONS,
+        lookbacks=LOOKBACKS,
         blend_weight_mode=BLEND_WEIGHT_MODE,
+        correlation_mode=CORRELATION_MODE,
+        market_proxy_ticker=residual_market_ticker,
     )
-    stats = _per_ticker_stats(closes, names)
+    stats = _per_ticker_stats(stats_closes, names)
     stats_percent = stats.assign(**{column: stats[column].apply(_as_percent) for column in PERCENT_STATS_COLUMNS})
     return {
         "tickers": active_tickers,
