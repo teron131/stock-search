@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.config import ModelConfig
-from stock_search.models import INDUSTRY_LABELS
+from stock_search.models import INDUSTRY_LABELS, INDUSTRY_LABELS_BY_SECTOR
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
 MAX_LABELS = 5
@@ -140,8 +140,8 @@ Hard rules:
 - Do not perform web search in this final step.
 - Output only the `labels` field (no extra text).
 
-Allowed label pool (must choose only from these):
-{allowed_labels}
+Allowed label taxonomy (sector -> industries; must choose only from these industries):
+{allowed_labels_by_sector}
 """
 
 LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels."
@@ -153,9 +153,10 @@ def _normalize_labels(labels: list[str]) -> list[str]:
 
 
 def _build_label_system_prompt() -> str:
+    allowed_labels_by_sector = "\n".join(f"- {sector}: {', '.join(industry_labels)}" for sector, industry_labels in INDUSTRY_LABELS_BY_SECTOR)
     return LABEL_SYSTEM_PROMPT_TEMPLATE.format(
         max_labels=MAX_LABELS,
-        allowed_labels=", ".join(INDUSTRY_LABELS),
+        allowed_labels_by_sector=allowed_labels_by_sector,
     )
 
 
