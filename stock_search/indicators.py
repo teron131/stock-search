@@ -7,8 +7,8 @@ import yfinance as yf
 from stock_search.config import CacheConfig
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
-from stock_search.field_definitions import INDICATOR_FIELDS
 from stock_search.models import Stock
+from stock_search.models.field_definitions import INDICATOR_FIELDS
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 

@@ -2,7 +2,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, create_model
 
-from ..field_definitions import INDICATOR_FIELD_DEFINITIONS
+from .field_definitions import INDICATOR_FIELD_DEFINITIONS
 from .labels import SECTOR_LABELS
 
 # Common Fields
