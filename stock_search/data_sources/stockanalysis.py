@@ -23,7 +23,10 @@ from stock_search.schemas import ETFHoldings, ETFSectors, Holding
 logger = logging.getLogger(__name__)
 MODEL_TYPE = TypeVar("MODEL_TYPE")
 
+STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
+STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
 STOCKANALYSIS_ETF_HOLDINGS_URL = "https://stockanalysis.com/etf/{ticker}/holdings/"
+
 HOLDINGS_BLOCK_PATTERN = re.compile(r"holdings:\[(.*?)\],asset_allocation:", re.DOTALL)
 HOLDING_ROW_PATTERN = re.compile(r'\{[^{}]*n:"([^"]+)"[^{}]*s:"([^"]+)"[^{}]*as:"([\d.]+)%"', re.DOTALL)
 SECTORS_BLOCK_PATTERN = re.compile(r"sectors:\[(.*?)\],countries:", re.DOTALL)
@@ -44,7 +47,9 @@ SECTOR_FIELD_BY_LABEL = {
 }
 
 STATISTICS_SYSTEM_PROMPT = """Extract statistics for {ticker}.
-Prioritize stockanalysis.com domain.
+Use this URL as the primary source:
+{statistics_url}
+Only fall back to other stockanalysis.com pages if this page lacks a field.
 
 Normalization rules:
 - market_cap: absolute dollars (not shorthand like B/M)
@@ -59,7 +64,9 @@ Normalization rules:
 """
 
 FINANCIALS_SYSTEM_PROMPT = """Extract financial metrics for {ticker}.
-Prioritize stockanalysis.com domain.
+Use this URL as the primary source:
+{financials_url}
+Only fall back to other stockanalysis.com pages if this page lacks a field.
 
 Column-selection rule (mandatory):
 - Only extract from the first data column (the current/latest column).
@@ -188,11 +195,15 @@ class StockAnalysisSource:
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
         if self._statistics_snapshot is None:
+            statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
             agent = ExaAgent(
-                system_prompt=STATISTICS_SYSTEM_PROMPT.format(ticker=self.ticker),
+                system_prompt=STATISTICS_SYSTEM_PROMPT.format(
+                    ticker=self.ticker,
+                    statistics_url=statistics_url,
+                ),
                 output_schema=StockAnalysisStatistics,
             )
-            query = f"{self.ticker} statistics key ratios valuation market cap"
+            query = f"{statistics_url} {self.ticker} statistics key ratios valuation market cap"
             self._statistics_snapshot = agent.invoke(query)
             self._statistics_fetched_at = datetime.now(tz=UTC)
             logger.info(
@@ -212,11 +223,15 @@ class StockAnalysisSource:
     def _load_financials(self) -> StockAnalysisFinancials:
         """Fetch financials once and reuse cached data on later calls."""
         if self._financials_snapshot is None:
+            financials_url = STOCKANALYSIS_FINANCIALS_URL.format(ticker=self._ticker_lower)
             agent = ExaAgent(
-                system_prompt=FINANCIALS_SYSTEM_PROMPT.format(ticker=self.ticker),
+                system_prompt=FINANCIALS_SYSTEM_PROMPT.format(
+                    ticker=self.ticker,
+                    financials_url=financials_url,
+                ),
                 output_schema=StockAnalysisFinancials,
             )
-            query = f"{self.ticker} financials revenue growth eps growth gross margin"
+            query = f"{financials_url} {self.ticker} financials revenue growth eps growth gross margin"
             self._financials_snapshot = agent.invoke(query)
             self._financials_fetched_at = datetime.now(tz=UTC)
             logger.info(

@@ -22,7 +22,6 @@ from stock_search.api.data_store import (
 from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, normalize_ticker_symbol, safe_float
 from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
-from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.etf import ETFResolutionResult, classify_and_resolve_etfs, normalize_sector_name
 from stock_search.evaluation.constants import (
@@ -33,6 +32,7 @@ from stock_search.evaluation.constants import (
 )
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
 from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
+from stock_search.indicators import StockIndicator
 from stock_search.label import aget_labels, get_labels
 
 _HISTORY_CACHE = TieredCache[dict[str, Any]](
@@ -393,35 +393,36 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
 
     if need_info_fetch:
         try:
-            quote_type = yahoo_source.get_quote_type()
-            indicators_snapshot = yahoo_source.get_indicators_snapshot()
-            stockanalysis_revenue_growth = None
-            try:
-                financials_snapshot = StockAnalysisSource(ticker_key).get_financials_snapshot()
-                if financials_snapshot.revenue_growth is not None:
-                    stockanalysis_revenue_growth = round(financials_snapshot.revenue_growth * 100, 2)
-            except Exception:
-                stockanalysis_revenue_growth = None
+            indicator = StockIndicator(
+                ticker_key,
+                cached_row=info_data,
+                now=now,
+            )
+            quote_type = str(indicator.info.get("quoteType") or "").upper()
             fetched_info = {
                 **info_data,
-                "name": yahoo_source.info.get("shortName") or yahoo_source.info.get("longName"),
-                "price": yahoo_source.get_current_price(),
+                "name": indicator.info.get("shortName") or indicator.info.get("longName"),
+                "price": indicator.price,
                 "quote_type": quote_type or None,
-                "market_cap": yahoo_source.get_market_cap(),
-                "pe": yahoo_source.get_pe_trailing(),
-                "pe_forward": yahoo_source.get_forward_pe_ntm(),
-                "peg": yahoo_source.get_peg(),
-                "beta": yahoo_source.get_beta(),
-                "iv": indicators_snapshot.iv,
-                "one_month_change_percent": indicators_snapshot.one_month_change_percent,
-                "three_month_change_percent": indicators_snapshot.three_month_change_percent,
-                "six_month_change_percent": indicators_snapshot.six_month_change_percent,
-                "one_year_change_percent": indicators_snapshot.one_year_change_percent,
-                "mtd_change_percent": indicators_snapshot.mtd_change_percent,
-                "ytd_change_percent": indicators_snapshot.ytd_change_percent,
-                "revenue_growth": stockanalysis_revenue_growth if stockanalysis_revenue_growth is not None else indicators_snapshot.revenue_growth,
-                "debt_to_equity": yahoo_source.get_debt_to_equity_percent(),
-                "free_cash_flow": yahoo_source.get_free_cash_flow_in_quote_currency(),
+                "market_cap": indicator.market_cap,
+                "pe": indicator.pe,
+                "pe_forward": indicator.pe_forward,
+                "peg": indicator.peg,
+                "beta": indicator.beta,
+                "iv": indicator.iv,
+                "one_month_change_percent": indicator.one_month_change_percent,
+                "three_month_change_percent": indicator.three_month_change_percent,
+                "six_month_change_percent": indicator.six_month_change_percent,
+                "one_year_change_percent": indicator.one_year_change_percent,
+                "mtd_change_percent": indicator.mtd_change_percent,
+                "ytd_change_percent": indicator.ytd_change_percent,
+                "median_upside": indicator.median_upside,
+                "revenue_growth": indicator.revenue_growth,
+                "gross_margin": indicator.gross_margin,
+                "debt_to_equity": indicator.debt_to_equity,
+                "free_cash_flow": indicator.free_cash_flow,
+                "rsi": indicator.rsi,
+                "fundamentals_fetched_at": now.isoformat(),
             }
             fetched_info["quote_type"] = quote_type or None
             if quote_type == "ETF":
