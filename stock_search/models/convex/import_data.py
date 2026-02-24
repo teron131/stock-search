@@ -10,7 +10,7 @@ from ...api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from ...file_utils import load_json
 from ...utils import normalize_ticker_symbol
 from .client import ConvexHttpAdapter
-from .schemas import normalize_positions_for_convex, normalize_ticker_map, ticker_map_to_rows
+from .convex_schemas import normalize_positions_for_convex, normalize_ticker_map, ticker_map_to_rows
 
 STATS_GENERATED_AT_KEY = "stats_generated_at"
 

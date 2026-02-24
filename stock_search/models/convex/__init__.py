@@ -1,5 +1,5 @@
 from .client import ConvexAPIError, ConvexHttpAdapter
-from .schemas import ConvexEvalRow, ConvexMetaVersionRow, ConvexPositionRow, ConvexStatsRow
+from .convex_schemas import ConvexEvalRow, ConvexMetaVersionRow, ConvexPositionRow, ConvexStatsRow
 from .store import ConvexStore
 
 __all__ = [

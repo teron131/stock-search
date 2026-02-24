@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .client import ConvexHttpAdapter
-from .schemas import (
+from .convex_schemas import (
     normalize_positions_for_convex,
     normalize_ticker_map,
     payload_to_ticker_map,
