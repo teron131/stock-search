@@ -33,7 +33,7 @@ from stock_search.evaluation.constants import (
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
 from stock_search.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
 from stock_search.indicators import StockIndicator
-from stock_search.label import aget_labels, get_labels
+from stock_search.labeler import aget_labels, get_labels
 
 _HISTORY_CACHE = TieredCache[dict[str, Any]](
     ttl_seconds=CacheConfig.HISTORY_TTL_SECONDS,
