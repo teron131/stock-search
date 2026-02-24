@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, create_model
 from .field_definitions import INDICATOR_FIELD_DEFINITIONS
 from .labels import SECTOR_LABELS
 
-# Common Fields
+# Common fields
 Ticker = Annotated[str, Field(description="Ticker symbol")]
 Weight = Annotated[float, Field(description="Weight as a percentage (0-100)", ge=0, le=100)]
 Score = Annotated[float, Field(description="Score on a 0-10 scale", ge=0, le=10)]
@@ -14,6 +14,12 @@ Strategy = Literal["Core", "Satellite", "Speculation", "Defense"]
 TickerThemeLabel = Literal["ThemePlaceholderA", "ThemePlaceholderB", "ThemePlaceholderC"]
 TickerStyleLabel = Literal["StylePlaceholderA", "StylePlaceholderB", "StylePlaceholderC"]
 TickerLabel = TickerThemeLabel | TickerStyleLabel
+
+
+class TickerLabels(BaseModel):
+    """Reusable labels payload for ticker-tagged entities."""
+
+    labels: list[str] = Field(default_factory=list, description="Industry labels.")
 
 
 def build_ticker_labels(
@@ -36,10 +42,14 @@ class PortfolioPositionInput(BaseModel):
     quantity: float = Field(default=0.0, description="Number of shares or contracts")
 
 
-class PortfolioInput(BaseModel):
-    """Input portfolio payload containing only ticker/quantity positions."""
+class PortfolioPositionsBase(BaseModel):
+    """Base portfolio shape carrying position rows."""
 
     positions: list[PortfolioPositionInput] = Field(default_factory=list, description="Input positions list")
+
+
+class PortfolioInput(PortfolioPositionsBase):
+    """Input portfolio payload containing only ticker/quantity positions."""
 
 
 class PortfolioPosition(PortfolioPositionInput):
@@ -72,35 +82,91 @@ class PortfolioStats(BaseModel):
     sector_distribution: list[PortfolioSectorDistribution] = Field(default_factory=list, description="Sector exposure breakdown")
 
 
-class Portfolio(BaseModel):
+class PortfolioView(PortfolioPositionsBase):
     """Aggregate enriched portfolio payload."""
 
     positions: list[PortfolioPosition] = Field(default_factory=list, description="Portfolio positions list")
     portfolio_stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics")
 
 
-_STOCK_FIELD_OVERRIDES: dict[str, tuple[Any, Any]] = {
-    "ratings": (
-        list[dict[str, Any]] | None,
-        Field(default=None, description="Analyst ratings/upgrades snapshot rows."),
-    ),
-}
+class ScoredReason(BaseModel):
+    """[STRUCTURED OUTPUTS] Score with supporting reason bullets."""
 
-_stock_fields: dict[str, tuple[Any, Any]] = {
-    "ticker": (Ticker, Field(description="Ticker symbol")),
-}
-for field_definition in INDICATOR_FIELD_DEFINITIONS:
-    field_name = field_definition.name
-    if field_name in _STOCK_FIELD_OVERRIDES:
-        _stock_fields[field_name] = _STOCK_FIELD_OVERRIDES[field_name]
-        continue
-    _stock_fields[field_name] = (
-        float | None,
-        Field(default=None, description=f"{field_name.replace('_', ' ').title()}."),
+    score: Score
+    reasons: list[str] = Field(description="Bullet list explaining the score.")
+
+
+class MetricsEvaluation(BaseModel):
+    """Quantitative evaluation score components."""
+
+    market_cap_score: Score | None = Field(
+        default=None,
+        description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
+    )
+    valuation_score: Score | None = Field(
+        default=None,
+        description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
+    )
+    upside_score: Score | None = Field(
+        default=None,
+        description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
     )
 
-Stock = create_model("Stock", __base__=BaseModel, **_stock_fields)
-Stock.__doc__ = "Unified stock indicator payload used across data sources."
+
+class ResearchEvaluation(BaseModel):
+    """[STRUCTURED OUTPUTS] LLM research scores for moat and quality."""
+
+    moat_score: ScoredReason | None = Field(
+        default=None,
+        description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
+    )
+    quality_score: ScoredReason | None = Field(
+        default=None,
+        description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
+    )
+
+
+class FutureOutlook(ScoredReason):
+    """[STRUCTURED OUTPUTS] LLM outlook score with bull/bear probabilities."""
+
+    bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
+    bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
+
+
+class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
+    """Unified evaluation payload (scores + probabilities)."""
+
+    flat_probability: Probability | None = Field(
+        default=None,
+        description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
+    )
+
+
+class NewsAnalysis(BaseModel):
+    """[STRUCTURED OUTPUTS] Structured analysis of a financial news article."""
+
+    summary: str = Field(default="", description="Summary excluding noise/meta-language.")
+    relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
+    category: Literal[
+        "macro_economics",
+        "industry_news",
+        "market_news",
+        "company_news",
+        "earnings",
+        "analyst_rating",
+        "analysis",
+        "other",
+    ] = Field(default="other", description="News category.")
+    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
+
+
+class NewsItem(NewsAnalysis):
+    """News article data with attached analysis fields."""
+
+    url: str = Field(description="Source URL")
+    title: str | None = Field(default=None, description="Headline")
+    date: str | None = Field(default=None, description="Publication date (YYYY-MM-DD)")
+    days_ago: int | None = Field(default=None, description="Days since publication")
 
 
 class Holding(BaseModel):
@@ -157,81 +223,48 @@ class ETF(BaseModel):
         return rows
 
 
-class NewsAnalysis(BaseModel):
-    """[STRUCTURED OUTPUTS] Structured analysis of a financial news article."""
+_STOCK_FIELD_OVERRIDES: dict[str, tuple[Any, Any]] = {
+    "ratings": (
+        list[dict[str, Any]] | None,
+        Field(default=None, description="Analyst ratings/upgrades snapshot rows."),
+    ),
+}
 
-    summary: str = Field(default="", description="Summary excluding noise/meta-language.")
-    relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
-    category: Literal[
-        "macro_economics",
-        "industry_news",
-        "market_news",
-        "company_news",
-        "earnings",
-        "analyst_rating",
-        "analysis",
-        "other",
-    ] = Field(default="other", description="News category.")
-    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
-
-
-class News(NewsAnalysis):
-    """News article data with attached analysis fields."""
-
-    url: str = Field(description="Source URL")
-    title: str | None = Field(default=None, description="Headline")
-    date: str | None = Field(default=None, description="Publication date (YYYY-MM-DD)")
-    days_ago: int | None = Field(default=None, description="Days since publication")
-
-
-class ScoredReason(BaseModel):
-    """[STRUCTURED OUTPUTS] Score with supporting reason bullets."""
-
-    score: Score
-    reasons: list[str] = Field(description="Bullet list explaining the score.")
-
-
-class MetricsEvaluation(BaseModel):
-    """Quantitative evaluation score components."""
-
-    market_cap_score: Score | None = Field(
-        default=None,
-        description="Market-cap size score (0-10) via log-S-curve mapping from 10B to 4T (median 800B).",
-    )
-    valuation_score: Score | None = Field(
-        default=None,
-        description="Valuation (1-10): PEG-first weighted mean (inverse) with PE/forward-PE/growth.",
-    )
-    upside_score: Score | None = Field(
-        default=None,
-        description="Upside (1-10): blend of analyst target upside, rating sentiment, and LLM outlook score.",
+_stock_fields: dict[str, tuple[Any, Any]] = {
+    "ticker": (Ticker, Field(description="Ticker symbol")),
+}
+for field_definition in INDICATOR_FIELD_DEFINITIONS:
+    field_name = field_definition.name
+    if field_name in _STOCK_FIELD_OVERRIDES:
+        _stock_fields[field_name] = _STOCK_FIELD_OVERRIDES[field_name]
+        continue
+    _stock_fields[field_name] = (
+        float | None,
+        Field(default=None, description=f"{field_name.replace('_', ' ').title()}."),
     )
 
-
-class ResearchEvaluation(BaseModel):
-    """[STRUCTURED OUTPUTS] LLM research scores for moat and quality."""
-
-    moat_score: ScoredReason | None = Field(
-        default=None,
-        description="Moat (1-10): replaceability, switching costs, regulatory barriers, ecosystem gravity.",
-    )
-    quality_score: ScoredReason | None = Field(
-        default=None,
-        description="Quality (1-10): durability of economics, FCF margins, pricing power, resilience.",
-    )
+StockIndicators = create_model("StockIndicators", __base__=BaseModel, **_stock_fields)
+StockIndicators.__doc__ = "Unified stock indicator payload used across data sources."
 
 
-class FutureOutlook(ScoredReason):
-    """[STRUCTURED OUTPUTS] LLM outlook score with bull/bear probabilities."""
+class Stock(TickerLabels):
+    """Top-level stock entity for storage (no quantity/news fields)."""
 
-    bull_probability: Probability | None = Field(default=None, description="12-month up move probability.")
-    bear_probability: Probability | None = Field(default=None, description="12-month down move probability.")
+    ticker: Ticker
+    indicators: StockIndicators | None = Field(default=None, description="Indicator snapshot payload.")
+    evaluation: Evaluation | None = Field(default=None, description="Evaluation payload.")
 
 
-class Evaluation(MetricsEvaluation, ResearchEvaluation, FutureOutlook):
-    """Unified evaluation payload (scores + probabilities)."""
+class Portfolio(PortfolioPositionsBase):
+    """Top-level portfolio entity with positions and portfolio-level statistics."""
 
-    flat_probability: Probability | None = Field(
-        default=None,
-        description="Flat probability: max(0, 1 - bull_probability - bear_probability).",
-    )
+    key: str = Field(default="default", description="Portfolio key.")
+    portfolio_stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics.")
+
+
+class News(BaseModel):
+    """Top-level news entity grouped by key."""
+
+    key: str = Field(default="default", description="News collection key.")
+    ticker: Ticker
+    item: NewsItem = Field(description="News item payload.")

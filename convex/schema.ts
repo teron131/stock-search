@@ -2,32 +2,35 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  positions: defineTable({
+  stocks: defineTable({
     ticker: v.string(),
-    quantity: v.number(),
-    strategy: v.optional(v.string()),
+    indicators: v.optional(v.any()),
+    evaluation: v.optional(v.any()),
     labels: v.optional(v.array(v.string())),
     updatedAt: v.number(),
   })
     .index("by_ticker", ["ticker"])
     .index("by_updated_at", ["updatedAt"]),
-  stats: defineTable({
-    ticker: v.string(),
-    row: v.any(),
-    source: v.optional(v.string()),
-    generatedAt: v.optional(v.number()),
-    fundamentalsFetchedAt: v.optional(v.number()),
+  portfolios: defineTable({
+    key: v.string(),
+    positions: v.array(
+      v.object({
+        ticker: v.string(),
+        quantity: v.number(),
+      }),
+    ),
+    portfolioStats: v.optional(v.any()),
     updatedAt: v.number(),
   })
-    .index("by_ticker", ["ticker"])
-    .index("by_generated_at", ["generatedAt"])
-    .index("by_fundamentals_fetched_at", ["fundamentalsFetchedAt"])
+    .index("by_key", ["key"])
     .index("by_updated_at", ["updatedAt"]),
-  evals: defineTable({
+  news: defineTable({
+    key: v.string(),
     ticker: v.string(),
     row: v.any(),
     updatedAt: v.number(),
   })
+    .index("by_key", ["key"])
     .index("by_ticker", ["ticker"])
     .index("by_updated_at", ["updatedAt"]),
   meta_versions: defineTable({

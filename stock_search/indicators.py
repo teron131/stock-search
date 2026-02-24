@@ -7,7 +7,7 @@ import yfinance as yf
 from stock_search.config import CacheConfig
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
-from stock_search.models import Stock
+from stock_search.models import StockIndicators
 from stock_search.models.field_definitions import INDICATOR_FIELDS
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
@@ -273,11 +273,11 @@ class StockIndicator:
     def median_upside(self) -> float | None:
         return self._resolve_indicator_field("median_upside")
 
-    def to_stock(self) -> Stock:
+    def to_stock(self) -> StockIndicators:
         """Build a typed stock payload from resolved indicator values."""
         payload: dict[str, Any] = {"ticker": self._ticker}
         payload.update({field: getattr(self, field) for field in INDICATOR_FIELDS})
-        return Stock.model_validate(payload)
+        return StockIndicators.model_validate(payload)
 
     def get_all_indicators(self) -> dict[str, Any]:
         return self.to_stock().model_dump()
