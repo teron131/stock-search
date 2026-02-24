@@ -1,6 +1,8 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
+
+from stock_search.field_definitions import INDICATOR_FIELD_DEFINITIONS
 
 SECTOR_LABELS: dict[str, str] = {
     "communication_services": "Communication Services",
@@ -253,13 +255,28 @@ class Portfolio(BaseModel):
     portfolio_stats: PortfolioStats | None = Field(default=None, description="Portfolio aggregate statistics")
 
 
-class Quote(BaseModel):
-    """Normalized quote snapshot for a ticker."""
+_STOCK_FIELD_OVERRIDES: dict[str, tuple[Any, Any]] = {
+    "ratings": (
+        list[dict[str, Any]] | None,
+        Field(default=None, description="Analyst ratings/upgrades snapshot rows."),
+    ),
+}
 
-    ticker: Ticker
-    price: float | None = Field(default=None, description="Latest available trading price.")
-    change: float | None = Field(default=None, description="Absolute price move versus prior close.")
-    change_percent: float | None = Field(default=None, description="Percent move versus prior close.")
+_stock_fields: dict[str, tuple[Any, Any]] = {
+    "ticker": (Ticker, Field(description="Ticker symbol")),
+}
+for field_definition in INDICATOR_FIELD_DEFINITIONS:
+    field_name = field_definition.name
+    if field_name in _STOCK_FIELD_OVERRIDES:
+        _stock_fields[field_name] = _STOCK_FIELD_OVERRIDES[field_name]
+        continue
+    _stock_fields[field_name] = (
+        float | None,
+        Field(default=None, description=f"{field_name.replace('_', ' ').title()}."),
+    )
+
+Stock = create_model("Stock", __base__=BaseModel, **_stock_fields)
+Stock.__doc__ = "Unified stock indicator payload used across data sources."
 
 
 class Holding(BaseModel):
