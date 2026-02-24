@@ -2,8 +2,8 @@ from dataclasses import dataclass
 import math
 
 from ..indicators import StockIndicator
+from ..models.schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
 from ..prompts import FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION
-from ..schemas import Evaluation, FutureOutlook, ResearchEvaluation, ScoredReason
 from ..utils import parse_ticker
 from .constants import (
     ELO_K_FACTOR,

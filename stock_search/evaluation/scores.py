@@ -1,7 +1,7 @@
 import math
 
 from ..indicators import StockIndicator
-from ..schemas import FutureOutlook
+from ..models.schemas import FutureOutlook
 from .constants import (
     EDGE_BASE,
     EDGE_MULTIPLIER,

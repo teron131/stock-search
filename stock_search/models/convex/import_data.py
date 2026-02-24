@@ -10,7 +10,7 @@ from ...api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from ...file_utils import load_json
 from ...utils import normalize_ticker_symbol
 from .client import ConvexHttpAdapter
-from .convex_schemas import normalize_positions_for_convex, normalize_ticker_map, ticker_map_to_rows
+from .convex_schemas import normalize_portfolio_positions, stock_map_to_rows
 
 STATS_GENERATED_AT_KEY = "stats_generated_at"
 
@@ -39,23 +39,55 @@ def run_import_from_local_files(
     stats_path: Path = STATS_PATH,
     eval_path: Path = EVAL_PATH,
 ) -> dict[str, int]:
-    client = ConvexHttpAdapter(base_url=os.getenv("CONVEX_URL", ""), deploy_key=os.getenv("CONVEX_DEPLOY_KEY", ""))
-    positions = normalize_positions_for_convex(_load_positions(portfolio_path))
-    stats_map = normalize_ticker_map(_load_ticker_map(stats_path))
-    eval_map = normalize_ticker_map(_load_ticker_map(eval_path))
+    client = ConvexHttpAdapter(
+        base_url=os.getenv("CONVEX_URL", ""),
+        deploy_key=os.getenv("CONVEX_DEPLOY_KEY", ""),
+    )
+    positions = normalize_portfolio_positions(_load_positions(portfolio_path))
+    stats_map = _load_ticker_map(stats_path)
+    eval_map = _load_ticker_map(eval_path)
+    merged_stock_map: dict[str, dict[str, object]] = {}
+    for ticker, stats_row in stats_map.items():
+        merged_stock_map[ticker] = {
+            "indicators": dict(stats_row),
+            "evaluation": {},
+            "labels": [],
+        }
+    for ticker, eval_row in eval_map.items():
+        existing = merged_stock_map.setdefault(
+            ticker,
+            {
+                "indicators": {},
+                "evaluation": {},
+                "labels": [],
+            },
+        )
+        existing["evaluation"] = dict(eval_row)
 
-    client.mutation("positions:replaceAll", {"positions": positions})
-    client.mutation("stats:replaceAll", {"rows": ticker_map_to_rows(stats_map)})
-    client.mutation("evals:replaceAll", {"rows": ticker_map_to_rows(eval_map)})
+    client.mutation(
+        "portfolios:set",
+        {
+            "key": "default",
+            "positions": positions,
+        },
+    )
+    client.mutation(
+        "stocks:replaceAll",
+        {
+            "rows": stock_map_to_rows(merged_stock_map),
+        },
+    )
     client.mutation(
         "meta_versions:set",
-        {"key": STATS_GENERATED_AT_KEY, "value": datetime.now(tz=UTC).isoformat()},
+        {
+            "key": STATS_GENERATED_AT_KEY,
+            "value": datetime.now(tz=UTC).isoformat(),
+        },
     )
 
     return {
         "positions": len(positions),
-        "stats": len(stats_map),
-        "evals": len(eval_map),
+        "stocks": len(merged_stock_map),
     }
 
 

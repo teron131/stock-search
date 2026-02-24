@@ -8,10 +8,10 @@
  * @module
  */
 
-import type * as evals from "../evals.js";
 import type * as meta_versions from "../meta_versions.js";
-import type * as positions from "../positions.js";
-import type * as stats from "../stats.js";
+import type * as news from "../news.js";
+import type * as portfolios from "../portfolios.js";
+import type * as stocks from "../stocks.js";
 
 import type {
   ApiFromModules,
@@ -20,10 +20,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  evals: typeof evals;
   meta_versions: typeof meta_versions;
-  positions: typeof positions;
-  stats: typeof stats;
+  news: typeof news;
+  portfolios: typeof portfolios;
+  stocks: typeof stocks;
 }>;
 
 /**

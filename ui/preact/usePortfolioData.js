@@ -346,7 +346,16 @@ export function usePortfolioData() {
   const startRealtimeSync = useCallback(async () => {
     if (CONFIG.isDemoMode || realtimeEnabledRef.current) return false;
     const realtimeConfig = await tryFetchJson(CONFIG.endpoints.realtimeConfig);
-    if (!realtimeConfig?.enabled || !realtimeConfig?.convex_url) {
+    const topicList = Array.isArray(realtimeConfig?.topics)
+      ? realtimeConfig.topics.filter(
+          (topic) => typeof topic === "string" && topic.trim().length > 0,
+        )
+      : [];
+    if (
+      !realtimeConfig?.enabled ||
+      !realtimeConfig?.convex_url ||
+      topicList.length === 0
+    ) {
       return false;
     }
 
@@ -370,8 +379,8 @@ export function usePortfolioData() {
     };
 
     const client = new BaseConvexClient(realtimeConfig.convex_url, triggerSync);
-    const subscriptions = ["positions:list", "stats:list", "evals:list"].map(
-      (queryName) => client.subscribe(queryName, {}),
+    const subscriptions = topicList.map((queryName) =>
+      client.subscribe(queryName, {}),
     );
     realtimeUnsubscribersRef.current = subscriptions.map(
       ({ unsubscribe }) => unsubscribe,

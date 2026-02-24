@@ -34,7 +34,9 @@ def _convex_store() -> ConvexStore:
 
 def load_positions() -> list[dict[str, Any]]:
     if BACKEND == "convex":
-        return _convex_store().load_positions()
+        portfolio = _convex_store().load_portfolio()
+        positions = portfolio.get("positions")
+        return [row for row in positions if isinstance(row, dict)] if isinstance(positions, list) else []
 
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
     if isinstance(portfolio_data, list):
@@ -47,14 +49,50 @@ def load_positions() -> list[dict[str, Any]]:
 
 def save_positions(positions: list[dict[str, Any]]) -> None:
     if BACKEND == "convex":
-        _convex_store().save_positions(positions)
+        existing = _convex_store().load_portfolio()
+        portfolio_stats = existing.get("portfolio_stats")
+        _convex_store().save_portfolio(
+            positions=positions,
+            portfolio_stats=portfolio_stats if isinstance(portfolio_stats, dict) else None,
+        )
         return
     write_json(PORTFOLIO_PATH, {"positions": positions})
 
 
+def load_stocks() -> dict[str, dict[str, Any]]:
+    if BACKEND == "convex":
+        return _convex_store().load_stocks()
+
+    stats_map = load_stats_map()
+    eval_map = load_eval_map()
+    tickers = sorted(set(stats_map) | set(eval_map))
+    stocks: dict[str, dict[str, Any]] = {}
+    for ticker in tickers:
+        stocks[ticker] = {
+            "indicators": dict(stats_map.get(ticker) or {}),
+            "evaluation": dict(eval_map.get(ticker) or {}),
+            "labels": [],
+        }
+    return stocks
+
+
+def save_stocks(stocks_map: dict[str, dict[str, Any]]) -> None:
+    normalized_stocks = {ticker_symbol: dict(row) for ticker, row in stocks_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
+    if BACKEND == "convex":
+        _convex_store().save_stocks(normalized_stocks)
+        set_stats_generated_at_iso()
+        return
+
+    stats_map = {ticker: dict(stock_row.get("indicators") or {}) for ticker, stock_row in normalized_stocks.items()}
+    eval_map = {ticker: dict(stock_row.get("evaluation") or {}) for ticker, stock_row in normalized_stocks.items()}
+    write_json(STATS_PATH, stats_map)
+    write_json(EVAL_PATH, eval_map)
+
+
 def load_stats_map() -> dict[str, dict[str, Any]]:
     if BACKEND == "convex":
-        return _convex_store().load_stats_map()
+        stocks_map = _convex_store().load_stocks()
+        return {ticker: dict(stock_row.get("indicators") or {}) for ticker, stock_row in stocks_map.items()}
     stats_data = load_json(STATS_PATH, default={})
     if not isinstance(stats_data, dict):
         return {}
@@ -65,7 +103,22 @@ def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
     normalized = {ticker_symbol: dict(row) for ticker, row in stats_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
-        _convex_store().save_stats_map(normalized)
+        existing = _convex_store().load_stocks()
+        merged: dict[str, dict[str, Any]] = {
+            ticker: {
+                "indicators": dict(stock_row.get("indicators") or {}),
+                "evaluation": dict(stock_row.get("evaluation") or {}),
+                "labels": list(stock_row.get("labels") or []),
+            }
+            for ticker, stock_row in existing.items()
+        }
+        for ticker, stats_row in normalized.items():
+            row = merged.setdefault(
+                ticker,
+                {"indicators": {}, "evaluation": {}, "labels": []},
+            )
+            row["indicators"] = dict(stats_row)
+        _convex_store().save_stocks(merged)
         set_stats_generated_at_iso()
         return
     write_json(STATS_PATH, normalized)
@@ -73,7 +126,8 @@ def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
 
 def load_eval_map() -> dict[str, dict[str, Any]]:
     if BACKEND == "convex":
-        return _convex_store().load_eval_map()
+        stocks_map = _convex_store().load_stocks()
+        return {ticker: dict(stock_row.get("evaluation") or {}) for ticker, stock_row in stocks_map.items()}
 
     eval_data_raw = load_json(EVAL_PATH, default={})
     if isinstance(eval_data_raw, dict):
@@ -89,7 +143,22 @@ def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:
     normalized = {ticker_symbol: dict(row) for ticker, row in eval_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
-        _convex_store().save_eval_map(normalized)
+        existing = _convex_store().load_stocks()
+        merged: dict[str, dict[str, Any]] = {
+            ticker: {
+                "indicators": dict(stock_row.get("indicators") or {}),
+                "evaluation": dict(stock_row.get("evaluation") or {}),
+                "labels": list(stock_row.get("labels") or []),
+            }
+            for ticker, stock_row in existing.items()
+        }
+        for ticker, eval_row in normalized.items():
+            row = merged.setdefault(
+                ticker,
+                {"indicators": {}, "evaluation": {}, "labels": []},
+            )
+            row["evaluation"] = dict(eval_row)
+        _convex_store().save_stocks(merged)
         return
     write_json(EVAL_PATH, normalized)
 

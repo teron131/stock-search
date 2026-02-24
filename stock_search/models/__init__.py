@@ -1,10 +1,11 @@
 from .convex import (
     ConvexAPIError,
-    ConvexEvalRow,
     ConvexHttpAdapter,
     ConvexMetaVersionRow,
-    ConvexPositionRow,
-    ConvexStatsRow,
+    ConvexNewsRow,
+    ConvexPortfolioPosition,
+    ConvexPortfolioRow,
+    ConvexStockRow,
     ConvexStore,
 )
 from .labels import INDUSTRY_LABELS, INDUSTRY_LABELS_BY_SECTOR, SECTOR_LABELS, SECTOR_PATTERN_RULES

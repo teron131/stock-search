@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 BASE_DIR = Path(__file__).resolve().parents[1]
 UI_DIR = BASE_DIR.parent / "ui"
 INDEX_FILE = UI_DIR / "index.html"

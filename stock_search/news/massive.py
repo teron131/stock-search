@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 import httpx
 
-from ..schemas import News
+from ..models.schemas import NewsItem as News
 from ..utils import format_date, get_days_ago, parse_date
 
 load_dotenv()

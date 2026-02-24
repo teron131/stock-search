@@ -98,14 +98,10 @@ def payload_to_stock_map(items: Any) -> dict[str, dict[str, Any]]:
 
 
 def stock_map_to_rows(rows: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{"ticker": ticker, **row} for ticker, row in normalize_stock_map(rows).items()]
-
-
-# Transitional aliases until API/data-store cutover is complete.
-ConvexPositionRow = ConvexPortfolioPosition
-ConvexStatsRow = ConvexStockRow
-ConvexEvalRow = ConvexStockRow
-normalize_positions_for_convex = normalize_portfolio_positions
-normalize_ticker_map = normalize_stock_map
-payload_to_ticker_map = payload_to_stock_map
-ticker_map_to_rows = stock_map_to_rows
+    return [
+        {
+            "ticker": ticker,
+            **row,
+        }
+        for ticker, row in normalize_stock_map(rows).items()
+    ]

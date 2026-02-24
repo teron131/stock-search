@@ -11,7 +11,7 @@ import os
 
 import httpx
 
-from ..schemas import News
+from ..models.schemas import NewsItem as News
 from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
 DEFAULT_TIMEOUT_S = 60

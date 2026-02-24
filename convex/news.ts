@@ -4,43 +4,36 @@ import { v } from "convex/values";
 type GenericRow = Record<string, unknown>;
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("evals").collect();
-    return rows.map((row) => ({
-      ticker: row.ticker,
-      ...(typeof row.row === "object" && row.row !== null
-        ? (row.row as GenericRow)
-        : {}),
-    }));
-  },
-});
-
-export const getByTicker = query({
-  args: { ticker: v.string() },
+  args: { key: v.string() },
   handler: async (ctx, args) => {
-    const ticker = args.ticker.toUpperCase().trim();
-    const row = await ctx.db
-      .query("evals")
-      .withIndex("by_ticker", (q) => q.eq("ticker", ticker))
-      .unique();
-    if (!row) {
-      return null;
-    }
-    return {
-      ticker,
-      ...(typeof row.row === "object" && row.row !== null
-        ? (row.row as GenericRow)
-        : {}),
-    };
+    const key = args.key.trim() || "default";
+    const rows = await ctx.db
+      .query("news")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .collect();
+    return rows
+      .map((row) => ({
+        key: row.key,
+        ticker: row.ticker,
+        row:
+          typeof row.row === "object" && row.row !== null
+            ? (row.row as GenericRow)
+            : {},
+        updatedAt: row.updatedAt,
+      }))
+      .sort((a, b) => a.ticker.localeCompare(b.ticker));
   },
 });
 
 export const replaceAll = mutation({
-  args: { rows: v.array(v.any()) },
+  args: { key: v.string(), rows: v.array(v.any()) },
   handler: async (ctx, args) => {
+    const key = args.key.trim() || "default";
     const now = Date.now();
-    const existing = await ctx.db.query("evals").collect();
+    const existing = await ctx.db
+      .query("news")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .collect();
     for (const row of existing) {
       await ctx.db.delete(row._id);
     }
@@ -57,13 +50,14 @@ export const replaceAll = mutation({
       }
       const row = { ...(entry as GenericRow) };
       delete row.ticker;
-      await ctx.db.insert("evals", {
+      delete row.key;
+      await ctx.db.insert("news", {
+        key,
         ticker,
         row,
         updatedAt: now,
       });
     }
-
     return { ok: true, count: args.rows.length };
   },
 });

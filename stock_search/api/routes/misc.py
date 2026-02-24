@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Response
 
 from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
-from stock_search.api.data_store import load_eval_map
+from stock_search.api.data_store import load_eval_map, load_stocks
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.indicators import StockIndicator
 
@@ -12,6 +12,12 @@ router = APIRouter()
 def eval_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return load_eval_map()
+
+
+@router.get("/api/stocks")
+def stocks_api(response: Response) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    return load_stocks()
 
 
 @router.get("/api/color-standards")
@@ -74,6 +80,7 @@ def realtime_config_api(response: Response) -> dict:
         "enabled": bool(CONVEX_SYNC_ENABLED and CONVEX_URL),
         "convex_url": CONVEX_URL or None,
         "audience": CONVEX_AUDIENCE or None,
+        "topics": ["portfolios:get", "stocks:list"],
     }
 
 

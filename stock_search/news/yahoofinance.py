@@ -5,7 +5,7 @@ Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Sear
 
 import yfinance as yf
 
-from ..schemas import News
+from ..models.schemas import NewsItem as News
 from ..utils import format_date, get_days_ago, parse_date
 
 

@@ -11,36 +11,35 @@ This guide is for changes inside `convex/`.
 ## High-signal locations
 
 - `convex/schema.ts` -> table definitions and indexes.
-- `convex/positions.ts` -> holdings query/mutation (`list`, `replaceAll`).
-- `convex/stats.ts` -> stats cache query/mutation (`list`, `getByTicker`, `replaceAll`).
-- `convex/evals.ts` -> evaluation query/mutation (`list`, `getByTicker`, `replaceAll`).
+- `convex/portfolios.ts` -> portfolio query/mutation (`get`, `set`).
+- `convex/stocks.ts` -> stock query/mutation (`list`, `getByTicker`, `replaceAll`).
+- `convex/news.ts` -> news query/mutation (`list`, `replaceAll`).
 - `convex/meta_versions.ts` -> metadata key/value query/mutation (`get`, `set`).
 - `convex/_generated/*` -> generated API/model bindings used by Convex runtime tooling.
 
 ## Key takeaways per location
 
 - `convex/schema.ts` is the source of truth for storage shape and index names; index name changes are breaking.
-- `convex/positions.ts -> replaceAll` is full replacement semantics, not per-ticker patching.
-- `convex/stats.ts` and `convex/evals.ts` keep both typed top-level columns and legacy `row` object for migration compatibility.
+- `convex/portfolios.ts -> set` is upsert-by-key semantics for aggregate portfolio state.
+- `convex/stocks.ts -> replaceAll` is full replacement semantics for stock snapshots.
 - `convex/meta_versions.ts` stores operational metadata such as `stats_generated_at`.
 
 ## Project-specific conventions and rationale
 
 - Keep function identifiers stable:
-  - `positions:list`, `positions:replaceAll`
-  - `stats:list`, `stats:getByTicker`, `stats:replaceAll`
-  - `evals:list`, `evals:getByTicker`, `evals:replaceAll`
+  - `portfolios:get`, `portfolios:set`
+  - `stocks:list`, `stocks:getByTicker`, `stocks:replaceAll`
+  - `news:list`, `news:replaceAll`
   - `meta_versions:get`, `meta_versions:set`
 - Preserve uppercase/trim normalization of ticker keys at mutation boundaries.
 - Treat `replaceAll` functions as migration/bootstrap primitives. Do not silently switch to partial upserts without updating Python callers.
-- Keep legacy `row` fields until Python/UI consumers are fully migrated to canonical columns.
 
 ## Syntax relationship highlights (ast-grep-first)
 
-- `convex/schema.ts -> defineSchema` declares `positions`, `stats`, `evals`, `meta_versions`.
-- `convex/positions.ts -> list/replaceAll` reads/writes `positions` table.
-- `convex/stats.ts -> list/getByTicker/replaceAll` reads/writes `stats` table and `by_ticker` index.
-- `convex/evals.ts -> list/getByTicker/replaceAll` reads/writes `evals` table and `by_ticker` index.
+- `convex/schema.ts -> defineSchema` declares `stocks`, `portfolios`, `news`, `meta_versions`.
+- `convex/portfolios.ts -> get/set` reads/writes `portfolios` table and `by_key` index.
+- `convex/stocks.ts -> list/getByTicker/replaceAll` reads/writes `stocks` table and `by_ticker` index.
+- `convex/news.ts -> list/replaceAll` reads/writes `news` table and `by_key` index.
 - `convex/meta_versions.ts -> get/set` reads/writes `meta_versions` table and `by_key` index.
 
 ## General approach (not rigid checklist)

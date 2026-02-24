@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..common_utils import to_float
-from ..schemas import Evaluation, ScoredReason
+from ..models.schemas import Evaluation, ScoredReason
 from .constants import (
     DEFAULT_BEAR_PROBABILITY,
     DEFAULT_BULL_PROBABILITY,
