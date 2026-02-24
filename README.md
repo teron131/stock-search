@@ -2,34 +2,63 @@
 
 **Static Demo**: https://teron131.github.io/stock-search
 
-Many “premium” finance APIs are expensive. This project is designed to prefer **free/low-cost sources first**, and then **fall back** to other providers when data is missing, blocked, or unreliable.
+A single-user stock analysis app that prioritizes free data, resilient fallbacks, and simple storage.
 
-## Data Providers (Fallback Strategy)
+## Core Methodology
 
-This repo uses a layered approach per feature. If a higher-priority source fails (rate limits, missing fields, blocked pages), the next one is tried.
+- **Separation of concerns**: Portfolio management, ticker-level stat resolution, and evaluation logic are isolated so each layer can evolve independently.
+- **Source-first indicators**: Data source adapters (`yfinance`, StockAnalysis) are treated as causes; indicator orchestration is the effect layer that unifies fields and fills gaps.
+- **Cache-aware by design**: Missing fields resolve to `None` or cached values when freshness rules allow, reducing noisy failures and unnecessary refetches.
+- **Batch over piecemeal**: When a provider call naturally returns grouped data, the app consumes it as a batch to reduce duplicate requests.
 
-- **Broker / portfolio data (optional)**
-  - Primary: IBKR Gateway
-    - https://www.interactivebrokers.com/en/trading/ibgateway-latest.php
-    - https://github.com/ib-api-reloaded/ib_async
-- **Quotes, basic fundamentals, indicators**
-  - Primary: Yahoo Finance (via `yfinance`)
-  - Fallback: Yahoo Finance web scraping (via Selenium) when the API view is incomplete/inaccurate
-- **News discovery (headline + URL)**
-  - Primary: Yahoo Finance search (via `yfinance.Search`)
-  - Fallback: NewsAPI (requires `NEWS_API_KEY`)
-  - Optional fallback: “AI web search” (OpenRouter web plugin) for sources that aren’t covered well by standard APIs
-- **Article text extraction (URL → clean text)**
-  - Primary: Docling web loader (clean markdown from a URL)
-  - Fallback: mark as unavailable (some websites block automated access)
-- **LLM enrichment (optional)**
-  - Structured extraction into `NewsAnalysis` (summary, relevancy, category, sentiment)
-  - You can disable these add-ons if you prefer to read/analyze the articles yourself to minimize cost.
+## Module Overview
 
-## Configuration
+- **`stock_search/data_sources/`**
+  - Provider-specific fetchers and parsers.
+  - Keeps external API/scraping variability out of business logic.
 
-Common environment variables:
+- **`stock_search/indicators.py`**
+  - Unified indicator resolver across sources.
+  - Centralizes field-level precedence and cache fallback so callers stay source-agnostic.
 
-- `OPENROUTER_API_KEY`: required for any LLM or “AI web search” features
-- `NEWS_API_KEY`: required only if you enable NewsAPI fallback
-- `FAST_LLM`: optional, defaults to `google/gemini-3-flash-preview`
+- **`stock_search/evaluation/`**
+  - Scoring, normalization, and ranking logic.
+  - Keeps decision logic deterministic and independent from raw fetching.
+
+- **`stock_search/api/`**
+  - HTTP routes for portfolio flows, standalone ticker reads, and utility endpoints.
+  - Clean boundary between UI contract and internal data orchestration.
+
+- **`stock_search/models/`**
+  - Shared schemas, labels/constants, and storage interfaces.
+  - One canonical model layer for API, evaluation, and persistence code.
+
+- **`stock_search/models/convex/`**
+  - Convex adapter, store facade, and import tooling.
+  - Encapsulates cloud persistence details behind typed, app-level operations.
+
+## Data Sources
+
+- **Yahoo Finance (`yfinance`)**
+  - Fast quote/history/options/ratings-oriented data access.
+  - Broad free coverage and strong baseline for live market fields.
+
+- **StockAnalysis (web extraction)**
+  - Statistics/financial statement aligned fields and ETF holdings context.
+  - Better alignment for valuation/fundamental fields where API feeds can diverge.
+
+- **Fallback policy**
+  - Prefer higher-quality source per field group, then cache, then fallback provider.
+  - Improves consistency while remaining resilient during source failures.
+
+## Convex
+
+- Primary persistence backend for stocks, portfolio state, news, and metadata.
+- Gives a single cloud-backed source of truth and supports realtime-friendly integration.
+
+Current Convex function namespaces are intentionally singular to match the one-portfolio app model:
+
+- `portfolio:get`, `portfolio:set`
+- `stock:list`, `stock:get`, `stock:replaceAll`
+- `news:list`, `news:replaceAll`
+- `meta_versions:get`, `meta_versions:set`
