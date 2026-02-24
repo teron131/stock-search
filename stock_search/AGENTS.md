@@ -12,7 +12,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 - `stock_search/api/app.py` -> FastAPI entrypoint/bootstrap and router registration.
 - `stock_search/api/data_store.py` -> unified storage boundary (`convex|file`) for positions/stats/evals.
-- `stock_search/api/convex_client.py` -> Convex HTTP transport wrapper.
+- `stock_search/models/convex/client.py` -> Convex HTTP transport wrapper.
 - `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
 - `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
 - `stock_search/api/ticker_standalone.py` -> standalone ticker fallback resolver.
@@ -41,7 +41,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
   - `data/portfolio.json`
   - `data/stats.json`
   - `data/eval.json`
-- Use `stock_search/api/import_convex_data.py` for one-way bootstrap from local JSON into Convex.
+- Use `stock_search/models/convex/import_data.py` for one-way bootstrap from local JSON into Convex.
 - Preserve source precedence policy:
   - Fundamentals: StockAnalysis primary, cached values secondary, Yahoo fallback.
   - Live market fields: Yahoo snapshot/cache path.

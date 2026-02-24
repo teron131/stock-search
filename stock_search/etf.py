@@ -9,7 +9,7 @@ from typing import Any
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import ETF_QUOTE_TYPE, YahooFinanceSource
-from stock_search.schemas import SECTOR_LABELS, SECTOR_PATTERN_RULES, ETFSector, Holding
+from stock_search.models import SECTOR_LABELS, SECTOR_PATTERN_RULES, ETFSector, Holding
 
 ETF_CACHE_MAX_AGE_DAYS = 7
 

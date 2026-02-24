@@ -3,20 +3,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import os
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
-from stock_search.file_utils import load_json
-from stock_search.utils import normalize_ticker_symbol
-
-from .config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
-from .convex_client import ConvexHttpAdapter
+from ...api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
+from ...file_utils import load_json
+from ...utils import normalize_ticker_symbol
+from .client import ConvexHttpAdapter
+from .schemas import normalize_positions_for_convex, normalize_ticker_map, ticker_map_to_rows
 
 STATS_GENERATED_AT_KEY = "stats_generated_at"
 
 
-def _load_positions(path: Path) -> list[dict[str, Any]]:
+def _load_positions(path: Path) -> list[dict[str, object]]:
     payload = load_json(path, default=[])
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, dict)]
@@ -27,24 +26,7 @@ def _load_positions(path: Path) -> list[dict[str, Any]]:
     return []
 
 
-def _normalize_positions_for_convex(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    normalized: list[dict[str, Any]] = []
-    for row in rows:
-        ticker = normalize_ticker_symbol(str(row.get("ticker") or ""))
-        if not ticker:
-            continue
-        payload: dict[str, Any] = {
-            "ticker": ticker,
-            "quantity": float(row.get("quantity") or 0.0),
-        }
-        strategy = row.get("strategy")
-        if isinstance(strategy, str) and strategy.strip():
-            payload["strategy"] = strategy
-        normalized.append(payload)
-    return normalized
-
-
-def _load_ticker_map(path: Path) -> dict[str, dict[str, Any]]:
+def _load_ticker_map(path: Path) -> dict[str, dict[str, object]]:
     payload = load_json(path, default={})
     if not isinstance(payload, dict):
         return {}
@@ -58,13 +40,13 @@ def run_import_from_local_files(
     eval_path: Path = EVAL_PATH,
 ) -> dict[str, int]:
     client = ConvexHttpAdapter(base_url=os.getenv("CONVEX_URL", ""), deploy_key=os.getenv("CONVEX_DEPLOY_KEY", ""))
-    positions = _normalize_positions_for_convex(_load_positions(portfolio_path))
-    stats_map = _load_ticker_map(stats_path)
-    eval_map = _load_ticker_map(eval_path)
+    positions = normalize_positions_for_convex(_load_positions(portfolio_path))
+    stats_map = normalize_ticker_map(_load_ticker_map(stats_path))
+    eval_map = normalize_ticker_map(_load_ticker_map(eval_path))
 
     client.mutation("positions:replaceAll", {"positions": positions})
-    client.mutation("stats:replaceAll", {"rows": [{"ticker": ticker, **row} for ticker, row in stats_map.items()]})
-    client.mutation("evals:replaceAll", {"rows": [{"ticker": ticker, **row} for ticker, row in eval_map.items()]})
+    client.mutation("stats:replaceAll", {"rows": ticker_map_to_rows(stats_map)})
+    client.mutation("evals:replaceAll", {"rows": ticker_map_to_rows(eval_map)})
     client.mutation(
         "meta_versions:set",
         {"key": STATS_GENERATED_AT_KEY, "value": datetime.now(tz=UTC).isoformat()},

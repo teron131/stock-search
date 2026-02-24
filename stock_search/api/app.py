@@ -5,9 +5,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from stock_search.api.config import CONVEX_DEPLOY_KEY, CONVEX_URL, DATA_DIR, INDEX_FILE, UI_DIR
-from stock_search.api.convex_client import ConvexHttpAdapter
 from stock_search.api.data_store import backend_name
 from stock_search.api.routes import misc_router, portfolio_router, standalone_ticker_router
+from stock_search.models.convex.store import ConvexStore
 
 app = FastAPI(title="Stock Search Dashboard")
 logger = logging.getLogger(__name__)
@@ -31,9 +31,9 @@ app.include_router(misc_router)
 def validate_data_backend_on_startup() -> None:
     if backend_name() != "convex":
         return
-    client = ConvexHttpAdapter(base_url=CONVEX_URL, deploy_key=CONVEX_DEPLOY_KEY)
+    store = ConvexStore(base_url=CONVEX_URL, deploy_key=CONVEX_DEPLOY_KEY)
     try:
-        client.query("meta_versions:get", {"key": "stats_generated_at"})
+        store.get_meta_value("stats_generated_at")
     except Exception as exc:
         message = "Convex data store startup check failed. Verify CONVEX_URL, CONVEX_DEPLOY_KEY, and deployed Convex functions."
         logger.exception(message)

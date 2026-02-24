@@ -15,7 +15,7 @@ from stock_search.evaluation.scores import (
 )
 from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
-from stock_search.schemas import Evaluation, ScoredReason
+from stock_search.models import Evaluation, ScoredReason
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)

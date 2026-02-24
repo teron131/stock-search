@@ -16,8 +16,8 @@ from stock_search.api.data_store import backend_name
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
 from stock_search.indicators import StockIndicator
+from stock_search.models import PortfolioPositionInput
 from stock_search.portfolio import get_portfolio_payload_async
-from stock_search.schemas import PortfolioPositionInput
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

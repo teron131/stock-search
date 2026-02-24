@@ -18,7 +18,7 @@ import httpx
 from llm_harness.clients import ExaAgent
 from pydantic import BaseModel, Field
 
-from stock_search.schemas import ETFHoldings, ETFSectors, Holding
+from stock_search.models import ETFHoldings, ETFSectors, Holding
 
 logger = logging.getLogger(__name__)
 MODEL_TYPE = TypeVar("MODEL_TYPE")

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.config import ModelConfig
-from stock_search.schemas import INDUSTRY_LABELS
+from stock_search.models import INDUSTRY_LABELS
 
 INDUSTRY_LABEL_SET = set(INDUSTRY_LABELS)
 MAX_LABELS = 5

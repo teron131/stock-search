@@ -12,13 +12,13 @@ This guide is for changes inside `stock_search/api/`.
 
 - `stock_search/api/app.py` -> FastAPI app bootstrap, router registration, static mounts.
 - `stock_search/api/data_store.py` -> backend-agnostic data access (`convex|file`) for positions/stats/evals.
-- `stock_search/api/convex_client.py` -> Convex HTTP adapter (`query`, `mutation`, `action`).
+- `stock_search/models/convex/client.py` -> Convex HTTP adapter (`query`, `mutation`, `action`).
 - `stock_search/api/routes/portfolio.py` -> portfolio list/read-write routes and scope policy.
 - `stock_search/api/routes/standalone_ticker.py` -> standalone ticker routes (`/api/portfolio/{ticker}`, `/api/stats/{ticker}`).
 - `stock_search/api/ticker_standalone.py` -> ticker standalone resolver (`source=auto|live|cache`).
 - `stock_search/api/routes/misc.py` -> lightweight eval/news/color utility routes.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` consumed by portfolio routes.
-- `stock_search/api/import_convex_data.py` -> one-way bootstrap from local JSON into Convex tables.
+- `stock_search/models/convex/import_data.py` -> one-way bootstrap from local JSON into Convex tables.
 
 ## Key takeaways per location
 
@@ -55,7 +55,7 @@ This guide is for changes inside `stock_search/api/`.
 ## Syntax relationship highlights (ast-grep-first)
 
 - `stock_search/api/app.py` includes routers from `stock_search/api/routes/`.
-- `stock_search/api/app.py -> validate_data_backend_on_startup` -> calls `stock_search/api/convex_client.py -> query("meta_versions:get", ...)`.
+- `stock_search/api/app.py -> validate_data_backend_on_startup` -> calls `stock_search/models/convex/store.py -> get_meta_value("stats_generated_at")`.
 - `stock_search/api/portfolio_store.py` -> delegates reads/writes to `stock_search/api/data_store.py`.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
 - `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
