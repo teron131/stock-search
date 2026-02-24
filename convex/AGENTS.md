@@ -1,31 +1,59 @@
-# Convex Backend (Cloud Source of Truth)
+# AGENTS.md (convex module)
 
-This folder defines the Convex schema and server functions used by the FastAPI backend and UI realtime sync.
+This guide is for changes inside `convex/`.
 
-## Tables
+## Scope
 
-- `positions`: holdings (`ticker`, `quantity`, `strategy`, `updatedAt`)
-- `stats`: cacheable market data rows (`ticker`, `row`, source/timestamps)
-- `evals`: scoring/evaluation rows (`ticker`, `row`, `updatedAt`)
-- `meta_versions`: metadata/version markers (`key`, `value`, `updatedAt`)
+- Convex schema and server functions for cloud data storage.
+- Data contract surface consumed by Python (`stock_search/api/data_store.py`) and frontend realtime subscriptions (`ui/preact/usePortfolioData.js`).
+- Indexes and function identifiers that must remain stable for API compatibility.
 
-## Functions used by Python backend
+## High-signal locations
 
-- `positions:list`
-- `positions:replaceAll`
-- `stats:list`
-- `stats:getByTicker`
-- `stats:replaceAll`
-- `evals:list`
-- `evals:getByTicker`
-- `evals:replaceAll`
-- `meta_versions:get`
-- `meta_versions:set`
+- `convex/schema.ts` -> table definitions and indexes.
+- `convex/positions.ts` -> holdings query/mutation (`list`, `replaceAll`).
+- `convex/stats.ts` -> stats cache query/mutation (`list`, `getByTicker`, `replaceAll`).
+- `convex/evals.ts` -> evaluation query/mutation (`list`, `getByTicker`, `replaceAll`).
+- `convex/meta_versions.ts` -> metadata key/value query/mutation (`get`, `set`).
+- `convex/_generated/*` -> generated API/model bindings used by Convex runtime tooling.
 
-## Bootstrap local JSON into Convex
+## Key takeaways per location
 
-From repo root (after setting `CONVEX_URL` and `CONVEX_DEPLOY_KEY`):
+- `convex/schema.ts` is the source of truth for storage shape and index names; index name changes are breaking.
+- `convex/positions.ts -> replaceAll` is full replacement semantics, not per-ticker patching.
+- `convex/stats.ts` and `convex/evals.ts` keep both typed top-level columns and legacy `row` object for migration compatibility.
+- `convex/meta_versions.ts` stores operational metadata such as `stats_generated_at`.
 
-```bash
-uv run python -m stock_search.api.import_convex_data
-```
+## Project-specific conventions and rationale
+
+- Keep function identifiers stable:
+  - `positions:list`, `positions:replaceAll`
+  - `stats:list`, `stats:getByTicker`, `stats:replaceAll`
+  - `evals:list`, `evals:getByTicker`, `evals:replaceAll`
+  - `meta_versions:get`, `meta_versions:set`
+- Preserve uppercase/trim normalization of ticker keys at mutation boundaries.
+- Treat `replaceAll` functions as migration/bootstrap primitives. Do not silently switch to partial upserts without updating Python callers.
+- Keep legacy `row` fields until Python/UI consumers are fully migrated to canonical columns.
+
+## Syntax relationship highlights (ast-grep-first)
+
+- `convex/schema.ts -> defineSchema` declares `positions`, `stats`, `evals`, `meta_versions`.
+- `convex/positions.ts -> list/replaceAll` reads/writes `positions` table.
+- `convex/stats.ts -> list/getByTicker/replaceAll` reads/writes `stats` table and `by_ticker` index.
+- `convex/evals.ts -> list/getByTicker/replaceAll` reads/writes `evals` table and `by_ticker` index.
+- `convex/meta_versions.ts -> get/set` reads/writes `meta_versions` table and `by_key` index.
+
+## General approach (not rigid checklist)
+
+- Update `schema.ts` first, then align functions, then redeploy, then regenerate `_generated`.
+- When changing storage shape, preserve backward-compatible read paths in `list/getByTicker` before tightening write validators.
+- Prefer additive schema changes over destructive reshapes during active migration.
+
+## Validation commands
+
+- Deploy Convex:
+  - `npx convex deploy -y --typecheck disable --env-file .env`
+- Bootstrap data:
+  - `uv run python -m stock_search.api.import_convex_data`
+- API smoke after deploy:
+  - `uv run python - <<'PY'\nfrom dotenv import load_dotenv\nload_dotenv('.env')\nfrom fastapi.testclient import TestClient\nfrom stock_search.api.app import app\nwith TestClient(app) as client:\n    print(client.get('/api/portfolio?scope=priority').status_code)\nPY`

@@ -46,11 +46,7 @@ def _as_ticker_map(items: Any) -> dict[str, dict[str, Any]]:
 
 
 def _normalize_ticker_rows(rows: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return {
-        ticker_symbol: dict(row)
-        for ticker, row in rows.items()
-        if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))
-    }
+    return {ticker_symbol: dict(row) for ticker, row in rows.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
 
 def load_positions() -> list[dict[str, Any]]:
@@ -106,11 +102,7 @@ def load_eval_map() -> dict[str, dict[str, Any]]:
     if not isinstance(eval_data_raw, list):
         return {}
 
-    return {
-        ticker: item
-        for item in eval_data_raw
-        if isinstance(item, dict) and (ticker := normalize_ticker_symbol(str(item.get("ticker") or "")))
-    }
+    return {ticker: item for item in eval_data_raw if isinstance(item, dict) and (ticker := normalize_ticker_symbol(str(item.get("ticker") or "")))}
 
 
 def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:

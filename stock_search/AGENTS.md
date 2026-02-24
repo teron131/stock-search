@@ -5,12 +5,14 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Scope
 
 - Package-level orchestration across API, portfolio assembly, indicators, and providers.
-- Data flow between `data/portfolio.json`, `data/stats.json`, and `data/eval.json`.
+- Data flow between Convex cloud tables and optional local JSON fallback/bootstrap files.
 - How to change modules safely without breaking UI/API contracts.
 
 ## High-signal locations
 
 - `stock_search/api/app.py` -> FastAPI entrypoint/bootstrap and router registration.
+- `stock_search/api/data_store.py` -> unified storage boundary (`convex|file`) for positions/stats/evals.
+- `stock_search/api/convex_client.py` -> Convex HTTP transport wrapper.
 - `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
 - `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
 - `stock_search/api/ticker_standalone.py` -> standalone ticker fallback resolver.
@@ -24,6 +26,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Key takeaways per location
 
 - `stock_search/api/routes/portfolio.py` -> `portfolio_api` calls `get_portfolio_payload_async(...)`; portfolio handlers should stay thin and avoid embedding market logic.
+- `stock_search/api/data_store.py` is the storage seam: most modules should not call Convex directly.
 - `stock_search/api/routes/standalone_ticker.py` -> standalone ticker endpoints delegate to `resolve_standalone_ticker_stats(...)`.
 - `stock_search/portfolio.py` -> `_build_row` merges cache + optional live values, then resolves eval with LLM-first and deterministic fallback.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` is the central assembly point used by API and dataframe helpers.
@@ -33,9 +36,12 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## Project-specific conventions and rationale
 
-- Keep `portfolio.json` as holdings source-of-truth for write operations.
-- Treat `stats.json` as read-through cache for non-inference and fallback values.
-- Treat `eval.json` as inference/scoring payload, then normalize aliases before use.
+- Default source-of-truth is Convex tables (`positions`, `stats`, `evals`, `meta_versions`) via `stock_search/api/data_store.py`.
+- Keep local JSON files as fallback/bootstrap artifacts:
+  - `data/portfolio.json`
+  - `data/stats.json`
+  - `data/eval.json`
+- Use `stock_search/api/import_convex_data.py` for one-way bootstrap from local JSON into Convex.
 - Preserve source precedence policy:
   - Fundamentals: StockAnalysis primary, cached values secondary, Yahoo fallback.
   - Live market fields: Yahoo snapshot/cache path.
@@ -44,8 +50,10 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Syntax relationship highlights (ast-grep-first)
 
 - `stock_search/api/app.py` -> includes routers from `stock_search/api/routes/`.
+- `stock_search/api/app.py -> validate_data_backend_on_startup` -> checks Convex connectivity with `meta_versions:get`.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
 - `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
+- `stock_search/api/portfolio_store.py` -> delegates to `stock_search/api/data_store.py`.
 - `stock_search/evaluation/evaluation.py -> build_inputs` -> instantiates `stock_search/indicators.py -> StockIndicator`.
 - `stock_search/api/routes/portfolio.py -> _ensure_valid_new_ticker` and `stock_search/api/routes/misc.py -> evaluate_ticker_api` -> instantiate `stock_search/indicators.py -> StockIndicator`.
 - `stock_search/indicators.py -> StockIndicator` -> composes `YahooFinanceSource` + `StockAnalysisSource` and resolves field-by-field fallback.

@@ -48,11 +48,7 @@ def _load_ticker_map(path: Path) -> dict[str, dict[str, Any]]:
     payload = load_json(path, default={})
     if not isinstance(payload, dict):
         return {}
-    return {
-        ticker_symbol: row
-        for ticker, row in payload.items()
-        if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))
-    }
+    return {ticker_symbol: row for ticker, row in payload.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
 
 def run_import_from_local_files(

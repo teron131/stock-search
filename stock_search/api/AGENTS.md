@@ -6,20 +6,24 @@ This guide is for changes inside `stock_search/api/`.
 
 - FastAPI entrypoint, route contracts, and static mounts.
 - API-layer orchestration only (no heavy market/eval logic in handlers).
-- Write path for portfolio positions (`data/portfolio.json`).
+- Data-store orchestration via `stock_search/api/data_store.py` (Convex primary, file fallback).
 
 ## High-signal locations
 
 - `stock_search/api/app.py` -> FastAPI app bootstrap, router registration, static mounts.
+- `stock_search/api/data_store.py` -> backend-agnostic data access (`convex|file`) for positions/stats/evals.
+- `stock_search/api/convex_client.py` -> Convex HTTP adapter (`query`, `mutation`, `action`).
 - `stock_search/api/routes/portfolio.py` -> portfolio list/read-write routes and scope policy.
 - `stock_search/api/routes/standalone_ticker.py` -> standalone ticker routes (`/api/portfolio/{ticker}`, `/api/stats/{ticker}`).
 - `stock_search/api/ticker_standalone.py` -> ticker standalone resolver (`source=auto|live|cache`).
 - `stock_search/api/routes/misc.py` -> lightweight eval/news/color utility routes.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` consumed by portfolio routes.
-- `stock_search/file_utils.py` -> JSON load/write helpers used by route write paths.
+- `stock_search/api/import_convex_data.py` -> one-way bootstrap from local JSON into Convex tables.
 
 ## Key takeaways per location
 
+- `stock_search/api/app.py -> validate_data_backend_on_startup` performs Convex startup check when backend is `convex`.
+- `stock_search/api/data_store.py` is the only module that should know whether storage is Convex or file-backed.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` controls scope-to-behavior mapping (`priority`, `portfolio_live`, `all`) and response metadata.
 - `stock_search/api/routes/standalone_ticker.py` keeps ticker routes standalone and free from portfolio scope/priority behavior.
 - `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats` owns `source=auto|live|cache` fallback semantics and live-failure handling.
@@ -29,7 +33,10 @@ This guide is for changes inside `stock_search/api/`.
 ## Project-specific conventions and rationale
 
 - Keep route handlers thin; delegate portfolio assembly to `stock_search/portfolio.py`.
-- Preserve source-of-truth write target: `data/portfolio.json`.
+- Preserve public API shape while backend storage evolves.
+- Preserve source-of-truth policy:
+  - default runtime source: Convex (`DATA_STORE_BACKEND=convex`)
+  - fallback/dev source: local JSON (`DATA_STORE_BACKEND=file`)
 - Preserve mount order invariant:
   - `app.mount("/data", ...)` must remain before `app.mount("/", ...)`.
 - Preserve `/api/portfolio` scope behavior:
@@ -38,23 +45,30 @@ This guide is for changes inside `stock_search/api/`.
   - `all`: cached universe + live market fetch.
 - Scope/priority is portfolio-level only. Do not apply `scope` behavior to ticker endpoints.
 - Ticker endpoints are standalone and accept `source=auto|live|cache`:
-  - `auto`: try live fetch first, fallback to local cache.
+  - `auto`: try live fetch first, fallback to cached stats from active data store.
   - `live`: live fetch only; return 502 when live fetch fails.
   - `cache`: return cache-only row.
+- Preserve response metadata additions:
+  - `meta.backend_store`
+  - `meta.sync_mode`
 
 ## Syntax relationship highlights (ast-grep-first)
 
 - `stock_search/api/app.py` includes routers from `stock_search/api/routes/`.
+- `stock_search/api/app.py -> validate_data_backend_on_startup` -> calls `stock_search/api/convex_client.py -> query("meta_versions:get", ...)`.
+- `stock_search/api/portfolio_store.py` -> delegates reads/writes to `stock_search/api/data_store.py`.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
 - `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
 - `stock_search/api/ticker_standalone.py` -> calls `stock_search/portfolio.py -> fetch_live_stats_async` with cache fallback logic.
 - `stock_search/api/routes/portfolio.py -> patch_position` and `stock_search/api/routes/misc.py -> evaluate_ticker_api` -> use `stock_search/indicators.py -> StockIndicator`.
+- `stock_search/api/routes/misc.py -> realtime_config_api` -> exposes Convex realtime bootstrap settings for frontend.
 
 ## General approach (not rigid checklist)
 
 - When changing request/response shape, update API models first and keep payload compatibility with `ui/preact/usePortfolioData.js`.
 - For data semantics changes, prefer editing `stock_search/portfolio.py` instead of adding API-layer transformation logic.
 - For new endpoints, align response metadata style (`generated_at`, `data_source`) with existing routes.
+- Keep Convex function path strings stable in `data_store.py` unless corresponding Convex module exports are updated and redeployed.
 
 ## Validation commands
 
