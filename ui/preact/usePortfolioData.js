@@ -533,7 +533,7 @@ export function usePortfolioData() {
 
       if (!res.ok) return { ok: false, reason: "server" };
       const rowPayload = await tryFetchJson(
-        `${CONFIG.endpoints.portfolio}/${normalizedTicker}`,
+        CONFIG.endpoints.stockStats(normalizedTicker),
       );
       if (rowPayload?.row) {
         setRows((prevRows) =>

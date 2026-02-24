@@ -34,7 +34,7 @@ export const list = query({
   },
 });
 
-export const getByTicker = query({
+export const get = query({
   args: { ticker: v.string() },
   handler: async (ctx, args) => {
     const ticker = args.ticker.toUpperCase().trim();

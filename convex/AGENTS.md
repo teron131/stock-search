@@ -11,8 +11,8 @@ This guide is for changes inside `convex/`.
 ## High-signal locations
 
 - `convex/schema.ts` -> table definitions and indexes.
-- `convex/portfolios.ts` -> portfolio query/mutation (`get`, `set`).
-- `convex/stocks.ts` -> stock query/mutation (`list`, `getByTicker`, `replaceAll`).
+- `convex/portfolio.ts` -> portfolio query/mutation (`get`, `set`).
+- `convex/stock.ts` -> stock query/mutation (`list`, `get`, `replaceAll`).
 - `convex/news.ts` -> news query/mutation (`list`, `replaceAll`).
 - `convex/meta_versions.ts` -> metadata key/value query/mutation (`get`, `set`).
 - `convex/_generated/*` -> generated API/model bindings used by Convex runtime tooling.
@@ -20,15 +20,15 @@ This guide is for changes inside `convex/`.
 ## Key takeaways per location
 
 - `convex/schema.ts` is the source of truth for storage shape and index names; index name changes are breaking.
-- `convex/portfolios.ts -> set` is upsert-by-key semantics for aggregate portfolio state.
-- `convex/stocks.ts -> replaceAll` is full replacement semantics for stock snapshots.
+- `convex/portfolio.ts -> set` is upsert-by-key semantics for aggregate portfolio state.
+- `convex/stock.ts -> replaceAll` is full replacement semantics for stock snapshots.
 - `convex/meta_versions.ts` stores operational metadata such as `stats_generated_at`.
 
 ## Project-specific conventions and rationale
 
 - Keep function identifiers stable:
-  - `portfolios:get`, `portfolios:set`
-  - `stocks:list`, `stocks:getByTicker`, `stocks:replaceAll`
+  - `portfolio:get`, `portfolio:set`
+  - `stock:list`, `stock:get`, `stock:replaceAll`
   - `news:list`, `news:replaceAll`
   - `meta_versions:get`, `meta_versions:set`
 - Preserve uppercase/trim normalization of ticker keys at mutation boundaries.
@@ -37,15 +37,15 @@ This guide is for changes inside `convex/`.
 ## Syntax relationship highlights (ast-grep-first)
 
 - `convex/schema.ts -> defineSchema` declares `stocks`, `portfolios`, `news`, `meta_versions`.
-- `convex/portfolios.ts -> get/set` reads/writes `portfolios` table and `by_key` index.
-- `convex/stocks.ts -> list/getByTicker/replaceAll` reads/writes `stocks` table and `by_ticker` index.
+- `convex/portfolio.ts -> get/set` reads/writes `portfolios` table and `by_key` index.
+- `convex/stock.ts -> list/get/replaceAll` reads/writes `stocks` table and `by_ticker` index.
 - `convex/news.ts -> list/replaceAll` reads/writes `news` table and `by_key` index.
 - `convex/meta_versions.ts -> get/set` reads/writes `meta_versions` table and `by_key` index.
 
 ## General approach (not rigid checklist)
 
 - Update `schema.ts` first, then align functions, then redeploy, then regenerate `_generated`.
-- When changing storage shape, preserve backward-compatible read paths in `list/getByTicker` before tightening write validators.
+- When changing storage shape, preserve backward-compatible read paths in `list/get` before tightening write validators.
 - Prefer additive schema changes over destructive reshapes during active migration.
 
 ## Validation commands

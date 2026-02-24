@@ -9,6 +9,16 @@ from .convex_schemas import (
     payload_to_stock_map,
     stock_map_to_rows,
 )
+from .function_names import (
+    CONVEX_META_GET,
+    CONVEX_META_SET,
+    CONVEX_NEWS_LIST,
+    CONVEX_NEWS_REPLACE_ALL,
+    CONVEX_PORTFOLIO_GET,
+    CONVEX_PORTFOLIO_SET,
+    CONVEX_STOCK_LIST,
+    CONVEX_STOCK_REPLACE_ALL,
+)
 
 
 class ConvexStore:
@@ -21,18 +31,18 @@ class ConvexStore:
         )
 
     def load_stocks(self) -> dict[str, dict[str, Any]]:
-        payload = self._client.query("stocks:list")
+        payload = self._client.query(CONVEX_STOCK_LIST)
         return payload_to_stock_map(payload)
 
     def save_stocks(self, stocks_map: dict[str, dict[str, Any]]) -> None:
         self._client.mutation(
-            "stocks:replaceAll",
+            CONVEX_STOCK_REPLACE_ALL,
             {"rows": stock_map_to_rows(normalize_stock_map(stocks_map))},
         )
 
     def load_portfolio(self, *, key: str = "default") -> dict[str, Any]:
         payload = self._client.query(
-            "portfolios:get",
+            CONVEX_PORTFOLIO_GET,
             {"key": key},
         )
         if not isinstance(payload, dict):
@@ -55,7 +65,7 @@ class ConvexStore:
         key: str = "default",
     ) -> None:
         self._client.mutation(
-            "portfolios:set",
+            CONVEX_PORTFOLIO_SET,
             {
                 "key": key,
                 "positions": normalize_portfolio_positions(positions),
@@ -64,19 +74,19 @@ class ConvexStore:
         )
 
     def load_news(self, *, key: str = "default") -> list[dict[str, Any]]:
-        payload = self._client.query("news:list", {"key": key})
+        payload = self._client.query(CONVEX_NEWS_LIST, {"key": key})
         return [dict(item) for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
 
     def save_news(self, rows: list[dict[str, Any]], *, key: str = "default") -> None:
         normalized_rows = [dict(row) for row in rows if isinstance(row, dict)]
         self._client.mutation(
-            "news:replaceAll",
+            CONVEX_NEWS_REPLACE_ALL,
             {"key": key, "rows": normalized_rows},
         )
 
     def get_meta_value(self, key: str) -> str | None:
         payload = self._client.query(
-            "meta_versions:get",
+            CONVEX_META_GET,
             {"key": key},
         )
         if not isinstance(payload, dict):
@@ -86,6 +96,6 @@ class ConvexStore:
 
     def set_meta_value(self, *, key: str, value: str) -> None:
         self._client.mutation(
-            "meta_versions:set",
+            CONVEX_META_SET,
             {"key": key, "value": value},
         )

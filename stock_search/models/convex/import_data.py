@@ -11,6 +11,11 @@ from ...file_utils import load_json
 from ...utils import normalize_ticker_symbol
 from .client import ConvexHttpAdapter
 from .convex_schemas import normalize_portfolio_positions, stock_map_to_rows
+from .function_names import (
+    CONVEX_META_SET,
+    CONVEX_PORTFOLIO_SET,
+    CONVEX_STOCK_REPLACE_ALL,
+)
 
 STATS_GENERATED_AT_KEY = "stats_generated_at"
 
@@ -65,20 +70,20 @@ def run_import_from_local_files(
         existing["evaluation"] = dict(eval_row)
 
     client.mutation(
-        "portfolios:set",
+        CONVEX_PORTFOLIO_SET,
         {
             "key": "default",
             "positions": positions,
         },
     )
     client.mutation(
-        "stocks:replaceAll",
+        CONVEX_STOCK_REPLACE_ALL,
         {
             "rows": stock_map_to_rows(merged_stock_map),
         },
     )
     client.mutation(
-        "meta_versions:set",
+        CONVEX_META_SET,
         {
             "key": STATS_GENERATED_AT_KEY,
             "value": datetime.now(tz=UTC).isoformat(),

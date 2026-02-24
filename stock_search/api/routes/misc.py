@@ -2,25 +2,27 @@ from fastapi import APIRouter, Response
 
 from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
 from stock_search.api.data_store import load_eval_map, load_stocks
+from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.indicators import StockIndicator
+from stock_search.models.convex.function_names import CONVEX_REALTIME_TOPICS
 
 router = APIRouter()
 
 
-@router.get("/api/eval")
+@router.get(EVAL)
 def eval_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return load_eval_map()
 
 
-@router.get("/api/stocks")
+@router.get(STOCKS)
 def stocks_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return load_stocks()
 
 
-@router.get("/api/color-standards")
+@router.get(COLOR_STANDARDS)
 def color_standards_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return {
@@ -72,7 +74,7 @@ def color_standards_api(response: Response) -> dict:
     }
 
 
-@router.get("/api/realtime-config")
+@router.get(REALTIME_CONFIG)
 def realtime_config_api(response: Response) -> dict:
     response.headers["Cache-Control"] = "no-store"
     return {
@@ -80,11 +82,11 @@ def realtime_config_api(response: Response) -> dict:
         "enabled": bool(CONVEX_SYNC_ENABLED and CONVEX_URL),
         "convex_url": CONVEX_URL or None,
         "audience": CONVEX_AUDIENCE or None,
-        "topics": ["portfolios:get", "stocks:list"],
+        "topics": list(CONVEX_REALTIME_TOPICS),
     }
 
 
-@router.get("/api/news/{ticker}")
+@router.get(STOCK_NEWS)
 def news_api(ticker: str) -> list[dict]:
     return [
         {
@@ -106,7 +108,7 @@ def news_api(ticker: str) -> list[dict]:
     ]
 
 
-@router.get("/api/evaluate/{ticker}")
+@router.get(STOCK_EVALUATE)
 def evaluate_ticker_api(ticker: str) -> dict:
     indicator = StockIndicator(ticker)
 

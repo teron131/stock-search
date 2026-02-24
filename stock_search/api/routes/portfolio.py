@@ -15,6 +15,7 @@ from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from stock_search.api.data_store import backend_name
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
+from stock_search.api.route_paths import PORTFOLIO, PORTFOLIO_IMPORT_IMAGE, PORTFOLIO_TICKER
 from stock_search.indicators import StockIndicator
 from stock_search.models import PortfolioPositionInput
 from stock_search.portfolio import get_portfolio_payload_async
@@ -122,7 +123,7 @@ def _extract_holdings_from_image_bytes(
             logger.warning("Failed to delete temp image file: %s", temp_path)
 
 
-@router.get("/api/portfolio")
+@router.get(PORTFOLIO)
 async def portfolio_api(response: Response, scope: str = "all") -> dict:
     response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
@@ -156,7 +157,7 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
     return payload
 
 
-@router.patch("/api/portfolio/{ticker}")
+@router.patch(PORTFOLIO_TICKER)
 def patch_position(ticker: str, patch: PortfolioPositionPatch):
     ticker_upper = ticker.upper()
     positions = load_positions()
@@ -186,7 +187,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
     return {"status": "ok", "ticker": ticker_upper, "position": positions[idx]}
 
 
-@router.delete("/api/portfolio/{ticker}")
+@router.delete(PORTFOLIO_TICKER)
 def remove_position(ticker: str):
     ticker_upper = ticker.upper()
     positions = [position for position in load_positions() if position.get("ticker", "").upper() != ticker_upper]
@@ -194,7 +195,7 @@ def remove_position(ticker: str):
     return {"status": "ok", "ticker": ticker_upper}
 
 
-@router.post("/api/portfolio/import-image")
+@router.post(PORTFOLIO_IMPORT_IMAGE)
 async def import_portfolio_image_api(
     response: Response,
     file: UploadFile = File(...),

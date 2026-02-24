@@ -4,10 +4,17 @@ export const CONFIG = {
     new URLSearchParams(window.location.search).get("demo") === "true",
 
   endpoints: {
-    portfolio: "/api/portfolio",
-    portfolioImportImage: "/api/portfolio/import-image",
-    colorStandards: "/api/color-standards",
-    realtimeConfig: "/api/realtime-config",
+    portfolio: "/portfolio",
+    portfolioImportImage: "/portfolio/import-image",
+    stock: "/stock",
+    stockStats: (ticker) =>
+      `/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`,
+    stockEvaluate: (ticker) =>
+      `/stock/${encodeURIComponent(String(ticker || "").trim())}/evaluate`,
+    stockNews: (ticker) =>
+      `/stock/${encodeURIComponent(String(ticker || "").trim())}/news`,
+    colorStandards: "/color-standards",
+    realtimeConfig: "/realtime-config",
   },
 
   requestTimeoutMs: {

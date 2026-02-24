@@ -10,8 +10,8 @@
 
 import type * as meta_versions from "../meta_versions.js";
 import type * as news from "../news.js";
-import type * as portfolios from "../portfolios.js";
-import type * as stocks from "../stocks.js";
+import type * as portfolio from "../portfolio.js";
+import type * as stock from "../stock.js";
 
 import type {
   ApiFromModules,
@@ -22,8 +22,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   meta_versions: typeof meta_versions;
   news: typeof news;
-  portfolios: typeof portfolios;
-  stocks: typeof stocks;
+  portfolio: typeof portfolio;
+  stock: typeof stock;
 }>;
 
 /**

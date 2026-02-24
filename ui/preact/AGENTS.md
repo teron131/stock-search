@@ -23,9 +23,9 @@ Primary files:
 ## Invariants
 
 - Preserve endpoint contract:
-  - `/api/portfolio`
-  - `/api/portfolio/{ticker}` for row patch refresh
-  - `/api/color-standards`
+  - `/portfolio`
+  - `/stock/{ticker}` for row patch refresh
+  - `/color-standards`
 - Preserve two-stage sync behavior:
   - foreground `priority`, optional background `portfolio_live` backfill.
 - Keep ETF behavior:
