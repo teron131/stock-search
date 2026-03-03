@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any
 
 import httpx
@@ -18,6 +20,7 @@ class ConvexHttpAdapter:
         base_url: str,
         deploy_key: str,
         timeout_seconds: float = 20.0,
+        max_retries: int = 2,
     ) -> None:
         if not base_url:
             raise RuntimeError("Missing CONVEX_URL for Convex data store.")
@@ -25,6 +28,7 @@ class ConvexHttpAdapter:
             raise RuntimeError("Missing CONVEX_DEPLOY_KEY for Convex data store.")
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
+        self._max_retries = max(0, max_retries)
         self._headers = {
             "Content-Type": "application/json",
             "Authorization": f"Convex {deploy_key}",
@@ -52,22 +56,42 @@ class ConvexHttpAdapter:
         return {"path": path, "args": args or {}, "format": "json"}
 
     def _call(self, *, endpoint: str, path: str, args: dict[str, Any] | None) -> Any:
-        with httpx.Client(timeout=self._timeout) as client:
-            response = client.post(
-                f"{self._base_url}/api/{endpoint}",
-                headers=self._headers,
-                json=self._request_body(path, args),
-            )
+        response: httpx.Response | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                with httpx.Client(timeout=self._timeout) as client:
+                    response = client.post(
+                        f"{self._base_url}/api/{endpoint}",
+                        headers=self._headers,
+                        json=self._request_body(path, args),
+                    )
+                break
+            except httpx.HTTPError:
+                if attempt >= self._max_retries:
+                    raise
+                time.sleep(0.25 * (attempt + 1))
+        if response is None:
+            raise RuntimeError("Convex request failed before receiving a response.")
         response.raise_for_status()
         return self._parse_payload(response.json(), endpoint=endpoint, path=path)
 
     async def _acall(self, *, endpoint: str, path: str, args: dict[str, Any] | None) -> Any:
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                f"{self._base_url}/api/{endpoint}",
-                headers=self._headers,
-                json=self._request_body(path, args),
-            )
+        response: httpx.Response | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    response = await client.post(
+                        f"{self._base_url}/api/{endpoint}",
+                        headers=self._headers,
+                        json=self._request_body(path, args),
+                    )
+                break
+            except httpx.HTTPError:
+                if attempt >= self._max_retries:
+                    raise
+                await asyncio.sleep(0.25 * (attempt + 1))
+        if response is None:
+            raise RuntimeError("Convex async request failed before receiving a response.")
         response.raise_for_status()
         return self._parse_payload(response.json(), endpoint=endpoint, path=path)
 
