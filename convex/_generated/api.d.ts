@@ -14,16 +14,16 @@ import type * as portfolio from "../portfolio.js";
 import type * as stock from "../stock.js";
 
 import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
+    ApiFromModules,
+    FilterApi,
+    FunctionReference,
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  meta_versions: typeof meta_versions;
-  news: typeof news;
-  portfolio: typeof portfolio;
-  stock: typeof stock;
+    meta_versions: typeof meta_versions;
+    news: typeof news;
+    portfolio: typeof portfolio;
+    stock: typeof stock;
 }>;
 
 /**
@@ -35,8 +35,8 @@ declare const fullApi: ApiFromModules<{
  * ```
  */
 export declare const api: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "public">
+    typeof fullApi,
+    FunctionReference<any, "public">
 >;
 
 /**
@@ -48,8 +48,8 @@ export declare const api: FilterApi<
  * ```
  */
 export declare const internal: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "internal">
+    typeof fullApi,
+    FunctionReference<any, "internal">
 >;
 
 export declare const components: {};

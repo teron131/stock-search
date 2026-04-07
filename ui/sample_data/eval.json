@@ -1,122 +1,122 @@
 {
-  "AMZN": {
-    "overall_score": 7.4,
-    "quality_score": 8.0,
-    "valuation_score": 4.0,
-    "moat_score": 9.5,
-    "upside_score": 8.2,
-    "market_cap_score": 9.8,
-    "bull_probability": 0.61,
-    "bear_probability": 0.2
-  },
-  "GE": {
-    "overall_score": 4.2,
-    "quality_score": 6.5,
-    "valuation_score": 0.1,
-    "moat_score": 7.0,
-    "upside_score": 3.0,
-    "market_cap_score": 2.8,
-    "bull_probability": 0.69,
-    "bear_probability": 0.2
-  },
-  "GLD": {
-    "overall_score": 5.4,
-    "quality_score": 4.5,
-    "valuation_score": 5.0,
-    "moat_score": 7.0,
-    "upside_score": 5.0,
-    "market_cap_score": 5.0,
-    "bull_probability": 0.71,
-    "bear_probability": 0.2
-  },
-  "GOOGL": {
-    "overall_score": 6.5,
-    "quality_score": 8.0,
-    "valuation_score": 3.7,
-    "moat_score": 9.5,
-    "upside_score": 5.0,
-    "market_cap_score": 10.0,
-    "bull_probability": 0.8,
-    "bear_probability": 0.2
-  },
-  "ITA": {
-    "overall_score": 3.5,
-    "quality_score": 4.5,
-    "valuation_score": 0.4,
-    "moat_score": 4.0,
-    "upside_score": 5.0,
-    "market_cap_score": 5.0,
-    "bull_probability": 0.75,
-    "bear_probability": 0.2
-  },
-  "META": {
-    "overall_score": 7.3,
-    "quality_score": 9.5,
-    "valuation_score": 5.4,
-    "moat_score": 9.5,
-    "upside_score": 5.0,
-    "market_cap_score": 8.8,
-    "bull_probability": 0.49,
-    "bear_probability": 0.2
-  },
-  "NFLX": {
-    "overall_score": 7.2,
-    "quality_score": 8.0,
-    "valuation_score": 3.9,
-    "moat_score": 7.0,
-    "upside_score": 10.0,
-    "market_cap_score": 3.0,
-    "bull_probability": 0.38,
-    "bear_probability": 0.2
-  },
-  "NVDA": {
-    "overall_score": 9.0,
-    "quality_score": 9.5,
-    "valuation_score": 7.5,
-    "moat_score": 9.5,
-    "upside_score": 9.6,
-    "market_cap_score": 10.0,
-    "bull_probability": 0.62,
-    "bear_probability": 0.2
-  },
-  "RTX": {
-    "overall_score": 3.6,
-    "quality_score": 4.5,
-    "valuation_score": 2.8,
-    "moat_score": 7.0,
-    "upside_score": 0.0,
-    "market_cap_score": 2.3,
-    "bull_probability": 0.76,
-    "bear_probability": 0.2
-  },
-  "SHLD": {
-    "overall_score": 4.6,
-    "quality_score": 4.5,
-    "valuation_score": 4.8,
-    "moat_score": 4.0,
-    "upside_score": 5.0,
-    "market_cap_score": 5.0,
-    "bull_probability": 0.77,
-    "bear_probability": 0.2
-  },
-  "SLV": {
-    "overall_score": 4.6,
-    "quality_score": 4.5,
-    "valuation_score": 5.0,
-    "moat_score": 4.0,
-    "upside_score": 5.0,
-    "market_cap_score": 5.0,
-    "bull_probability": 0.8,
-    "bear_probability": 0.2
-  },
-  "TSM": {
-    "overall_score": 6.3,
-    "quality_score": 8.0,
-    "valuation_score": 6.8,
-    "moat_score": 9.5,
-    "upside_score": 0.8,
-    "market_cap_score": 9.2,
-    "bull_probability": 0.8,
-    "bear_probability": 0.2
-  }
+    "AMZN": {
+        "overall_score": 7.4,
+        "quality_score": 8.0,
+        "valuation_score": 4.0,
+        "moat_score": 9.5,
+        "upside_score": 8.2,
+        "market_cap_score": 9.8,
+        "bull_probability": 0.61,
+        "bear_probability": 0.2
+    },
+    "GE": {
+        "overall_score": 4.2,
+        "quality_score": 6.5,
+        "valuation_score": 0.1,
+        "moat_score": 7.0,
+        "upside_score": 3.0,
+        "market_cap_score": 2.8,
+        "bull_probability": 0.69,
+        "bear_probability": 0.2
+    },
+    "GLD": {
+        "overall_score": 5.4,
+        "quality_score": 4.5,
+        "valuation_score": 5.0,
+        "moat_score": 7.0,
+        "upside_score": 5.0,
+        "market_cap_score": 5.0,
+        "bull_probability": 0.71,
+        "bear_probability": 0.2
+    },
+    "GOOGL": {
+        "overall_score": 6.5,
+        "quality_score": 8.0,
+        "valuation_score": 3.7,
+        "moat_score": 9.5,
+        "upside_score": 5.0,
+        "market_cap_score": 10.0,
+        "bull_probability": 0.8,
+        "bear_probability": 0.2
+    },
+    "ITA": {
+        "overall_score": 3.5,
+        "quality_score": 4.5,
+        "valuation_score": 0.4,
+        "moat_score": 4.0,
+        "upside_score": 5.0,
+        "market_cap_score": 5.0,
+        "bull_probability": 0.75,
+        "bear_probability": 0.2
+    },
+    "META": {
+        "overall_score": 7.3,
+        "quality_score": 9.5,
+        "valuation_score": 5.4,
+        "moat_score": 9.5,
+        "upside_score": 5.0,
+        "market_cap_score": 8.8,
+        "bull_probability": 0.49,
+        "bear_probability": 0.2
+    },
+    "NFLX": {
+        "overall_score": 7.2,
+        "quality_score": 8.0,
+        "valuation_score": 3.9,
+        "moat_score": 7.0,
+        "upside_score": 10.0,
+        "market_cap_score": 3.0,
+        "bull_probability": 0.38,
+        "bear_probability": 0.2
+    },
+    "NVDA": {
+        "overall_score": 9.0,
+        "quality_score": 9.5,
+        "valuation_score": 7.5,
+        "moat_score": 9.5,
+        "upside_score": 9.6,
+        "market_cap_score": 10.0,
+        "bull_probability": 0.62,
+        "bear_probability": 0.2
+    },
+    "RTX": {
+        "overall_score": 3.6,
+        "quality_score": 4.5,
+        "valuation_score": 2.8,
+        "moat_score": 7.0,
+        "upside_score": 0.0,
+        "market_cap_score": 2.3,
+        "bull_probability": 0.76,
+        "bear_probability": 0.2
+    },
+    "SHLD": {
+        "overall_score": 4.6,
+        "quality_score": 4.5,
+        "valuation_score": 4.8,
+        "moat_score": 4.0,
+        "upside_score": 5.0,
+        "market_cap_score": 5.0,
+        "bull_probability": 0.77,
+        "bear_probability": 0.2
+    },
+    "SLV": {
+        "overall_score": 4.6,
+        "quality_score": 4.5,
+        "valuation_score": 5.0,
+        "moat_score": 4.0,
+        "upside_score": 5.0,
+        "market_cap_score": 5.0,
+        "bull_probability": 0.8,
+        "bear_probability": 0.2
+    },
+    "TSM": {
+        "overall_score": 6.3,
+        "quality_score": 8.0,
+        "valuation_score": 6.8,
+        "moat_score": 9.5,
+        "upside_score": 0.8,
+        "market_cap_score": 9.2,
+        "bull_probability": 0.8,
+        "bear_probability": 0.2
+    }
 }
