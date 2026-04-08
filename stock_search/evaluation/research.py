@@ -10,7 +10,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.store.memory import InMemoryStore
-from llm_harness.clients import ChatOpenRouter, WebLoaderAgent
+from llm_harness.clients import ChatOpenAI, WebLoaderAgent
 from pydantic import BaseModel, Field
 
 from ..utils import extract_domain
@@ -153,7 +153,7 @@ class ResearchAgents:
         fast_model = os.getenv("FAST_LLM")
 
         self.supervisor = create_agent(
-            model=ChatOpenRouter(
+            model=ChatOpenAI(
                 model=quality_model,
                 temperature=0,
                 reasoning_effort="medium",
@@ -169,7 +169,7 @@ class ResearchAgents:
         )
 
         self.searcher = create_agent(
-            model=ChatOpenRouter(
+            model=ChatOpenAI(
                 model=quality_model,
                 temperature=0,
                 reasoning_effort="medium",
@@ -189,7 +189,7 @@ class ResearchAgents:
         )
 
         self.validator = create_agent(
-            model=ChatOpenRouter(
+            model=ChatOpenAI(
                 model=fast_model,
                 temperature=0,
                 reasoning_effort="medium",

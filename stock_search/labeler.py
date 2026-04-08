@@ -3,8 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from langgraph.graph import END, START, StateGraph
-from llm_harness.clients import ExaAgent
-from llm_harness.clients.openrouter import ChatOpenRouter
+from llm_harness.clients import ChatOpenAI, ExaAgent
 from pydantic import BaseModel, Field, model_validator
 
 from stock_search.common_utils import normalize_ticker_symbol
@@ -182,7 +181,7 @@ def _build_label_graph():
         return {"outlook": outlook}
 
     async def label_node(state: LabelGraphState) -> dict[str, TickerLabels]:
-        label_model = ChatOpenRouter(
+        label_model = ChatOpenAI(
             model=ModelConfig.quality_or_fast(),
             temperature=0.1,
             reasoning_effort="medium",

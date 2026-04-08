@@ -12,7 +12,7 @@ import os
 
 import httpx
 from langchain_core.prompts import PromptTemplate
-from llm_harness.clients import ChatOpenRouter
+from llm_harness.clients import ChatOpenAI
 from llm_harness.tools import webloader
 from tqdm import tqdm
 
@@ -71,7 +71,7 @@ def _analyze_news(
     failed = NewsAnalysis(summary=FALLBACK_SUMMARIES[1])
     results: list[NewsAnalysis] = [failed] * len(news_list)
 
-    model = ChatOpenRouter(
+    model = ChatOpenAI(
         model=FAST_LLM,
         temperature=0,
         reasoning_effort="low",

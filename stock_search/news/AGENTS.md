@@ -40,7 +40,7 @@ This guide is for changes inside `stock_search/news/`.
   - `get_news_exa`
   - `get_news_yfinance`
   - `get_news_newsapi`
-- `stock_search/news/analysis.py -> _analyze_news` -> calls `llm_harness.tools.webloader` and `ChatOpenRouter(...).with_structured_output(NewsAnalysis)`.
+- `stock_search/news/analysis.py -> _analyze_news` -> calls `llm_harness.tools.webloader` and `ChatOpenAI(...).with_structured_output(NewsAnalysis)` through the Vercel AI Gateway-compatible client wrapper.
 
 ## General approach (not rigid checklist)
 
