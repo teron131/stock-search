@@ -4,36 +4,36 @@ import { useMemo, useState } from "https://esm.sh/preact@10.19.6/hooks";
 import { normalizeTicker } from "../format.js";
 
 export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
-    const [ticker, setTicker] = useState("");
-    const [qty, setQty] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
+	const [ticker, setTicker] = useState("");
+	const [qty, setQty] = useState("");
+	const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const existingQty = useMemo(() => {
-        const t = normalizeTicker(ticker);
-        const existing = rows.find((r) => normalizeTicker(r.ticker) === t);
-        const qty = existing ? Number(existing.quantity) : null;
-        return qty != null && !Number.isNaN(qty) ? qty : null;
-    }, [rows, ticker]);
+	const existingQty = useMemo(() => {
+		const t = normalizeTicker(ticker);
+		const existing = rows.find((r) => normalizeTicker(r.ticker) === t);
+		const qty = existing ? Number(existing.quantity) : null;
+		return qty != null && !Number.isNaN(qty) ? qty : null;
+	}, [rows, ticker]);
 
-    const submit = async (e) => {
-        e.preventDefault();
-        if (isUsingDemoData) return;
+	const submit = async (e) => {
+		e.preventDefault();
+		if (isUsingDemoData) return;
 
-        setIsSubmitting(true);
-        try {
-            await onSubmit({
-                ticker,
-                quantity: qty,
-                existingQuantity: existingQty,
-            });
-            setTicker("");
-            setQty("");
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+		setIsSubmitting(true);
+		try {
+			await onSubmit({
+				ticker,
+				quantity: qty,
+				existingQuantity: existingQty,
+			});
+			setTicker("");
+			setQty("");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
 
-    return html`
+	return html`
     <form id="quick-add-form" class="quick-add-compact" onSubmit=${submit}>
       <input
         type="text"
@@ -62,9 +62,9 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
         disabled=${isSubmitting}
       >
         ${
-            isSubmitting
-                ? "…"
-                : html`
+					isSubmitting
+						? "…"
+						: html`
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="14"
@@ -80,7 +80,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             `
-        }
+				}
       </button>
     </form>
   `;

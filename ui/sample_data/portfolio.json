@@ -1,50 +1,50 @@
 [
-    {
-        "ticker": "AMZN",
-        "quantity": 53.0
-    },
-    {
-        "ticker": "GE",
-        "quantity": 26.0
-    },
-    {
-        "ticker": "GLD",
-        "quantity": 21.0
-    },
-    {
-        "ticker": "GOOGL",
-        "quantity": 50.0
-    },
-    {
-        "ticker": "ITA",
-        "quantity": 25.0
-    },
-    {
-        "ticker": "META",
-        "quantity": 26.0
-    },
-    {
-        "ticker": "NFLX",
-        "quantity": 114.0
-    },
-    {
-        "ticker": "NVDA",
-        "quantity": 115.0
-    },
-    {
-        "ticker": "RTX",
-        "quantity": 39.0
-    },
-    {
-        "ticker": "SHLD",
-        "quantity": 92.0
-    },
-    {
-        "ticker": "SLV",
-        "quantity": 89.0
-    },
-    {
-        "ticker": "TSM",
-        "quantity": 39.0
-    }
+	{
+		"ticker": "AMZN",
+		"quantity": 53.0
+	},
+	{
+		"ticker": "GE",
+		"quantity": 26.0
+	},
+	{
+		"ticker": "GLD",
+		"quantity": 21.0
+	},
+	{
+		"ticker": "GOOGL",
+		"quantity": 50.0
+	},
+	{
+		"ticker": "ITA",
+		"quantity": 25.0
+	},
+	{
+		"ticker": "META",
+		"quantity": 26.0
+	},
+	{
+		"ticker": "NFLX",
+		"quantity": 114.0
+	},
+	{
+		"ticker": "NVDA",
+		"quantity": 115.0
+	},
+	{
+		"ticker": "RTX",
+		"quantity": 39.0
+	},
+	{
+		"ticker": "SHLD",
+		"quantity": 92.0
+	},
+	{
+		"ticker": "SLV",
+		"quantity": 89.0
+	},
+	{
+		"ticker": "TSM",
+		"quantity": 39.0
+	}
 ]
