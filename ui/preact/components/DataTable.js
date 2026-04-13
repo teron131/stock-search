@@ -63,6 +63,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
     />
     <div class="qty-spin">
       <button
+        type="button"
         class="qty-spin-btn"
         disabled=${!canEdit}
         onPointerDown=${onSpinPointerDown(1)}
@@ -76,6 +77,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
         ▲
       </button>
       <button
+        type="button"
         class="qty-spin-btn"
         disabled=${!canEdit}
         onPointerDown=${onSpinPointerDown(-1)}
@@ -113,6 +115,7 @@ function renderCell({
 
 	if (key === "remove") {
 		return html`<button
+      type="button"
       class="btn-remove-cell"
       onClick=${() => onRemove(row.ticker)}
       title="Remove"
@@ -127,6 +130,8 @@ function renderCell({
         stroke-width="2.5"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
+        focusable="false"
       >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
@@ -183,7 +188,7 @@ function renderCell({
 			format,
 		) || ["rank", "rsi", "market_cap"].includes(colorKey);
 
-	if (isColorizable && colorMeta && colorMeta[colorKey]) {
+	if (isColorizable && colorMeta?.[colorKey]) {
 		const rawValue =
 			colorKey === "market_cap"
 				? parseMarketCap(row.market_cap)

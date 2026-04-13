@@ -37,12 +37,12 @@
       <div id="slide-menu" class="slide-menu">
         <div class="menu-header">
           <div class="brand">TERMINAL</div>
-          <button class="close-btn" id="menu-close-btn" aria-label="Close menu">&times;</button>
+          <button type="button" class="close-btn" id="menu-close-btn" aria-label="Close menu">&times;</button>
         </div>
         <nav class="main-nav">
-          <button class="nav-item active" data-view="dashboard">DASHBOARD</button>
-          <button class="nav-item" data-view="heatmap">MARKET MAP</button>
-          <button class="nav-item" data-view="calendar">ECONOMIC CALENDAR</button>
+          <button type="button" class="nav-item active" data-view="dashboard">DASHBOARD</button>
+          <button type="button" class="nav-item" data-view="heatmap">MARKET MAP</button>
+          <button type="button" class="nav-item" data-view="calendar">ECONOMIC CALENDAR</button>
         </nav>
       </div>
       <div id="menu-overlay" class="menu-overlay"></div>
@@ -52,8 +52,8 @@
         <!-- Dense Top Bar -->
         <header class="top-bar">
           <div class="top-bar-left">
-            <button id="menu-open-btn" class="hamburger-btn" aria-label="Open menu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            <button type="button" id="menu-open-btn" class="hamburger-btn" aria-label="Open menu">
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             </button>
             <span class="view-title" id="view-title">DASHBOARD</span>
           </div>
@@ -63,8 +63,8 @@
             <span class="import-status" id="import-status"></span>
             <input id="import-image-input" type="file" accept="image/*" hidden aria-hidden="true" tabindex="-1" />
             <div class="action-icon-group">
-              <button class="btn btn-secondary btn-icon-top" id="import-image-btn" title="Import Image">IMG</button>
-              <button class="btn btn-secondary btn-icon-top" id="refresh-btn" title="Sync">SYNC</button>
+              <button type="button" class="btn btn-secondary btn-icon-top" id="import-image-btn" title="Import Image">IMG</button>
+              <button type="button" class="btn btn-secondary btn-icon-top" id="refresh-btn" title="Sync">SYNC</button>
             </div>
           </div>
         </header>
@@ -93,6 +93,7 @@
         <!-- Preact App Root -->
         <div id="preact-root" class="terminal-grid"></div>
 
+        <div id="secondary-views">
           <!-- Heatmap Section -->
           <div
             id="heatmap-section"
@@ -101,10 +102,10 @@
           >
             <div class="tabs-header">
               <div class="tab-group">
-                <button class="tab-btn active" data-source="SPX500">
+                <button type="button" class="tab-btn active" data-source="SPX500">
                   S&P_500
                 </button>
-                <button class="tab-btn" data-source="NASDAQ100">
+                <button type="button" class="tab-btn" data-source="NASDAQ100">
                   NASDAQ_100
                 </button>
               </div>
@@ -114,32 +115,6 @@
               id="heatmap-widget-container"
             >
               <div class="tradingview-widget-container__widget"></div>
-              <script
-                type="text/javascript"
-                src="https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js"
-                async
-              >
-                {
-                  "dataSource": "SPX500",
-                  "blockSize": "Value.Traded|1W",
-                  "blockColor": "change",
-                  "grouping": "sector",
-                  "locale": "en",
-                  "symbolUrl": "",
-                  "colorTheme": "dark",
-                  "exchanges": [
-                    "NYSE",
-                    "NASDAQ"
-                  ],
-                  "hasTopBar": true,
-                  "isDataSetEnabled": false,
-                  "isZoomEnabled": true,
-                  "hasSymbolTooltip": true,
-                  "isMonoSize": false,
-                  "width": "100%",
-                  "height": "100%"
-                }
-              </script>
             </div>
           </div>
 
@@ -149,23 +124,8 @@
             class="calendar-container"
             style="display: none"
           >
-            <div class="tradingview-widget-container">
+            <div class="tradingview-widget-container" id="calendar-widget-container">
               <div class="tradingview-widget-container__widget"></div>
-              <script
-                type="text/javascript"
-                src="https://s3.tradingview.com/external-embedding/embed-widget-events.js"
-                async
-              >
-                {
-                  "colorTheme": "dark",
-                  "isTransparent": false,
-                  "locale": "en",
-                  "countryFilter": "us",
-                  "importanceFilter": "-1,0,1",
-                  "width": "100%",
-                  "height": "100%"
-                }
-              </script>
             </div>
           </div>
         </div>

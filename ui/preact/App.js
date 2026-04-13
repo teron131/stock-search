@@ -129,9 +129,9 @@ function initSidebarAndNav({ onViewChange }) {
 			const viewName = btn.dataset.view;
 			if (!viewName) return;
 
-			navItems.forEach((n) =>
-				n.classList.toggle("active", n.dataset.view === viewName),
-			);
+			navItems.forEach((n) => {
+				n.classList.toggle("active", n.dataset.view === viewName);
+			});
 			onViewChange(viewName);
 
 			if (window.innerWidth <= 1024 && sidebar) {
@@ -144,7 +144,9 @@ function initSidebarAndNav({ onViewChange }) {
 	});
 
 	return () => {
-		cleanupFns.forEach((cleanup) => cleanup());
+		cleanupFns.forEach((cleanup) => {
+			cleanup();
+		});
 	};
 }
 
@@ -163,17 +165,42 @@ function createHeatmapWidget(dataSource) {
 	container.appendChild(script);
 }
 
+function createCalendarWidget() {
+	const container = document.getElementById("calendar-widget-container");
+	if (!container) return;
+
+	container.innerHTML =
+		'<div class="tradingview-widget-container__widget"></div>';
+	const script = document.createElement("script");
+	script.type = "text/javascript";
+	script.src =
+		"https://s3.tradingview.com/external-embedding/embed-widget-events.js";
+	script.async = true;
+	script.innerHTML = JSON.stringify({
+		colorTheme: "dark",
+		isTransparent: false,
+		locale: "en",
+		countryFilter: "us",
+		importanceFilter: "-1,0,1",
+		width: "100%",
+		height: "100%",
+	});
+	container.appendChild(script);
+}
+
 function initHeatmapTabs() {
 	const tabs = document.querySelectorAll("#heatmap-section .tab-btn");
 	const cleanupFns = [];
+	createHeatmapWidget("SPX500");
+
 	tabs.forEach((tab) => {
 		const onClick = () => {
 			const source = tab.dataset.source;
 			if (!source) return;
 
-			tabs.forEach((t) =>
-				t.classList.toggle("active", t.dataset.source === source),
-			);
+			tabs.forEach((t) => {
+				t.classList.toggle("active", t.dataset.source === source);
+			});
 			createHeatmapWidget(source);
 		};
 
@@ -182,7 +209,9 @@ function initHeatmapTabs() {
 	});
 
 	return () => {
-		cleanupFns.forEach((cleanup) => cleanup());
+		cleanupFns.forEach((cleanup) => {
+			cleanup();
+		});
 	};
 }
 
@@ -218,6 +247,7 @@ export function App() {
 	useEffect(() => {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
+		createCalendarWidget();
 		actions.sync({ background: false, scope: "priority" });
 
 		const refreshBtn = document.getElementById("refresh-btn");
@@ -484,18 +514,21 @@ export function App() {
       <div class="tabs-header">
         <div class="tab-group">
           <button
+            type="button"
             class=${`tab-btn ${tab === "all" ? "active" : ""}`}
             onClick=${() => onTabChange("all")}
           >
             ALL
           </button>
           <button
+            type="button"
             class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
             onClick=${() => onTabChange("holdings")}
           >
             PORTFOLIO
           </button>
           <button
+            type="button"
             class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
             onClick=${() => onTabChange("evaluations")}
           >
