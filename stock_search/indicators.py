@@ -66,7 +66,7 @@ INDICATOR_FIELDS_BY_SOURCE: dict[str, tuple[str, ...]] = {
 }
 _FIELD_SOURCE_GROUP: dict[str, str] = {field: source for source, fields in INDICATOR_FIELDS_BY_SOURCE.items() for field in fields}
 _SOURCE_PRIORITY_BY_GROUP: dict[str, tuple[str, ...]] = {
-    DATA_SOURCE_YAHOOFINANCE: ("yahoo", "cache"),
+    DATA_SOURCE_YAHOOFINANCE: ("yahoo", "stockanalysis", "cache"),
     DATA_SOURCE_STOCKANALYSIS_STATISTICS: ("stockanalysis", "cache", "yahoo"),
     DATA_SOURCE_STOCKANALYSIS_FINANCIALS: ("stockanalysis", "cache", "yahoo"),
     DATA_SOURCE_STOCKANALYSIS_ETF_HOLDINGS: ("cache",),

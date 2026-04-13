@@ -22,6 +22,7 @@ from stock_search.models import ETFHoldings, ETFSectors, Holding
 
 logger = logging.getLogger(__name__)
 MODEL_TYPE = TypeVar("MODEL_TYPE")
+QUOTE_EMPTY_FIELDS = {"price": None, "change": None, "change_percent": None}
 
 STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
 STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
@@ -31,6 +32,7 @@ HOLDINGS_BLOCK_PATTERN = re.compile(r"holdings:\[(.*?)\],asset_allocation:", re.
 HOLDING_ROW_PATTERN = re.compile(r'\{[^{}]*n:"([^"]+)"[^{}]*s:"([^"]+)"[^{}]*as:"([\d.]+)%"', re.DOTALL)
 SECTORS_BLOCK_PATTERN = re.compile(r"sectors:\[(.*?)\],(?:countries|allocationChartData):", re.DOTALL)
 SECTOR_ROW_PATTERN = re.compile(r'\{n:"([^"]+)",w:([\d.]+)\}')
+QUOTE_BLOCK_PATTERN = re.compile(r"quote:\{(.*?)\},stream:", re.DOTALL)
 COMPACT_NUMBER_SUFFIXES = {
     "K": 1_000.0,
     "M": 1_000_000.0,
@@ -52,6 +54,34 @@ SECTOR_FIELD_BY_LABEL = {
     "Utilities": "utilities",
     "Other": "other",
 }
+STATISTICS_FIELD_SPECS = {
+    "market_cap": ("Market Cap", "_parse_number"),
+    "beta": ("Beta (5Y)", "_parse_number"),
+    "fifty_two_week_price_change": ("52-Week Price Change", "_parse_percent_points"),
+    "moving_average_50d": ("50-Day Moving Average", "_parse_number"),
+    "moving_average_200d": ("200-Day Moving Average", "_parse_number"),
+    "rsi": ("Relative Strength Index (RSI)", "_parse_number"),
+    "average_volume_20d": ("Average Volume (20 Days)", "_parse_number"),
+    "pe": ("PE Ratio", "_parse_number"),
+    "pe_forward": ("Forward PE", "_parse_number"),
+    "peg": ("PEG Ratio", "_parse_number"),
+    "roic": ("Return on Invested Capital (ROIC)", "_parse_percent_ratio"),
+    "gross_margin": ("Gross Margin", "_parse_percent_ratio"),
+    "operating_margin": ("Operating Margin", "_parse_percent_ratio"),
+    "debt_to_equity": ("Debt / Equity", "_parse_number"),
+    "debt_to_ebitda": ("Debt / EBITDA", "_parse_number"),
+    "free_cash_flow": ("Free Cash Flow", "_parse_number"),
+}
+FINANCIALS_FIELD_SPECS = {
+    "revenue_growth": ("Revenue Growth (YoY)", "_parse_percent_ratio"),
+    "eps_diluted": ("EPS (Diluted)", "_parse_number"),
+    "eps_growth": ("EPS Growth", "_parse_percent_ratio"),
+    "gross_margin": ("Gross Margin", "_parse_percent_ratio"),
+    "operating_margin": ("Operating Margin", "_parse_percent_ratio"),
+}
+REGULAR_QUOTE_KEYS = {"price": "p", "change": "c", "change_percent": "cp"}
+EXTENDED_QUOTE_KEYS = {"price": "ep", "change": "ec", "change_percent": "ecp"}
+EXTENDED_SESSION_NAMES = {"Pre-market", "After-hours"}
 
 STATISTICS_SYSTEM_PROMPT = """Extract statistics for {ticker}.
 Use this URL as the primary source:
@@ -178,6 +208,9 @@ class StockAnalysisIndicatorsSnapshot(
     normalized indicator aliases consumed by `indicators.py`.
     """
 
+    price: float | None = Field(default=None)
+    change: float | None = Field(default=None)
+    change_percent: float | None = Field(default=None)
     # Snapshot metadata used by orchestrator/callers.
     fetched_at: str | None = Field(default=None)
 
@@ -203,45 +236,58 @@ class StockAnalysisSource:
 
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
-        if self._statistics_snapshot is None:
-            self._statistics_snapshot = self._scrape_statistics_snapshot()
-            if not self._has_model_data(self._statistics_snapshot):
-                self._statistics_snapshot = self._search_statistics_snapshot()
-            self._statistics_fetched_at = datetime.now(tz=UTC)
-            logger.info(
-                "Fetched StockAnalysis statistics for %s at %s",
-                self.ticker,
-                self._statistics_fetched_at.isoformat(),
-            )
-            return self._statistics_snapshot
-
-        logger.info(
-            "Using cached StockAnalysis statistics for %s fetched at %s",
-            self.ticker,
-            self._statistics_fetched_at.isoformat() if self._statistics_fetched_at else "unknown",
+        return self._load_snapshot(
+            label="statistics",
+            snapshot_attr="_statistics_snapshot",
+            fetched_at_attr="_statistics_fetched_at",
+            scrape_getter=self._scrape_statistics_snapshot,
+            search_getter=self._search_statistics_snapshot,
         )
-        return self._statistics_snapshot
 
     def _load_financials(self) -> StockAnalysisFinancials:
         """Fetch financials once and reuse cached data on later calls."""
-        if self._financials_snapshot is None:
-            self._financials_snapshot = self._scrape_financials_snapshot()
-            if not self._has_model_data(self._financials_snapshot):
-                self._financials_snapshot = self._search_financials_snapshot()
-            self._financials_fetched_at = datetime.now(tz=UTC)
-            logger.info(
-                "Fetched StockAnalysis financials for %s at %s",
-                self.ticker,
-                self._financials_fetched_at.isoformat(),
-            )
-            return self._financials_snapshot
-
-        logger.info(
-            "Using cached StockAnalysis financials for %s fetched at %s",
-            self.ticker,
-            self._financials_fetched_at.isoformat() if self._financials_fetched_at else "unknown",
+        return self._load_snapshot(
+            label="financials",
+            snapshot_attr="_financials_snapshot",
+            fetched_at_attr="_financials_fetched_at",
+            scrape_getter=self._scrape_financials_snapshot,
+            search_getter=self._search_financials_snapshot,
         )
-        return self._financials_snapshot
+
+    def _load_snapshot(
+        self,
+        *,
+        label: str,
+        snapshot_attr: str,
+        fetched_at_attr: str,
+        scrape_getter: Callable[[], MODEL_TYPE],
+        search_getter: Callable[[], MODEL_TYPE],
+    ) -> MODEL_TYPE:
+        snapshot = getattr(self, snapshot_attr)
+        if snapshot is not None:
+            fetched_at = getattr(self, fetched_at_attr)
+            logger.info(
+                "Using cached StockAnalysis %s for %s fetched at %s",
+                label,
+                self.ticker,
+                fetched_at.isoformat() if fetched_at else "unknown",
+            )
+            return snapshot
+
+        snapshot = scrape_getter()
+        if not self._has_model_data(snapshot):
+            snapshot = search_getter()
+
+        fetched_at = datetime.now(tz=UTC)
+        setattr(self, snapshot_attr, snapshot)
+        setattr(self, fetched_at_attr, fetched_at)
+        logger.info(
+            "Fetched StockAnalysis %s for %s at %s",
+            label,
+            self.ticker,
+            fetched_at.isoformat(),
+        )
+        return snapshot
 
     @staticmethod
     def _coalesce(primary: float | None, fallback: float | None) -> float | None:
@@ -420,29 +466,80 @@ class StockAnalysisSource:
             return None
         return BeautifulSoup(html, "html.parser")
 
-    def _extract_two_column_table_rows(self, soup: BeautifulSoup) -> dict[str, str]:
-        rows: dict[str, str] = {}
-        for row in soup.select("table tr"):
-            cells = row.select("th, td")
-            if len(cells) < 2:
-                continue
-            label = self._normalize_cell_text(cells[0].get_text(" ", strip=True))
-            value = self._normalize_cell_text(cells[1].get_text(" ", strip=True))
-            if label and value and label not in rows:
-                rows[label] = value
-        return rows
+    def _extract_quote_block(self) -> str | None:
+        statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
+        html = self._fetch_stockanalysis_html(statistics_url)
+        if html is None:
+            return None
 
-    def _extract_first_value_rows(self, soup: BeautifulSoup) -> dict[str, str]:
+        quote_match = QUOTE_BLOCK_PATTERN.search(html)
+        if not quote_match:
+            return None
+        return quote_match.group(1)
+
+    @staticmethod
+    def _extract_quote_scalar(quote_block: str, key: str) -> str | None:
+        match = re.search(rf"{re.escape(key)}:(\"[^\"]*\"|[^,]+)", quote_block)
+        if not match:
+            return None
+        return match.group(1).strip().strip('"')
+
+    def _scrape_quote_fields(self) -> dict[str, float | None]:
+        quote_block = self._extract_quote_block()
+        if quote_block is None:
+            return dict(QUOTE_EMPTY_FIELDS)
+
+        regular_quote = self._extract_quote_values(quote_block, REGULAR_QUOTE_KEYS)
+        extended_quote = self._extract_quote_values(quote_block, EXTENDED_QUOTE_KEYS)
+        extended_session = self._extract_quote_scalar(quote_block, "es")
+
+        if extended_session in EXTENDED_SESSION_NAMES and extended_quote["price"] is not None:
+            return extended_quote
+
+        return regular_quote
+
+    def _extract_quote_values(
+        self,
+        quote_block: str,
+        field_keys: dict[str, str],
+    ) -> dict[str, float | None]:
+        return {field_name: self._parse_number(self._extract_quote_scalar(quote_block, key) or "") for field_name, key in field_keys.items()}
+
+    def _extract_table_rows(
+        self,
+        soup: BeautifulSoup,
+        *,
+        cell_selector: str,
+        keep_first: bool,
+    ) -> dict[str, str]:
         rows: dict[str, str] = {}
         for row in soup.select("table tr"):
-            cells = row.select("td")
+            cells = row.select(cell_selector)
             if len(cells) < 2:
                 continue
             label = self._normalize_cell_text(cells[0].get_text(" ", strip=True))
             value = self._normalize_cell_text(cells[1].get_text(" ", strip=True))
             if label and value:
+                if keep_first and label in rows:
+                    continue
                 rows[label] = value
         return rows
+
+    def _extract_two_column_table_rows(self, soup: BeautifulSoup) -> dict[str, str]:
+        return self._extract_table_rows(soup, cell_selector="th, td", keep_first=True)
+
+    def _extract_first_value_rows(self, soup: BeautifulSoup) -> dict[str, str]:
+        return self._extract_table_rows(soup, cell_selector="td", keep_first=False)
+
+    def _build_model_from_rows(
+        self,
+        rows: dict[str, str],
+        *,
+        model_type: type[MODEL_TYPE],
+        field_specs: dict[str, tuple[str, str]],
+    ) -> MODEL_TYPE:
+        payload = {field_name: getattr(self, parser_name)(rows.get(label, "")) for field_name, (label, parser_name) in field_specs.items()}
+        return model_type(**payload)
 
     def _scrape_statistics_snapshot(self) -> StockAnalysisStatistics:
         statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
@@ -451,23 +548,10 @@ class StockAnalysisSource:
             return StockAnalysisStatistics()
 
         rows = self._extract_two_column_table_rows(soup)
-        return StockAnalysisStatistics(
-            market_cap=self._parse_number(rows.get("Market Cap", "")),
-            beta=self._parse_number(rows.get("Beta (5Y)", "")),
-            fifty_two_week_price_change=self._parse_percent_points(rows.get("52-Week Price Change", "")),
-            moving_average_50d=self._parse_number(rows.get("50-Day Moving Average", "")),
-            moving_average_200d=self._parse_number(rows.get("200-Day Moving Average", "")),
-            rsi=self._parse_number(rows.get("Relative Strength Index (RSI)", "")),
-            average_volume_20d=self._parse_number(rows.get("Average Volume (20 Days)", "")),
-            pe=self._parse_number(rows.get("PE Ratio", "")),
-            pe_forward=self._parse_number(rows.get("Forward PE", "")),
-            peg=self._parse_number(rows.get("PEG Ratio", "")),
-            roic=self._parse_percent_ratio(rows.get("Return on Invested Capital (ROIC)", "")),
-            gross_margin=self._parse_percent_ratio(rows.get("Gross Margin", "")),
-            operating_margin=self._parse_percent_ratio(rows.get("Operating Margin", "")),
-            debt_to_equity=self._parse_number(rows.get("Debt / Equity", "")),
-            debt_to_ebitda=self._parse_number(rows.get("Debt / EBITDA", "")),
-            free_cash_flow=self._parse_number(rows.get("Free Cash Flow", "")),
+        return self._build_model_from_rows(
+            rows,
+            model_type=StockAnalysisStatistics,
+            field_specs=STATISTICS_FIELD_SPECS,
         )
 
     def _scrape_financials_snapshot(self) -> StockAnalysisFinancials:
@@ -477,12 +561,10 @@ class StockAnalysisSource:
             return StockAnalysisFinancials()
 
         rows = self._extract_first_value_rows(soup)
-        return StockAnalysisFinancials(
-            revenue_growth=self._parse_percent_ratio(rows.get("Revenue Growth (YoY)", "")),
-            eps_diluted=self._parse_number(rows.get("EPS (Diluted)", "")),
-            eps_growth=self._parse_percent_ratio(rows.get("EPS Growth", "")),
-            gross_margin=self._parse_percent_ratio(rows.get("Gross Margin", "")),
-            operating_margin=self._parse_percent_ratio(rows.get("Operating Margin", "")),
+        return self._build_model_from_rows(
+            rows,
+            model_type=StockAnalysisFinancials,
+            field_specs=FINANCIALS_FIELD_SPECS,
         )
 
     def _search_statistics_snapshot(self) -> StockAnalysisStatistics:
@@ -536,34 +618,38 @@ class StockAnalysisSource:
         return block_match.group(1)
 
     def _scrape_stockanalysis_holdings(self) -> ETFHoldings:
-        holdings = ETFHoldings()
         try:
-            parsed_holdings: list[Holding] = []
             holdings_url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)
             soup = self._fetch_stockanalysis_soup(holdings_url)
-            if soup is not None:
-                for row in soup.select("table tr"):
-                    cells = row.select("td")
-                    if len(cells) < 4:
-                        continue
-                    ticker = self._normalize_cell_text(cells[1].get_text(" ", strip=True))
-                    name = self._normalize_cell_text(cells[2].get_text(" ", strip=True))
-                    weight = self._parse_percent_points(cells[3].get_text(" ", strip=True))
-                    if ticker and weight is not None:
-                        parsed_holdings.append(Holding(ticker=ticker, name=name or None, weight=weight))
-
+            parsed_holdings = self._extract_holdings_from_table(soup)
             if not parsed_holdings:
-                items_text = self._extract_script_block(HOLDINGS_BLOCK_PATTERN)
-                if not items_text:
-                    return holdings
-                for name, raw_symbol, weight_str in HOLDING_ROW_PATTERN.findall(items_text):
-                    ticker = self._clean_symbol(raw_symbol)
-                    parsed_holdings.append(Holding(ticker=ticker, name=name, weight=float(weight_str)))
-
-            holdings = ETFHoldings(holdings=parsed_holdings)
+                parsed_holdings = self._extract_holdings_from_script()
+            return ETFHoldings(holdings=parsed_holdings)
         except Exception as exc:
             logger.warning("Failed to scrape ETF holdings from StockAnalysis for %s: %s", self.ticker, exc)
+        return ETFHoldings()
+
+    def _extract_holdings_from_table(self, soup: BeautifulSoup | None) -> list[Holding]:
+        if soup is None:
+            return []
+
+        holdings: list[Holding] = []
+        for row in soup.select("table tr"):
+            cells = row.select("td")
+            if len(cells) < 4:
+                continue
+            ticker = self._normalize_cell_text(cells[1].get_text(" ", strip=True))
+            name = self._normalize_cell_text(cells[2].get_text(" ", strip=True))
+            weight = self._parse_percent_points(cells[3].get_text(" ", strip=True))
+            if ticker and weight is not None:
+                holdings.append(Holding(ticker=ticker, name=name or None, weight=weight))
         return holdings
+
+    def _extract_holdings_from_script(self) -> list[Holding]:
+        items_text = self._extract_script_block(HOLDINGS_BLOCK_PATTERN)
+        if not items_text:
+            return []
+        return [Holding(ticker=self._clean_symbol(raw_symbol), name=name, weight=float(weight_str)) for name, raw_symbol, weight_str in HOLDING_ROW_PATTERN.findall(items_text)]
 
     def _search_etf_holdings(self) -> ETFHoldings:
         holdings = ETFHoldings()
@@ -581,22 +667,19 @@ class StockAnalysisSource:
         return holdings
 
     def _scrape_stockanalysis_sectors(self) -> ETFSectors:
-        sectors = ETFSectors()
         try:
             items_text = self._extract_script_block(SECTORS_BLOCK_PATTERN)
             if not items_text:
-                return sectors
+                return ETFSectors()
 
-            payload: dict[str, float] = {}
-            for sector_name, weight_str in SECTOR_ROW_PATTERN.findall(items_text):
-                field_name = SECTOR_FIELD_BY_LABEL.get(sector_name)
-                if field_name:
-                    payload[field_name] = float(weight_str)
+            payload = {
+                field_name: float(weight_str) for sector_name, weight_str in SECTOR_ROW_PATTERN.findall(items_text) if (field_name := SECTOR_FIELD_BY_LABEL.get(sector_name))
+            }
             if payload:
-                sectors = ETFSectors(**payload)
+                return ETFSectors(**payload)
         except Exception as exc:
             logger.warning("Failed to scrape ETF sectors from StockAnalysis for %s: %s", self.ticker, exc)
-        return sectors
+        return ETFSectors()
 
     def _search_etf_sectors(self) -> ETFSectors:
         sectors = ETFSectors()
@@ -620,9 +703,13 @@ class StockAnalysisSource:
 
         stats = self.get_statistics_snapshot()
         financials = self.get_financials_snapshot()
+        quote_fields = self._scrape_quote_fields()
         gross_margin = self._coalesce(stats.gross_margin, financials.gross_margin)
         operating_margin = self._coalesce(stats.operating_margin, financials.operating_margin)
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
+            price=quote_fields["price"],
+            change=quote_fields["change"],
+            change_percent=quote_fields["change_percent"],
             market_cap=stats.market_cap,
             pe=stats.pe,
             pe_forward=stats.pe_forward,

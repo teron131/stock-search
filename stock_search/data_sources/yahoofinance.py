@@ -303,15 +303,46 @@ class YahooFinanceSource:
 
     def get_realtime_price(self, market_state: str) -> float | None:
         """Pick best available realtime price from pre/regular/post values."""
-        candidates = [(int(self.info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := safe_float(self.info.get(price_key))) is not None]
-        if candidates and any(ts > 0 for ts, _ in candidates):
-            return round(max(candidates, key=lambda x: x[0])[1], 2)
+        price_entry = self._get_realtime_price_entry(market_state)
+        return price_entry[1] if price_entry is not None else None
+
+    def _get_realtime_price_entry(self, market_state: str) -> tuple[str, float] | None:
+        """Pick the best available realtime price and return its Yahoo field key."""
+        candidates = [
+            (price_key, int(self.info.get(time_key) or 0), price) for price_key, time_key in _PRICE_TIME_KEYS if (price := safe_float(self.info.get(price_key))) is not None
+        ]
+        if candidates and any(timestamp > 0 for _, timestamp, _ in candidates):
+            latest_key, _, latest_price = max(candidates, key=lambda item: item[1])
+            return latest_key, round(latest_price, 2)
 
         preferred = _SESSION_PRICE_KEYS.get(market_state)
         for key in (preferred, *_PRICE_FALLBACK_ORDER):
             if key and (price := safe_float(self.info.get(key))) is not None:
-                return round(price, 2)
+                return key, round(price, 2)
         return None
+
+    def _get_change_baseline_price(self, price_key: str | None) -> float | None:
+        """Choose the correct change baseline for the selected price field."""
+        if price_key in {"preMarketPrice", "postMarketPrice"}:
+            regular_market_price = round_optional(self.get_info_float("regularMarketPrice"))
+            if regular_market_price is not None:
+                return regular_market_price
+
+        previous_close_info = round_optional(self.get_previous_close())
+        if previous_close_info is not None:
+            return previous_close_info
+        return self._previous_close_from_history()
+
+    def _build_session_quote(self) -> tuple[float | None, float | None, float | None]:
+        """Build price/change/change_percent with the correct session baseline."""
+        price_entry = self._get_realtime_price_entry(self.get_market_state())
+        price = price_entry[1] if price_entry is not None else None
+        if price is None:
+            price = round_optional(self.get_current_price()) or self._last_intraday_price() or self._last_close()
+        baseline_price = self._get_change_baseline_price(price_entry[0] if price_entry is not None else None)
+        change = round_optional(price - baseline_price) if price is not None and baseline_price is not None else None
+        change_percent = round_optional(((price - baseline_price) / baseline_price) * 100) if price is not None and baseline_price not in (None, 0) else None
+        return price, change, change_percent
 
     def get_market_cap(self) -> float | None:
         """Get raw market cap in dollars."""
@@ -629,11 +660,7 @@ class YahooFinanceSource:
         if ratings_days in self._indicator_cache:
             return self._indicator_cache[ratings_days]
 
-        price = self.get_realtime_price(self.get_market_state()) or round_optional(self.get_current_price()) or self._last_intraday_price() or self._last_close()
-        previous_close_info = round_optional(self.get_previous_close())
-        previous_close = previous_close_info if previous_close_info is not None else self._previous_close_from_history()
-        change = round_optional(price - previous_close) if price is not None and previous_close is not None else None
-        change_percent = round_optional(((price - previous_close) / previous_close) * 100) if price is not None and previous_close not in (None, 0) else None
+        price, change, change_percent = self._build_session_quote()
 
         now = self._now_ny().date()
         period_values = {
