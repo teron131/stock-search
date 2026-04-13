@@ -136,6 +136,7 @@ class StockAnalysisStatistics(BaseModel):
     roic: float | None = Field(default=None, description="Return on Invested Capital (ROIC)")
     gross_margin: float | None = Field(default=None, description="Gross Margin")
     operating_margin: float | None = Field(default=None, description="Operating Margin")
+    debt_to_equity: float | None = Field(default=None, description="Debt / Equity")
     debt_to_ebitda: float | None = Field(default=None, description="Debt / EBITDA")
     free_cash_flow: float | None = Field(default=None, description="Free Cash Flow")
 
@@ -464,6 +465,7 @@ class StockAnalysisSource:
             roic=self._parse_percent_ratio(rows.get("Return on Invested Capital (ROIC)", "")),
             gross_margin=self._parse_percent_ratio(rows.get("Gross Margin", "")),
             operating_margin=self._parse_percent_ratio(rows.get("Operating Margin", "")),
+            debt_to_equity=self._parse_number(rows.get("Debt / Equity", "")),
             debt_to_ebitda=self._parse_number(rows.get("Debt / EBITDA", "")),
             free_cash_flow=self._parse_number(rows.get("Free Cash Flow", "")),
         )
@@ -630,6 +632,7 @@ class StockAnalysisSource:
             revenue_growth=self._to_percent(financials.revenue_growth),
             gross_margin=self._to_percent(gross_margin),
             operating_margin=self._to_percent(operating_margin),
+            debt_to_equity=self._to_percent(stats.debt_to_equity),
             debt_to_ebitda=stats.debt_to_ebitda,
             free_cash_flow=stats.free_cash_flow,
             eps_diluted=financials.eps_diluted,
