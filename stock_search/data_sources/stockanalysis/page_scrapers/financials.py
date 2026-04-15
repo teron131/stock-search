@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from bs4 import BeautifulSoup
+from selectolax.lexbor import LexborHTMLParser
 
 from ..constants import (
     FINANCIALS_FIELD_SPECS,
@@ -17,7 +17,7 @@ from ..schemas import StockAnalysisFinancials
 def scrape_financials_snapshot(
     *,
     ticker_lower: str,
-    fetch_soup: Callable[[str], BeautifulSoup | None],
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
 ) -> StockAnalysisFinancials:
     """Scrape the StockAnalysis financials table into a snapshot."""
     financials_url = STOCKANALYSIS_FINANCIALS_URL.format(ticker=ticker_lower)

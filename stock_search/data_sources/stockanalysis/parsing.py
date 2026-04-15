@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from bs4 import BeautifulSoup
 from pydantic import BaseModel
+from selectolax.lexbor import LexborHTMLParser
 
 from .constants import COMPACT_NUMBER_SUFFIXES, NULLISH_TEXT
 
@@ -93,7 +93,7 @@ def extract_quote_scalar(quote_block: str, key: str) -> str | None:
 
 
 def extract_script_block(
-    soup: BeautifulSoup | None,
+    soup: LexborHTMLParser | None,
     *,
     pattern: re.Pattern[str],
     required_fragments: tuple[str, ...] = (),
@@ -112,33 +112,33 @@ def extract_script_block(
 
 
 def _extract_script_text(
-    soup: BeautifulSoup | None,
+    soup: LexborHTMLParser | None,
     *,
     required_fragments: tuple[str, ...],
 ) -> str | None:
     if soup is None:
         return None
 
-    for script_tag in soup.find_all("script"):
-        script_text = script_tag.get_text()
+    for script_tag in soup.css("script"):
+        script_text = script_tag.text()
         if all(fragment in script_text for fragment in required_fragments):
             return script_text
     return None
 
 
 def extract_table_rows(
-    soup: BeautifulSoup,
+    soup: LexborHTMLParser,
     *,
     cell_selector: str,
     keep_first: bool,
 ) -> dict[str, str]:
     rows: dict[str, str] = {}
-    for row in soup.select("table tr"):
-        cells = row.select(cell_selector)
+    for row in soup.css("table tr"):
+        cells = row.css(cell_selector)
         if len(cells) < 2:
             continue
-        label = normalize_cell_text(cells[0].get_text(" ", strip=True))
-        value = normalize_cell_text(cells[1].get_text(" ", strip=True))
+        label = normalize_cell_text(cells[0].text(separator=" ", strip=True))
+        value = normalize_cell_text(cells[1].text(separator=" ", strip=True))
         if label and value:
             if keep_first and label in rows:
                 continue

@@ -7,8 +7,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 import logging
 
-from bs4 import BeautifulSoup
 import httpx
+from selectolax.lexbor import LexborHTMLParser
 
 from stock_search.models import ETFHoldings, ETFSectors
 
@@ -60,7 +60,7 @@ class StockAnalysisSource:
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
         self._page_html_cache: dict[str, str | None] = {}
-        self._page_soup_cache: dict[str, BeautifulSoup | None] = {}
+        self._page_soup_cache: dict[str, LexborHTMLParser | None] = {}
 
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
@@ -222,7 +222,7 @@ class StockAnalysisSource:
         self._page_html_cache[url] = response.text
         return response.text
 
-    def _fetch_stockanalysis_soup(self, url: str) -> BeautifulSoup | None:
+    def _fetch_stockanalysis_soup(self, url: str) -> LexborHTMLParser | None:
         if url in self._page_soup_cache:
             return self._page_soup_cache[url]
 
@@ -231,7 +231,7 @@ class StockAnalysisSource:
             self._page_soup_cache[url] = None
             return None
 
-        soup = BeautifulSoup(html, "html.parser")
+        soup = LexborHTMLParser(html)
         self._page_soup_cache[url] = soup
         return soup
 

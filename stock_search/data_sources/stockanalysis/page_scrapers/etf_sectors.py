@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import logging
 
-from bs4 import BeautifulSoup
+from selectolax.lexbor import LexborHTMLParser
 
 from stock_search.models import ETFSectors
 
@@ -25,7 +25,7 @@ def scrape_etf_sectors(
     *,
     ticker: str,
     ticker_lower: str,
-    fetch_soup: Callable[[str], BeautifulSoup | None],
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
 ) -> ETFSectors:
     """Scrape ETF sector allocation from the StockAnalysis holdings page."""
     try:

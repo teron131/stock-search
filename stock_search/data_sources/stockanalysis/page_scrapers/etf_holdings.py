@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import logging
 
-from bs4 import BeautifulSoup
+from selectolax.lexbor import LexborHTMLParser
 
 from stock_search.models import ETFHoldings, Holding
 
@@ -29,7 +29,7 @@ def scrape_etf_holdings(
     *,
     ticker: str,
     ticker_lower: str,
-    fetch_soup: Callable[[str], BeautifulSoup | None],
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
 ) -> ETFHoldings:
     """Scrape ETF holdings from the StockAnalysis holdings page."""
     try:
@@ -49,26 +49,26 @@ def scrape_etf_holdings(
 
 
 def _extract_holdings_from_table(
-    soup: BeautifulSoup | None,
+    soup: LexborHTMLParser | None,
 ) -> list[Holding]:
     if soup is None:
         return []
 
     holdings: list[Holding] = []
-    for row in soup.select("table tr"):
-        cells = row.select("td")
+    for row in soup.css("table tr"):
+        cells = row.css("td")
         if len(cells) < 4:
             continue
-        ticker = normalize_cell_text(cells[1].get_text(" ", strip=True))
-        name = normalize_cell_text(cells[2].get_text(" ", strip=True))
-        weight = parse_percent_points(cells[3].get_text(" ", strip=True))
+        ticker = normalize_cell_text(cells[1].text(separator=" ", strip=True))
+        name = normalize_cell_text(cells[2].text(separator=" ", strip=True))
+        weight = parse_percent_points(cells[3].text(separator=" ", strip=True))
         if ticker and weight is not None:
             holdings.append(Holding(ticker=ticker, name=name or None, weight=weight))
     return holdings
 
 
 def _extract_holdings_from_script(
-    soup: BeautifulSoup | None,
+    soup: LexborHTMLParser | None,
 ) -> list[Holding]:
     items_text = extract_script_block(
         soup,
