@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ from stock_search.labeler import aget_labels, get_labels
 from stock_search.models.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
 from stock_search.stats_resolver import (
     StatsResolutionMode,
+    StatsResolutionResult,
     aggregate_data_source,
     resolve_ticker_stats,
     resolve_ticker_stats_async,
@@ -50,6 +52,17 @@ _SECTOR_CACHE = TieredCache[str](
     stale_seconds=365 * 24 * 60 * 60,
     failure_cooldown_seconds=60 * 60,
 )
+
+
+@dataclass
+class PortfolioPayloadInputs:
+    """Cache-backed inputs needed to assemble one portfolio payload."""
+
+    stats_data: dict[str, Any]
+    eval_data: dict[str, Any]
+    positions: list[dict[str, Any]]
+    held_positions: list[dict[str, Any]]
+    held_tickers: list[str]
 
 
 def normalize_labels(value: Any) -> list[str]:
@@ -818,7 +831,7 @@ def _load_payload_inputs(
     stats_path: str | Path,
     eval_path: str | Path,
     include_cached_universe: bool,
-) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+) -> PortfolioPayloadInputs:
     """Load the portfolio, stats, and evaluation inputs for payload building."""
     _ = portfolio_path, stats_path, eval_path
     portfolio_data = load_positions_store()
@@ -829,7 +842,13 @@ def _load_payload_inputs(
         stats_data,
         include_cached_universe=include_cached_universe,
     )
-    return stats_data, eval_data, positions, held_positions, held_tickers
+    return PortfolioPayloadInputs(
+        stats_data=stats_data,
+        eval_data=eval_data,
+        positions=positions,
+        held_positions=held_positions,
+        held_tickers=held_tickers,
+    )
 
 
 def _build_rows(
@@ -904,7 +923,7 @@ def _build_payload_from_rows(
 def _merge_live_results_into_stats_data(
     *,
     stats_data: dict[str, Any],
-    live_results: Mapping[str, Any],
+    live_results: Mapping[str, StatsResolutionResult],
 ) -> None:
     """Merge resolved live rows back into the broader cached stats map."""
     for ticker, result in live_results.items():
@@ -917,7 +936,7 @@ def _merge_live_results_into_stats_data(
 def _portfolio_payload_data_source(
     *,
     rows: list[dict[str, Any]],
-    live_results: Mapping[str, Any],
+    live_results: Mapping[str, StatsResolutionResult],
     include_live_market: bool,
 ) -> str:
     """Classify the payload source from all rows included in the response."""
@@ -936,57 +955,59 @@ def _portfolio_payload_data_source(
     return "live"
 
 
-def get_portfolio_payload(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
-    include_cached_universe: bool = True,
-    include_live_market: bool = True,
+def _build_live_map(live_results: Mapping[str, StatsResolutionResult]) -> dict[str, dict[str, Any]]:
+    """Flatten resolver results into the row-level live override map."""
+    return {ticker: dict(result.row) for ticker, result in live_results.items()}
+
+
+def _persist_portfolio_cache_updates(
+    *,
+    stats_data: dict[str, Any],
+    now: datetime,
+    resolution: ETFResolutionResult,
+) -> None:
+    """Persist ETF cache changes made during payload assembly."""
+    if not resolution.cache_changed:
+        return
+    save_stats_map(stats_data)
+    set_stats_generated_at_iso(now.isoformat())
+
+
+def _assemble_portfolio_payload(
+    *,
+    inputs: PortfolioPayloadInputs,
+    labels_by_ticker: dict[str, list[str]],
+    live_results: Mapping[str, StatsResolutionResult],
+    include_live_market: bool,
 ) -> dict[str, Any]:
-    """Return the portfolio dashboard payload."""
-    stats_data, eval_data, positions, held_positions, held_tickers = _load_payload_inputs(
-        portfolio_path=portfolio_path,
-        stats_path=stats_path,
-        eval_path=eval_path,
-        include_cached_universe=include_cached_universe,
-    )
-    labels_by_ticker = resolve_portfolio_labels(
-        held_positions,
-        fetch_missing=include_live_market,
-        stats_data=stats_data,
-    )
-    _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
-    live_tickers = _live_tickers(positions, include_live_market=include_live_market)
-    live_results = resolve_ticker_stats_map(
-        live_tickers,
-        mode="auto",
-        persisted_rows=stats_data,
-    )
-    live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
-    _merge_live_results_into_stats_data(stats_data=stats_data, live_results=live_results)
+    """Build the final payload once inputs, labels, and live results are ready."""
+    _apply_position_labels(positions=inputs.positions, labels_by_ticker=labels_by_ticker)
+    _merge_live_results_into_stats_data(stats_data=inputs.stats_data, live_results=live_results)
     rows = _build_rows(
-        positions=positions,
-        stats_data=stats_data,
-        eval_data=eval_data,
-        live_map=live_map,
+        positions=inputs.positions,
+        stats_data=inputs.stats_data,
+        eval_data=inputs.eval_data,
+        live_map=_build_live_map(live_results),
     )
     _finalize_rows(rows)
 
     now = datetime.now(tz=UTC)
     resolution = classify_and_resolve_etfs(
-        held_positions,
-        stats_data,
+        inputs.held_positions,
+        inputs.stats_data,
         now,
         allow_live_fetch=include_live_market,
     )
-    if resolution.cache_changed:
-        save_stats_map(stats_data)
-        set_stats_generated_at_iso(now.isoformat())
+    _persist_portfolio_cache_updates(
+        stats_data=inputs.stats_data,
+        now=now,
+        resolution=resolution,
+    )
 
     ticker_table, sector_table, table_meta = _build_etf_tables(
         rows=rows,
         resolution=resolution,
-        target_tickers=[ticker for ticker in held_tickers if ticker],
+        target_tickers=[ticker for ticker in inputs.held_tickers if ticker],
     )
     return _build_payload_from_rows(
         rows=rows,
@@ -1000,6 +1021,39 @@ def get_portfolio_payload(
             live_results=live_results,
             include_live_market=include_live_market,
         ),
+    )
+
+
+def get_portfolio_payload(
+    portfolio_path: str | Path = "data/portfolio.json",
+    stats_path: str | Path = "data/stats.json",
+    eval_path: str | Path = "data/eval.json",
+    include_cached_universe: bool = True,
+    include_live_market: bool = True,
+) -> dict[str, Any]:
+    """Return the portfolio dashboard payload."""
+    inputs = _load_payload_inputs(
+        portfolio_path=portfolio_path,
+        stats_path=stats_path,
+        eval_path=eval_path,
+        include_cached_universe=include_cached_universe,
+    )
+    labels_by_ticker = resolve_portfolio_labels(
+        inputs.held_positions,
+        fetch_missing=include_live_market,
+        stats_data=inputs.stats_data,
+    )
+    live_tickers = _live_tickers(inputs.positions, include_live_market=include_live_market)
+    live_results = resolve_ticker_stats_map(
+        live_tickers,
+        mode="auto",
+        persisted_rows=inputs.stats_data,
+    )
+    return _assemble_portfolio_payload(
+        inputs=inputs,
+        labels_by_ticker=labels_by_ticker,
+        live_results=live_results,
+        include_live_market=include_live_market,
     )
 
 
@@ -1011,7 +1065,7 @@ async def get_portfolio_payload_async(
     include_live_market: bool = True,
 ) -> dict[str, Any]:
     """Return the portfolio dashboard payload asynchronously."""
-    stats_data, eval_data, positions, held_positions, held_tickers = await asyncio.to_thread(
+    inputs = await asyncio.to_thread(
         _load_payload_inputs,
         portfolio_path=portfolio_path,
         stats_path=stats_path,
@@ -1019,57 +1073,22 @@ async def get_portfolio_payload_async(
         include_cached_universe=include_cached_universe,
     )
     labels_by_ticker = await resolve_portfolio_labels_async(
-        held_positions,
+        inputs.held_positions,
         fetch_missing=include_live_market,
-        stats_data=stats_data,
+        stats_data=inputs.stats_data,
     )
-    _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
-    live_tickers = _live_tickers(positions, include_live_market=include_live_market)
+    live_tickers = _live_tickers(inputs.positions, include_live_market=include_live_market)
     live_results = await resolve_ticker_stats_map_async(
         live_tickers,
         mode="auto",
-        persisted_rows=stats_data,
+        persisted_rows=inputs.stats_data,
     )
-    live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
-    _merge_live_results_into_stats_data(stats_data=stats_data, live_results=live_results)
-    rows = _build_rows(
-        positions=positions,
-        stats_data=stats_data,
-        eval_data=eval_data,
-        live_map=live_map,
-    )
-    _finalize_rows(rows)
-
-    now = datetime.now(tz=UTC)
-    resolution = await asyncio.to_thread(
-        classify_and_resolve_etfs,
-        held_positions,
-        stats_data,
-        now,
-        allow_live_fetch=include_live_market,
-    )
-    if resolution.cache_changed:
-        await asyncio.to_thread(save_stats_map, stats_data)
-        await asyncio.to_thread(set_stats_generated_at_iso, now.isoformat())
-
-    ticker_table, sector_table, table_meta = await asyncio.to_thread(
-        _build_etf_tables,
-        rows=rows,
-        resolution=resolution,
-        target_tickers=[ticker for ticker in held_tickers if ticker],
-    )
-    return _build_payload_from_rows(
-        rows=rows,
-        resolution=resolution,
-        sector_table=sector_table,
-        ticker_table=ticker_table,
-        table_meta=table_meta,
-        generated_at=now.isoformat(),
-        data_source=_portfolio_payload_data_source(
-            rows=rows,
-            live_results=live_results,
-            include_live_market=include_live_market,
-        ),
+    return await asyncio.to_thread(
+        _assemble_portfolio_payload,
+        inputs=inputs,
+        labels_by_ticker=labels_by_ticker,
+        live_results=live_results,
+        include_live_market=include_live_market,
     )
 
 

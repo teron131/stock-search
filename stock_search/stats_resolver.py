@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -375,17 +375,18 @@ def _fetch_ratings(bundle: ProviderBundle) -> RefreshOutcome:
     )
 
 
+FAMILY_FETCHERS: dict[StatsFamily, Callable[[ProviderBundle], RefreshOutcome]] = {
+    "market_data": _fetch_market_data,
+    "market_snapshot": _fetch_market_snapshot,
+    "statistics": _fetch_statistics,
+    "financials": _fetch_financials,
+    "ratings": _fetch_ratings,
+}
+
+
 def _refresh_family(bundle: ProviderBundle, family: StatsFamily) -> RefreshOutcome:
     """Refresh one family using the family-specific provider rules."""
-    if family == "market_data":
-        return _fetch_market_data(bundle)
-    if family == "market_snapshot":
-        return _fetch_market_snapshot(bundle)
-    if family == "statistics":
-        return _fetch_statistics(bundle)
-    if family == "financials":
-        return _fetch_financials(bundle)
-    return _fetch_ratings(bundle)
+    return FAMILY_FETCHERS[family](bundle)
 
 
 def _log_family_decision(ticker: str, family: StatsFamily, mode: StatsResolutionMode, resolution: FamilyResolution) -> None:
@@ -540,6 +541,42 @@ def _resolve_family(
         return resolution
 
 
+def _merge_refresh_outcome_into_row(base_row: Mapping[str, Any], outcome: RefreshOutcome) -> dict[str, Any]:
+    """Apply a refresh outcome onto the resolved row."""
+    merged = dict(base_row)
+    for refreshed_family, family_row in outcome.family_rows.items():
+        merged = _apply_family_row(
+            merged,
+            refreshed_family,
+            family_row,
+            timestamp=outcome.family_timestamps[refreshed_family],
+        )
+    merged.update(outcome.extra_fields)
+    return merged
+
+
+def _merge_family_resolution_into_row(
+    base_row: Mapping[str, Any],
+    family: StatsFamily,
+    resolution: FamilyResolution,
+) -> dict[str, Any]:
+    """Apply one family resolution onto the resolved row."""
+    if resolution.refresh_outcome is not None:
+        return _merge_refresh_outcome_into_row(base_row, resolution.refresh_outcome)
+
+    merged = dict(base_row)
+    if resolution.row:
+        merged = _apply_family_row(
+            merged,
+            family,
+            resolution.row,
+            timestamp=resolution.timestamp if resolution.source_tier == "live" else None,
+        )
+    if resolution.extra_fields:
+        merged.update(resolution.extra_fields)
+    return merged
+
+
 def _classify_data_source(
     mode: StatsResolutionMode,
     families: Mapping[StatsFamily, FamilyResolution],
@@ -566,46 +603,13 @@ def resolve_ticker_stats(
     now = datetime.now(tz=UTC)
     base_row = dict(persisted_row) if isinstance(persisted_row, Mapping) else dict(load_stats_map().get(ticker_symbol) or {})
     bundle = ProviderBundle(ticker_symbol)
-    pending_family_rows: dict[StatsFamily, dict[str, Any]] = {}
-    pending_family_timestamps: dict[StatsFamily, datetime] = {}
-    pending_extra_fields: dict[str, Any] = {}
 
     families: dict[StatsFamily, FamilyResolution] = {}
     resolved_row = dict(base_row)
     for family in STAT_FAMILIES:
         resolution = _resolve_family(bundle, ticker_symbol, family, mode, resolved_row, now)
         families[family] = resolution
-        if resolution.row:
-            resolved_row = _apply_family_row(
-                resolved_row,
-                family,
-                resolution.row,
-                timestamp=resolution.timestamp if resolution.source_tier == "live" else None,
-            )
-        if resolution.extra_fields:
-            resolved_row.update(resolution.extra_fields)
-        if resolution.refresh_outcome is not None:
-            for refreshed_family, family_row in resolution.refresh_outcome.family_rows.items():
-                pending_family_rows[refreshed_family] = dict(family_row)
-                pending_family_timestamps[refreshed_family] = resolution.refresh_outcome.family_timestamps[refreshed_family]
-                resolved_row = _apply_family_row(
-                    resolved_row,
-                    refreshed_family,
-                    family_row,
-                    timestamp=resolution.refresh_outcome.family_timestamps[refreshed_family],
-                )
-            pending_extra_fields.update(resolution.refresh_outcome.extra_fields)
-            resolved_row.update(resolution.refresh_outcome.extra_fields)
-
-    if pending_family_rows:
-        _persist_refresh_outcome(
-            ticker_symbol,
-            RefreshOutcome(
-                family_rows=pending_family_rows,
-                family_timestamps=pending_family_timestamps,
-                extra_fields=pending_extra_fields,
-            ),
-        )
+        resolved_row = _merge_family_resolution_into_row(resolved_row, family, resolution)
 
     return StatsResolutionResult(
         row=resolved_row,
@@ -629,6 +633,12 @@ async def resolve_ticker_stats_async(
     )
 
 
+def _normalize_tickers(tickers: Sequence[str]) -> list[str]:
+    """Normalize ticker inputs and preserve unique order."""
+    normalized = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
+    return list(dict.fromkeys(normalized))
+
+
 def resolve_ticker_stats_map(
     tickers: Sequence[str],
     *,
@@ -636,8 +646,7 @@ def resolve_ticker_stats_map(
     persisted_rows: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, StatsResolutionResult]:
     """Resolve multiple ticker rows in parallel."""
-    normalized = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
-    ordered_unique = list(dict.fromkeys(normalized))
+    ordered_unique = _normalize_tickers(tickers)
     if not ordered_unique:
         return {}
 
@@ -657,8 +666,7 @@ async def resolve_ticker_stats_map_async(
     persisted_rows: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, StatsResolutionResult]:
     """Resolve multiple ticker rows asynchronously."""
-    normalized = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
-    ordered_unique = list(dict.fromkeys(normalized))
+    ordered_unique = _normalize_tickers(tickers)
     if not ordered_unique:
         return {}
 
