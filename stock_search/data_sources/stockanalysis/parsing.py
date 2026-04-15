@@ -33,10 +33,6 @@ def has_model_data(model: BaseModel) -> bool:
     return any(value is not None for value in model.model_dump().values())
 
 
-def has_sector_data(model: BaseModel) -> bool:
-    return any(weight is not None for weight in model.model_dump().values())
-
-
 def normalize_cell_text(text: str) -> str:
     return " ".join(text.split())
 
@@ -94,6 +90,40 @@ def extract_quote_scalar(quote_block: str, key: str) -> str | None:
     if not match:
         return None
     return match.group(1).strip().strip('"')
+
+
+def extract_script_block(
+    soup: BeautifulSoup | None,
+    *,
+    pattern: re.Pattern[str],
+    required_fragments: tuple[str, ...] = (),
+) -> str | None:
+    script_text = _extract_script_text(
+        soup,
+        required_fragments=required_fragments,
+    )
+    if not script_text:
+        return None
+
+    block_match = pattern.search(script_text)
+    if not block_match:
+        return None
+    return block_match.group(1)
+
+
+def _extract_script_text(
+    soup: BeautifulSoup | None,
+    *,
+    required_fragments: tuple[str, ...],
+) -> str | None:
+    if soup is None:
+        return None
+
+    for script_tag in soup.find_all("script"):
+        script_text = script_tag.get_text()
+        if all(fragment in script_text for fragment in required_fragments):
+            return script_text
+    return None
 
 
 def extract_table_rows(

@@ -8,6 +8,7 @@ STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statis
 STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
 STOCKANALYSIS_ETF_HOLDINGS_URL = "https://stockanalysis.com/etf/{ticker}/holdings/"
 
+ETF_DATA_SCRIPT_FRAGMENTS = ("holdings:[", "sectors:[")
 HOLDINGS_BLOCK_PATTERN = re.compile(r"holdings:\[(.*?)\],asset_allocation:", re.DOTALL)
 HOLDING_ROW_PATTERN = re.compile(
     r'\{[^{}]*n:"([^"]+)"[^{}]*s:"([^"]+)"[^{}]*as:"([\d.]+)%"',

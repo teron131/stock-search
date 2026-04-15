@@ -6,7 +6,6 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 import logging
-import re
 
 from bs4 import BeautifulSoup
 import httpx
@@ -18,7 +17,6 @@ from .constants import (
     ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
     FINANCIALS_SYSTEM_PROMPT,
     STATISTICS_SYSTEM_PROMPT,
-    STOCKANALYSIS_ETF_HOLDINGS_URL,
     STOCKANALYSIS_FINANCIALS_URL,
     STOCKANALYSIS_STATISTICS_URL,
 )
@@ -36,7 +34,6 @@ from .page_scrapers import (
 from .parsing import (
     coalesce,
     has_model_data,
-    has_sector_data,
     to_percent,
 )
 from .schemas import (
@@ -62,8 +59,8 @@ class StockAnalysisSource:
         self._financials_fetched_at: datetime | None = None
         self._etf_snapshot: StockAnalysisEtfSnapshot | None = None
         self._indicators_snapshot: StockAnalysisIndicatorsSnapshot | None = None
-        self._stockanalysis_script_text: str | None = None
         self._page_html_cache: dict[str, str | None] = {}
+        self._page_soup_cache: dict[str, BeautifulSoup | None] = {}
 
     def _load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
@@ -120,40 +117,6 @@ class StockAnalysisSource:
         )
         return snapshot
 
-    def _search_model[MODEL_TYPE](
-        self,
-        *,
-        output_schema: type[MODEL_TYPE],
-        system_prompt_template: str,
-        query: str,
-        prompt_values: dict[str, str],
-    ) -> MODEL_TYPE:
-        return invoke_stockanalysis_search(
-            output_schema=output_schema,
-            system_prompt_template=system_prompt_template,
-            query=query,
-            prompt_values=prompt_values,
-        )
-
-    def _search_model_or_default[MODEL_TYPE](
-        self,
-        *,
-        output_schema: type[MODEL_TYPE],
-        system_prompt_template: str,
-        query: str,
-        prompt_values: dict[str, str],
-        default_factory: Callable[[], MODEL_TYPE],
-        error_message: str,
-    ) -> MODEL_TYPE:
-        return invoke_stockanalysis_search_or_default(
-            output_schema=output_schema,
-            system_prompt_template=system_prompt_template,
-            query=query,
-            prompt_values=prompt_values,
-            default_factory=default_factory,
-            error_message=error_message,
-        )
-
     def get_statistics_snapshot(self) -> StockAnalysisStatistics:
         """Fetch statistics snapshot from the StockAnalysis statistics page."""
         return self._load_statistics()
@@ -194,11 +157,11 @@ class StockAnalysisSource:
         sectors = self._resolve_with_scrape_fallback_search(
             scrape_getter=self._scrape_stockanalysis_sectors,
             search_getter=self._search_etf_sectors,
-            has_data=has_sector_data,
+            has_data=has_model_data,
             label="ETF sectors",
         )
 
-        if not holdings.holdings and not has_sector_data(sectors):
+        if not holdings.holdings and not has_model_data(sectors):
             return None
 
         self._etf_snapshot = StockAnalysisEtfSnapshot(
@@ -260,10 +223,17 @@ class StockAnalysisSource:
         return response.text
 
     def _fetch_stockanalysis_soup(self, url: str) -> BeautifulSoup | None:
+        if url in self._page_soup_cache:
+            return self._page_soup_cache[url]
+
         html = self._fetch_stockanalysis_html(url)
         if html is None:
+            self._page_soup_cache[url] = None
             return None
-        return BeautifulSoup(html, "html.parser")
+
+        soup = BeautifulSoup(html, "html.parser")
+        self._page_soup_cache[url] = soup
+        return soup
 
     def _scrape_quote_fields(self) -> dict[str, float | None]:
         return scrape_quote_fields(
@@ -285,7 +255,7 @@ class StockAnalysisSource:
 
     def _search_statistics_snapshot(self) -> StockAnalysisStatistics:
         statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
-        return self._search_model(
+        return invoke_stockanalysis_search(
             output_schema=StockAnalysisStatistics,
             system_prompt_template=STATISTICS_SYSTEM_PROMPT,
             query=f"{statistics_url} {self.ticker} statistics key ratios valuation market cap",
@@ -297,7 +267,7 @@ class StockAnalysisSource:
 
     def _search_financials_snapshot(self) -> StockAnalysisFinancials:
         financials_url = STOCKANALYSIS_FINANCIALS_URL.format(ticker=self._ticker_lower)
-        return self._search_model(
+        return invoke_stockanalysis_search(
             output_schema=StockAnalysisFinancials,
             system_prompt_template=FINANCIALS_SYSTEM_PROMPT,
             query=f"{financials_url} {self.ticker} financials revenue growth eps growth gross margin",
@@ -307,42 +277,15 @@ class StockAnalysisSource:
             },
         )
 
-    def _fetch_stockanalysis_script_text(self) -> str | None:
-        if self._stockanalysis_script_text is not None:
-            return self._stockanalysis_script_text
-
-        url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=self._ticker_lower)
-        soup = self._fetch_stockanalysis_soup(url)
-        if soup is None:
-            return None
-
-        for script_tag in soup.find_all("script"):
-            script_text = script_tag.get_text()
-            if "holdings:[" in script_text and "sectors:[" in script_text:
-                self._stockanalysis_script_text = script_text
-                return self._stockanalysis_script_text
-        return None
-
-    def _extract_script_block(self, pattern: re.Pattern[str]) -> str | None:
-        script_text = self._fetch_stockanalysis_script_text()
-        if not script_text:
-            return None
-
-        block_match = pattern.search(script_text)
-        if not block_match:
-            return None
-        return block_match.group(1)
-
     def _scrape_stockanalysis_holdings(self) -> ETFHoldings:
         return scrape_etf_holdings(
             ticker=self.ticker,
             ticker_lower=self._ticker_lower,
             fetch_soup=self._fetch_stockanalysis_soup,
-            extract_script_block=self._extract_script_block,
         )
 
     def _search_etf_holdings(self) -> ETFHoldings:
-        return self._search_model_or_default(
+        return invoke_stockanalysis_search_or_default(
             output_schema=ETFHoldings,
             system_prompt_template=ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
             query=f"{self.ticker} ETF holdings weights stock analysis",
@@ -354,11 +297,12 @@ class StockAnalysisSource:
     def _scrape_stockanalysis_sectors(self) -> ETFSectors:
         return scrape_etf_sectors(
             ticker=self.ticker,
-            extract_script_block=self._extract_script_block,
+            ticker_lower=self._ticker_lower,
+            fetch_soup=self._fetch_stockanalysis_soup,
         )
 
     def _search_etf_sectors(self) -> ETFSectors:
-        return self._search_model_or_default(
+        return invoke_stockanalysis_search_or_default(
             output_schema=ETFSectors,
             system_prompt_template=ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
             query=f"{self.ticker} ETF sector allocation weights stock analysis schwab",
