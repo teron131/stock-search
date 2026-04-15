@@ -7,7 +7,13 @@ import re
 from pydantic import BaseModel
 from selectolax.lexbor import LexborHTMLParser
 
-from .constants import COMPACT_NUMBER_SUFFIXES, NULLISH_TEXT
+COMPACT_NUMBER_SUFFIXES = {
+    "K": 1_000.0,
+    "M": 1_000_000.0,
+    "B": 1_000_000_000.0,
+    "T": 1_000_000_000_000.0,
+}
+NULLISH_TEXT = {"", "-", "n/a", "N/A", "na", "NA"}
 
 
 def coalesce(primary: float | None, fallback: float | None) -> float | None:
@@ -153,9 +159,9 @@ def build_model_from_rows[MODEL_TYPE](
     field_specs: dict[str, tuple[str, str]],
 ) -> MODEL_TYPE:
     parser_by_name = {
-        "_parse_number": parse_number,
-        "_parse_percent_ratio": parse_percent_ratio,
-        "_parse_percent_points": parse_percent_points,
+        "parse_number": parse_number,
+        "parse_percent_ratio": parse_percent_ratio,
+        "parse_percent_points": parse_percent_points,
     }
     payload = {field_name: parser_by_name[parser_name](rows.get(label, "")) for field_name, (label, parser_name) in field_specs.items()}
     return model_type(**payload)

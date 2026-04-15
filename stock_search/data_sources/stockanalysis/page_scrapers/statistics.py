@@ -3,18 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import re
 
 from selectolax.lexbor import LexborHTMLParser
 
-from ..constants import (
-    EXTENDED_QUOTE_KEYS,
-    EXTENDED_SESSION_NAMES,
-    QUOTE_BLOCK_PATTERN,
-    QUOTE_EMPTY_FIELDS,
-    REGULAR_QUOTE_KEYS,
-    STATISTICS_FIELD_SPECS,
-    STOCKANALYSIS_STATISTICS_URL,
-)
 from ..parsing import (
     build_model_from_rows,
     extract_quote_scalar,
@@ -22,6 +14,33 @@ from ..parsing import (
     parse_number,
 )
 from ..schemas import StockAnalysisStatistics
+
+STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
+
+QUOTE_BLOCK_PATTERN = re.compile(r"quote:\{(.*?)\},stream:", re.DOTALL)
+QUOTE_EMPTY_FIELDS = {"price": None, "change": None, "change_percent": None}
+REGULAR_QUOTE_KEYS = {"price": "p", "change": "c", "change_percent": "cp"}
+EXTENDED_QUOTE_KEYS = {"price": "ep", "change": "ec", "change_percent": "ecp"}
+EXTENDED_SESSION_NAMES = {"Pre-market", "After-hours"}
+
+STATISTICS_FIELD_SPECS = {
+    "market_cap": ("Market Cap", "parse_number"),
+    "beta": ("Beta (5Y)", "parse_number"),
+    "fifty_two_week_price_change": ("52-Week Price Change", "parse_percent_points"),
+    "moving_average_50d": ("50-Day Moving Average", "parse_number"),
+    "moving_average_200d": ("200-Day Moving Average", "parse_number"),
+    "rsi": ("Relative Strength Index (RSI)", "parse_number"),
+    "average_volume_20d": ("Average Volume (20 Days)", "parse_number"),
+    "pe": ("PE Ratio", "parse_number"),
+    "pe_forward": ("Forward PE", "parse_number"),
+    "peg": ("PEG Ratio", "parse_number"),
+    "roic": ("Return on Invested Capital (ROIC)", "parse_percent_ratio"),
+    "gross_margin": ("Gross Margin", "parse_percent_ratio"),
+    "operating_margin": ("Operating Margin", "parse_percent_ratio"),
+    "debt_to_equity": ("Debt / Equity", "parse_number"),
+    "debt_to_ebitda": ("Debt / EBITDA", "parse_number"),
+    "free_cash_flow": ("Free Cash Flow", "parse_number"),
+}
 
 
 def scrape_statistics_snapshot(

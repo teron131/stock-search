@@ -1,4 +1,4 @@
-"""Pydantic and dataclass schemas for StockAnalysis snapshots."""
+"""Provider-local schemas for StockAnalysis extraction snapshots."""
 
 from __future__ import annotations
 

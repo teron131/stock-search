@@ -1,12 +1,12 @@
 """StockAnalysis source adapter package."""
 
+from .adapter import StockAnalysisSource
 from .schemas import (
     StockAnalysisEtfSnapshot,
     StockAnalysisFinancials,
     StockAnalysisIndicatorsSnapshot,
     StockAnalysisStatistics,
 )
-from .source import StockAnalysisSource
 
 __all__ = [
     "StockAnalysisEtfSnapshot",

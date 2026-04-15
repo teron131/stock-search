@@ -12,14 +12,6 @@ from selectolax.lexbor import LexborHTMLParser
 
 from stock_search.models import ETFHoldings, ETFSectors
 
-from .constants import (
-    ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
-    ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
-    FINANCIALS_SYSTEM_PROMPT,
-    STATISTICS_SYSTEM_PROMPT,
-    STOCKANALYSIS_FINANCIALS_URL,
-    STOCKANALYSIS_STATISTICS_URL,
-)
 from .exa_fallback import (
     invoke_stockanalysis_search,
     invoke_stockanalysis_search_or_default,
@@ -36,12 +28,21 @@ from .parsing import (
     has_model_data,
     to_percent,
 )
+from .prompts import (
+    ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
+    ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
+    FINANCIALS_SYSTEM_PROMPT,
+    STATISTICS_SYSTEM_PROMPT,
+)
 from .schemas import (
     StockAnalysisEtfSnapshot,
     StockAnalysisFinancials,
     StockAnalysisIndicatorsSnapshot,
     StockAnalysisStatistics,
 )
+
+STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
+STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
 
 logger = logging.getLogger(__name__)
 
@@ -62,27 +63,27 @@ class StockAnalysisSource:
         self._page_html_cache: dict[str, str | None] = {}
         self._page_soup_cache: dict[str, LexborHTMLParser | None] = {}
 
-    def _load_statistics(self) -> StockAnalysisStatistics:
+    def load_statistics(self) -> StockAnalysisStatistics:
         """Fetch statistics once and reuse cached data on later calls."""
-        return self._load_snapshot(
+        return self.load_snapshot(
             label="statistics",
             snapshot_attr="_statistics_snapshot",
             fetched_at_attr="_statistics_fetched_at",
-            scrape_getter=self._scrape_statistics_snapshot,
-            search_getter=self._search_statistics_snapshot,
+            scrape_getter=self.scrape_statistics_snapshot,
+            search_getter=self.search_statistics_snapshot,
         )
 
-    def _load_financials(self) -> StockAnalysisFinancials:
+    def load_financials(self) -> StockAnalysisFinancials:
         """Fetch financials once and reuse cached data on later calls."""
-        return self._load_snapshot(
+        return self.load_snapshot(
             label="financials",
             snapshot_attr="_financials_snapshot",
             fetched_at_attr="_financials_fetched_at",
-            scrape_getter=self._scrape_financials_snapshot,
-            search_getter=self._search_financials_snapshot,
+            scrape_getter=self.scrape_financials_snapshot,
+            search_getter=self.search_financials_snapshot,
         )
 
-    def _load_snapshot[MODEL_TYPE](
+    def load_snapshot[MODEL_TYPE](
         self,
         *,
         label: str,
@@ -119,7 +120,7 @@ class StockAnalysisSource:
 
     def get_statistics_snapshot(self) -> StockAnalysisStatistics:
         """Fetch statistics snapshot from the StockAnalysis statistics page."""
-        return self._load_statistics()
+        return self.load_statistics()
 
     async def get_statistics_snapshot_async(self) -> StockAnalysisStatistics:
         """Async-ready ticker-level statistics fetch."""
@@ -132,7 +133,7 @@ class StockAnalysisSource:
 
     def get_financials_snapshot(self) -> StockAnalysisFinancials:
         """Fetch financials snapshot from the StockAnalysis financials page."""
-        return self._load_financials()
+        return self.load_financials()
 
     async def get_financials_snapshot_async(self) -> StockAnalysisFinancials:
         """Async-ready ticker-level financials fetch."""
@@ -148,15 +149,15 @@ class StockAnalysisSource:
         if self._etf_snapshot is not None:
             return self._etf_snapshot
 
-        holdings = self._resolve_with_scrape_fallback_search(
-            scrape_getter=self._scrape_stockanalysis_holdings,
-            search_getter=self._search_etf_holdings,
+        holdings = self.resolve_with_scrape_fallback_search(
+            scrape_getter=self.scrape_stockanalysis_holdings,
+            search_getter=self.search_etf_holdings,
             has_data=lambda result: bool(result.holdings),
             label="ETF holdings",
         )
-        sectors = self._resolve_with_scrape_fallback_search(
-            scrape_getter=self._scrape_stockanalysis_sectors,
-            search_getter=self._search_etf_sectors,
+        sectors = self.resolve_with_scrape_fallback_search(
+            scrape_getter=self.scrape_stockanalysis_sectors,
+            search_getter=self.search_etf_sectors,
             has_data=has_model_data,
             label="ETF sectors",
         )
@@ -174,7 +175,7 @@ class StockAnalysisSource:
         """Async-ready ticker-level ETF holdings fetch."""
         return await asyncio.to_thread(self.get_etf_holdings_snapshot)
 
-    def _resolve_with_scrape_fallback_search[MODEL_TYPE](
+    def resolve_with_scrape_fallback_search[MODEL_TYPE](
         self,
         *,
         scrape_getter: Callable[[], MODEL_TYPE],
@@ -188,7 +189,7 @@ class StockAnalysisSource:
         logger.info("Falling back to web search for %s (%s)", label, self.ticker)
         return search_getter()
 
-    def _fetch_stockanalysis_html(self, url: str) -> str | None:
+    def fetch_stockanalysis_html(self, url: str) -> str | None:
         cached_html = self._page_html_cache.get(url)
         if url in self._page_html_cache:
             return cached_html
@@ -222,11 +223,11 @@ class StockAnalysisSource:
         self._page_html_cache[url] = response.text
         return response.text
 
-    def _fetch_stockanalysis_soup(self, url: str) -> LexborHTMLParser | None:
+    def fetch_stockanalysis_soup(self, url: str) -> LexborHTMLParser | None:
         if url in self._page_soup_cache:
             return self._page_soup_cache[url]
 
-        html = self._fetch_stockanalysis_html(url)
+        html = self.fetch_stockanalysis_html(url)
         if html is None:
             self._page_soup_cache[url] = None
             return None
@@ -235,25 +236,25 @@ class StockAnalysisSource:
         self._page_soup_cache[url] = soup
         return soup
 
-    def _scrape_quote_fields(self) -> dict[str, float | None]:
+    def scrape_quote_fields(self) -> dict[str, float | None]:
         return scrape_quote_fields(
             ticker_lower=self._ticker_lower,
-            fetch_html=self._fetch_stockanalysis_html,
+            fetch_html=self.fetch_stockanalysis_html,
         )
 
-    def _scrape_statistics_snapshot(self) -> StockAnalysisStatistics:
+    def scrape_statistics_snapshot(self) -> StockAnalysisStatistics:
         return scrape_statistics_snapshot(
             ticker_lower=self._ticker_lower,
-            fetch_soup=self._fetch_stockanalysis_soup,
+            fetch_soup=self.fetch_stockanalysis_soup,
         )
 
-    def _scrape_financials_snapshot(self) -> StockAnalysisFinancials:
+    def scrape_financials_snapshot(self) -> StockAnalysisFinancials:
         return scrape_financials_snapshot(
             ticker_lower=self._ticker_lower,
-            fetch_soup=self._fetch_stockanalysis_soup,
+            fetch_soup=self.fetch_stockanalysis_soup,
         )
 
-    def _search_statistics_snapshot(self) -> StockAnalysisStatistics:
+    def search_statistics_snapshot(self) -> StockAnalysisStatistics:
         statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
         return invoke_stockanalysis_search(
             output_schema=StockAnalysisStatistics,
@@ -265,7 +266,7 @@ class StockAnalysisSource:
             },
         )
 
-    def _search_financials_snapshot(self) -> StockAnalysisFinancials:
+    def search_financials_snapshot(self) -> StockAnalysisFinancials:
         financials_url = STOCKANALYSIS_FINANCIALS_URL.format(ticker=self._ticker_lower)
         return invoke_stockanalysis_search(
             output_schema=StockAnalysisFinancials,
@@ -277,14 +278,14 @@ class StockAnalysisSource:
             },
         )
 
-    def _scrape_stockanalysis_holdings(self) -> ETFHoldings:
+    def scrape_stockanalysis_holdings(self) -> ETFHoldings:
         return scrape_etf_holdings(
             ticker=self.ticker,
             ticker_lower=self._ticker_lower,
-            fetch_soup=self._fetch_stockanalysis_soup,
+            fetch_soup=self.fetch_stockanalysis_soup,
         )
 
-    def _search_etf_holdings(self) -> ETFHoldings:
+    def search_etf_holdings(self) -> ETFHoldings:
         return invoke_stockanalysis_search_or_default(
             output_schema=ETFHoldings,
             system_prompt_template=ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
@@ -294,14 +295,14 @@ class StockAnalysisSource:
             error_message="Failed to extract ETF holdings via web search for %s",
         )
 
-    def _scrape_stockanalysis_sectors(self) -> ETFSectors:
+    def scrape_stockanalysis_sectors(self) -> ETFSectors:
         return scrape_etf_sectors(
             ticker=self.ticker,
             ticker_lower=self._ticker_lower,
-            fetch_soup=self._fetch_stockanalysis_soup,
+            fetch_soup=self.fetch_stockanalysis_soup,
         )
 
-    def _search_etf_sectors(self) -> ETFSectors:
+    def search_etf_sectors(self) -> ETFSectors:
         return invoke_stockanalysis_search_or_default(
             output_schema=ETFSectors,
             system_prompt_template=ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
@@ -318,7 +319,7 @@ class StockAnalysisSource:
 
         stats = self.get_statistics_snapshot()
         financials = self.get_financials_snapshot()
-        quote_fields = self._scrape_quote_fields()
+        quote_fields = self.scrape_quote_fields()
         gross_margin = coalesce(stats.gross_margin, financials.gross_margin)
         operating_margin = coalesce(stats.operating_margin, financials.operating_margin)
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(

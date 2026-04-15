@@ -1,3 +1,5 @@
+"""Shared application domain schemas reused across features and data sources."""
+
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, create_model

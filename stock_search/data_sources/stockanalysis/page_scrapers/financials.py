@@ -6,12 +6,18 @@ from collections.abc import Callable
 
 from selectolax.lexbor import LexborHTMLParser
 
-from ..constants import (
-    FINANCIALS_FIELD_SPECS,
-    STOCKANALYSIS_FINANCIALS_URL,
-)
 from ..parsing import build_model_from_rows, extract_table_rows
 from ..schemas import StockAnalysisFinancials
+
+STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
+
+FINANCIALS_FIELD_SPECS = {
+    "revenue_growth": ("Revenue Growth (YoY)", "parse_percent_ratio"),
+    "eps_diluted": ("EPS (Diluted)", "parse_number"),
+    "eps_growth": ("EPS Growth", "parse_percent_ratio"),
+    "gross_margin": ("Gross Margin", "parse_percent_ratio"),
+    "operating_margin": ("Operating Margin", "parse_percent_ratio"),
+}
 
 
 def scrape_financials_snapshot(
