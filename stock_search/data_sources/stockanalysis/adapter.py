@@ -32,6 +32,7 @@ from .schemas import (
     StockAnalysisEtfSnapshot,
     StockAnalysisFinancials,
     StockAnalysisIndicatorsSnapshot,
+    StockAnalysisIndustrySnapshot,
     StockAnalysisStatistics,
 )
 
@@ -39,6 +40,18 @@ STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statis
 STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
 
 logger = logging.getLogger(__name__)
+
+
+def get_industry_snapshot() -> StockAnalysisIndustrySnapshot:
+    """Fetch sector and industry summary rows from the StockAnalysis industries page."""
+    return page_scrapers.scrape_industry_snapshot(
+        fetch_soup=lambda url: _fetch_stockanalysis_soup(url, subject="industries"),
+    )
+
+
+async def get_industry_snapshot_async() -> StockAnalysisIndustrySnapshot:
+    """Async-ready StockAnalysis industries fetch."""
+    return await asyncio.to_thread(get_industry_snapshot)
 
 
 class StockAnalysisSource:
@@ -90,12 +103,7 @@ class StockAnalysisSource:
         snapshot = getattr(self, snapshot_attr)
         if snapshot is not None:
             fetched_at = getattr(self, fetched_at_attr)
-            logger.info(
-                "Using cached StockAnalysis %s for %s fetched at %s",
-                label,
-                self.ticker,
-                fetched_at.isoformat() if fetched_at else "unknown",
-            )
+            logger.info(f"Using cached StockAnalysis {label} for {self.ticker} fetched at {fetched_at.isoformat() if fetched_at else 'unknown'}")
             return snapshot
 
         snapshot = scrape_getter()
@@ -105,12 +113,7 @@ class StockAnalysisSource:
         fetched_at = datetime.now(tz=UTC)
         setattr(self, snapshot_attr, snapshot)
         setattr(self, fetched_at_attr, fetched_at)
-        logger.info(
-            "Fetched StockAnalysis %s for %s at %s",
-            label,
-            self.ticker,
-            fetched_at.isoformat(),
-        )
+        logger.info(f"Fetched StockAnalysis {label} for {self.ticker} at {fetched_at.isoformat()}")
         return snapshot
 
     def get_statistics_snapshot(self) -> StockAnalysisStatistics:
@@ -182,7 +185,7 @@ class StockAnalysisSource:
         scraped = scrape_getter()
         if has_data(scraped):
             return scraped
-        logger.info("Falling back to web search for %s (%s)", label, self.ticker)
+        logger.info(f"Falling back to web search for {label} ({self.ticker})")
         return search_getter()
 
     def fetch_stockanalysis_html(self, url: str) -> str | None:
@@ -191,34 +194,9 @@ class StockAnalysisSource:
         if url in self._page_html_cache:
             return cached_html
 
-        try:
-            response = httpx.get(url, timeout=20)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            status_code = exc.response.status_code
-            if status_code == 404:
-                logger.info("StockAnalysis page not found for %s (%s)", self.ticker, url)
-            else:
-                logger.warning(
-                    "StockAnalysis request failed for %s (status=%s, url=%s)",
-                    self.ticker,
-                    status_code,
-                    url,
-                )
-            self._page_html_cache[url] = None
-            return None
-        except httpx.RequestError as exc:
-            logger.warning(
-                "StockAnalysis request failed for %s (url=%s): %s",
-                self.ticker,
-                url,
-                exc,
-            )
-            self._page_html_cache[url] = None
-            return None
-
-        self._page_html_cache[url] = response.text
-        return response.text
+        html = _fetch_stockanalysis_html(url, subject=self.ticker)
+        self._page_html_cache[url] = html
+        return html
 
     def fetch_stockanalysis_soup(self, url: str) -> LexborHTMLParser | None:
         """Fetch and cache a parsed StockAnalysis page tree."""
@@ -320,7 +298,7 @@ class StockAnalysisSource:
         )
 
     def get_indicators_snapshot(self) -> StockAnalysisIndicatorsSnapshot:
-        """Return StockAnalysis indicator set (partial by design)."""
+        """Return an app-facing StockAnalysis indicator set (partial by design)."""
         if self._indicators_snapshot is not None:
             return self._indicators_snapshot
 
@@ -332,7 +310,7 @@ class StockAnalysisSource:
         self._indicators_snapshot = StockAnalysisIndicatorsSnapshot(
             price=quote_fields["price"],
             change=quote_fields["change"],
-            change_percent=quote_fields["change_percent"],
+            change_percent_1d=quote_fields["change_percent_1d"],
             market_cap=stats.market_cap,
             pe=stats.pe,
             pe_forward=stats.pe_forward,
@@ -359,3 +337,29 @@ class StockAnalysisSource:
     async def get_indicators_snapshot_async(self) -> StockAnalysisIndicatorsSnapshot:
         """Async-ready ticker-level indicators fetch."""
         return await asyncio.to_thread(self.get_indicators_snapshot)
+
+
+def _fetch_stockanalysis_html(url: str, *, subject: str) -> str | None:
+    """Fetch raw HTML for one StockAnalysis page."""
+    try:
+        response = httpx.get(url, timeout=20)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        if status_code == 404:
+            logger.info(f"StockAnalysis page not found for {subject} ({url})")
+        else:
+            logger.warning(f"StockAnalysis request failed for {subject} (status={status_code}, url={url})")
+        return None
+    except httpx.RequestError as exc:
+        logger.warning(f"StockAnalysis request failed for {subject} (url={url}): {exc}")
+        return None
+    return response.text
+
+
+def _fetch_stockanalysis_soup(url: str, *, subject: str) -> LexborHTMLParser | None:
+    """Fetch and parse one StockAnalysis page."""
+    html = _fetch_stockanalysis_html(url, subject=subject)
+    if html is None:
+        return None
+    return LexborHTMLParser(html)

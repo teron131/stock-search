@@ -2,9 +2,8 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field
 
-from .field_definitions import INDICATOR_FIELD_DEFINITIONS
 from .labels import SECTOR_LABELS
 
 # Common fields
@@ -226,28 +225,35 @@ class ETF(BaseModel):
         return rows
 
 
-_STOCK_FIELD_OVERRIDES: dict[str, tuple[Any, Any]] = {
-    "ratings": (
-        list[dict[str, Any]] | None,
-        Field(default=None, description="Analyst ratings/upgrades snapshot rows."),
-    ),
-}
+class StockIndicators(BaseModel):
+    """Unified stock indicator payload used across data sources.
 
-_stock_fields: dict[str, tuple[Any, Any]] = {
-    "ticker": (Ticker, Field(description="Ticker symbol")),
-}
-for field_definition in INDICATOR_FIELD_DEFINITIONS:
-    field_name = field_definition.name
-    if field_name in _STOCK_FIELD_OVERRIDES:
-        _stock_fields[field_name] = _STOCK_FIELD_OVERRIDES[field_name]
-        continue
-    _stock_fields[field_name] = (
-        float | None,
-        Field(default=None, description=f"{field_name.replace('_', ' ').title()}."),
-    )
+    Percent-based fields in this model use percent units.
+    """
 
-StockIndicators = create_model("StockIndicators", __base__=BaseModel, **_stock_fields)
-StockIndicators.__doc__ = "Unified stock indicator payload used across data sources."
+    ticker: Ticker
+    price: float | None = Field(default=None, description="Current price.")
+    change_percent_1d: float | None = Field(default=None, description="1-day price change percent.")
+    change: float | None = Field(default=None, description="Daily price change.")
+    market_cap: float | None = Field(default=None, description="Market cap in dollars.")
+    pe: float | None = Field(default=None, description="Trailing PE ratio.")
+    pe_forward: float | None = Field(default=None, description="Forward PE ratio.")
+    peg: float | None = Field(default=None, description="PEG ratio.")
+    beta: float | None = Field(default=None, description="Beta.")
+    iv: float | None = Field(default=None, description="Implied volatility percent.")
+    change_percent_1m: float | None = Field(default=None, description="1-month price change percent.")
+    change_percent_3m: float | None = Field(default=None, description="3-month price change percent.")
+    change_percent_6m: float | None = Field(default=None, description="6-month price change percent.")
+    change_percent_1y: float | None = Field(default=None, description="1-year price change percent.")
+    change_percent_mtd: float | None = Field(default=None, description="Month-to-date price change percent.")
+    change_percent_ytd: float | None = Field(default=None, description="Year-to-date price change percent.")
+    median_upside: float | None = Field(default=None, description="Median analyst upside percent.")
+    revenue_growth: float | None = Field(default=None, description="Revenue growth percent.")
+    gross_margin: float | None = Field(default=None, description="Gross margin percent.")
+    debt_to_equity: float | None = Field(default=None, description="Debt-to-equity percent.")
+    free_cash_flow: float | None = Field(default=None, description="Free cash flow in dollars.")
+    rsi: float | None = Field(default=None, description="Relative Strength Index (RSI).")
+    ratings: list[dict[str, Any]] | None = Field(default=None, description="Analyst ratings/upgrades snapshot rows.")
 
 
 class Stock(TickerLabels):

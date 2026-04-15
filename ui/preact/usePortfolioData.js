@@ -154,7 +154,7 @@ function calculateWeightedChange(rows, totalVal) {
 	if (totalVal <= 0) return { percent: 0, absolute: 0 };
 
 	const absolute = rows.reduce((acc, r) => {
-		const cp = Number(r.change_percent) || 0;
+		const cp = Number(r.change_percent_1d) || 0;
 		const total = Number(r.total) || 0;
 		return acc + ((cp / 100) * total) / (1 + cp / 100);
 	}, 0);

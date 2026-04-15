@@ -44,10 +44,10 @@ _HV_WINDOWS_TO_WEIGHTS: tuple[tuple[int, int], ...] = (
     (1, 1),
 )
 _PERIOD_CONFIGS: dict[str, tuple[int, str]] = {
-    "one_month_change_percent": (1, "2y"),
-    "three_month_change_percent": (3, "2y"),
-    "six_month_change_percent": (6, "2y"),
-    "one_year_change_percent": (12, "3y"),
+    "change_percent_1m": (1, "2y"),
+    "change_percent_3m": (3, "2y"),
+    "change_percent_6m": (6, "2y"),
+    "change_percent_1y": (12, "3y"),
 }
 _SESSION_PRICE_KEYS: dict[str, str] = {
     "PRE": "preMarketPrice",
@@ -149,21 +149,24 @@ class YahooRatingsSnapshot:
 
 @dataclass(frozen=True)
 class YahooIndicatorsSnapshot:
-    """Indicator-shaped payload produced directly from Yahoo data."""
+    """Indicator-shaped payload produced directly from Yahoo data.
+
+    Percent-based fields in this snapshot use percent units.
+    """
 
     price: float | None = None
     change: float | None = None
-    change_percent: float | None = None
+    change_percent_1d: float | None = None
     market_cap: float | None = None
     pe: float | None = None
     pe_forward: float | None = None
     peg: float | None = None
     beta: float | None = None
     iv: float | None = None
-    one_month_change_percent: float | None = None
-    three_month_change_percent: float | None = None
-    six_month_change_percent: float | None = None
-    one_year_change_percent: float | None = None
+    change_percent_1m: float | None = None
+    change_percent_3m: float | None = None
+    change_percent_6m: float | None = None
+    change_percent_1y: float | None = None
     median_upside: float | None = None
     revenue_growth: float | None = None
     gross_margin: float | None = None
@@ -173,8 +176,8 @@ class YahooIndicatorsSnapshot:
     eps_diluted: float | None = None
     eps_growth: float | None = None
     rsi: float | None = None
-    mtd_change_percent: float | None = None
-    ytd_change_percent: float | None = None
+    change_percent_mtd: float | None = None
+    change_percent_ytd: float | None = None
     ratings: list[dict[str, Any]] | None = None
 
 
@@ -336,15 +339,15 @@ class YahooFinanceSource:
         return self._previous_close_from_history()
 
     def _build_session_quote(self) -> tuple[float | None, float | None, float | None]:
-        """Build price/change/change_percent with the correct session baseline."""
+        """Build price/change/change_percent_1d with the correct session baseline."""
         price_entry = self._get_realtime_price_entry(self.get_market_state())
         price = price_entry[1] if price_entry is not None else None
         if price is None:
             price = round_optional(self.get_current_price()) or self._last_intraday_price() or self._last_close()
         baseline_price = self._get_change_baseline_price(price_entry[0] if price_entry is not None else None)
         change = round_optional(price - baseline_price) if price is not None and baseline_price is not None else None
-        change_percent = round_optional(((price - baseline_price) / baseline_price) * 100) if price is not None and baseline_price not in (None, 0) else None
-        return price, change, change_percent
+        change_percent_1d = round_optional(((price - baseline_price) / baseline_price) * 100) if price is not None and baseline_price not in (None, 0) else None
+        return price, change, change_percent_1d
 
     def get_market_cap(self) -> float | None:
         """Get raw market cap in dollars."""
@@ -676,7 +679,7 @@ class YahooFinanceSource:
         if ratings_days in self._indicator_cache:
             return self._indicator_cache[ratings_days]
 
-        price, change, change_percent = self._build_session_quote()
+        price, change, change_percent_1d = self._build_session_quote()
 
         now = self._now_ny().date()
         period_values = {
@@ -695,17 +698,17 @@ class YahooFinanceSource:
         snapshot = YahooIndicatorsSnapshot(
             price=price,
             change=change,
-            change_percent=change_percent,
+            change_percent_1d=change_percent_1d,
             market_cap=self.get_market_cap(),
             pe=self.get_pe_trailing(),
             pe_forward=self.get_forward_pe_ntm(),
             peg=self.get_peg(),
             beta=self.get_beta(),
             iv=self._calculate_iv(),
-            one_month_change_percent=period_values["one_month_change_percent"],
-            three_month_change_percent=period_values["three_month_change_percent"],
-            six_month_change_percent=period_values["six_month_change_percent"],
-            one_year_change_percent=period_values["one_year_change_percent"],
+            change_percent_1m=period_values["change_percent_1m"],
+            change_percent_3m=period_values["change_percent_3m"],
+            change_percent_6m=period_values["change_percent_6m"],
+            change_percent_1y=period_values["change_percent_1y"],
             median_upside=ratings_snapshot.median_upside_pct if ratings_snapshot else None,
             revenue_growth=self.get_revenue_growth_percent(),
             gross_margin=self.get_gross_margin_percent(),
@@ -715,8 +718,8 @@ class YahooFinanceSource:
             eps_diluted=self.get_eps_diluted(),
             eps_growth=None,
             rsi=self._calculate_rsi(),
-            mtd_change_percent=mtd,
-            ytd_change_percent=ytd,
+            change_percent_mtd=mtd,
+            change_percent_ytd=ytd,
             ratings=ratings_snapshot.ratings if ratings_snapshot else None,
         )
         self._indicator_cache[ratings_days] = snapshot

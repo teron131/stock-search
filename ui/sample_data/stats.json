@@ -1,11 +1,9 @@
 {
 	"AMZN": {
 		"price": 239.12,
-		"change_percent": 0.39,
 		"strategy": "Speculation",
 		"name": "Amazon.com, Inc.",
 		"rsi": 58.04,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 2.46,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 9.08,
@@ -14,15 +12,15 @@
 		"pe": 33.77,
 		"pe_forward": 30.42,
 		"peg": 1.64,
-		"gross_margin": 50.05
+		"gross_margin": 50.05,
+		"change_percent_1d": 0.39,
+		"change_percent_1m": null
 	},
 	"GE": {
 		"price": 325.12,
-		"change_percent": 1.62,
 		"strategy": "Satellite",
 		"name": "GE Aerospace",
 		"rsi": 57.7,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 6.78,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 21.33,
@@ -31,15 +29,15 @@
 		"pe": 43.47,
 		"pe_forward": 45.67,
 		"peg": 5.9,
-		"gross_margin": 32.46
+		"gross_margin": 32.46,
+		"change_percent_1d": 1.62,
+		"change_percent_1m": null
 	},
 	"GLD": {
 		"price": 421.29,
-		"change_percent": -0.48,
 		"strategy": "Satellite",
 		"name": "SPDR Gold Shares",
 		"rsi": 53.53,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 6.95,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 24.1,
@@ -48,15 +46,15 @@
 		"pe": null,
 		"pe_forward": null,
 		"peg": null,
-		"gross_margin": null
+		"gross_margin": null,
+		"change_percent_1d": -0.48,
+		"change_percent_1m": null
 	},
 	"GOOGL": {
 		"price": 330.0,
-		"change_percent": -0.84,
 		"strategy": "Core",
 		"name": "Alphabet Inc.",
 		"rsi": 73.88,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 6.67,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 45.78,
@@ -65,15 +63,15 @@
 		"pe": 32.58,
 		"pe_forward": 29.25,
 		"peg": 1.74,
-		"gross_margin": 59.17
+		"gross_margin": 59.17,
+		"change_percent_1d": -0.84,
+		"change_percent_1m": null
 	},
 	"ITA": {
 		"price": 243.77,
-		"change_percent": 1.06,
 		"strategy": "Satellite",
 		"name": "iShares U.S. Aerospace & Defens",
 		"rsi": 82.08,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 14.35,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 25.96,
@@ -82,15 +80,15 @@
 		"pe": 41.21,
 		"pe_forward": null,
 		"peg": null,
-		"gross_margin": null
+		"gross_margin": null,
+		"change_percent_1d": 1.06,
+		"change_percent_1m": null
 	},
 	"META": {
 		"price": 620.25,
-		"change_percent": -0.09,
 		"strategy": "Defense",
 		"name": "Meta Platforms, Inc.",
 		"rsi": 29.01,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": -2.99,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": -8.21,
@@ -99,15 +97,15 @@
 		"pe": 27.47,
 		"pe_forward": 20.42,
 		"peg": 1.47,
-		"gross_margin": 82.01
+		"gross_margin": 82.01,
+		"change_percent_1d": -0.09,
+		"change_percent_1m": null
 	},
 	"NFLX": {
 		"price": 88.0,
-		"change_percent": -0.05,
 		"strategy": "Speculation",
 		"name": "Netflix, Inc.",
 		"rsi": 15.55,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": -11.74,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": -22.18,
@@ -116,15 +114,15 @@
 		"pe": 36.82,
 		"pe_forward": 27.23,
 		"peg": 1.49,
-		"gross_margin": 48.08
+		"gross_margin": 48.08,
+		"change_percent_1d": -0.05,
+		"change_percent_1m": null
 	},
 	"NVDA": {
 		"price": 186.23,
-		"change_percent": -0.41,
 		"strategy": "Speculation",
 		"name": "NVIDIA Corporation",
 		"rsi": 40.43,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 0.91,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 13.52,
@@ -133,15 +131,15 @@
 		"pe": 46.1,
 		"pe_forward": 24.49,
 		"peg": 0.7,
-		"gross_margin": 70.05
+		"gross_margin": 70.05,
+		"change_percent_1d": -0.41,
+		"change_percent_1m": null
 	},
 	"RTX": {
 		"price": 201.92,
-		"change_percent": 1.05,
 		"strategy": "Core",
 		"name": "RTX Corporation",
 		"rsi": 78.27,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 12.13,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 29.04,
@@ -150,15 +148,15 @@
 		"pe": 41.46,
 		"pe_forward": 30.05,
 		"peg": 1.76,
-		"gross_margin": 20.13
+		"gross_margin": 20.13,
+		"change_percent_1d": 1.05,
+		"change_percent_1m": null
 	},
 	"SHLD": {
 		"price": 77.91,
-		"change_percent": 0.72,
 		"strategy": "Satellite",
 		"name": "Global X Defense Tech ETF",
 		"rsi": 92.21,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 17.57,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 26.41,
@@ -167,15 +165,15 @@
 		"pe": 37.7,
 		"pe_forward": -7.97,
 		"peg": null,
-		"gross_margin": null
+		"gross_margin": null,
+		"change_percent_1d": 0.72,
+		"change_percent_1m": null
 	},
 	"SLV": {
 		"price": 81.02,
-		"change_percent": -2.76,
 		"strategy": "Defense",
 		"name": "iShares Silver Trust",
 		"rsi": 61.17,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 39.02,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 97.75,
@@ -184,15 +182,15 @@
 		"pe": null,
 		"pe_forward": null,
 		"peg": null,
-		"gross_margin": null
+		"gross_margin": null,
+		"change_percent_1d": -2.76,
+		"change_percent_1m": null
 	},
 	"TSM": {
 		"price": 342.4,
-		"change_percent": 0.22,
 		"strategy": "Core",
 		"name": "Taiwan Semiconductor Manufactur",
 		"rsi": 76.64,
-		"one_month_change_percent": null,
 		"fifty_day_change_percent": 14.44,
 		"one_hundred_day_change_percent": null,
 		"two_hundred_day_change_percent": 38.76,
@@ -201,6 +199,8 @@
 		"pe": 32.67,
 		"pe_forward": 19.02,
 		"peg": 1.31,
-		"gross_margin": 59.89
+		"gross_margin": 59.89,
+		"change_percent_1d": 0.22,
+		"change_percent_1m": null
 	}
 }

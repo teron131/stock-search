@@ -25,11 +25,11 @@ from .math_utils import clamp_score, z_score_map
 WeightedFactorConfig = tuple[float | None, tuple[float, float, float], float, bool]
 
 _MOMENTUM_INPUTS = (
-    "change_percent",
-    "one_month_change_percent",
-    "three_month_change_percent",
-    "six_month_change_percent",
-    "one_year_change_percent",
+    "change_percent_1d",
+    "change_percent_1m",
+    "change_percent_3m",
+    "change_percent_6m",
+    "change_percent_1y",
 )
 
 _STRATEGY_BUCKETS: dict[str, StrategyBucket] = {

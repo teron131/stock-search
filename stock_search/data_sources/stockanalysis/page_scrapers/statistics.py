@@ -18,9 +18,9 @@ from ..schemas import StockAnalysisStatistics
 STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
 
 QUOTE_BLOCK_PATTERN = re.compile(r"quote:\{(.*?)\},stream:", re.DOTALL)
-QUOTE_EMPTY_FIELDS = {"price": None, "change": None, "change_percent": None}
-REGULAR_QUOTE_KEYS = {"price": "p", "change": "c", "change_percent": "cp"}
-EXTENDED_QUOTE_KEYS = {"price": "ep", "change": "ec", "change_percent": "ecp"}
+QUOTE_EMPTY_FIELDS = {"price": None, "change": None, "change_percent_1d": None}
+REGULAR_QUOTE_KEYS = {"price": "p", "change": "c", "change_percent_1d": "cp"}
+EXTENDED_QUOTE_KEYS = {"price": "ep", "change": "ec", "change_percent_1d": "ecp"}
 EXTENDED_SESSION_NAMES = {"Pre-market", "After-hours"}
 
 STATISTICS_FIELD_SPECS = {

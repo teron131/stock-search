@@ -143,7 +143,7 @@ def fetch_stats_data(ticker: str) -> dict:
         price = None
 
     change = round_optional(indicators.get("change"), 2)
-    change_percent = round_optional(indicators.get("change_percent"), 2)
+    change_percent_1d = round_optional(indicators.get("change_percent_1d"), 2)
 
     market_cap_raw = round_optional(indicators.get("market_cap"), 0)
     market_cap = format_market_cap(market_cap_raw)
@@ -153,12 +153,12 @@ def fetch_stats_data(ticker: str) -> dict:
     beta = round_optional(indicators.get("beta"), 2)
     iv = round_optional(indicators.get("iv"), 2)
 
-    one_month_change_percent = round_optional(indicators.get("one_month_change_percent"), 2)
-    three_month_change_percent = round_optional(indicators.get("three_month_change_percent"), 2)
-    six_month_change_percent = round_optional(indicators.get("six_month_change_percent"), 2)
-    one_year_change_percent = round_optional(indicators.get("one_year_change_percent"), 2)
-    mtd_change_percent = round_optional(indicators.get("mtd_change_percent"), 2)
-    ytd_change_percent = round_optional(indicators.get("ytd_change_percent"), 2)
+    change_percent_1m = round_optional(indicators.get("change_percent_1m"), 2)
+    change_percent_3m = round_optional(indicators.get("change_percent_3m"), 2)
+    change_percent_6m = round_optional(indicators.get("change_percent_6m"), 2)
+    change_percent_1y = round_optional(indicators.get("change_percent_1y"), 2)
+    change_percent_mtd = round_optional(indicators.get("change_percent_mtd"), 2)
+    change_percent_ytd = round_optional(indicators.get("change_percent_ytd"), 2)
 
     median_upside = round_optional(indicators.get("median_upside"), 2)
     revenue_growth = round_optional(indicators.get("revenue_growth"), 2)
@@ -169,16 +169,16 @@ def fetch_stats_data(ticker: str) -> dict:
     return {
         "price": price,
         "change": change,
-        "change_percent": change_percent,
+        "change_percent_1d": change_percent_1d,
         "strategy": random.choice(BUCKETS),
         "name": info.get("shortName") or info.get("longName") or ticker,
         "rsi": round_optional(indicators.get("rsi"), 2),
-        "one_month_change_percent": one_month_change_percent,
-        "three_month_change_percent": three_month_change_percent,
-        "six_month_change_percent": six_month_change_percent,
-        "one_year_change_percent": one_year_change_percent,
-        "mtd_change_percent": mtd_change_percent,
-        "ytd_change_percent": ytd_change_percent,
+        "change_percent_1m": change_percent_1m,
+        "change_percent_3m": change_percent_3m,
+        "change_percent_6m": change_percent_6m,
+        "change_percent_1y": change_percent_1y,
+        "change_percent_mtd": change_percent_mtd,
+        "change_percent_ytd": change_percent_ytd,
         "median_upside": median_upside,
         "market_cap": market_cap,
         "_market_cap_raw": market_cap_raw,
@@ -200,16 +200,16 @@ def create_fallback_stats(ticker: str) -> dict:
     return {
         "price": None,
         "change": None,
-        "change_percent": None,
+        "change_percent_1d": None,
         "strategy": random.choice(BUCKETS),
         "name": ticker,
         "rsi": None,
-        "one_month_change_percent": None,
-        "three_month_change_percent": None,
-        "six_month_change_percent": None,
-        "one_year_change_percent": None,
-        "mtd_change_percent": None,
-        "ytd_change_percent": None,
+        "change_percent_1m": None,
+        "change_percent_3m": None,
+        "change_percent_6m": None,
+        "change_percent_1y": None,
+        "change_percent_mtd": None,
+        "change_percent_ytd": None,
         "median_upside": None,
         "market_cap": None,
         "pe": None,
@@ -239,10 +239,10 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
 
     # 2. Momentum proxy (Bull Probability)
     trends = [
-        stats.get("one_month_change_percent"),
-        stats.get("three_month_change_percent"),
-        stats.get("six_month_change_percent"),
-        stats.get("one_year_change_percent"),
+        stats.get("change_percent_1m"),
+        stats.get("change_percent_3m"),
+        stats.get("change_percent_6m"),
+        stats.get("change_percent_1y"),
     ]
     valid_trends = [v for v in trends if v is not None]
     avg_trend = sum(valid_trends) / len(valid_trends) if valid_trends else 0

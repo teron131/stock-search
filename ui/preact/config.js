@@ -56,7 +56,7 @@ export const CONFIG = {
 const BASE_COLUMNS = [
 	{ key: "ticker", label: "TICKER" },
 	{ key: "price", label: "PRICE", format: "currency" },
-	{ key: "change_percent", label: "CHANGE%", format: "percent" },
+	{ key: "change_percent_1d", label: "CHANGE%", format: "percent" },
 	{ key: "market_cap", label: "MKT_CAP", format: "market_cap" },
 	{ key: "pe", label: "PE", format: "number" },
 	{ key: "pe_forward", label: "FWD_PE", format: "number" },
@@ -67,10 +67,10 @@ const BASE_COLUMNS = [
 ];
 
 const MOMENTUM_COLUMNS = [
-	{ key: "one_month_change_percent", label: "1M%", format: "percent" },
-	{ key: "three_month_change_percent", label: "3M%", format: "percent" },
-	{ key: "six_month_change_percent", label: "6M%", format: "percent" },
-	{ key: "one_year_change_percent", label: "1Y%", format: "percent" },
+	{ key: "change_percent_1m", label: "1M%", format: "percent" },
+	{ key: "change_percent_3m", label: "3M%", format: "percent" },
+	{ key: "change_percent_6m", label: "6M%", format: "percent" },
+	{ key: "change_percent_1y", label: "1Y%", format: "percent" },
 	{ key: "median_upside", label: "UPSIDE%", format: "percent" },
 ];
 

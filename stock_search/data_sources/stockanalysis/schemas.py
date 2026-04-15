@@ -10,7 +10,7 @@ from stock_search.models import ETFHoldings, ETFSectors
 
 
 class StockAnalysisStatistics(BaseModel):
-    """Structured output schema for the StockAnalysis statistics page."""
+    """Raw StockAnalysis statistics page payload before adapter normalization."""
 
     market_cap: float | None = Field(default=None, description="Market Cap")
     beta: float | None = Field(default=None, description="Beta (5Y)")
@@ -36,12 +36,15 @@ class StockAnalysisStatistics(BaseModel):
     peg: float | None = Field(default=None, description="PEG Ratio")
     roic: float | None = Field(
         default=None,
-        description="Return on Invested Capital (ROIC)",
+        description="Return on Invested Capital (ROIC) as a 0-1 ratio",
     )
-    gross_margin: float | None = Field(default=None, description="Gross Margin")
+    gross_margin: float | None = Field(
+        default=None,
+        description="Gross margin as a 0-1 ratio",
+    )
     operating_margin: float | None = Field(
         default=None,
-        description="Operating Margin",
+        description="Operating margin as a 0-1 ratio",
     )
     debt_to_equity: float | None = Field(default=None, description="Debt / Equity")
     debt_to_ebitda: float | None = Field(default=None, description="Debt / EBITDA")
@@ -49,18 +52,56 @@ class StockAnalysisStatistics(BaseModel):
 
 
 class StockAnalysisFinancials(BaseModel):
-    """Structured output schema for the StockAnalysis financials page."""
+    """Raw StockAnalysis financials-page payload before adapter normalization."""
 
     revenue_growth: float | None = Field(
         default=None,
-        description="Revenue Growth (YoY)",
+        description="Revenue growth (YoY) as a 0-1 ratio",
     )
     eps_diluted: float | None = Field(default=None, description="EPS (Diluted)")
-    eps_growth: float | None = Field(default=None, description="EPS Growth")
-    gross_margin: float | None = Field(default=None, description="Gross Margin")
+    eps_growth: float | None = Field(default=None, description="EPS growth as a 0-1 ratio")
+    gross_margin: float | None = Field(
+        default=None,
+        description="Gross margin as a 0-1 ratio",
+    )
     operating_margin: float | None = Field(
         default=None,
-        description="Operating Margin",
+        description="Operating margin as a 0-1 ratio",
+    )
+
+
+class StockAnalysisIndustrySummary(BaseModel):
+    """One sector/industry summary row from the StockAnalysis industries page."""
+
+    sector: str = Field(description="Sector name")
+    industry: str = Field(description="Industry name")
+    stock_count: int = Field(description="Number of stocks in the industry")
+    market_cap: float | None = Field(default=None, description="Industry market cap")
+    pe: float | None = Field(default=None, description="Industry PE ratio")
+    profit_margin: float | None = Field(
+        default=None,
+        description="Industry profit margin percent",
+    )
+    change_percent_1d: float | None = Field(
+        default=None,
+        description="1-day change percent",
+    )
+    change_percent_1m: float | None = Field(
+        default=None,
+        description="1-month change percent when available",
+    )
+    change_percent_1y: float | None = Field(
+        default=None,
+        description="1-year change percent",
+    )
+
+
+class StockAnalysisIndustrySnapshot(BaseModel):
+    """Structured output schema for the StockAnalysis industries page."""
+
+    industries: list[StockAnalysisIndustrySummary] = Field(
+        default_factory=list,
+        description="Industry summary rows grouped by sector",
     )
 
 
@@ -76,9 +117,16 @@ class StockAnalysisIndicatorsSnapshot(
     StockAnalysisStatistics,
     StockAnalysisFinancials,
 ):
-    """Combined StockAnalysis indicator payload used by `indicators.py`."""
+    """App-facing StockAnalysis indicator payload used by `indicators.py`.
+
+    Percent-based fields in this model use percent units.
+    """
 
     price: float | None = Field(default=None)
     change: float | None = Field(default=None)
-    change_percent: float | None = Field(default=None)
+    change_percent_1d: float | None = Field(default=None, description="1-day price change percent")
+    revenue_growth: float | None = Field(default=None, description="Revenue growth (YoY) percent")
+    gross_margin: float | None = Field(default=None, description="Gross margin percent")
+    operating_margin: float | None = Field(default=None, description="Operating margin percent")
+    eps_growth: float | None = Field(default=None, description="EPS growth percent")
     fetched_at: str | None = Field(default=None)

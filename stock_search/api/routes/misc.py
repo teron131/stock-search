@@ -132,6 +132,6 @@ def evaluate_ticker_api(ticker: str) -> dict:
         "bull_probability": 0.7,
         "bear_probability": 0.2,
         "price": indicator.price,
-        "change_percent": indicator.change_percent,
+        "change_percent_1d": indicator.change_percent_1d,
         "rsi": indicator.rsi,
     }

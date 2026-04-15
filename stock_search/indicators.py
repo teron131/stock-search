@@ -39,15 +39,15 @@ INDICATOR_FIELDS_BY_SOURCE: dict[str, tuple[str, ...]] = {
     DATA_SOURCE_YAHOOFINANCE: (
         "price",
         "change",
-        "change_percent",
+        "change_percent_1d",
         "iv",
         "rsi",
-        "one_month_change_percent",
-        "three_month_change_percent",
-        "six_month_change_percent",
-        "one_year_change_percent",
-        "mtd_change_percent",
-        "ytd_change_percent",
+        "change_percent_1m",
+        "change_percent_3m",
+        "change_percent_6m",
+        "change_percent_1y",
+        "change_percent_mtd",
+        "change_percent_ytd",
         "ratings",
         "median_upside",
     ),
@@ -209,9 +209,9 @@ class StockIndicator:
         return self._resolve_indicator_field("change")
 
     @property
-    def change_percent(self) -> float | None:
-        """Return the resolved change percent."""
-        return self._resolve_indicator_field("change_percent")
+    def change_percent_1d(self) -> float | None:
+        """Return the resolved 1-day change percent."""
+        return self._resolve_indicator_field("change_percent_1d")
 
     @property
     def market_cap(self) -> float | None:
@@ -269,34 +269,34 @@ class StockIndicator:
         return self._resolve_indicator_field("rsi")
 
     @property
-    def one_month_change_percent(self) -> float | None:
-        """Return the resolved one month change percent."""
-        return self._resolve_indicator_field("one_month_change_percent")
+    def change_percent_1m(self) -> float | None:
+        """Return the resolved 1-month change percent."""
+        return self._resolve_indicator_field("change_percent_1m")
 
     @property
-    def three_month_change_percent(self) -> float | None:
-        """Return the resolved three month change percent."""
-        return self._resolve_indicator_field("three_month_change_percent")
+    def change_percent_3m(self) -> float | None:
+        """Return the resolved 3-month change percent."""
+        return self._resolve_indicator_field("change_percent_3m")
 
     @property
-    def six_month_change_percent(self) -> float | None:
-        """Return the resolved six month change percent."""
-        return self._resolve_indicator_field("six_month_change_percent")
+    def change_percent_6m(self) -> float | None:
+        """Return the resolved 6-month change percent."""
+        return self._resolve_indicator_field("change_percent_6m")
 
     @property
-    def one_year_change_percent(self) -> float | None:
-        """Return the resolved one year change percent."""
-        return self._resolve_indicator_field("one_year_change_percent")
+    def change_percent_1y(self) -> float | None:
+        """Return the resolved 1-year change percent."""
+        return self._resolve_indicator_field("change_percent_1y")
 
     @property
-    def mtd_change_percent(self) -> float | None:
-        """Return the resolved MTD change percent."""
-        return self._resolve_indicator_field("mtd_change_percent")
+    def change_percent_mtd(self) -> float | None:
+        """Return the resolved month-to-date change percent."""
+        return self._resolve_indicator_field("change_percent_mtd")
 
     @property
-    def ytd_change_percent(self) -> float | None:
-        """Return the resolved YTD change percent."""
-        return self._resolve_indicator_field("ytd_change_percent")
+    def change_percent_ytd(self) -> float | None:
+        """Return the resolved year-to-date change percent."""
+        return self._resolve_indicator_field("change_percent_ytd")
 
     @property
     def ratings(self) -> list[dict[str, Any]] | None:

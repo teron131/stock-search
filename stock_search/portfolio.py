@@ -51,12 +51,12 @@ _LIVE_STATS_RATE_LOCK = Lock()
 _LAST_LIVE_STATS_REQUEST_AT = 0.0
 
 _PERIOD_RETURN_FIELDS: tuple[str, ...] = (
-    "one_month_change_percent",
-    "three_month_change_percent",
-    "six_month_change_percent",
-    "one_year_change_percent",
-    "mtd_change_percent",
-    "ytd_change_percent",
+    "change_percent_1m",
+    "change_percent_3m",
+    "change_percent_6m",
+    "change_percent_1y",
+    "change_percent_mtd",
+    "change_percent_ytd",
 )
 _PORTFOLIO_LABEL_FIELD = "industry_labels"
 _LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at"
@@ -307,11 +307,11 @@ def _indicator_eval_fallback(stats: dict[str, Any]) -> dict[str, float]:
     overall = clamp((moat + quality + valuation + upside) / 4, 0.0, 10.0)
 
     momentum_fields = (
-        "change_percent",
-        "one_month_change_percent",
-        "three_month_change_percent",
-        "six_month_change_percent",
-        "one_year_change_percent",
+        "change_percent_1d",
+        "change_percent_1m",
+        "change_percent_3m",
+        "change_percent_6m",
+        "change_percent_1y",
     )
     momentum_values = [float(stats[name]) for name in momentum_fields if isinstance(stats.get(name), (int, float))]
     if momentum_values:
@@ -388,15 +388,15 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
             latest_price = yahoo_source.get_realtime_price(yahoo_source.get_market_state()) or yahoo_source.get_current_price()
             previous_close = yahoo_source.get_previous_close()
             change = None
-            change_percent = None
+            change_percent_1d = None
             if latest_price is not None and previous_close not in (None, 0):
                 change = round(latest_price - previous_close, 2)
-                change_percent = round(((latest_price - previous_close) / previous_close) * 100, 2)
+                change_percent_1d = round(((latest_price - previous_close) / previous_close) * 100, 2)
             fetched_history = {
                 **history_data,
                 "price": latest_price,
                 "change": change,
-                "change_percent": change_percent,
+                "change_percent_1d": change_percent_1d,
             }
             _HISTORY_CACHE.set(ticker_key, fetched_history, now=now)
             history_data = dict(fetched_history)
@@ -423,12 +423,12 @@ def _fetch_live_stats(ticker: str) -> dict[str, Any]:
                 "peg": indicator.peg,
                 "beta": indicator.beta,
                 "iv": indicator.iv,
-                "one_month_change_percent": indicator.one_month_change_percent,
-                "three_month_change_percent": indicator.three_month_change_percent,
-                "six_month_change_percent": indicator.six_month_change_percent,
-                "one_year_change_percent": indicator.one_year_change_percent,
-                "mtd_change_percent": indicator.mtd_change_percent,
-                "ytd_change_percent": indicator.ytd_change_percent,
+                "change_percent_1m": indicator.change_percent_1m,
+                "change_percent_3m": indicator.change_percent_3m,
+                "change_percent_6m": indicator.change_percent_6m,
+                "change_percent_1y": indicator.change_percent_1y,
+                "change_percent_mtd": indicator.change_percent_mtd,
+                "change_percent_ytd": indicator.change_percent_ytd,
                 "median_upside": indicator.median_upside,
                 "revenue_growth": indicator.revenue_growth,
                 "gross_margin": indicator.gross_margin,
@@ -586,7 +586,7 @@ def _build_row(
         "quantity": qty,
         "price": price,
         "change": stats.get("change"),
-        "change_percent": stats.get("change_percent"),
+        "change_percent_1d": stats.get("change_percent_1d"),
         "market_cap": stats.get("market_cap"),
         "pe": stats.get("pe"),
         "pe_forward": stats.get("pe_forward"),
@@ -598,10 +598,10 @@ def _build_row(
         "revenue_growth": stats.get("revenue_growth"),
         "gross_margin": stats.get("gross_margin"),
         "rsi": stats.get("rsi"),
-        "one_month_change_percent": stats.get("one_month_change_percent"),
-        "three_month_change_percent": stats.get("three_month_change_percent"),
-        "six_month_change_percent": stats.get("six_month_change_percent"),
-        "one_year_change_percent": stats.get("one_year_change_percent"),
+        "change_percent_1m": stats.get("change_percent_1m"),
+        "change_percent_3m": stats.get("change_percent_3m"),
+        "change_percent_6m": stats.get("change_percent_6m"),
+        "change_percent_1y": stats.get("change_percent_1y"),
         "median_upside": stats.get("median_upside"),
         "etf_holdings": etf_holdings,
         "etf_holdings_fetched_at": etf_holdings_fetched_at,
@@ -645,11 +645,11 @@ def _build_portfolio_stats(rows: list[dict[str, Any]], sector_table: list[dict[s
     total = sum(float(safe_float(row.get("total")) or 0.0) for row in held_rows)
     change_value = 0.0
     for row in held_rows:
-        change_percent = safe_float(row.get("change_percent"))
+        change_percent_1d = safe_float(row.get("change_percent_1d"))
         row_total = safe_float(row.get("total"))
-        if change_percent is None or row_total is None or row_total <= 0:
+        if change_percent_1d is None or row_total is None or row_total <= 0:
             continue
-        change_value += ((change_percent / 100.0) * row_total) / (1.0 + (change_percent / 100.0))
+        change_value += ((change_percent_1d / 100.0) * row_total) / (1.0 + (change_percent_1d / 100.0))
 
     denominator = total - change_value
     change_percent = (change_value / denominator) * 100.0 if denominator > 0 else 0.0
@@ -1210,12 +1210,12 @@ def display_dashboard(
             str(row["ticker"]),
             str(row["quantity"]),
             fmt_curr(row["price"]),
-            fmt_pct(row["change_percent"]),
+            fmt_pct(row["change_percent_1d"]),
             fmt_num(row["rsi"]),
-            fmt_pct(row["one_month_change_percent"]),
-            fmt_pct(row["three_month_change_percent"]),
-            fmt_pct(row["six_month_change_percent"]),
-            fmt_pct(row["one_year_change_percent"]),
+            fmt_pct(row["change_percent_1m"]),
+            fmt_pct(row["change_percent_3m"]),
+            fmt_pct(row["change_percent_6m"]),
+            fmt_pct(row["change_percent_1y"]),
             fmt_pct(row["median_upside"]),
             fmt_curr(row["total"]),
             fmt_pct(row["weight_pct"]),
