@@ -74,6 +74,7 @@ def get_news_massive(
     """Get financial news using Massive API."""
 
     async def _fetch() -> list[News]:
+        """Fetch Massive news results for one ticker query."""
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_massive_async(
                 ticker=ticker,

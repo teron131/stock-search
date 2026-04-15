@@ -1,3 +1,5 @@
+"""Define evaluation scoring defaults and calibration settings."""
+
 from typing import Final, NamedTuple
 
 B: Final[float] = 1e9

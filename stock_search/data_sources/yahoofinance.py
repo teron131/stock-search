@@ -66,6 +66,7 @@ _STATEMENT_NOT_LOADED = object()
 
 
 def _subtract_months(value: date, months: int) -> date:
+    """Subtract whole months from a date while clamping the day."""
     year, month = value.year, value.month - months
     while month <= 0:
         month += 12
@@ -181,6 +182,7 @@ class YahooFinanceSource:
     """Provider-ready Yahoo Finance adapter."""
 
     def __init__(self, ticker: str | yf.Ticker):
+        """Initialize the Yahoo Finance source for one ticker."""
         if isinstance(ticker, yf.Ticker):
             self.ticker = ticker
             symbol = str(getattr(ticker, "ticker", "") or "")
@@ -519,14 +521,17 @@ class YahooFinanceSource:
 
     @staticmethod
     def _index_to_ny(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+        """Convert a datetime index into New York time."""
         return index.tz_convert(NY_TZ) if index.tz else index.tz_localize(NY_TZ)
 
     @staticmethod
     def _now_ny() -> datetime:
+        """Return the current time in New York."""
         return datetime.now(tz=NY_TZ)
 
     @staticmethod
     def _infer_session(now_ny: datetime) -> str:
+        """Infer the current market session from New York time."""
         if now_ny.weekday() >= 5:
             return "CLOSED"
         now_time = now_ny.timetz().replace(tzinfo=None)
@@ -540,6 +545,7 @@ class YahooFinanceSource:
 
     @staticmethod
     def _session_window(now_ny: datetime, session: str) -> tuple[datetime, datetime] | None:
+        """Return the datetime bounds for one market session."""
         if session not in _SESSION_WINDOWS:
             return None
         start_t, end_t = _SESSION_WINDOWS[session]
@@ -551,6 +557,7 @@ class YahooFinanceSource:
         hist: pd.DataFrame,
         window: tuple[datetime, datetime] | None,
     ) -> float | None:
+        """Extract the latest close inside the requested session window."""
         series = _close_series(hist)
         if series is None:
             return None
@@ -566,6 +573,7 @@ class YahooFinanceSource:
             return None
 
     def _last_intraday_price(self) -> float | None:
+        """Return the latest available intraday price."""
         now_ny = self._now_ny()
         session = self.get_market_state() or self._infer_session(now_ny)
         window = self._session_window(now_ny, session)
@@ -576,9 +584,11 @@ class YahooFinanceSource:
         return None
 
     def _daily_close_series(self) -> pd.Series | None:
+        """Return the daily close-price series."""
         return _close_series(self.get_history_snapshot(period=_DAILY_HISTORY_PERIOD, interval=_DAILY_INTERVAL).history)
 
     def _last_close(self) -> float | None:
+        """Return the latest daily close price."""
         series = self._daily_close_series()
         if series is None:
             return None
@@ -587,6 +597,7 @@ class YahooFinanceSource:
         return None
 
     def _previous_close_from_history(self) -> float | None:
+        """Return the previous daily close price from history."""
         series = self._daily_close_series()
         if series is None:
             return None
@@ -596,6 +607,7 @@ class YahooFinanceSource:
         return None
 
     def _period_baseline_close(self, start_date: date, history_period: str) -> float | None:
+        """Return the baseline close used for a period-return calculation."""
         series = _close_series(self.get_history_snapshot(period=history_period, interval="1d").history)
         if series is None:
             return None
@@ -610,12 +622,14 @@ class YahooFinanceSource:
             return None
 
     def _calculate_period_return_percent(self, *, start_date: date, history_period: str, price: float | None) -> float | None:
+        """Calculate period return percent."""
         baseline = self._period_baseline_close(start_date, history_period)
         if price is None or baseline is None or baseline == 0:
             return None
         return round_optional(((price / baseline) - 1) * 100)
 
     def _calculate_rsi(self, days: int = DEFAULT_RSI_PERIOD) -> float | None:
+        """Calculate RSI."""
         try:
             series = _close_series(self.get_history_snapshot(period=f"{days + 10}d").history)
             if series is None or len(series) < days + 1:
@@ -631,12 +645,14 @@ class YahooFinanceSource:
 
     @staticmethod
     def _annualized_hv_percent(log_returns: pd.Series, window: int) -> float | None:
+        """Annualize historical volatility into percentage points."""
         if len(log_returns) < window:
             return None
         val = safe_float(log_returns.tail(window).std())
         return round_optional(val * (252**0.5) * 100) if val is not None else None
 
     def _calculate_iv(self) -> float | None:
+        """Calculate IV."""
         series = _close_series(self.get_history_snapshot(period="1y", interval="1d").history)
         if series is None or len(series) < 2:
             return None

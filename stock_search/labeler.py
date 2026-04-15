@@ -1,3 +1,5 @@
+"""Generate label tags with the portfolio labeling graph."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +17,8 @@ MAX_LABELS = 5
 
 
 class Pillar(BaseModel):
+    """Represent one business pillar in the label response."""
+
     pillar: str = Field(description="Business pillar name.")
     portion: float | None = Field(
         default=None,
@@ -26,6 +30,8 @@ class Pillar(BaseModel):
 
 
 class Pillars(BaseModel):
+    """Represent the ranked business-pillar list."""
+
     pillars: list[Pillar] = Field(
         default_factory=list,
         description="Top business pillars ranked by strategic importance.",
@@ -35,11 +41,15 @@ class Pillars(BaseModel):
 
 
 class Outlook(BaseModel):
+    """Represent the outlook summary for a ticker."""
+
     outlook: str = Field(description="Outlook of the company's existing pillars and emerging businesses.")
     impact: str = Field(description="Expected impact on the company's sector / industry exposure.")
 
 
 class TickerLabels(BaseModel):
+    """Represent the final label list for a ticker."""
+
     labels: list[str] = Field(
         default_factory=list,
         description="Multi-label tags from the provided sector/industry taxonomy.",
@@ -49,6 +59,7 @@ class TickerLabels(BaseModel):
 
     @model_validator(mode="after")
     def validate_labels(self) -> TickerLabels:
+        """Validate and normalize the generated label payload."""
         invalid_labels = [label for label in self.labels if label not in INDUSTRY_LABEL_SET]
         if invalid_labels:
             raise ValueError(f"labels must come from INDUSTRY_LABELS. Invalid: {invalid_labels}")
@@ -56,14 +67,20 @@ class TickerLabels(BaseModel):
 
 
 class LabelGraphInput(BaseModel):
+    """Represent the input payload for the label graph."""
+
     ticker: str
 
 
 class LabelGraphOutput(BaseModel):
+    """Represent the output payload from the label graph."""
+
     labels: TickerLabels | None = None
 
 
 class LabelGraphState(BaseModel):
+    """Track label graph state."""
+
     ticker: str
     pillars: Pillars | None = None
     outlook: Outlook | None = None
@@ -147,11 +164,13 @@ LABEL_QUERY = "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\
 
 
 def _normalize_labels(labels: list[str]) -> list[str]:
+    """Normalize a raw label list into the shared schema."""
     ordered_unique_labels = list(dict.fromkeys(labels))
     return [label for label in ordered_unique_labels if label in INDUSTRY_LABEL_SET][:MAX_LABELS]
 
 
 def _build_label_system_prompt() -> str:
+    """Build the labeling prompt for one ticker."""
     allowed_labels_by_sector = "\n".join(f"- {sector}: {', '.join(industry_labels)}" for sector, industry_labels in INDUSTRY_LABELS_BY_SECTOR)
     return LABEL_SYSTEM_PROMPT_TEMPLATE.format(
         max_labels=MAX_LABELS,
@@ -160,7 +179,10 @@ def _build_label_system_prompt() -> str:
 
 
 def _build_label_graph():
+    """Build the LangGraph pipeline used for ticker labeling."""
+
     async def pillar_node(state: LabelGraphState) -> dict[str, Pillars]:
+        """Classify the ticker into its primary label pillars."""
         pillars_agent = ExaAgent(
             system_prompt=PILLARS_SYSTEM_PROMPT,
             output_schema=Pillars,
@@ -169,6 +191,7 @@ def _build_label_graph():
         return {"pillars": pillars}
 
     async def outlook_node(state: LabelGraphState) -> dict[str, Outlook]:
+        """Classify the ticker into an outlook bucket."""
         outlook_agent = ExaAgent(
             system_prompt=OUTLOOK_SYSTEM_PROMPT,
             output_schema=Outlook,
@@ -181,6 +204,7 @@ def _build_label_graph():
         return {"outlook": outlook}
 
     async def label_node(state: LabelGraphState) -> dict[str, TickerLabels]:
+        """Generate industry-style labels for the ticker."""
         label_model = ChatOpenAI(
             model=ModelConfig.quality_or_fast(),
             temperature=0.1,
@@ -222,6 +246,7 @@ def _build_label_graph():
 
 
 async def aget_label(ticker: str) -> TickerLabels:
+    """Fetch labels for one ticker asynchronously."""
     ticker_symbol = normalize_ticker_symbol(ticker)
     if not ticker_symbol:
         raise ValueError("ticker cannot be empty")
@@ -239,6 +264,7 @@ async def aget_labels(
     *,
     max_concurrency: int = 4,
 ) -> dict[str, TickerLabels]:
+    """Fetch labels for multiple tickers asynchronously."""
     normalized_tickers = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
     ordered_unique_tickers = list(dict.fromkeys(normalized_tickers))
     if not ordered_unique_tickers:
@@ -247,6 +273,7 @@ async def aget_labels(
     semaphore = asyncio.Semaphore(max(1, max_concurrency))
 
     async def _fetch_one(ticker_symbol: str) -> tuple[str, TickerLabels | None]:
+        """Fetch labels for one ticker inside the async worker pool."""
         async with semaphore:
             try:
                 labels = await aget_label(ticker_symbol)
@@ -259,6 +286,7 @@ async def aget_labels(
 
 
 def get_label(ticker: str) -> TickerLabels:
+    """Fetch labels for one ticker."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -271,6 +299,7 @@ def get_labels(
     *,
     max_concurrency: int = 4,
 ) -> dict[str, TickerLabels]:
+    """Fetch labels for multiple tickers."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:

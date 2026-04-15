@@ -1,3 +1,5 @@
+"""Provide timestamp helpers for API metadata."""
+
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -5,6 +7,7 @@ from .data_store import stats_generated_at_iso
 
 
 def now_iso() -> str:
+    """Return the current UTC time in ISO format."""
     return datetime.now(tz=UTC).isoformat()
 
 

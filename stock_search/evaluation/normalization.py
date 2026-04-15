@@ -1,3 +1,5 @@
+"""Normalize evaluation payloads into the dashboard schema."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -58,6 +60,7 @@ def eval_from_json(data: dict[str, Any]) -> Evaluation | None:
 
 
 def _strategy_label(indices: dict[str, float | None]) -> str:
+    """Normalize a stored strategy label."""
     available = {name: value for name, value in indices.items() if value is not None}
     if not available:
         return _DEFAULT_BUCKET

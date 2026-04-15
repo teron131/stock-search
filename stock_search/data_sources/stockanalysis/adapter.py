@@ -12,16 +12,10 @@ from selectolax.lexbor import LexborHTMLParser
 
 from stock_search.models import ETFHoldings, ETFSectors
 
+from . import page_scrapers
 from .exa_fallback import (
     invoke_stockanalysis_search,
     invoke_stockanalysis_search_or_default,
-)
-from .page_scrapers import (
-    scrape_etf_holdings,
-    scrape_etf_sectors,
-    scrape_financials_snapshot,
-    scrape_quote_fields,
-    scrape_statistics_snapshot,
 )
 from .parsing import (
     coalesce,
@@ -92,6 +86,7 @@ class StockAnalysisSource:
         scrape_getter: Callable[[], MODEL_TYPE],
         search_getter: Callable[[], MODEL_TYPE],
     ) -> MODEL_TYPE:
+        """Load a cached snapshot or fetch and cache a fresh one."""
         snapshot = getattr(self, snapshot_attr)
         if snapshot is not None:
             fetched_at = getattr(self, fetched_at_attr)
@@ -150,13 +145,13 @@ class StockAnalysisSource:
             return self._etf_snapshot
 
         holdings = self.resolve_with_scrape_fallback_search(
-            scrape_getter=self.scrape_stockanalysis_holdings,
+            scrape_getter=self.scrape_etf_holdings,
             search_getter=self.search_etf_holdings,
             has_data=lambda result: bool(result.holdings),
             label="ETF holdings",
         )
         sectors = self.resolve_with_scrape_fallback_search(
-            scrape_getter=self.scrape_stockanalysis_sectors,
+            scrape_getter=self.scrape_etf_sectors,
             search_getter=self.search_etf_sectors,
             has_data=has_model_data,
             label="ETF sectors",
@@ -183,6 +178,7 @@ class StockAnalysisSource:
         has_data: Callable[[MODEL_TYPE], bool],
         label: str,
     ) -> MODEL_TYPE:
+        """Return scraped data first and fall back to search when needed."""
         scraped = scrape_getter()
         if has_data(scraped):
             return scraped
@@ -190,6 +186,7 @@ class StockAnalysisSource:
         return search_getter()
 
     def fetch_stockanalysis_html(self, url: str) -> str | None:
+        """Fetch and cache raw HTML for a StockAnalysis page URL."""
         cached_html = self._page_html_cache.get(url)
         if url in self._page_html_cache:
             return cached_html
@@ -224,6 +221,7 @@ class StockAnalysisSource:
         return response.text
 
     def fetch_stockanalysis_soup(self, url: str) -> LexborHTMLParser | None:
+        """Fetch and cache a parsed StockAnalysis page tree."""
         if url in self._page_soup_cache:
             return self._page_soup_cache[url]
 
@@ -237,24 +235,28 @@ class StockAnalysisSource:
         return soup
 
     def scrape_quote_fields(self) -> dict[str, float | None]:
-        return scrape_quote_fields(
+        """Scrape quote fields from the statistics page payload."""
+        return page_scrapers.scrape_quote_fields(
             ticker_lower=self._ticker_lower,
             fetch_html=self.fetch_stockanalysis_html,
         )
 
     def scrape_statistics_snapshot(self) -> StockAnalysisStatistics:
-        return scrape_statistics_snapshot(
+        """Scrape the statistics page into a structured snapshot."""
+        return page_scrapers.scrape_statistics_snapshot(
             ticker_lower=self._ticker_lower,
             fetch_soup=self.fetch_stockanalysis_soup,
         )
 
     def scrape_financials_snapshot(self) -> StockAnalysisFinancials:
-        return scrape_financials_snapshot(
+        """Scrape the financials page into a structured snapshot."""
+        return page_scrapers.scrape_financials_snapshot(
             ticker_lower=self._ticker_lower,
             fetch_soup=self.fetch_stockanalysis_soup,
         )
 
     def search_statistics_snapshot(self) -> StockAnalysisStatistics:
+        """Use Exa fallback to build a statistics snapshot."""
         statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=self._ticker_lower)
         return invoke_stockanalysis_search(
             output_schema=StockAnalysisStatistics,
@@ -267,6 +269,7 @@ class StockAnalysisSource:
         )
 
     def search_financials_snapshot(self) -> StockAnalysisFinancials:
+        """Use Exa fallback to build a financials snapshot."""
         financials_url = STOCKANALYSIS_FINANCIALS_URL.format(ticker=self._ticker_lower)
         return invoke_stockanalysis_search(
             output_schema=StockAnalysisFinancials,
@@ -278,14 +281,16 @@ class StockAnalysisSource:
             },
         )
 
-    def scrape_stockanalysis_holdings(self) -> ETFHoldings:
-        return scrape_etf_holdings(
+    def scrape_etf_holdings(self) -> ETFHoldings:
+        """Scrape ETF holdings from the holdings page."""
+        return page_scrapers.scrape_etf_holdings(
             ticker=self.ticker,
             ticker_lower=self._ticker_lower,
             fetch_soup=self.fetch_stockanalysis_soup,
         )
 
     def search_etf_holdings(self) -> ETFHoldings:
+        """Use Exa fallback to build ETF holdings data."""
         return invoke_stockanalysis_search_or_default(
             output_schema=ETFHoldings,
             system_prompt_template=ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
@@ -295,14 +300,16 @@ class StockAnalysisSource:
             error_message="Failed to extract ETF holdings via web search for %s",
         )
 
-    def scrape_stockanalysis_sectors(self) -> ETFSectors:
-        return scrape_etf_sectors(
+    def scrape_etf_sectors(self) -> ETFSectors:
+        """Scrape ETF sectors from the holdings page."""
+        return page_scrapers.scrape_etf_sectors(
             ticker=self.ticker,
             ticker_lower=self._ticker_lower,
             fetch_soup=self.fetch_stockanalysis_soup,
         )
 
     def search_etf_sectors(self) -> ETFSectors:
+        """Use Exa fallback to build ETF sector data."""
         return invoke_stockanalysis_search_or_default(
             output_schema=ETFSectors,
             system_prompt_template=ETF_SECTOR_SEARCH_SYSTEM_PROMPT,

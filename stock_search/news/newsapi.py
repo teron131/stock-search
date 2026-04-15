@@ -67,6 +67,7 @@ def get_news_newsapi(
     """Get financial news using NewsAPI."""
 
     async def _fetch() -> list[News]:
+        """Fetch NewsAPI results for one ticker query."""
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_newsapi_async(
                 query=query,

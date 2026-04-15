@@ -1,3 +1,5 @@
+"""Resolve stock indicator fields across Yahoo, StockAnalysis, and cache."""
+
 from datetime import UTC, datetime, timedelta
 import logging
 from typing import Any
@@ -81,6 +83,7 @@ def parse_ratings(
     ticker: str | yf.Ticker,
     days: int = DEFAULT_RATINGS_LOOKBACK_DAYS,
 ) -> dict[str, Any] | None:
+    """Return analyst ratings and median upside from Yahoo Finance."""
     source = YahooFinanceSource(ticker)
     snapshot = source.get_ratings_snapshot(days=days)
     if snapshot is None:
@@ -103,6 +106,7 @@ class StockIndicator:
         fundamentals_cache_max_age: timedelta = DEFAULT_FUNDAMENTALS_CACHE_MAX_AGE,
         fundamentals_cache_max_age_by_field: dict[str, timedelta] | None = None,
     ):
+        """Initialize indicator resolution for one ticker."""
         self._ticker = normalize_yahoo_ticker(ticker)
         self._yahoo = YahooFinanceSource(self._ticker)
         self._stockanalysis = StockAnalysisSource(self._ticker)
@@ -124,18 +128,21 @@ class StockIndicator:
 
     @property
     def _yahoo_snapshot(self):
+        """Return the cached Yahoo snapshot."""
         if self._yahoo_indicators is _UNSET:
             self._yahoo_indicators = self._yahoo.get_indicators_snapshot(ratings_days=DEFAULT_RATINGS_LOOKBACK_DAYS)
         return self._yahoo_indicators
 
     @property
     def _stockanalysis_snapshot(self):
+        """Return the cached stockanalysis snapshot."""
         if self._stockanalysis_indicators is _UNSET:
             self._stockanalysis_indicators = self._stockanalysis.get_indicators_snapshot()
         return self._stockanalysis_indicators
 
     @staticmethod
     def _parse_iso(value: Any) -> datetime | None:
+        """Parse an ISO timestamp string into a timezone-aware datetime."""
         if not isinstance(value, str) or not value.strip():
             return None
         try:
@@ -145,20 +152,24 @@ class StockIndicator:
             return None
 
     def _cache_max_age_for_field(self, field: str) -> timedelta:
+        """Return the freshness window for one indicator field."""
         return self._fundamentals_cache_max_age_by_field.get(field, self._fundamentals_cache_max_age)
 
     def _has_fresh_fundamentals_cache(self, field: str) -> bool:
+        """Return whether the cached fundamentals value is still fresh."""
         fetched_at = self._parse_iso(self._cached_row.get(FUNDAMENTALS_FETCHED_AT_FIELD))
         if fetched_at is None:
             return False
         return self._now - fetched_at <= self._cache_max_age_for_field(field)
 
     def _cached_value(self, field: str) -> Any:
+        """Return the cached value for one indicator field when it is fresh."""
         if not self._has_fresh_fundamentals_cache(field):
             return None
         return self._cached_row.get(field)
 
     def _resolve_field(self, field: str, *, sources: tuple[str, ...]) -> Any:
+        """Resolve one field from the configured source priority order."""
         for source in sources:
             if source == "stockanalysis":
                 value = getattr(self._stockanalysis_snapshot, field, None)
@@ -173,6 +184,7 @@ class StockIndicator:
         return None
 
     def _source_group_for_field(self, field: str) -> str:
+        """Return the source group assigned to one indicator field."""
         return _FIELD_SOURCE_GROUP.get(field, DATA_SOURCE_YAHOOFINANCE)
 
     @staticmethod
@@ -181,96 +193,119 @@ class StockIndicator:
         return {field: _FIELD_SOURCE_GROUP.get(field, DATA_SOURCE_YAHOOFINANCE) for field in INDICATOR_FIELDS}
 
     def _resolve_indicator_field(self, field: str) -> Any:
+        """Resolve one indicator field using its source-group policy."""
         source_group = self._source_group_for_field(field)
         sources = _SOURCE_PRIORITY_BY_GROUP.get(source_group, ("yahoo", "cache"))
         return self._resolve_field(field, sources=sources)
 
     @property
     def price(self) -> float | None:
+        """Return the resolved price."""
         return self._resolve_indicator_field("price")
 
     @property
     def change(self) -> float | None:
+        """Return the resolved change."""
         return self._resolve_indicator_field("change")
 
     @property
     def change_percent(self) -> float | None:
+        """Return the resolved change percent."""
         return self._resolve_indicator_field("change_percent")
 
     @property
     def market_cap(self) -> float | None:
+        """Return the resolved market cap."""
         return self._resolve_indicator_field("market_cap")
 
     @property
     def pe(self) -> float | None:
+        """Return the resolved PE."""
         return self._resolve_indicator_field("pe")
 
     @property
     def pe_forward(self) -> float | None:
+        """Return the resolved PE forward."""
         return self._resolve_indicator_field("pe_forward")
 
     @property
     def peg(self) -> float | None:
+        """Return the resolved PEG."""
         return self._resolve_indicator_field("peg")
 
     @property
     def beta(self) -> float | None:
+        """Return the resolved beta."""
         return self._resolve_indicator_field("beta")
 
     @property
     def revenue_growth(self) -> float | None:
+        """Return the resolved revenue growth."""
         return self._resolve_indicator_field("revenue_growth")
 
     @property
     def gross_margin(self) -> float | None:
+        """Return the resolved gross margin."""
         return self._resolve_indicator_field("gross_margin")
 
     @property
     def debt_to_equity(self) -> float | None:
+        """Return the resolved debt to equity."""
         return self._resolve_indicator_field("debt_to_equity")
 
     @property
     def free_cash_flow(self) -> float | None:
+        """Return the resolved free cash flow."""
         return self._resolve_indicator_field("free_cash_flow")
 
     @property
     def iv(self) -> float | None:
+        """Return the resolved IV."""
         return self._resolve_indicator_field("iv")
 
     @property
     def rsi(self) -> float | None:
+        """Return the resolved RSI."""
         return self._resolve_indicator_field("rsi")
 
     @property
     def one_month_change_percent(self) -> float | None:
+        """Return the resolved one month change percent."""
         return self._resolve_indicator_field("one_month_change_percent")
 
     @property
     def three_month_change_percent(self) -> float | None:
+        """Return the resolved three month change percent."""
         return self._resolve_indicator_field("three_month_change_percent")
 
     @property
     def six_month_change_percent(self) -> float | None:
+        """Return the resolved six month change percent."""
         return self._resolve_indicator_field("six_month_change_percent")
 
     @property
     def one_year_change_percent(self) -> float | None:
+        """Return the resolved one year change percent."""
         return self._resolve_indicator_field("one_year_change_percent")
 
     @property
     def mtd_change_percent(self) -> float | None:
+        """Return the resolved MTD change percent."""
         return self._resolve_indicator_field("mtd_change_percent")
 
     @property
     def ytd_change_percent(self) -> float | None:
+        """Return the resolved YTD change percent."""
         return self._resolve_indicator_field("ytd_change_percent")
 
     @property
     def ratings(self) -> list[dict[str, Any]] | None:
+        """Return the resolved ratings."""
         return self._resolve_indicator_field("ratings")
 
     @property
     def median_upside(self) -> float | None:
+        """Return the resolved median upside."""
         return self._resolve_indicator_field("median_upside")
 
     def to_stock(self) -> StockIndicators:
@@ -280,4 +315,5 @@ class StockIndicator:
         return StockIndicators.model_validate(payload)
 
     def get_all_indicators(self) -> dict[str, Any]:
+        """Return the complete indicator snapshot for the ticker."""
         return self.to_stock().model_dump()

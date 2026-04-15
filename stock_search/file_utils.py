@@ -1,3 +1,5 @@
+"""Read and write JSON files for repo data stores."""
+
 from __future__ import annotations
 
 from contextlib import suppress
@@ -11,6 +13,7 @@ T = TypeVar("T")
 
 
 def load_json[T](path: str | Path, default: T) -> T:
+    """Load JSON data from disk with a fallback default."""
     path = Path(path)
     if not path.exists():
         return default
@@ -21,6 +24,7 @@ def load_json[T](path: str | Path, default: T) -> T:
 
 
 def write_json(path: str | Path, data: Any, *, indent: int = 2) -> None:
+    """Write JSON data to disk with stable formatting."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, indent=indent)

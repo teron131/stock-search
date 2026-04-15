@@ -1,3 +1,5 @@
+"""Define Convex function name constants."""
+
 from __future__ import annotations
 
 CONVEX_PORTFOLIO_GET = "portfolio:get"

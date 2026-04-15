@@ -1,3 +1,5 @@
+"""Call the Convex HTTP API for query, mutation, and action requests."""
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +24,7 @@ class ConvexHttpAdapter:
         timeout_seconds: float = 20.0,
         max_retries: int = 2,
     ) -> None:
+        """Initialize the Convex HTTP adapter with connection settings."""
         if not base_url:
             raise RuntimeError("Missing CONVEX_URL for Convex data store.")
         if not deploy_key:
@@ -35,27 +38,35 @@ class ConvexHttpAdapter:
         }
 
     def query(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex query function."""
         return self._call(endpoint="query", path=path, args=args)
 
     def mutation(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex mutation function."""
         return self._call(endpoint="mutation", path=path, args=args)
 
     def action(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex action function."""
         return self._call(endpoint="action", path=path, args=args)
 
     async def aquery(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex query function asynchronously."""
         return await self._acall(endpoint="query", path=path, args=args)
 
     async def amutation(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex mutation function asynchronously."""
         return await self._acall(endpoint="mutation", path=path, args=args)
 
     async def aaction(self, path: str, args: dict[str, Any] | None = None) -> Any:
+        """Call a Convex action function asynchronously."""
         return await self._acall(endpoint="action", path=path, args=args)
 
     def _request_body(self, path: str, args: dict[str, Any] | None) -> dict[str, Any]:
+        """Build the JSON payload sent to a Convex endpoint."""
         return {"path": path, "args": args or {}, "format": "json"}
 
     def _call(self, *, endpoint: str, path: str, args: dict[str, Any] | None) -> Any:
+        """Send a synchronous request to one Convex endpoint."""
         response: httpx.Response | None = None
         for attempt in range(self._max_retries + 1):
             try:
@@ -76,6 +87,7 @@ class ConvexHttpAdapter:
         return self._parse_payload(response.json(), endpoint=endpoint, path=path)
 
     async def _acall(self, *, endpoint: str, path: str, args: dict[str, Any] | None) -> Any:
+        """Send an asynchronous request to one Convex endpoint."""
         response: httpx.Response | None = None
         for attempt in range(self._max_retries + 1):
             try:
@@ -97,6 +109,7 @@ class ConvexHttpAdapter:
 
     @staticmethod
     def _parse_payload(payload: dict[str, Any], *, endpoint: str, path: str) -> Any:
+        """Extract the successful value from a Convex response payload."""
         status = payload.get("status")
         if status != "success":
             error_message = str(payload.get("errorMessage") or "Unknown Convex error")

@@ -1,3 +1,5 @@
+"""Compute normalized factor scores from stock indicators."""
+
 import math
 
 from ..indicators import StockIndicator
@@ -80,6 +82,7 @@ def _weighted_zscore_average(factors: list[WeightedFactorConfig]) -> float | Non
 
 
 def _fcf_yield_percent(indicator: StockIndicator) -> float | None:
+    """Calculate free-cash-flow yield as a percentage."""
     market_cap = indicator.market_cap
     free_cash_flow = indicator.free_cash_flow
     if free_cash_flow is None or market_cap is None or market_cap <= 0:

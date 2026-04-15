@@ -60,18 +60,24 @@ TICKER_METADATA_PLACEHOLDER: dict[str, dict[str, list[str]]] = {}
 
 @dataclass(frozen=True)
 class HorizonConfig:
+    """Store horizon configuration values."""
+
     name: str
     intent_weight: float
 
 
 @dataclass(frozen=True)
 class LookbackConfig:
+    """Store lookback configuration values."""
+
     years: int
     intent_weight: float
 
 
 @dataclass(frozen=True)
 class CorrelationInputs:
+    """Bundle the inputs needed for one correlation matrix."""
+
     name: str
     correlation: pd.DataFrame
     pair_counts: pd.DataFrame
@@ -81,11 +87,14 @@ class CorrelationInputs:
 
 @dataclass(frozen=True)
 class ReturnFrames:
+    """Store return data at each supported horizon."""
+
     daily: pd.DataFrame
     weekly: pd.DataFrame
     monthly: pd.DataFrame
 
     def by_name(self, horizon_name: str) -> pd.DataFrame:
+        """Return the return frame for one configured horizon."""
         frame_key = HORIZON_RETURN_FRAME_KEYS[horizon_name]
         return getattr(self, frame_key)
 
@@ -103,12 +112,16 @@ LOOKBACKS: tuple[LookbackConfig, ...] = (
 
 
 class BlendWeightMode(StrEnum):
+    """Define how horizon weights are blended."""
+
     RELIABILITY = "reliability"
     INTENT = "intent"
     HYBRID = "hybrid"
 
 
 class CorrelationMode(StrEnum):
+    """Define whether raw or market-neutral correlations are used."""
+
     RAW = "raw"
     MARKET_NEUTRAL = "market_neutral"
 
@@ -121,10 +134,12 @@ CORRELATION_MODE = CorrelationMode.MARKET_NEUTRAL
 
 
 def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    """Deduplicate values while preserving the original order."""
     return list(dict.fromkeys(values))
 
 
 def _load_tickers_from_portfolio(path: Path) -> list[str]:
+    """Load ticker symbols from the configured portfolio file."""
     raw_portfolio = load_json(path, default={})
     positions = raw_portfolio.get("positions", [])
 
@@ -137,6 +152,7 @@ def _load_tickers_from_portfolio(path: Path) -> list[str]:
 
 
 def _resolve_tickers() -> list[str]:
+    """Resolve the ticker universe for the correlation run."""
     configured = [ticker for raw in DEFAULT_TICKERS if (ticker := normalize_ticker_symbol(raw))]
     if configured:
         return _dedupe_preserve_order(configured)
@@ -144,6 +160,7 @@ def _resolve_tickers() -> list[str]:
 
 
 def _fetch_single_ticker_history(ticker: str) -> tuple[str, pd.Series, str]:
+    """Fetch one ticker's close-history series and display name."""
     source = YahooFinanceSource(ticker)
     snapshot = source.get_history_snapshot(period=HISTORY_PERIOD, interval="1d")
     history = snapshot.history.copy()
@@ -162,6 +179,7 @@ def _fetch_single_ticker_history(ticker: str) -> tuple[str, pd.Series, str]:
 
 
 def _build_close_matrix_and_names(tickers: list[str]) -> tuple[pd.DataFrame, dict[str, str]]:
+    """Build the aligned close-price matrix and display-name map."""
     if not tickers:
         return pd.DataFrame(), {}
 
@@ -185,6 +203,7 @@ def _build_close_matrix_and_names(tickers: list[str]) -> tuple[pd.DataFrame, dic
 
 
 def _pair_counts(returns: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
+    """Count the overlapping observations for each ticker pair."""
     valid_mask = returns.reindex(columns=tickers).notna().astype("float64")
     counts = valid_mask.T.dot(valid_mask)
     return counts.reindex(index=tickers, columns=tickers).astype("float64")
@@ -196,6 +215,7 @@ def _resolve_blend_weight(
     pair_count: float,
     intent_weight: float,
 ) -> float:
+    """Resolve blend weight."""
     reliability_weight = float(np.sqrt(max(pair_count - 3.0, 0.0)))
     if mode == BlendWeightMode.RELIABILITY:
         return reliability_weight
@@ -211,6 +231,7 @@ def _calculate_blended_pair_correlation(
     inputs: list[CorrelationInputs],
     blend_weight_mode: BlendWeightMode,
 ) -> float | None:
+    """Calculate blended pair correlation."""
     weighted_sum = 0.0
     weight_total = 0.0
 
@@ -252,6 +273,7 @@ def _fisher_blended_correlation(
     *,
     blend_weight_mode: BlendWeightMode,
 ) -> pd.DataFrame:
+    """Blend per-horizon correlations in Fisher-z space."""
     combined = pd.DataFrame(np.nan, index=tickers, columns=tickers, dtype="float64")
     for ticker in tickers:
         combined.loc[ticker, ticker] = 1.0
@@ -272,10 +294,12 @@ def _fisher_blended_correlation(
 
 
 def _pct_change_frame(prices: pd.DataFrame) -> pd.DataFrame:
+    """Convert a price frame into percentage returns."""
     return prices.pct_change(fill_method=None).dropna(how="all")
 
 
 def _build_return_frames(closes: pd.DataFrame) -> ReturnFrames:
+    """Build return frames for each supported horizon."""
     daily_returns = _pct_change_frame(closes)
     weekly_returns = _pct_change_frame(closes.resample("W-FRI").last().dropna(how="all"))
     monthly_returns = _pct_change_frame(closes.resample("M").last().dropna(how="all"))
@@ -287,6 +311,7 @@ def _build_return_frames(closes: pd.DataFrame) -> ReturnFrames:
 
 
 def _slice_returns_to_lookback(returns: pd.DataFrame, years: int) -> pd.DataFrame:
+    """Slice returns to lookback."""
     if returns.empty:
         return returns
     end_ts = returns.index.max()
@@ -300,6 +325,7 @@ def _iter_market_aligned_arrays(
     returns: pd.DataFrame,
     market_ticker: str,
 ) -> Iterator[tuple[str, pd.Index, np.ndarray, np.ndarray]]:
+    """Yield market-aligned return arrays for each ticker."""
     market_returns = returns[market_ticker].dropna()
     for ticker in returns.columns:
         if ticker == market_ticker:
@@ -315,6 +341,7 @@ def _iter_market_aligned_arrays(
 
 
 def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFrame:
+    """Remove market beta from one ticker's return series."""
     if returns.empty or market_ticker not in returns.columns:
         return pd.DataFrame(index=returns.index)
 
@@ -337,6 +364,7 @@ def _residualize_returns(returns: pd.DataFrame, market_ticker: str) -> pd.DataFr
 
 
 def _estimate_market_betas(returns: pd.DataFrame, market_ticker: str) -> dict[str, float]:
+    """Estimate market betas."""
     if returns.empty or market_ticker not in returns.columns:
         return {}
 
@@ -363,6 +391,7 @@ def _build_blended_matrix(
     market_proxy_ticker: str | None = None,
     tail_market_ticker: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    """Build the blended correlation matrix and observation counts."""
     return_frames = _build_return_frames(closes)
     source_inputs: list[CorrelationInputs] = []
     component_diagnostics: dict[str, dict[str, float | int]] = {}
@@ -428,6 +457,7 @@ def _build_blended_matrix(
 
 
 def _annualized_return(daily_returns: pd.Series) -> float | None:
+    """Annualize the mean return of a return series."""
     clean = daily_returns.dropna()
     if clean.empty:
         return None
@@ -443,6 +473,7 @@ def _annualized_return(daily_returns: pd.Series) -> float | None:
 
 
 def _per_ticker_stats(closes: pd.DataFrame, names: dict[str, str]) -> pd.DataFrame:
+    """Build per-ticker risk and return summary stats."""
     return_frames = _build_return_frames(closes)
     daily_returns = return_frames.daily
     monthly_returns = return_frames.monthly
@@ -470,17 +501,20 @@ def _per_ticker_stats(closes: pd.DataFrame, names: dict[str, str]) -> pd.DataFra
 
 
 def _as_percent(value: float | None) -> str:
+    """Convert a decimal ratio into percentage points."""
     if value is None or pd.isna(value):
         return "n/a"
     return f"{value * 100.0:.2f}%"
 
 
 def _resolve_ticker_markers(ticker: str) -> list[str]:
+    """Resolve ticker markers."""
     markers = TICKER_METADATA_PLACEHOLDER.get(ticker, {}).get("markers", [])
     return markers if isinstance(markers, list) else []
 
 
 def _mean_pair_correlation(correlation_matrix: pd.DataFrame, members: list[str]) -> float:
+    """Return the average off-diagonal pair correlation."""
     if len(members) < 2:
         return 0.0
     subset = correlation_matrix.reindex(index=members, columns=members)
@@ -493,6 +527,7 @@ def _mean_pair_correlation(correlation_matrix: pd.DataFrame, members: list[str])
 
 
 def _sleeve_diversification_multiplier(member_count: int, mean_correlation: float) -> float:
+    """Convert average correlation into a diversification multiplier."""
     variance_ratio = (1.0 + (member_count - 1) * mean_correlation) / member_count
     return float(np.sqrt(max(variance_ratio, 0.0)))
 
@@ -503,6 +538,7 @@ def _build_sleeve_weight_recommendations(
     correlation_matrix: pd.DataFrame,
     effective_sleeve_cap: float = DEFAULT_EFFECTIVE_SLEEVE_CAP,
 ) -> list[dict[str, Any]]:
+    """Build sleeve-cap recommendations from the blended matrix."""
     members_by_marker: dict[str, list[str]] = {}
     for ticker in tickers:
         for marker in _resolve_ticker_markers(ticker):
@@ -541,6 +577,7 @@ def _build_sleeve_weight_recommendations(
 
 
 def main() -> dict[str, Any]:
+    """Run the correlation report's CLI entrypoint."""
     portfolio_tickers = _resolve_tickers()
     if not portfolio_tickers:
         raise ValueError("No tickers found. Set DEFAULT_TICKERS or add positions to data/portfolio.json.")

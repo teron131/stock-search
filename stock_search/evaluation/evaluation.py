@@ -1,3 +1,5 @@
+"""Blend evaluation signals into scores and probabilities."""
+
 from dataclasses import dataclass
 import math
 
@@ -39,6 +41,8 @@ __all__ = [
 
 @dataclass(frozen=True)
 class EvaluationResult:
+    """Represent the combined evaluation result for one ticker."""
+
     inputs: Evaluation
     ticker: str | None
     p_up: float | None
@@ -65,6 +69,7 @@ def _probabilities_from_scores(
     bull_score: float | None,
     bear_score: float | None,
 ) -> tuple[float | None, float | None, float | None]:
+    """Convert evaluation scores into bull, bear, and flat probabilities."""
     bull_probability = round(bull_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bull_score is not None else None
     bear_probability = round(bear_score / SCORE_SCALE, ROUND_PROBABILITY_DIGITS) if bear_score is not None else None
 
@@ -75,6 +80,7 @@ def _probabilities_from_scores(
 
 
 def _flat_probability(bull_probability: float | None, bear_probability: float | None) -> float | None:
+    """Estimate the flat probability from bull and bear scores."""
     if bull_probability is None or bear_probability is None:
         return None
     return max(0.0, 1 - bull_probability - bear_probability)
@@ -84,6 +90,7 @@ def _blended_quality(
     research: ResearchEvaluation | None,
     quality_signal_score: float | None,
 ) -> ScoredReason | None:
+    """Blend quality-related subscores into one quality score."""
     research_quality_score = research.quality_score.score if research and research.quality_score else None
     if research_quality_score is None and quality_signal_score is None:
         return None

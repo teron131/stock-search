@@ -1,3 +1,5 @@
+"""Build portfolio dashboard payloads from live and cached data."""
+
 import asyncio
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -62,6 +64,7 @@ _LABEL_CACHE_MAX_AGE_DAYS = 30
 
 
 def normalize_labels(value: Any) -> list[str]:
+    """Normalize stored label values into a unique string list."""
     if not isinstance(value, list):
         return []
     labels: list[str] = []
@@ -78,6 +81,7 @@ def normalize_labels(value: Any) -> list[str]:
 
 
 def _parse_iso_timestamp(value: Any) -> datetime | None:
+    """Parse an ISO timestamp string into a datetime."""
     if not isinstance(value, str) or not value.strip():
         return None
     try:
@@ -87,6 +91,7 @@ def _parse_iso_timestamp(value: Any) -> datetime | None:
 
 
 def _load_label_cache(path: Path | None = None) -> dict[str, dict[str, Any]]:
+    """Load cached portfolio labels from the stats store."""
     _ = path
     stats_data = load_stats_map()
     cache: dict[str, dict[str, Any]] = {}
@@ -106,6 +111,7 @@ def _load_label_cache(path: Path | None = None) -> dict[str, dict[str, Any]]:
 
 
 def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path | None = None) -> None:
+    """Persist refreshed portfolio labels into the stats store."""
     _ = path
     stats_data = load_stats_map()
 
@@ -127,6 +133,7 @@ def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path | None = None
 
 
 def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
+    """Return the unique ticker list from the portfolio positions."""
     tickers: list[str] = []
     for row in positions:
         ticker = normalize_ticker_symbol(str(row.get("ticker", "")))
@@ -139,6 +146,7 @@ def _compute_missing_labels(
     tickers: list[str],
     cache: dict[str, dict[str, Any]],
 ) -> list[str]:
+    """Return the tickers whose cached labels are missing or stale."""
     cutoff = datetime.now(tz=UTC) - timedelta(days=_LABEL_CACHE_MAX_AGE_DAYS)
     missing: list[str] = []
     for ticker in tickers:
@@ -159,6 +167,7 @@ def resolve_portfolio_labels(
     max_concurrency: int = 4,
     cache_path: Path | None = None,
 ) -> dict[str, list[str]]:
+    """Resolve portfolio labels with cache reuse and optional fetching."""
     tickers = _portfolio_tickers(positions)
     if not tickers:
         return {}
@@ -192,6 +201,7 @@ async def resolve_portfolio_labels_async(
     max_concurrency: int = 4,
     cache_path: Path | None = None,
 ) -> dict[str, list[str]]:
+    """Resolve portfolio labels asynchronously with cache reuse."""
     tickers = _portfolio_tickers(positions)
     if not tickers:
         return {}
@@ -256,6 +266,7 @@ def _map_linear(
     out_min: float,
     out_max: float,
 ) -> float | None:
+    """Map a value linearly from one numeric range into another."""
     if value is None or in_max == in_min:
         return None
     ratio = (value - in_min) / (in_max - in_min)
@@ -330,6 +341,7 @@ def _pick_eval_value(
     key: str,
     aliases: tuple[str, ...] = (),
 ) -> tuple[float, bool]:
+    """Pick the first usable evaluation field from a row."""
     has_llm_value = any(alias in eval_data and eval_data.get(alias) is not None for alias in (key, *aliases))
     if has_llm_value and key in normalized_eval:
         return float(normalized_eval[key]), True
@@ -337,6 +349,7 @@ def _pick_eval_value(
 
 
 def _rate_limit_wait() -> None:
+    """Sleep long enough to respect the live-stats request limit."""
     if CacheConfig.LIVE_STATS_MIN_REQUEST_GAP_SECONDS <= 0:
         return
     global _LAST_LIVE_STATS_REQUEST_AT
@@ -448,6 +461,7 @@ async def fetch_live_stats_async(ticker: str) -> dict[str, Any]:
 
 
 def _ticker_key(ticker: str) -> str:
+    """Return the normalized lookup key for a ticker symbol."""
     return str(ticker).upper().strip()
 
 
@@ -473,6 +487,7 @@ async def fetch_live_stats_map_async(tickers: Sequence[str]) -> dict[str, dict[s
     semaphore = asyncio.Semaphore(max(1, PortfolioConfig.MAX_WORKERS))
 
     async def _fetch_one(ticker: str) -> tuple[str, dict[str, Any]]:
+        """Fetch one live stats map async item."""
         async with semaphore:
             return ticker, await fetch_live_stats_async(ticker)
 
@@ -481,6 +496,7 @@ async def fetch_live_stats_map_async(tickers: Sequence[str]) -> dict[str, dict[s
 
 
 def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
+    """Derive a display bucket from the normalized evaluation payload."""
     return bucket_from_eval_json(ticker, eval_data)
 
 
@@ -490,6 +506,7 @@ def _build_row(
     eval_cache: dict[str, Any],
     live_market: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Build one dashboard row from the resolved ticker data."""
     ticker = pos.get("ticker")
     if not ticker:
         return {}
@@ -597,12 +614,14 @@ def _build_row(
 
 
 def _compute_weights(total_by_ticker: dict[str, float], portfolio_total: float) -> dict[str, float]:
+    """Compute position weights from per-row notional values."""
     if portfolio_total <= 0:
         return dict.fromkeys(total_by_ticker, 0.0)
     return {ticker: (total / portfolio_total) * 100.0 for ticker, total in total_by_ticker.items()}
 
 
 def _weighted_average(rows: list[dict[str, Any]], field_name: str) -> float | None:
+    """Compute a weighted average while skipping missing values."""
     weighted_sum = 0.0
     total_weight = 0.0
 
@@ -620,6 +639,7 @@ def _weighted_average(rows: list[dict[str, Any]], field_name: str) -> float | No
 
 
 def _build_portfolio_stats(rows: list[dict[str, Any]], sector_table: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the aggregate statistics block for the portfolio."""
     held_rows = [row for row in rows if safe_float(row.get("quantity")) not in (None, 0.0)]
 
     total = sum(float(safe_float(row.get("total")) or 0.0) for row in held_rows)
@@ -663,6 +683,7 @@ def _build_portfolio_stats(rows: list[dict[str, Any]], sector_table: list[dict[s
 
 
 def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -> dict[str, float]:
+    """Normalize weights so the portfolio total sums to 100 percent."""
     if not weights:
         return {}
     if sum(weights.values()) <= 0:
@@ -679,6 +700,7 @@ def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -
 
 
 def _fetch_equity_sector(ticker: str) -> tuple[str, str]:
+    """Fetch the sector label for one equity ticker."""
     try:
         source = YahooFinanceSource(ticker)
         info = source.get_info_snapshot().raw_info
@@ -694,6 +716,7 @@ def _build_etf_tables(
     resolution: ETFResolutionResult,
     target_tickers: list[str],
 ) -> tuple[list[dict[str, float | str]], list[dict[str, float | str]], dict[str, float]]:
+    """Build the ETF holdings and sector tables for the payload."""
     row_by_ticker = {str(row.get("ticker")).upper().strip(): row for row in rows if row.get("ticker")}
     stock_tickers = [str(position["ticker"]).upper().strip() for position in resolution.stock_positions]
     etf_tickers = [str(position["ticker"]).upper().strip() for position in resolution.etf_positions]
@@ -797,6 +820,7 @@ def _normalize_positions(
     *,
     include_cached_universe: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Normalize raw position rows into the expected portfolio shape."""
     positions_raw = portfolio_data if isinstance(portfolio_data, list) else portfolio_data.get("positions", [])
     positions: list[dict[str, Any]] = []
     held_positions: list[dict[str, Any]] = []
@@ -835,6 +859,7 @@ def _live_tickers(
     *,
     include_live_market: bool,
 ) -> list[str]:
+    """Return the tickers that require live market refreshes."""
     if not include_live_market:
         return []
 
@@ -852,6 +877,7 @@ def _live_tickers(
 
 
 def _rank_rows(rows: list[dict[str, Any]]) -> None:
+    """Rank dashboard rows using the configured sort rules."""
     scored_rows: list[tuple[int, float]] = []
     for idx, row in enumerate(rows):
         overall_score = row.get("overall_score")
@@ -873,6 +899,7 @@ def _load_payload_inputs(
     eval_path: str | Path,
     include_cached_universe: bool,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Load the portfolio, stats, and evaluation inputs for payload building."""
     _ = portfolio_path, stats_path, eval_path
     portfolio_data = load_positions_store()
     stats_data = load_stats_map()
@@ -892,6 +919,7 @@ def _build_rows(
     eval_data: dict[str, Any],
     live_map: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Build dashboard rows for the requested ticker universe."""
     return [
         _build_row(
             position,
@@ -908,6 +936,7 @@ def _apply_position_labels(
     positions: list[dict[str, Any]],
     labels_by_ticker: dict[str, list[str]],
 ) -> None:
+    """Attach resolved labels back onto each dashboard row."""
     for position in positions:
         ticker = _ticker_key(position.get("ticker", ""))
         if not ticker:
@@ -916,6 +945,7 @@ def _apply_position_labels(
 
 
 def _finalize_rows(rows: list[dict[str, Any]]) -> None:
+    """Finalize row ordering and derived display fields."""
     total_value = sum(float(row.get("total") or 0.0) for row in rows)
     for row in rows:
         row["weight_pct"] = calculate_position_weight(float(row.get("total") or 0.0), total_value)
@@ -932,6 +962,7 @@ def _build_payload_from_rows(
     table_meta: dict[str, float],
     generated_at: str,
 ) -> dict[str, Any]:
+    """Assemble the final portfolio payload from prepared rows."""
     return {
         "rows": rows,
         "tables": {
@@ -955,6 +986,7 @@ def get_portfolio_payload(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> dict[str, Any]:
+    """Return the portfolio dashboard payload."""
     stats_data, eval_data, positions, held_positions, held_tickers = _load_payload_inputs(
         portfolio_path=portfolio_path,
         stats_path=stats_path,
@@ -1000,6 +1032,7 @@ async def get_portfolio_payload_async(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> dict[str, Any]:
+    """Return the portfolio dashboard payload asynchronously."""
     stats_data, eval_data, positions, held_positions, held_tickers = await asyncio.to_thread(
         _load_payload_inputs,
         portfolio_path=portfolio_path,
@@ -1047,6 +1080,7 @@ def build_portfolio_dataframe(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
+    """Build a dataframe view of the portfolio payload."""
     payload = get_portfolio_payload(
         portfolio_path=portfolio_path,
         stats_path=stats_path,
@@ -1067,6 +1101,7 @@ def get_dashboard(
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
+    """Return a Rich table representation of the portfolio dashboard."""
     return build_portfolio_dataframe(
         portfolio_path=portfolio_path,
         stats_path=stats_path,
@@ -1128,6 +1163,7 @@ def display_dashboard(
     stats_path: str | Path = "data/stats.json",
     eval_path: str | Path = "data/eval.json",
 ) -> None:
+    """Render the portfolio dashboard to the console."""
     dataframe = get_dashboard(
         portfolio_path=portfolio_path,
         stats_path=stats_path,
@@ -1138,17 +1174,20 @@ def display_dashboard(
     table = Table(title="Portfolio Dashboard", box=box.ROUNDED, header_style="bold magenta")
 
     def fmt_pct(value: Any) -> str:
+        """Format a percentage value for display."""
         if (parsed := safe_float(value)) is None:
             return "-"
         color = "green" if parsed >= 0 else "red"
         return f"[{color}]{parsed:.2f}%[/{color}]"
 
     def fmt_curr(value: Any) -> str:
+        """Format a currency value for display."""
         if (parsed := safe_float(value)) is None:
             return "-"
         return f"${parsed:,.2f}"
 
     def fmt_num(value: Any) -> str:
+        """Format a numeric value for display."""
         if (parsed := safe_float(value)) is None:
             return "-"
         return f"{parsed:.2f}"

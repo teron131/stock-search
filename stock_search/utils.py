@@ -1,3 +1,5 @@
+"""Provide shared ticker and value normalization helpers."""
+
 from datetime import UTC, datetime
 import re
 from urllib.parse import parse_qsl, urlparse, urlunparse

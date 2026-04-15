@@ -1,3 +1,5 @@
+"""Provide shared math helpers for evaluation scoring."""
+
 import math
 
 

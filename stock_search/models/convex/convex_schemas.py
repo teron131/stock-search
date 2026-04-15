@@ -1,3 +1,5 @@
+"""Normalize Convex rows to and from local stock models."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -8,6 +10,8 @@ from stock_search.utils import normalize_ticker_symbol
 
 
 class ConvexStockRow(BaseModel):
+    """Represent one Convex stock row."""
+
     ticker: str
     indicators: dict[str, Any] = Field(default_factory=dict)
     evaluation: dict[str, Any] = Field(default_factory=dict)
@@ -16,11 +20,15 @@ class ConvexStockRow(BaseModel):
 
 
 class ConvexPortfolioPosition(BaseModel):
+    """Represent Convex portfolio position."""
+
     ticker: str
     quantity: float
 
 
 class ConvexPortfolioRow(BaseModel):
+    """Represent one Convex portfolio row."""
+
     key: str = "default"
     positions: list[ConvexPortfolioPosition] = Field(default_factory=list)
     portfolioStats: dict[str, Any] | None = None
@@ -28,6 +36,8 @@ class ConvexPortfolioRow(BaseModel):
 
 
 class ConvexNewsRow(BaseModel):
+    """Represent one Convex news row."""
+
     key: str = "default"
     ticker: str
     row: dict[str, Any] = Field(default_factory=dict)
@@ -35,12 +45,15 @@ class ConvexNewsRow(BaseModel):
 
 
 class ConvexMetaVersionRow(BaseModel):
+    """Represent one Convex meta version row."""
+
     key: str
     value: str
     updatedAt: int | None = None
 
 
 def normalize_portfolio_positions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize Convex portfolio rows into local position dicts."""
     normalized: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -57,6 +70,7 @@ def normalize_portfolio_positions(rows: list[dict[str, Any]]) -> list[dict[str, 
 
 
 def normalize_stock_map(rows: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Normalize Convex stock rows into the local stock map."""
     normalized: dict[str, dict[str, Any]] = {}
     for ticker, row in rows.items():
         if not isinstance(row, dict):
@@ -77,6 +91,7 @@ def normalize_stock_map(rows: dict[str, dict[str, Any]]) -> dict[str, dict[str, 
 
 
 def payload_to_stock_map(items: Any) -> dict[str, dict[str, Any]]:
+    """Convert a Convex payload into the local stock map shape."""
     if not isinstance(items, list):
         return {}
     mapped: dict[str, dict[str, Any]] = {}
@@ -98,6 +113,7 @@ def payload_to_stock_map(items: Any) -> dict[str, dict[str, Any]]:
 
 
 def stock_map_to_rows(rows: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert the local stock map into Convex row payloads."""
     return [
         {
             "ticker": ticker,

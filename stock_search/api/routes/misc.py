@@ -1,3 +1,5 @@
+"""Serve auxiliary dashboard API routes."""
+
 from fastapi import APIRouter, Response
 
 from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
@@ -12,18 +14,21 @@ router = APIRouter()
 
 @router.get(EVAL)
 def eval_api(response: Response) -> dict:
+    """Return the stored evaluation map."""
     response.headers["Cache-Control"] = "no-store"
     return load_eval_map()
 
 
 @router.get(STOCKS)
 def stocks_api(response: Response) -> dict:
+    """Return the stored stock indicator map."""
     response.headers["Cache-Control"] = "no-store"
     return load_stocks()
 
 
 @router.get(COLOR_STANDARDS)
 def color_standards_api(response: Response) -> dict:
+    """Return the dashboard color scale definitions."""
     response.headers["Cache-Control"] = "no-store"
     return {
         "standards": {
@@ -76,6 +81,7 @@ def color_standards_api(response: Response) -> dict:
 
 @router.get(REALTIME_CONFIG)
 def realtime_config_api(response: Response) -> dict:
+    """Return the realtime polling configuration."""
     response.headers["Cache-Control"] = "no-store"
     return {
         "provider": "convex",
@@ -88,6 +94,7 @@ def realtime_config_api(response: Response) -> dict:
 
 @router.get(STOCK_NEWS)
 def news_api(ticker: str) -> list[dict]:
+    """Return recent news articles for a ticker."""
     return [
         {
             "title": f"Strategic analysis of {ticker} performance",
@@ -110,6 +117,7 @@ def news_api(ticker: str) -> list[dict]:
 
 @router.get(STOCK_EVALUATE)
 def evaluate_ticker_api(ticker: str) -> dict:
+    """Run ticker evaluation and return the result payload."""
     indicator = StockIndicator(ticker)
 
     return {

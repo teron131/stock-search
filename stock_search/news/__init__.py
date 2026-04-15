@@ -1,3 +1,5 @@
+"""Export the news provider adapters."""
+
 from .analysis import get_news
 from .exa import get_news_exa
 from .massive import get_news_massive

@@ -1,3 +1,5 @@
+"""Export the shared stock-search data models."""
+
 from .convex import (
     ConvexAPIError,
     ConvexHttpAdapter,

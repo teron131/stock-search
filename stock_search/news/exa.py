@@ -69,6 +69,7 @@ def get_news_exa(
     """Search Exa for news results and return raw payload items."""
 
     async def _fetch() -> list[News]:
+        """Fetch Exa news results for one ticker query."""
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_exa_async(
                 query=query,

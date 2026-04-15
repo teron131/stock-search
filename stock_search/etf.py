@@ -1,3 +1,5 @@
+"""Resolve ETF holdings and sector snapshots with cache support."""
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -18,6 +20,8 @@ SECTOR_REGEX_MAP: tuple[tuple[re.Pattern[str], str], ...] = tuple((re.compile(pa
 
 @dataclass(frozen=True)
 class ETFSnapshotResult:
+    """Represent one resolved ETF snapshot result."""
+
     holdings: list[Holding]
     sectors: list[ETFSector]
     error: str | None
@@ -25,6 +29,8 @@ class ETFSnapshotResult:
 
 @dataclass(frozen=True)
 class ETFResolutionResult:
+    """Represent ETF resolution results for one portfolio pass."""
+
     stock_positions: list[dict[str, Any]]
     etf_positions: list[dict[str, Any]]
     snapshot_by_ticker: dict[str, ETFSnapshotResult]
@@ -33,6 +39,7 @@ class ETFResolutionResult:
 
 
 def _pool_workers(item_count: int, cap: int | None = None) -> int:
+    """Return the thread-pool size used for ETF fetches."""
     if item_count <= 0:
         return 1
     if cap is None:
@@ -41,6 +48,7 @@ def _pool_workers(item_count: int, cap: int | None = None) -> int:
 
 
 def _is_cache_entry_fresh(fetched_at: str, *, now: datetime) -> bool:
+    """Return whether an ETF cache entry is still fresh."""
     try:
         fetched_at_dt = datetime.fromisoformat(fetched_at)
     except ValueError:
@@ -49,6 +57,7 @@ def _is_cache_entry_fresh(fetched_at: str, *, now: datetime) -> bool:
 
 
 def normalize_sector_name(raw: str | None) -> str:
+    """Normalize sector labels into a stable display form."""
     sector_text = (raw or "").strip()
     if not sector_text:
         return SECTOR_LABELS["other"]
@@ -65,6 +74,7 @@ def _parse_cached_snapshot(
     now: datetime,
     require_fresh: bool,
 ) -> tuple[list[Holding], list[ETFSector]] | None:
+    """Parse cached snapshot."""
     entry = stats_data.get(ticker, {})
     if not isinstance(entry, dict):
         return None
@@ -97,6 +107,7 @@ def _parse_cached_snapshot(
 
 
 def load_etf_cache_from_stats(stats_data: dict[str, Any], ticker: str, now: datetime) -> tuple[list[Holding], list[ETFSector]] | None:
+    """Load ETF cache from stats."""
     return _parse_cached_snapshot(
         stats_data,
         ticker=normalize_ticker_symbol(ticker),
@@ -110,6 +121,7 @@ def _load_stale_cache_from_stats(
     ticker: str,
     now: datetime,
 ) -> tuple[list[Holding], list[ETFSector]] | None:
+    """Load stale ETF cache entries from the stats store."""
     return _parse_cached_snapshot(
         stats_data,
         ticker=normalize_ticker_symbol(ticker),
@@ -119,6 +131,7 @@ def _load_stale_cache_from_stats(
 
 
 def _sector_rows(snapshot_sectors: object) -> list[ETFSector]:
+    """Convert sector weights into normalized table rows."""
     if not hasattr(snapshot_sectors, "model_dump"):
         return []
     rows: list[ETFSector] = []
@@ -132,6 +145,7 @@ def _sector_rows(snapshot_sectors: object) -> list[ETFSector]:
 
 
 def _serialized_cache_payload(*, holdings: list[Holding], sectors: list[ETFSector], fetched_at: str) -> dict[str, Any]:
+    """Serialize an ETF snapshot for cache storage."""
     return {
         "etf_holdings": [holding.model_dump() for holding in holdings],
         "etf_sectors": [sector.model_dump() for sector in sectors],
@@ -146,6 +160,7 @@ def store_etf_cache_in_stats(
     sectors: list[ETFSector],
     now: datetime,
 ) -> bool:
+    """Store ETF cache in stats."""
     ticker_key = normalize_ticker_symbol(ticker)
     entry = stats_data.get(ticker_key, {})
     if not isinstance(entry, dict):
@@ -164,6 +179,7 @@ def store_etf_cache_in_stats(
 
 
 def is_etf_ticker(ticker: str) -> bool:
+    """Return whether ETF ticker."""
     try:
         quote_type = YahooFinanceSource(ticker).get_quote_type()
     except Exception:
@@ -172,6 +188,7 @@ def is_etf_ticker(ticker: str) -> bool:
 
 
 def get_etf_snapshot(ticker: str) -> tuple[list[Holding], list[ETFSector], str | None]:
+    """Fetch one ETF snapshot from the available data sources."""
     try:
         snapshot = StockAnalysisSource(ticker).get_etf_holdings_snapshot()
     except Exception as exc:
@@ -182,15 +199,18 @@ def get_etf_snapshot(ticker: str) -> tuple[list[Holding], list[ETFSector], str |
 
 
 def _fetch_quote_type(ticker: str) -> tuple[str, bool]:
+    """Fetch quote type."""
     return ticker, is_etf_ticker(ticker)
 
 
 def _fetch_snapshot(ticker: str) -> tuple[str, list[Holding], list[ETFSector], str | None]:
+    """Fetch snapshot."""
     holdings, sectors, error = get_etf_snapshot(ticker)
     return ticker, holdings, sectors, error
 
 
 def _is_etf_from_stats(stats_data: dict[str, Any], ticker: str) -> bool | None:
+    """Return whether ETF from stats."""
     entry = stats_data.get(ticker)
     if not isinstance(entry, dict):
         return None
@@ -205,6 +225,7 @@ def classify_and_resolve_etfs(
     stats_data: dict[str, Any],
     now: datetime,
 ) -> ETFResolutionResult:
+    """Split portfolio tickers into ETF and non-ETF groups and resolve snapshots."""
     stock_positions: list[dict[str, Any]] = []
     etf_positions: list[dict[str, Any]] = []
     snapshot_by_ticker: dict[str, ETFSnapshotResult] = {}

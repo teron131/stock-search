@@ -98,12 +98,14 @@ def scrape_etf_sectors(
 
 
 def _holdings_url(ticker_lower: str) -> str:
+    """Build the StockAnalysis holdings page URL for an ETF ticker."""
     return STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=ticker_lower)
 
 
 def _extract_holdings_from_table(
     soup: LexborHTMLParser | None,
 ) -> list[Holding]:
+    """Extract ETF holdings from the holdings table."""
     if soup is None:
         return []
 
@@ -123,13 +125,15 @@ def _extract_holdings_from_table(
 def _extract_holdings_from_script(
     soup: LexborHTMLParser | None,
 ) -> list[Holding]:
-    items_text = _extract_holdings_block(soup)
-    if not items_text:
+    """Extract ETF holdings from the embedded page script."""
+    holdings_block_text = _extract_holdings_block(soup)
+    if not holdings_block_text:
         return []
-    return [Holding(ticker=clean_symbol(raw_symbol), name=name, weight=float(weight_str)) for name, raw_symbol, weight_str in HOLDING_ROW_PATTERN.findall(items_text)]
+    return [Holding(ticker=clean_symbol(raw_symbol), name=name, weight=float(weight_str)) for name, raw_symbol, weight_str in HOLDING_ROW_PATTERN.findall(holdings_block_text)]
 
 
 def _extract_holdings_block(soup: LexborHTMLParser | None) -> str | None:
+    """Extract the holdings block from the ETF holdings page script."""
     return extract_script_block(
         soup,
         pattern=HOLDINGS_BLOCK_PATTERN,
@@ -138,6 +142,7 @@ def _extract_holdings_block(soup: LexborHTMLParser | None) -> str | None:
 
 
 def _extract_sectors_block(soup: LexborHTMLParser | None) -> str | None:
+    """Extract the sectors block from the ETF holdings page script."""
     return extract_script_block(
         soup,
         pattern=SECTORS_BLOCK_PATTERN,

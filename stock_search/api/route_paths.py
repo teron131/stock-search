@@ -1,3 +1,5 @@
+"""Centralize API route path constants."""
+
 from __future__ import annotations
 
 PORTFOLIO = "/portfolio"

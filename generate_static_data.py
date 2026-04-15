@@ -1,3 +1,5 @@
+"""Generate sample or production portfolio data files from live stats."""
+
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -394,6 +396,7 @@ def generate_static_data(
     print("Fetching stats...")
 
     def safe_fetch(ticker: str) -> tuple[str, dict]:
+        """Fetch one ticker payload without failing the whole generation run."""
         try:
             return ticker, fetch_stats_data(ticker)
         except Exception as e:

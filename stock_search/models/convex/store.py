@@ -1,3 +1,5 @@
+"""Persist portfolio, stock, and metadata records through Convex."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -25,22 +27,26 @@ class ConvexStore:
     """Typed storage facade for Convex table operations."""
 
     def __init__(self, *, base_url: str, deploy_key: str) -> None:
+        """Initialize the Convex-backed repository wrapper."""
         self._client = ConvexHttpAdapter(
             base_url=base_url,
             deploy_key=deploy_key,
         )
 
     def load_stocks(self) -> dict[str, dict[str, Any]]:
+        """Load the stock map from Convex."""
         payload = self._client.query(CONVEX_STOCK_LIST)
         return payload_to_stock_map(payload)
 
     def save_stocks(self, stocks_map: dict[str, dict[str, Any]]) -> None:
+        """Save stocks."""
         self._client.mutation(
             CONVEX_STOCK_REPLACE_ALL,
             {"rows": stock_map_to_rows(normalize_stock_map(stocks_map))},
         )
 
     def load_portfolio(self, *, key: str = "default") -> dict[str, Any]:
+        """Load the portfolio payload from Convex."""
         payload = self._client.query(
             CONVEX_PORTFOLIO_GET,
             {"key": key},
@@ -64,6 +70,7 @@ class ConvexStore:
         portfolio_stats: dict[str, Any] | None = None,
         key: str = "default",
     ) -> None:
+        """Save portfolio."""
         self._client.mutation(
             CONVEX_PORTFOLIO_SET,
             {
@@ -74,10 +81,12 @@ class ConvexStore:
         )
 
     def load_news(self, *, key: str = "default") -> list[dict[str, Any]]:
+        """Load the news feed from Convex."""
         payload = self._client.query(CONVEX_NEWS_LIST, {"key": key})
         return [dict(item) for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
 
     def save_news(self, rows: list[dict[str, Any]], *, key: str = "default") -> None:
+        """Save news."""
         normalized_rows = [dict(row) for row in rows if isinstance(row, dict)]
         self._client.mutation(
             CONVEX_NEWS_REPLACE_ALL,
@@ -85,6 +94,7 @@ class ConvexStore:
         )
 
     def get_meta_value(self, key: str) -> str | None:
+        """Return meta value."""
         payload = self._client.query(
             CONVEX_META_GET,
             {"key": key},
@@ -95,6 +105,7 @@ class ConvexStore:
         return value if isinstance(value, str) else None
 
     def set_meta_value(self, *, key: str, value: str) -> None:
+        """Set meta value."""
         self._client.mutation(
             CONVEX_META_SET,
             {"key": key, "value": value},

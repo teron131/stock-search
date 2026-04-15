@@ -1,3 +1,5 @@
+"""Define API-side paths and backend configuration values."""
+
 import os
 from pathlib import Path
 

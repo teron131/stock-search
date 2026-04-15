@@ -1,3 +1,5 @@
+"""Import local JSON data into the Convex backend."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -21,6 +23,7 @@ STATS_GENERATED_AT_KEY = "stats_generated_at"
 
 
 def _load_positions(path: Path) -> list[dict[str, object]]:
+    """Load local portfolio positions for Convex import."""
     payload = load_json(path, default=[])
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, dict)]
@@ -32,6 +35,7 @@ def _load_positions(path: Path) -> list[dict[str, object]]:
 
 
 def _load_ticker_map(path: Path) -> dict[str, dict[str, object]]:
+    """Load a local ticker-keyed JSON map."""
     payload = load_json(path, default={})
     if not isinstance(payload, dict):
         return {}
@@ -44,6 +48,7 @@ def run_import_from_local_files(
     stats_path: Path = STATS_PATH,
     eval_path: Path = EVAL_PATH,
 ) -> dict[str, int]:
+    """Push the local portfolio and stock data files into Convex."""
     client = ConvexHttpAdapter(
         base_url=os.getenv("CONVEX_URL", ""),
         deploy_key=os.getenv("CONVEX_DEPLOY_KEY", ""),

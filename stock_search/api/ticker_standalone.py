@@ -1,3 +1,5 @@
+"""Resolve ticker stats outside the portfolio dashboard flow."""
+
 from __future__ import annotations
 
 import asyncio
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_labels(value: Any) -> list[str]:
+    """Normalize labels."""
     if not isinstance(value, list):
         return []
     labels: list[str] = []
@@ -32,12 +35,14 @@ def _normalize_labels(value: Any) -> list[str]:
 
 
 def _load_cached_ticker_stats(ticker: str) -> dict[str, Any]:
+    """Load cached standalone stats for one ticker."""
     stats_data = load_stats_map()
     cached = stats_data.get(normalize_ticker_symbol(ticker))
     return cached if isinstance(cached, dict) else {}
 
 
 def _load_cached_stock_labels(ticker: str) -> list[str]:
+    """Load cached labels for one standalone ticker."""
     stocks_map = load_stocks()
     stock_row = stocks_map.get(normalize_ticker_symbol(ticker))
     if not isinstance(stock_row, dict):
@@ -46,6 +51,7 @@ def _load_cached_stock_labels(ticker: str) -> list[str]:
 
 
 def _load_live_ticker_stats(ticker: str, cached_row: dict[str, Any]) -> dict[str, Any]:
+    """Load live standalone stats for one ticker."""
     return StockIndicator(ticker, cached_row=cached_row).get_all_indicators()
 
 
@@ -54,6 +60,7 @@ async def resolve_standalone_ticker_stats(
     *,
     source: Literal["auto", "live", "cache"],
 ) -> tuple[dict[str, Any], str]:
+    """Resolve standalone ticker stats using live data with cache fallback."""
     ticker_upper = normalize_ticker_symbol(ticker)
     if not ticker_upper:
         raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")

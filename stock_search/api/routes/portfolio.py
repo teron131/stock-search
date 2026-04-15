@@ -1,3 +1,5 @@
+"""Serve portfolio management and import API routes."""
+
 from __future__ import annotations
 
 import logging
@@ -49,29 +51,39 @@ PORTFOLIO_DATA_SOURCE = {
 
 
 class PortfolioPositionPatch(BaseModel):
+    """Capture patch fields for portfolio position."""
+
     quantity: float | None = None
     strategy: str | None = None
 
 
 class StoredPortfolioPosition(PortfolioPositionInput):
+    """Represent a stored portfolio position."""
+
     strategy: str | None = None
 
     def to_storage_dict(self) -> dict[str, Any]:
+        """Convert the instance to storage dict."""
         payload = self.model_dump(exclude_none=True)
         payload["ticker"] = self.ticker.upper()
         return payload
 
 
 class PortfolioLineItem(BaseModel):
+    """Represent one extracted portfolio line item."""
+
     ticker: str
     quantity: float
 
 
 class PortfolioImageExtraction(BaseModel):
+    """Represent holdings extracted from one portfolio image."""
+
     holdings: list[PortfolioLineItem] = Field(default_factory=list)
 
 
 def _ensure_valid_new_ticker(ticker: str) -> None:
+    """Reject ticker symbols that do not resolve to a live price."""
     indicator = StockIndicator(ticker)
     if indicator.price is None:
         raise HTTPException(status_code=400, detail=f"Invalid ticker: {ticker}")
@@ -83,6 +95,7 @@ def _extract_holdings_from_image_bytes(
     image_filename: str,
     model_override: str | None = None,
 ) -> PortfolioImageExtraction:
+    """Extract ticker and quantity pairs from a portfolio image."""
     model = model_override or os.getenv("FAST_LLM") or os.getenv("QUALITY_LLM")
     if not model:
         raise HTTPException(status_code=500, detail="No model configured for image extraction.")
@@ -125,6 +138,7 @@ def _extract_holdings_from_image_bytes(
 
 @router.get(PORTFOLIO)
 async def portfolio_api(response: Response, scope: str = "all") -> dict:
+    """Return the current portfolio payload for the requested scope."""
     response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
 
@@ -159,6 +173,7 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
 
 @router.patch(PORTFOLIO_TICKER)
 def patch_position(ticker: str, patch: PortfolioPositionPatch):
+    """Create or update one portfolio position."""
     ticker_upper = ticker.upper()
     positions = load_positions()
     idx = find_position_index(positions, ticker_upper)
@@ -189,6 +204,7 @@ def patch_position(ticker: str, patch: PortfolioPositionPatch):
 
 @router.delete(PORTFOLIO_TICKER)
 def remove_position(ticker: str):
+    """Delete one portfolio position."""
     ticker_upper = ticker.upper()
     positions = [position for position in load_positions() if position.get("ticker", "").upper() != ticker_upper]
     save_positions(positions)
@@ -203,6 +219,7 @@ async def import_portfolio_image_api(
     strategy: str | None = None,
     model: str | None = None,
 ) -> dict:
+    """Import holdings from an uploaded portfolio image."""
     response.headers["Cache-Control"] = "no-store"
 
     if not file.filename:

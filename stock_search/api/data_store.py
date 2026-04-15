@@ -1,10 +1,12 @@
+"""Read and persist portfolio data through file or Convex backends."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import lru_cache
 import logging
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal
 
 import httpx
 
@@ -16,13 +18,13 @@ from stock_search.utils import normalize_ticker_symbol
 from .config import CONVEX_DEPLOY_KEY, CONVEX_URL, DATA_STORE_BACKEND, EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 
 DataStoreBackend = Literal["convex", "file"]
-T = TypeVar("T")
 
 _CONVEX_READ_ERRORS = (httpx.HTTPError, ConvexAPIError)
 logger = logging.getLogger(__name__)
 
 
 def _normalize_backend(backend: str) -> DataStoreBackend:
+    """Normalize the configured backend name."""
     normalized = backend.strip().lower()
     if normalized in {"convex", "file"}:
         return normalized
@@ -33,15 +35,18 @@ BACKEND: DataStoreBackend = _normalize_backend(DATA_STORE_BACKEND)
 
 
 def backend_name() -> DataStoreBackend:
+    """Return the configured data-store backend name."""
     return BACKEND
 
 
 @lru_cache(maxsize=1)
 def _convex_store() -> ConvexStore:
+    """Return the cached Convex store client."""
     return ConvexStore(base_url=CONVEX_URL, deploy_key=CONVEX_DEPLOY_KEY)
 
 
 def _load_positions_from_file() -> list[dict[str, Any]]:
+    """Load portfolio positions from the local file store."""
     portfolio_data = load_json(PORTFOLIO_PATH, default=[])
     if isinstance(portfolio_data, list):
         return [row for row in portfolio_data if isinstance(row, dict)]
@@ -52,6 +57,7 @@ def _load_positions_from_file() -> list[dict[str, Any]]:
 
 
 def _load_stats_map_from_file() -> dict[str, dict[str, Any]]:
+    """Load the indicator cache map from the local file store."""
     stats_data = load_json(STATS_PATH, default={})
     if not isinstance(stats_data, dict):
         return {}
@@ -59,6 +65,7 @@ def _load_stats_map_from_file() -> dict[str, dict[str, Any]]:
 
 
 def _load_eval_map_from_file() -> dict[str, dict[str, Any]]:
+    """Load the evaluation map from the local file store."""
     eval_data_raw = load_json(EVAL_PATH, default={})
     if isinstance(eval_data_raw, dict):
         return {ticker_symbol: dict(row) for ticker, row in eval_data_raw.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
@@ -73,6 +80,7 @@ def _build_stocks_from_maps(
     stats_map: dict[str, dict[str, Any]],
     eval_map: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
+    """Merge indicator and evaluation maps into the stock-map shape."""
     tickers = sorted(set(stats_map) | set(eval_map))
     stocks: dict[str, dict[str, Any]] = {}
     for ticker in tickers:
@@ -85,6 +93,7 @@ def _build_stocks_from_maps(
 
 
 def _load_stocks_from_file() -> dict[str, dict[str, Any]]:
+    """Load the merged stock map from the local file store."""
     return _build_stocks_from_maps(
         _load_stats_map_from_file(),
         _load_eval_map_from_file(),
@@ -92,13 +101,15 @@ def _load_stocks_from_file() -> dict[str, dict[str, Any]]:
 
 
 def _file_stats_generated_at_iso() -> str | None:
+    """Return the stats file modification time in ISO format."""
     if not STATS_PATH.exists():
         return None
     modified_at = datetime.fromtimestamp(STATS_PATH.stat().st_mtime, tz=UTC)
     return modified_at.isoformat()
 
 
-def _convex_read_or_file_fallback(operation: str, loader: Callable[[], T], fallback: Callable[[], T]) -> T:
+def _convex_read_or_file_fallback[T](operation: str, loader: Callable[[], T], fallback: Callable[[], T]) -> T:
+    """Read from Convex and fall back to the file store on read errors."""
     try:
         return loader()
     except _CONVEX_READ_ERRORS:
@@ -111,9 +122,11 @@ def _convex_read_or_file_fallback(operation: str, loader: Callable[[], T], fallb
 
 
 def load_positions() -> list[dict[str, Any]]:
+    """Load portfolio positions from the active data store."""
     if BACKEND == "convex":
 
         def _load_from_convex() -> list[dict[str, Any]]:
+            """Load the requested dataset from Convex."""
             portfolio = _convex_store().load_portfolio()
             positions = portfolio.get("positions")
             return [row for row in positions if isinstance(row, dict)] if isinstance(positions, list) else []
@@ -128,6 +141,7 @@ def load_positions() -> list[dict[str, Any]]:
 
 
 def save_positions(positions: list[dict[str, Any]]) -> None:
+    """Save portfolio positions to the active data store."""
     if BACKEND == "convex":
         existing = _convex_store().load_portfolio()
         portfolio_stats = existing.get("portfolio_stats")
@@ -140,6 +154,7 @@ def save_positions(positions: list[dict[str, Any]]) -> None:
 
 
 def load_stocks() -> dict[str, dict[str, Any]]:
+    """Load the stock map from the active data store."""
     if BACKEND == "convex":
         return _convex_read_or_file_fallback(
             "stocks",
@@ -151,6 +166,7 @@ def load_stocks() -> dict[str, dict[str, Any]]:
 
 
 def save_stocks(stocks_map: dict[str, dict[str, Any]]) -> None:
+    """Save the merged stock map to the active data store."""
     normalized_stocks = {ticker_symbol: dict(row) for ticker, row in stocks_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
     if BACKEND == "convex":
         _convex_store().save_stocks(normalized_stocks)
@@ -164,9 +180,11 @@ def save_stocks(stocks_map: dict[str, dict[str, Any]]) -> None:
 
 
 def load_stats_map() -> dict[str, dict[str, Any]]:
+    """Load the indicator cache map from the active data store."""
     if BACKEND == "convex":
 
         def _load_from_convex() -> dict[str, dict[str, Any]]:
+            """Load the requested dataset from Convex."""
             stocks_map = _convex_store().load_stocks()
             return {ticker: dict(stock_row.get("indicators") or {}) for ticker, stock_row in stocks_map.items()}
 
@@ -180,6 +198,7 @@ def load_stats_map() -> dict[str, dict[str, Any]]:
 
 
 def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
+    """Save the indicator cache map to the active data store."""
     normalized = {ticker_symbol: dict(row) for ticker, row in stats_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
@@ -205,9 +224,11 @@ def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
 
 
 def load_eval_map() -> dict[str, dict[str, Any]]:
+    """Load the evaluation map from the active data store."""
     if BACKEND == "convex":
 
         def _load_from_convex() -> dict[str, dict[str, Any]]:
+            """Load the requested dataset from Convex."""
             stocks_map = _convex_store().load_stocks()
             return {ticker: dict(stock_row.get("evaluation") or {}) for ticker, stock_row in stocks_map.items()}
 
@@ -221,6 +242,7 @@ def load_eval_map() -> dict[str, dict[str, Any]]:
 
 
 def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:
+    """Save the evaluation map to the active data store."""
     normalized = {ticker_symbol: dict(row) for ticker, row in eval_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
@@ -245,6 +267,7 @@ def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:
 
 
 def stats_generated_at_iso() -> str | None:
+    """Return the current stats generation timestamp in ISO format."""
     if BACKEND == "convex":
         return _convex_read_or_file_fallback(
             "meta stats_generated_at",
@@ -256,6 +279,7 @@ def stats_generated_at_iso() -> str | None:
 
 
 def set_stats_generated_at_iso(timestamp: str | None = None) -> None:
+    """Persist the current stats generation timestamp in Convex."""
     if BACKEND != "convex":
         return
     resolved = timestamp or datetime.now(tz=UTC).isoformat()

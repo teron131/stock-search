@@ -65,6 +65,7 @@ def get_news_newsdata(
     """Get the last 48 hours of financial news using NewsData."""
 
     async def _fetch() -> list[News]:
+        """Fetch NewsData results for one ticker query."""
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_newsdata_async(query=query, client=client)
 

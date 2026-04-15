@@ -1,3 +1,5 @@
+"""Export Convex data-store helpers and schemas."""
+
 from .client import ConvexAPIError, ConvexHttpAdapter
 from .convex_schemas import (
     ConvexMetaVersionRow,

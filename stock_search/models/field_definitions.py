@@ -1,3 +1,5 @@
+"""Define field metadata used by the dashboard and API."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,6 +8,8 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class FieldDefinition:
+    """Describe one dashboard field."""
+
     name: str
     category: Literal["market", "fundamental", "technical", "evaluation"]
     aliases: tuple[str, ...] = ()
@@ -13,6 +17,8 @@ class FieldDefinition:
 
 @dataclass(frozen=True)
 class EvalFieldDefinition:
+    """Describe one evaluation-specific field."""
+
     key: str
     aliases: tuple[str, ...] = ()
 

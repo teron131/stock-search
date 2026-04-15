@@ -1,3 +1,5 @@
+"""Create the FastAPI app and mount the dashboard assets."""
+
 from contextlib import asynccontextmanager
 import logging
 
@@ -15,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Run startup checks for the FastAPI application."""
     if backend_name() == "convex":
         store = ConvexStore(
             base_url=CONVEX_URL,
@@ -38,6 +41,7 @@ app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
 
 @app.get("/")
 def serve_index() -> FileResponse:
+    """Serve the dashboard index file."""
     return FileResponse(INDEX_FILE)
 
 

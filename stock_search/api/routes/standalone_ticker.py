@@ -1,3 +1,5 @@
+"""Serve standalone ticker API routes."""
+
 from typing import Literal
 
 from fastapi import APIRouter, Response
@@ -16,6 +18,7 @@ async def stock_ticker_stats_api(
     response: Response,
     source: Literal["auto", "live", "cache"] = "auto",
 ) -> dict:
+    """Serve stock ticker stats."""
     response.headers["Cache-Control"] = "no-store"
     row, data_source = await resolve_standalone_ticker_stats(ticker, source=source)
     return {

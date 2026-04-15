@@ -86,6 +86,7 @@ def _extract_quote_block(
     ticker_lower: str,
     fetch_html: Callable[[str], str | None],
 ) -> str | None:
+    """Extract the embedded quote block from the statistics page."""
     statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=ticker_lower)
     html = fetch_html(statistics_url)
     if html is None:
@@ -101,4 +102,5 @@ def _extract_quote_values(
     quote_block: str,
     field_keys: dict[str, str],
 ) -> dict[str, float | None]:
+    """Parse a set of quote fields from an embedded quote block."""
     return {field_name: parse_number(extract_quote_scalar(quote_block, key) or "") for field_name, key in field_keys.items()}

@@ -216,6 +216,7 @@ class ETF(BaseModel):
     sectors: ETFSectors = Field(default_factory=ETFSectors, description="Sector allocation list")
 
     def sector_rows(self) -> list[ETFSector]:
+        """Return sector rows sorted by weight."""
         rows: list[ETFSector] = []
         for key, value in self.sectors.model_dump().items():
             if value is None:

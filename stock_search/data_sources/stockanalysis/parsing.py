@@ -17,14 +17,17 @@ NULLISH_TEXT = {"", "-", "n/a", "N/A", "na", "NA"}
 
 
 def coalesce(primary: float | None, fallback: float | None) -> float | None:
+    """Return the primary value when present, otherwise the fallback."""
     return primary if primary is not None else fallback
 
 
 def to_percent(value: float | None) -> float | None:
+    """Convert a ratio to percentage points."""
     return value * 100 if value is not None else None
 
 
 def clean_symbol(raw_symbol: str) -> str:
+    """Normalize a holdings symbol extracted from page script data."""
     symbol = raw_symbol.strip()
     if symbol.startswith("$"):
         return symbol[1:]
@@ -36,14 +39,17 @@ def clean_symbol(raw_symbol: str) -> str:
 
 
 def has_model_data(model: BaseModel) -> bool:
+    """Return whether any field in a model contains a non-null value."""
     return any(value is not None for value in model.model_dump().values())
 
 
 def normalize_cell_text(text: str) -> str:
+    """Collapse repeated whitespace in table cell text."""
     return " ".join(text.split())
 
 
 def clean_numeric_text(raw_value: str) -> str | None:
+    """Normalize numeric text before number parsing."""
     text = raw_value.strip()
     if text in NULLISH_TEXT:
         return None
@@ -53,6 +59,7 @@ def clean_numeric_text(raw_value: str) -> str | None:
 
 
 def parse_number(raw_value: str) -> float | None:
+    """Parse a numeric string with optional compact suffixes."""
     text = clean_numeric_text(raw_value)
     if text is None:
         return None
@@ -68,6 +75,7 @@ def parse_number(raw_value: str) -> float | None:
 
 
 def parse_percent_ratio(raw_value: str) -> float | None:
+    """Parse a percent string into a 0-1 ratio."""
     text = clean_numeric_text(raw_value)
     if text is None:
         return None
@@ -80,6 +88,7 @@ def parse_percent_ratio(raw_value: str) -> float | None:
 
 
 def parse_percent_points(raw_value: str) -> float | None:
+    """Parse a percent string into raw percentage points."""
     text = clean_numeric_text(raw_value)
     if text is None:
         return None
@@ -92,6 +101,7 @@ def parse_percent_points(raw_value: str) -> float | None:
 
 
 def extract_quote_scalar(quote_block: str, key: str) -> str | None:
+    """Extract a single scalar field from an embedded quote block."""
     match = re.search(rf"{re.escape(key)}:(\"[^\"]*\"|[^,]+)", quote_block)
     if not match:
         return None
@@ -104,6 +114,7 @@ def extract_script_block(
     pattern: re.Pattern[str],
     required_fragments: tuple[str, ...] = (),
 ) -> str | None:
+    """Extract a regex-matched block from a qualifying script tag."""
     script_text = _extract_script_text(
         soup,
         required_fragments=required_fragments,
@@ -122,6 +133,7 @@ def _extract_script_text(
     *,
     required_fragments: tuple[str, ...],
 ) -> str | None:
+    """Return script text containing all required marker fragments."""
     if soup is None:
         return None
 
@@ -138,6 +150,7 @@ def extract_table_rows(
     cell_selector: str,
     keep_first: bool,
 ) -> dict[str, str]:
+    """Extract normalized label-value rows from a table."""
     rows: dict[str, str] = {}
     for row in soup.css("table tr"):
         cells = row.css(cell_selector)
@@ -158,6 +171,7 @@ def build_model_from_rows[MODEL_TYPE](
     model_type: type[MODEL_TYPE],
     field_specs: dict[str, tuple[str, str]],
 ) -> MODEL_TYPE:
+    """Build a model by applying named parsers to extracted table rows."""
     parser_by_name = {
         "parse_number": parse_number,
         "parse_percent_ratio": parse_percent_ratio,

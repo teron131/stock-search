@@ -1,3 +1,5 @@
+"""Store reusable prompts used across stock-search workflows."""
+
 NEWS_ANALYSIS_PROMPT = """Summarize with concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate. Prefer facts over opinions.
 
 Relevancy to {ticker}: high = primary subject; medium = indirect sector/competitors/macro; low = market noise or subjective opinions without new facts. High only if {ticker} is primary; market wraps default low unless {ticker} is a driver.

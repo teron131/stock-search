@@ -176,6 +176,7 @@ async def get_news_async(
             filtered_news_list.append(news)
 
     def sort_key(x: News) -> tuple[float, int]:
+        """Return the ranking key used to order news articles."""
         days = x.days_ago if x.days_ago is not None else float("inf")
         relevancy_order = {
             "high": 0,

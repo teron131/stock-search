@@ -1,3 +1,5 @@
+"""Run the research graph that produces evidence-backed analysis."""
+
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -37,19 +39,27 @@ _STORE = InMemoryStore()
 
 
 class ResearchGraphInput(BaseModel):
+    """Represent the input payload for the research graph."""
+
     ticker: str
 
 
 class ResearchGraphOutput(BaseModel):
+    """Represent the output payload from the research graph."""
+
     structured_response: Any | None = None
 
 
 class ValidationResult(BaseModel):
+    """Represent the validator's decision about research completeness."""
+
     is_valid: bool = Field(description="True if the notes are grounded and factually supported.")
     reasons: list[str] = Field(default_factory=list, description="List of issues or reasons for invalidity.")
 
 
 class ResearchGraphState(BaseModel):
+    """Track research graph state."""
+
     ticker: str
     research_notes: str | None = None
     loaded_notes: str | None = None
@@ -124,6 +134,7 @@ def load_research_memory(
     ticker: str,
     runtime: ToolRuntime,
 ) -> str:
+    """Load the persisted research-memory cache."""
     stored = runtime.store.get(
         ("research",),
         ticker.upper(),
@@ -137,6 +148,7 @@ def save_research_memory(
     notes: str,
     runtime: ToolRuntime,
 ) -> str:
+    """Save research memory."""
     runtime.store.put(
         ("research",),
         ticker.upper(),
@@ -149,6 +161,7 @@ class ResearchAgents:
     """Container for research-specific agents."""
 
     def __init__(self, system_prompt: str, response_format: type[BaseModel]):
+        """Initialize the in-memory research writer state."""
         quality_model = os.getenv("QUALITY_LLM")
         fast_model = os.getenv("FAST_LLM")
 
@@ -202,9 +215,11 @@ class ResearchAgents:
 
 
 def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) -> Any:
+    """Build the LangGraph pipeline used for research reports."""
     agents = ResearchAgents(system_prompt, response_format)
 
     def planner_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Plan the next research tasks for the graph run."""
         prompt = f"Create a short todo list for researching this ticker. Do not answer the task.\nTicker: {state.ticker}"
         response = agents.supervisor.invoke(
             {
@@ -216,6 +231,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         }
 
     def fanout_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Expand the planner output into individual search tasks."""
         return {
             "ticker": state.ticker,
             "research_notes": None,
@@ -224,10 +240,12 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         }
 
     def websearch_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Run web searches for the pending research tasks."""
         ticker = state.ticker or _extract_ticker(state.ticker)
         queries = _extract_todo_items(state.plan) or [state.ticker]
 
         def _search_one(query: str) -> str:
+            """Run one research search task against the web search backend."""
             prompt = f"{query}\nSummarize with concrete facts, numbers, and named entities. No meta-language.\nReturn concise bullet points. Include a 'Sources:' list with URLs you used."
             response = agents.searcher.invoke(
                 {
@@ -244,6 +262,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         }
 
     def loader_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Load full article content for the selected sources."""
         urls = _filter_allowed_urls(_extract_urls(state.research_notes))
         if not urls:
             return {"loaded_notes": ""}
@@ -251,6 +270,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         url_batches = _chunk_list(urls, 5)
 
         def _load_batch(batch: list[str]) -> str:
+            """Load one batch of selected research articles."""
             return agents.loader.invoke(f"Load and summarize these URLs:\n{batch}")
 
         with ThreadPoolExecutor(max_workers=min(len(url_batches), 5)) as executor:
@@ -259,6 +279,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         return {"loaded_notes": loaded}
 
     def validator_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Validate whether the gathered evidence is sufficient to write."""
         evidence = "\n\n".join(
             filter(
                 None,
@@ -278,6 +299,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         }
 
     def writer_node(state: ResearchGraphState) -> dict[str, Any]:
+        """Draft the final research report from the validated evidence."""
         evidence = "\n\n".join(filter(None, [state.research_notes, state.loaded_notes]))
         prompt = f"{state.ticker}\n\nEvidence:\n{evidence}"
         response = agents.supervisor.invoke(
@@ -291,6 +313,7 @@ def _build_research_graph(system_prompt: str, response_format: type[BaseModel]) 
         return {"structured_response": result}
 
     def route_from_validator(state: ResearchGraphState) -> Literal["writer", "end"]:
+        """Choose the next graph edge after validation."""
         if state.validation and state.validation.is_valid:
             return "end"
         if state.attempts >= MAX_VALIDATION_RETRIES:

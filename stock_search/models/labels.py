@@ -1,3 +1,5 @@
+"""Define shared label enums and label-related models."""
+
 SECTOR_LABELS: dict[str, str] = {
     "communication_services": "Communication Services",
     "consumer_discretionary": "Consumer Discretionary",
