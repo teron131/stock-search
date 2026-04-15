@@ -15,7 +15,11 @@ from stock_search.api.data_store import load_stats_map, save_stats_map
 from stock_search.cache import TieredCache
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.config import CacheConfig, PortfolioConfig
-from stock_search.data_sources.stockanalysis import StockAnalysisSource
+from stock_search.data_sources.stockanalysis import (
+    StockAnalysisFinancials,
+    StockAnalysisSource,
+    StockAnalysisStatistics,
+)
 from stock_search.data_sources.stockanalysis.parsing import to_percent
 from stock_search.data_sources.yahoofinance import ETF_QUOTE_TYPE, YahooFinanceSource
 from stock_search.stats_families import BLOCKING_AUTO_FAMILIES, FAMILY_FIELDS, FAMILY_TIMESTAMP_FIELD, STAT_FAMILIES, StatsFamily, family_timestamp_fields
@@ -292,20 +296,28 @@ def _fetch_market_snapshot(bundle: ProviderBundle) -> RefreshOutcome:
     )
 
 
-def _statistics_family_row(stats: Any, yahoo: YahooFinanceSource) -> dict[str, Any]:
+def _statistics_forward_pe(stats: StockAnalysisStatistics, yahoo: YahooFinanceSource) -> float | None:
+    """Return scraped forward PE first, then Yahoo only when needed."""
+    if stats.pe_forward is not None:
+        return stats.pe_forward
+    if yahoo.get_quote_type() == ETF_QUOTE_TYPE:
+        return None
+    return yahoo.get_forward_pe_ntm()
+
+
+def _statistics_family_row(stats: StockAnalysisStatistics, yahoo: YahooFinanceSource) -> dict[str, Any]:
     """Build the statistics family from StockAnalysis with Yahoo fallback."""
-    quote_type = yahoo.get_quote_type()
     return {
         "market_cap": stats.market_cap if stats.market_cap is not None else yahoo.get_market_cap(),
         "pe": stats.pe if stats.pe is not None else yahoo.get_pe_trailing(),
-        "pe_forward": None if quote_type == ETF_QUOTE_TYPE else (stats.pe_forward if stats.pe_forward is not None else yahoo.get_forward_pe_ntm()),
+        "pe_forward": _statistics_forward_pe(stats, yahoo),
         "peg": stats.peg if stats.peg is not None else yahoo.get_peg(),
         "beta": stats.beta if stats.beta is not None else yahoo.get_beta(),
         "free_cash_flow": stats.free_cash_flow if stats.free_cash_flow is not None else yahoo.get_free_cash_flow_in_quote_currency(),
     }
 
 
-def _statistics_extra_fields(stats: Any) -> dict[str, Any]:
+def _statistics_extra_fields(stats: StockAnalysisStatistics) -> dict[str, Any]:
     """Return extra fields learned from the statistics page fetch."""
     extra_fields: dict[str, Any] = {}
     if stats.gross_margin is not None:
@@ -328,19 +340,28 @@ def _fetch_statistics(bundle: ProviderBundle) -> RefreshOutcome:
     )
 
 
-def _fetch_financials(bundle: ProviderBundle) -> RefreshOutcome:
-    """Fetch the financials family and reuse the statistics page when available."""
-    financials = bundle.stockanalysis.get_financials_snapshot()
-    statistics = bundle.stockanalysis.get_statistics_snapshot()
-    yahoo = bundle.yahoo
-
-    financials_row = {
+def _financials_family_row(
+    financials: StockAnalysisFinancials,
+    statistics: StockAnalysisStatistics,
+    yahoo: YahooFinanceSource,
+) -> dict[str, Any]:
+    """Build the financials family from scraped pages with Yahoo fallback."""
+    return {
         "revenue_growth": to_percent(financials.revenue_growth) if financials.revenue_growth is not None else yahoo.get_revenue_growth_percent(),
         "gross_margin": to_percent(financials.gross_margin)
         if financials.gross_margin is not None
         else (to_percent(statistics.gross_margin) if statistics.gross_margin is not None else yahoo.get_gross_margin_percent()),
         "debt_to_equity": to_percent(statistics.debt_to_equity) if statistics.debt_to_equity is not None else yahoo.get_debt_to_equity_percent(),
     }
+
+
+def _fetch_financials(bundle: ProviderBundle) -> RefreshOutcome:
+    """Fetch the financials family and reuse the statistics page when available."""
+    financials = bundle.stockanalysis.get_financials_snapshot()
+    statistics = bundle.stockanalysis.get_statistics_snapshot()
+    yahoo = bundle.yahoo
+
+    financials_row = _financials_family_row(financials, statistics, yahoo)
     financials_fetched_at = bundle.stockanalysis.financials_fetched_at or datetime.now(tz=UTC)
     statistics_fetched_at = bundle.stockanalysis.statistics_fetched_at or financials_fetched_at
     statistics_extra_fields = _statistics_extra_fields(statistics)

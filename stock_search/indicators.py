@@ -7,8 +7,8 @@ from typing import Any
 import yfinance as yf
 
 from stock_search.config import CacheConfig
-from stock_search.data_sources.stockanalysis import StockAnalysisSource
-from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
+from stock_search.data_sources.stockanalysis import StockAnalysisIndicatorsSnapshot, StockAnalysisSource
+from stock_search.data_sources.yahoofinance import YahooFinanceSource, YahooIndicatorsSnapshot, normalize_yahoo_ticker
 from stock_search.models import StockIndicators
 from stock_search.models.field_definitions import INDICATOR_FIELDS
 from stock_search.stats_families import FIELD_TO_FAMILY, family_timestamp_fields
@@ -35,7 +35,6 @@ INDICATOR_FIELDS_BY_SOURCE: dict[str, tuple[str, ...]] = {
         "change",
         "change_percent_1d",
         "iv",
-        "rsi",
         "change_percent_1m",
         "change_percent_3m",
         "change_percent_6m",
@@ -52,6 +51,7 @@ INDICATOR_FIELDS_BY_SOURCE: dict[str, tuple[str, ...]] = {
         "peg",
         "beta",
         "free_cash_flow",
+        "rsi",
     ),
     DATA_SOURCE_STOCKANALYSIS_FINANCIALS: (
         "revenue_growth",
@@ -118,21 +118,21 @@ class StockIndicator:
         return self._yahoo.info
 
     @property
-    def _yahoo_snapshot(self):
+    def _yahoo_snapshot(self) -> YahooIndicatorsSnapshot:
         """Return the cached Yahoo snapshot."""
         if self._yahoo_indicators is _UNSET:
             self._yahoo_indicators = self._yahoo.get_indicators_snapshot(ratings_days=DEFAULT_RATINGS_LOOKBACK_DAYS)
         return self._yahoo_indicators
 
     @property
-    def _stockanalysis_snapshot(self):
+    def _stockanalysis_snapshot(self) -> StockAnalysisIndicatorsSnapshot:
         """Return the cached stockanalysis snapshot."""
         if self._stockanalysis_indicators is _UNSET:
             self._stockanalysis_indicators = self._stockanalysis.get_indicators_snapshot()
         return self._stockanalysis_indicators
 
     @staticmethod
-    def _parse_iso(value: Any) -> datetime | None:
+    def _parse_iso(value: object) -> datetime | None:
         """Parse an ISO timestamp string into a timezone-aware datetime."""
         if not isinstance(value, str) or not value.strip():
             return None
@@ -167,13 +167,13 @@ class StockIndicator:
             return False
         return self._now - fetched_at <= self._cache_max_age_for_field(field)
 
-    def _cached_value(self, field: str) -> Any:
+    def _cached_value(self, field: str) -> object:
         """Return the cached value for one indicator field when it is fresh."""
         if not self._has_fresh_fundamentals_cache(field):
             return None
         return self._cached_row.get(field)
 
-    def _resolve_field(self, field: str, *, sources: tuple[str, ...]) -> Any:
+    def _resolve_field(self, field: str, *, sources: tuple[str, ...]) -> object:
         """Resolve one field from the configured source priority order."""
         for source in sources:
             if source == "stockanalysis":
@@ -197,7 +197,7 @@ class StockIndicator:
         """Return indicator field -> logical source-group mapping."""
         return {field: _FIELD_SOURCE_GROUP.get(field, DATA_SOURCE_YAHOOFINANCE) for field in INDICATOR_FIELDS}
 
-    def _resolve_indicator_field(self, field: str) -> Any:
+    def _resolve_indicator_field(self, field: str) -> object:
         """Resolve one indicator field using its source-group policy."""
         source_group = self._source_group_for_field(field)
         sources = _SOURCE_PRIORITY_BY_GROUP.get(source_group, ("yahoo", "cache"))
