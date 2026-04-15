@@ -244,6 +244,8 @@ def classify_and_resolve_etfs(
     positions: list[dict[str, Any]],
     stats_data: dict[str, Any],
     now: datetime,
+    *,
+    allow_live_fetch: bool = True,
 ) -> ETFResolutionResult:
     """Split portfolio tickers into ETF and non-ETF groups and resolve snapshots."""
     stock_positions: list[dict[str, Any]] = []
@@ -260,6 +262,13 @@ def classify_and_resolve_etfs(
             etf_positions.append(position)
             snapshot_by_ticker[ticker] = ETFSnapshotResult(holdings=holdings, sectors=sectors, error=None)
             continue
+        if not allow_live_fetch:
+            stale_snapshot = _load_stale_cache_from_stats(stats_data, ticker, now)
+            if stale_snapshot is not None and (stale_snapshot[0] or stale_snapshot[1]):
+                holdings, sectors = stale_snapshot
+                etf_positions.append(position)
+                snapshot_by_ticker[ticker] = ETFSnapshotResult(holdings=holdings, sectors=sectors, error=None)
+                continue
 
         is_etf_from_stats = _is_etf_from_stats(stats_data, ticker)
         if is_etf_from_stats is True:
@@ -271,7 +280,7 @@ def classify_and_resolve_etfs(
         unresolved_tickers.append(ticker)
 
     cache_changed = False
-    if unresolved_tickers:
+    if allow_live_fetch and unresolved_tickers:
         with ThreadPoolExecutor(max_workers=_pool_workers(len(unresolved_tickers), cap=32)) as executor:
             classified = list(executor.map(_fetch_quote_type, unresolved_tickers))
         for ticker, is_etf in classified:
@@ -281,6 +290,8 @@ def classify_and_resolve_etfs(
                 etf_positions.append(pos)
             else:
                 stock_positions.append(pos)
+    elif unresolved_tickers:
+        stock_positions.extend(position_by_ticker[ticker] for ticker in unresolved_tickers)
 
     etf_tickers = {normalize_ticker_symbol(position["ticker"]) for position in etf_positions}
     for position in positions:
@@ -290,7 +301,7 @@ def classify_and_resolve_etfs(
 
     missing_tickers = [normalize_ticker_symbol(position["ticker"]) for position in etf_positions if normalize_ticker_symbol(position["ticker"]) not in snapshot_by_ticker]
     etf_refreshed_count = 0
-    if missing_tickers:
+    if allow_live_fetch and missing_tickers:
         with ThreadPoolExecutor(max_workers=_pool_workers(len(missing_tickers), cap=16)) as executor:
             fetched = list(executor.map(_fetch_snapshot, missing_tickers))
         for ticker, holdings, sectors, error in fetched:

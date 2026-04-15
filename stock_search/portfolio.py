@@ -901,6 +901,41 @@ def _build_payload_from_rows(
     }
 
 
+def _merge_live_results_into_stats_data(
+    *,
+    stats_data: dict[str, Any],
+    live_results: Mapping[str, Any],
+) -> None:
+    """Merge resolved live rows back into the broader cached stats map."""
+    for ticker, result in live_results.items():
+        existing = stats_data.get(ticker)
+        merged = dict(existing) if isinstance(existing, dict) else {}
+        merged.update(result.row)
+        stats_data[ticker] = merged
+
+
+def _portfolio_payload_data_source(
+    *,
+    rows: list[dict[str, Any]],
+    live_results: Mapping[str, Any],
+    include_live_market: bool,
+) -> str:
+    """Classify the payload source from all rows included in the response."""
+    if not include_live_market:
+        return "cache"
+
+    aggregated = aggregate_data_source(live_results, mode="auto")
+    if aggregated != "live":
+        return aggregated
+
+    live_tickers = set(live_results)
+    for row in rows:
+        ticker = _ticker_key(str(row.get("ticker") or ""))
+        if ticker and ticker not in live_tickers:
+            return "live_with_cache_fallback"
+    return "live"
+
+
 def get_portfolio_payload(
     portfolio_path: str | Path = "data/portfolio.json",
     stats_path: str | Path = "data/stats.json",
@@ -928,8 +963,7 @@ def get_portfolio_payload(
         persisted_rows=stats_data,
     )
     live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
-    for ticker, result in live_results.items():
-        stats_data[ticker] = dict(result.row)
+    _merge_live_results_into_stats_data(stats_data=stats_data, live_results=live_results)
     rows = _build_rows(
         positions=positions,
         stats_data=stats_data,
@@ -939,7 +973,12 @@ def get_portfolio_payload(
     _finalize_rows(rows)
 
     now = datetime.now(tz=UTC)
-    resolution = classify_and_resolve_etfs(held_positions, stats_data, now)
+    resolution = classify_and_resolve_etfs(
+        held_positions,
+        stats_data,
+        now,
+        allow_live_fetch=include_live_market,
+    )
     if resolution.cache_changed:
         save_stats_map(stats_data)
         set_stats_generated_at_iso(now.isoformat())
@@ -956,7 +995,11 @@ def get_portfolio_payload(
         ticker_table=ticker_table,
         table_meta=table_meta,
         generated_at=now.isoformat(),
-        data_source=aggregate_data_source(live_results, mode="auto") if include_live_market else "cache",
+        data_source=_portfolio_payload_data_source(
+            rows=rows,
+            live_results=live_results,
+            include_live_market=include_live_market,
+        ),
     )
 
 
@@ -988,8 +1031,7 @@ async def get_portfolio_payload_async(
         persisted_rows=stats_data,
     )
     live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
-    for ticker, result in live_results.items():
-        stats_data[ticker] = dict(result.row)
+    _merge_live_results_into_stats_data(stats_data=stats_data, live_results=live_results)
     rows = _build_rows(
         positions=positions,
         stats_data=stats_data,
@@ -999,7 +1041,13 @@ async def get_portfolio_payload_async(
     _finalize_rows(rows)
 
     now = datetime.now(tz=UTC)
-    resolution = await asyncio.to_thread(classify_and_resolve_etfs, held_positions, stats_data, now)
+    resolution = await asyncio.to_thread(
+        classify_and_resolve_etfs,
+        held_positions,
+        stats_data,
+        now,
+        allow_live_fetch=include_live_market,
+    )
     if resolution.cache_changed:
         await asyncio.to_thread(save_stats_map, stats_data)
         await asyncio.to_thread(set_stats_generated_at_iso, now.isoformat())
@@ -1017,7 +1065,11 @@ async def get_portfolio_payload_async(
         ticker_table=ticker_table,
         table_meta=table_meta,
         generated_at=now.isoformat(),
-        data_source=aggregate_data_source(live_results, mode="auto") if include_live_market else "cache",
+        data_source=_portfolio_payload_data_source(
+            rows=rows,
+            live_results=live_results,
+            include_live_market=include_live_market,
+        ),
     )
 
 
