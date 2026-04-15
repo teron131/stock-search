@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from functools import lru_cache
 import logging
@@ -76,6 +77,23 @@ def _load_eval_map_from_file() -> dict[str, dict[str, Any]]:
     return {ticker: item for item in eval_data_raw if isinstance(item, dict) and (ticker := normalize_ticker_symbol(str(item.get("ticker") or "")))}
 
 
+def _normalize_labels(value: Any) -> list[str]:
+    """Normalize stored labels into a unique string list."""
+    if not isinstance(value, list):
+        return []
+    labels: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        label = item.strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        labels.append(label)
+    return labels
+
+
 def _build_stocks_from_maps(
     stats_map: dict[str, dict[str, Any]],
     eval_map: dict[str, dict[str, Any]],
@@ -106,6 +124,15 @@ def _file_stats_generated_at_iso() -> str | None:
         return None
     modified_at = datetime.fromtimestamp(STATS_PATH.stat().st_mtime, tz=UTC)
     return modified_at.isoformat()
+
+
+def _load_ticker_context_from_file(ticker: str) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+    """Load positions plus one ticker's cached indicators and labels from local files."""
+    positions = _load_positions_from_file()
+    cached_row = _load_stats_map_from_file().get(ticker)
+    indicators = dict(cached_row) if isinstance(cached_row, dict) else {}
+    labels = _normalize_labels(indicators.get("industry_labels") or indicators.get("labels"))
+    return positions, indicators, labels
 
 
 def _convex_read_or_file_fallback[T](operation: str, loader: Callable[[], T], fallback: Callable[[], T]) -> T:
@@ -151,6 +178,44 @@ def save_positions(positions: list[dict[str, Any]]) -> None:
         )
         return
     write_json(PORTFOLIO_PATH, {"positions": positions})
+
+
+def load_ticker_context(ticker: str) -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+    """Load positions plus one ticker's cached indicators and labels."""
+    ticker_symbol = normalize_ticker_symbol(ticker)
+    if not ticker_symbol:
+        return [], {}, []
+
+    if BACKEND == "convex":
+
+        def _load_from_convex() -> tuple[list[dict[str, Any]], dict[str, Any], list[str]]:
+            """Load the requested ticker context from Convex."""
+            store = _convex_store()
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                portfolio_future = executor.submit(store.load_portfolio)
+                stocks_future = executor.submit(store.load_stocks)
+                portfolio = portfolio_future.result()
+                stocks_map = stocks_future.result()
+
+            positions = portfolio.get("positions")
+            normalized_positions = [row for row in positions if isinstance(row, dict)] if isinstance(positions, list) else []
+            stock_row = stocks_map.get(ticker_symbol)
+            if not isinstance(stock_row, dict):
+                return normalized_positions, {}, []
+
+            indicators = dict(stock_row.get("indicators") or {})
+            labels = _normalize_labels(stock_row.get("labels"))
+            if not labels:
+                labels = _normalize_labels(indicators.get("industry_labels") or indicators.get("labels"))
+            return normalized_positions, indicators, labels
+
+        return _convex_read_or_file_fallback(
+            "ticker context",
+            _load_from_convex,
+            lambda: _load_ticker_context_from_file(ticker_symbol),
+        )
+
+    return _load_ticker_context_from_file(ticker_symbol)
 
 
 def load_stocks() -> dict[str, dict[str, Any]]:

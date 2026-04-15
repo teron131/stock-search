@@ -1,12 +1,10 @@
 """Build portfolio dashboard payloads from live and cached data."""
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from threading import Lock
-from time import monotonic, sleep
 from typing import Any
 
 import pandas as pd
@@ -23,7 +21,7 @@ from stock_search.api.data_store import (
 )
 from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, normalize_ticker_symbol, safe_float
-from stock_search.config import CacheConfig, PortfolioConfig, UpdateTierLabels
+from stock_search.config import PortfolioConfig, UpdateTierLabels
 from stock_search.data_sources.yahoofinance import YahooFinanceSource
 from stock_search.etf import ETFResolutionResult, classify_and_resolve_etfs, normalize_sector_name
 from stock_search.evaluation.constants import (
@@ -33,34 +31,25 @@ from stock_search.evaluation.constants import (
     CalibrationConfig,
 )
 from stock_search.evaluation.normalization import bucket_from_eval_json, normalize_eval_json
-from stock_search.indicators import StockIndicator
 from stock_search.labeler import aget_labels, get_labels
 from stock_search.models.field_definitions import EVAL_FIELD_DEFINITIONS, MARKET_FIELDS
+from stock_search.stats_resolver import (
+    StatsResolutionMode,
+    aggregate_data_source,
+    resolve_ticker_stats,
+    resolve_ticker_stats_async,
+    resolve_ticker_stats_map,
+    resolve_ticker_stats_map_async,
+)
 
-_HISTORY_CACHE = TieredCache[dict[str, Any]](
-    ttl_seconds=CacheConfig.HISTORY_TTL_SECONDS,
-    stale_seconds=CacheConfig.HISTORY_STALE_SECONDS,
-    failure_cooldown_seconds=CacheConfig.HISTORY_FAILURE_COOLDOWN_SECONDS,
-)
-_INFO_CACHE = TieredCache[dict[str, Any]](
-    ttl_seconds=CacheConfig.INFO_TTL_SECONDS,
-    stale_seconds=CacheConfig.INFO_STALE_SECONDS,
-    failure_cooldown_seconds=CacheConfig.INFO_FAILURE_COOLDOWN_SECONDS,
-)
-_LIVE_STATS_RATE_LOCK = Lock()
-_LAST_LIVE_STATS_REQUEST_AT = 0.0
-
-_PERIOD_RETURN_FIELDS: tuple[str, ...] = (
-    "change_percent_1m",
-    "change_percent_3m",
-    "change_percent_6m",
-    "change_percent_1y",
-    "change_percent_mtd",
-    "change_percent_ytd",
-)
 _PORTFOLIO_LABEL_FIELD = "industry_labels"
 _LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at"
 _LABEL_CACHE_MAX_AGE_DAYS = 30
+_SECTOR_CACHE = TieredCache[str](
+    ttl_seconds=30 * 24 * 60 * 60,
+    stale_seconds=365 * 24 * 60 * 60,
+    failure_cooldown_seconds=60 * 60,
+)
 
 
 def normalize_labels(value: Any) -> list[str]:
@@ -90,12 +79,16 @@ def _parse_iso_timestamp(value: Any) -> datetime | None:
         return None
 
 
-def _load_label_cache(path: Path | None = None) -> dict[str, dict[str, Any]]:
+def _load_label_cache(
+    path: Path | None = None,
+    *,
+    stats_data: Mapping[str, Any] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Load cached portfolio labels from the stats store."""
     _ = path
-    stats_data = load_stats_map()
+    stats_map = stats_data if isinstance(stats_data, Mapping) else load_stats_map()
     cache: dict[str, dict[str, Any]] = {}
-    for ticker, row in stats_data.items():
+    for ticker, row in stats_map.items():
         if not isinstance(row, dict):
             continue
         ticker_symbol = normalize_ticker_symbol(str(ticker))
@@ -166,13 +159,14 @@ def resolve_portfolio_labels(
     fetch_missing: bool = True,
     max_concurrency: int = 4,
     cache_path: Path | None = None,
+    stats_data: Mapping[str, Any] | None = None,
 ) -> dict[str, list[str]]:
     """Resolve portfolio labels with cache reuse and optional fetching."""
     tickers = _portfolio_tickers(positions)
     if not tickers:
         return {}
 
-    cache = _load_label_cache(cache_path)
+    cache = _load_label_cache(cache_path, stats_data=stats_data)
     missing = _compute_missing_labels(tickers, cache)
     fetched: dict[str, list[str]] = {}
     if fetch_missing and missing:
@@ -200,13 +194,14 @@ async def resolve_portfolio_labels_async(
     fetch_missing: bool = True,
     max_concurrency: int = 4,
     cache_path: Path | None = None,
+    stats_data: Mapping[str, Any] | None = None,
 ) -> dict[str, list[str]]:
     """Resolve portfolio labels asynchronously with cache reuse."""
     tickers = _portfolio_tickers(positions)
     if not tickers:
         return {}
 
-    cache = _load_label_cache(cache_path)
+    cache = _load_label_cache(cache_path, stats_data=stats_data)
     missing = _compute_missing_labels(tickers, cache)
     fetched: dict[str, list[str]] = {}
     if fetch_missing and missing:
@@ -348,116 +343,34 @@ def _pick_eval_value(
     return float(fallback_eval[key]), False
 
 
-def _rate_limit_wait() -> None:
-    """Sleep long enough to respect the live-stats request limit."""
-    if CacheConfig.LIVE_STATS_MIN_REQUEST_GAP_SECONDS <= 0:
-        return
-    global _LAST_LIVE_STATS_REQUEST_AT
-    with _LIVE_STATS_RATE_LOCK:
-        elapsed = monotonic() - _LAST_LIVE_STATS_REQUEST_AT
-        wait_seconds = CacheConfig.LIVE_STATS_MIN_REQUEST_GAP_SECONDS - elapsed
-        if wait_seconds > 0:
-            sleep(wait_seconds)
-        _LAST_LIVE_STATS_REQUEST_AT = monotonic()
+def fetch_live_stats(
+    ticker: str,
+    *,
+    mode: StatsResolutionMode = "auto",
+    persisted_row: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Ticker-level stats entrypoint backed by the shared family resolver."""
+    result = resolve_ticker_stats(
+        ticker,
+        mode=mode,
+        persisted_row=persisted_row,
+    )
+    return dict(result.row)
 
 
-def _fetch_live_stats(ticker: str) -> dict[str, Any]:
-    """Fetch tiered market stats for a ticker (history + info)."""
-    ticker_key = str(ticker).upper().strip()
-    now = datetime.now(tz=UTC)
-    history_data = _HISTORY_CACHE.get_fresh(ticker_key, now=now)
-    info_data = _INFO_CACHE.get_fresh(ticker_key, now=now)
-    need_history_fetch = history_data is None and _HISTORY_CACHE.should_retry(ticker_key, now=now)
-    need_info_fetch = info_data is None and _INFO_CACHE.should_retry(ticker_key, now=now)
-    history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {} if history_data is None else dict(history_data)
-
-    info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {} if info_data is None else dict(info_data)
-
-    missing_period_fields = any(field not in info_data for field in _PERIOD_RETURN_FIELDS)
-    if missing_period_fields and _INFO_CACHE.should_retry(ticker_key, now=now):
-        need_info_fetch = True
-
-    if not need_history_fetch and not need_info_fetch:
-        return {**info_data, **history_data}
-
-    yahoo_source = YahooFinanceSource(ticker_key) if (need_history_fetch or need_info_fetch) else None
-
-    if need_history_fetch:
-        _rate_limit_wait()
-        try:
-            latest_price = yahoo_source.get_realtime_price(yahoo_source.get_market_state()) or yahoo_source.get_current_price()
-            previous_close = yahoo_source.get_previous_close()
-            change = None
-            change_percent_1d = None
-            if latest_price is not None and previous_close not in (None, 0):
-                change = round(latest_price - previous_close, 2)
-                change_percent_1d = round(((latest_price - previous_close) / previous_close) * 100, 2)
-            fetched_history = {
-                **history_data,
-                "price": latest_price,
-                "change": change,
-                "change_percent_1d": change_percent_1d,
-            }
-            _HISTORY_CACHE.set(ticker_key, fetched_history, now=now)
-            history_data = dict(fetched_history)
-        except Exception:
-            _HISTORY_CACHE.mark_failure(ticker_key, now=now)
-            history_data = _HISTORY_CACHE.get_stale(ticker_key, now=now) or {}
-
-    if need_info_fetch:
-        try:
-            indicator = StockIndicator(
-                ticker_key,
-                cached_row=info_data,
-                now=now,
-            )
-            quote_type = str(indicator.info.get("quoteType") or "").upper()
-            fetched_info = {
-                **info_data,
-                "name": indicator.info.get("shortName") or indicator.info.get("longName"),
-                "price": indicator.price,
-                "quote_type": quote_type or None,
-                "market_cap": indicator.market_cap,
-                "pe": indicator.pe,
-                "pe_forward": indicator.pe_forward,
-                "peg": indicator.peg,
-                "beta": indicator.beta,
-                "iv": indicator.iv,
-                "change_percent_1m": indicator.change_percent_1m,
-                "change_percent_3m": indicator.change_percent_3m,
-                "change_percent_6m": indicator.change_percent_6m,
-                "change_percent_1y": indicator.change_percent_1y,
-                "change_percent_mtd": indicator.change_percent_mtd,
-                "change_percent_ytd": indicator.change_percent_ytd,
-                "median_upside": indicator.median_upside,
-                "revenue_growth": indicator.revenue_growth,
-                "gross_margin": indicator.gross_margin,
-                "debt_to_equity": indicator.debt_to_equity,
-                "free_cash_flow": indicator.free_cash_flow,
-                "rsi": indicator.rsi,
-                "fundamentals_fetched_at": now.isoformat(),
-            }
-            fetched_info["quote_type"] = quote_type or None
-            if quote_type == "ETF":
-                fetched_info["pe_forward"] = None
-            _INFO_CACHE.set(ticker_key, fetched_info, now=now)
-            info_data = dict(fetched_info)
-        except Exception:
-            _INFO_CACHE.mark_failure(ticker_key, now=now)
-            info_data = _INFO_CACHE.get_stale(ticker_key, now=now) or {}
-
-    merged = {**info_data, **history_data}
-    return {k: v for k, v in merged.items() if v is not None or k == "pe_forward"}
-
-
-def fetch_live_stats(ticker: str) -> dict[str, Any]:
-    """Ticker-level market stats entrypoint."""
-    return _fetch_live_stats(ticker)
-
-
-async def fetch_live_stats_async(ticker: str) -> dict[str, Any]:
-    """Async-ready ticker-level market stats entrypoint."""
-    return await asyncio.to_thread(fetch_live_stats, ticker)
+async def fetch_live_stats_async(
+    ticker: str,
+    *,
+    mode: StatsResolutionMode = "auto",
+    persisted_row: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Async-ready ticker-level stats entrypoint backed by the shared resolver."""
+    result = await resolve_ticker_stats_async(
+        ticker,
+        mode=mode,
+        persisted_row=persisted_row,
+    )
+    return dict(result.row)
 
 
 def _ticker_key(ticker: str) -> str:
@@ -465,34 +378,34 @@ def _ticker_key(ticker: str) -> str:
     return str(ticker).upper().strip()
 
 
-def fetch_live_stats_map(tickers: Sequence[str]) -> dict[str, dict[str, Any]]:
-    """Batch wrapper built on ticker-level market stats fetches."""
-    normalized = [_ticker_key(ticker) for ticker in tickers if str(ticker).strip()]
-    ordered_unique = list(dict.fromkeys(normalized))
-    if not ordered_unique:
-        return {}
+def fetch_live_stats_map(
+    tickers: Sequence[str],
+    *,
+    mode: StatsResolutionMode = "auto",
+    persisted_rows: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Batch ticker-level stats fetch backed by the shared family resolver."""
+    results = resolve_ticker_stats_map(
+        tickers,
+        mode=mode,
+        persisted_rows=persisted_rows,
+    )
+    return {ticker: dict(result.row) for ticker, result in results.items()}
 
-    with ThreadPoolExecutor(max_workers=PortfolioConfig.MAX_WORKERS) as executor:
-        fetched = list(executor.map(fetch_live_stats, ordered_unique))
-    return dict(zip(ordered_unique, fetched, strict=False))
 
-
-async def fetch_live_stats_map_async(tickers: Sequence[str]) -> dict[str, dict[str, Any]]:
-    """Async batch wrapper built on ticker-level async market stats fetches."""
-    normalized = [_ticker_key(ticker) for ticker in tickers if str(ticker).strip()]
-    ordered_unique = list(dict.fromkeys(normalized))
-    if not ordered_unique:
-        return {}
-
-    semaphore = asyncio.Semaphore(max(1, PortfolioConfig.MAX_WORKERS))
-
-    async def _fetch_one(ticker: str) -> tuple[str, dict[str, Any]]:
-        """Fetch one live stats map async item."""
-        async with semaphore:
-            return ticker, await fetch_live_stats_async(ticker)
-
-    results = await asyncio.gather(*(_fetch_one(ticker) for ticker in ordered_unique))
-    return dict(results)
+async def fetch_live_stats_map_async(
+    tickers: Sequence[str],
+    *,
+    mode: StatsResolutionMode = "auto",
+    persisted_rows: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Async batch ticker-level stats fetch backed by the shared resolver."""
+    results = await resolve_ticker_stats_map_async(
+        tickers,
+        mode=mode,
+        persisted_rows=persisted_rows,
+    )
+    return {ticker: dict(result.row) for ticker, result in results.items()}
 
 
 def _derive_bucket_from_eval(ticker: str, eval_data: dict[str, Any]) -> str | None:
@@ -701,13 +614,20 @@ def _normalize_weights_to_100(weights: dict[str, float], *, decimals: int = 4) -
 
 def _fetch_equity_sector(ticker: str) -> tuple[str, str]:
     """Fetch the sector label for one equity ticker."""
+    if (cached_sector := _SECTOR_CACHE.get_fresh(ticker)) is not None:
+        return ticker, cached_sector
     try:
         source = YahooFinanceSource(ticker)
         info = source.get_info_snapshot().raw_info
     except Exception:
+        _SECTOR_CACHE.mark_failure(ticker)
+        if (stale_sector := _SECTOR_CACHE.get_stale(ticker)) is not None:
+            return ticker, stale_sector
         return ticker, normalize_sector_name(None)
     raw_sector = str(info.get("sector") or "").strip() or str(info.get("industry") or "").strip() or None
-    return ticker, normalize_sector_name(raw_sector)
+    sector_name = normalize_sector_name(raw_sector)
+    _SECTOR_CACHE.set(ticker, sector_name)
+    return ticker, sector_name
 
 
 def _build_etf_tables(
@@ -961,6 +881,7 @@ def _build_payload_from_rows(
     ticker_table: list[dict[str, float | str]],
     table_meta: dict[str, float],
     generated_at: str,
+    data_source: str,
 ) -> dict[str, Any]:
     """Assemble the final portfolio payload from prepared rows."""
     return {
@@ -975,6 +896,7 @@ def _build_payload_from_rows(
             "etf_count": len(resolution.etf_positions),
             "etf_refreshed_count": resolution.etf_refreshed_count,
             "generated_at": generated_at,
+            "data_source": data_source,
         },
     }
 
@@ -993,9 +915,21 @@ def get_portfolio_payload(
         eval_path=eval_path,
         include_cached_universe=include_cached_universe,
     )
-    labels_by_ticker = resolve_portfolio_labels(held_positions, fetch_missing=include_live_market)
+    labels_by_ticker = resolve_portfolio_labels(
+        held_positions,
+        fetch_missing=include_live_market,
+        stats_data=stats_data,
+    )
     _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
-    live_map = fetch_live_stats_map(_live_tickers(positions, include_live_market=include_live_market))
+    live_tickers = _live_tickers(positions, include_live_market=include_live_market)
+    live_results = resolve_ticker_stats_map(
+        live_tickers,
+        mode="auto",
+        persisted_rows=stats_data,
+    )
+    live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
+    for ticker, result in live_results.items():
+        stats_data[ticker] = dict(result.row)
     rows = _build_rows(
         positions=positions,
         stats_data=stats_data,
@@ -1022,6 +956,7 @@ def get_portfolio_payload(
         ticker_table=ticker_table,
         table_meta=table_meta,
         generated_at=now.isoformat(),
+        data_source=aggregate_data_source(live_results, mode="auto") if include_live_market else "cache",
     )
 
 
@@ -1040,9 +975,21 @@ async def get_portfolio_payload_async(
         eval_path=eval_path,
         include_cached_universe=include_cached_universe,
     )
-    labels_by_ticker = await resolve_portfolio_labels_async(held_positions, fetch_missing=include_live_market)
+    labels_by_ticker = await resolve_portfolio_labels_async(
+        held_positions,
+        fetch_missing=include_live_market,
+        stats_data=stats_data,
+    )
     _apply_position_labels(positions=positions, labels_by_ticker=labels_by_ticker)
-    live_map = await fetch_live_stats_map_async(_live_tickers(positions, include_live_market=include_live_market))
+    live_tickers = _live_tickers(positions, include_live_market=include_live_market)
+    live_results = await resolve_ticker_stats_map_async(
+        live_tickers,
+        mode="auto",
+        persisted_rows=stats_data,
+    )
+    live_map = {ticker: dict(result.row) for ticker, result in live_results.items()}
+    for ticker, result in live_results.items():
+        stats_data[ticker] = dict(result.row)
     rows = _build_rows(
         positions=positions,
         stats_data=stats_data,
@@ -1070,6 +1017,7 @@ async def get_portfolio_payload_async(
         ticker_table=ticker_table,
         table_meta=table_meta,
         generated_at=now.isoformat(),
+        data_source=aggregate_data_source(live_results, mode="auto") if include_live_market else "cache",
     )
 
 

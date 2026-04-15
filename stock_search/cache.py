@@ -43,6 +43,10 @@ class TieredCache[T]:
         with self._lock:
             return self._entries.get(key)
 
+    def get_entry(self, key: str) -> CacheEntry[T] | None:
+        """Return the cached entry for a key with timestamp metadata."""
+        return self._get_entry(key)
+
     def set(self, key: str, value: T, *, now: datetime | None = None) -> None:
         """Store one value in the cache with a fresh timestamp."""
         timestamp = now or self._now()

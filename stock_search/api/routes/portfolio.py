@@ -156,7 +156,7 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
     )
     generated_at = stats_cache_generated_at(STATS_PATH) if scope_config["use_cache_timestamp"] else now_iso()
     payload["meta"]["generated_at"] = generated_at
-    payload["meta"]["data_source"] = PORTFOLIO_DATA_SOURCE[resolved_scope]
+    payload["meta"]["data_source"] = "cache" if resolved_scope == "priority" else payload["meta"].get("data_source", PORTFOLIO_DATA_SOURCE[resolved_scope])
     payload["meta"]["backend_store"] = backend_name()
     payload["meta"]["sync_mode"] = "realtime_subscription"
     elapsed_ms = (perf_counter() - started_at) * 1000

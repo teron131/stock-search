@@ -197,6 +197,8 @@ class YahooFinanceSource:
         self._history_cache: dict[str, YahooHistorySnapshot] = {}
         self._ratings_cache: dict[int, YahooRatingsSnapshot | None] = {}
         self._indicator_cache: dict[int, YahooIndicatorsSnapshot] = {}
+        self._market_data_snapshot: dict[str, float | None] | None = None
+        self._market_snapshot_fields: dict[str, Any] | None = None
         self._quarterly_income_stmt: pd.DataFrame | None | object = _STATEMENT_NOT_LOADED
         self._annual_income_stmt: pd.DataFrame | None | object = _STATEMENT_NOT_LOADED
 
@@ -348,6 +350,17 @@ class YahooFinanceSource:
         change = round_optional(price - baseline_price) if price is not None and baseline_price is not None else None
         change_percent_1d = round_optional(((price - baseline_price) / baseline_price) * 100) if price is not None and baseline_price not in (None, 0) else None
         return price, change, change_percent_1d
+
+    def get_market_data_snapshot(self) -> dict[str, float | None]:
+        """Return the lightweight realtime market-data family."""
+        if self._market_data_snapshot is None:
+            price, change, change_percent_1d = self._build_session_quote()
+            self._market_data_snapshot = {
+                "price": price,
+                "change": change,
+                "change_percent_1d": change_percent_1d,
+            }
+        return dict(self._market_data_snapshot)
 
     def get_market_cap(self) -> float | None:
         """Get raw market cap in dollars."""
@@ -674,41 +687,61 @@ class YahooFinanceSource:
             return round_optional(weighted_sum / total_weight)
         return None
 
+    def get_market_snapshot_fields(self) -> dict[str, Any]:
+        """Return the non-realtime Yahoo market snapshot family."""
+        if self._market_snapshot_fields is None:
+            price = self.get_market_data_snapshot()["price"]
+            now = self._now_ny().date()
+            period_values = {
+                field: self._calculate_period_return_percent(
+                    start_date=_subtract_months(now, months),
+                    history_period=hist_period,
+                    price=price,
+                )
+                for field, (months, hist_period) in _PERIOD_CONFIGS.items()
+            }
+            mtd = self._calculate_period_return_percent(start_date=date(now.year, now.month, 1), history_period="3mo", price=price)
+            ytd_period = self._calculate_period_return_percent(start_date=date(now.year, 1, 1), history_period="2y", price=price)
+            ytd = ytd_period if ytd_period is not None else self.get_ytd_return_percent()
+            info = self.get_info_snapshot().raw_info
+            quote_type = self.get_quote_type()
+            self._market_snapshot_fields = {
+                "name": info.get("shortName") or info.get("longName"),
+                "quote_type": quote_type or None,
+                "iv": self._calculate_iv(),
+                "rsi": self._calculate_rsi(),
+                "change_percent_1m": period_values["change_percent_1m"],
+                "change_percent_3m": period_values["change_percent_3m"],
+                "change_percent_6m": period_values["change_percent_6m"],
+                "change_percent_1y": period_values["change_percent_1y"],
+                "change_percent_mtd": mtd,
+                "change_percent_ytd": ytd,
+            }
+        return dict(self._market_snapshot_fields)
+
     def get_indicators_snapshot(self, ratings_days: int = 90) -> YahooIndicatorsSnapshot:
         """Build and cache a Yahoo-only indicator set for orchestrator usage."""
         if ratings_days in self._indicator_cache:
             return self._indicator_cache[ratings_days]
 
-        price, change, change_percent_1d = self._build_session_quote()
-
-        now = self._now_ny().date()
-        period_values = {
-            field: self._calculate_period_return_percent(
-                start_date=_subtract_months(now, months),
-                history_period=hist_period,
-                price=price,
-            )
-            for field, (months, hist_period) in _PERIOD_CONFIGS.items()
-        }
-        mtd = self._calculate_period_return_percent(start_date=date(now.year, now.month, 1), history_period="3mo", price=price)
-        ytd_period = self._calculate_period_return_percent(start_date=date(now.year, 1, 1), history_period="2y", price=price)
-        ytd = ytd_period if ytd_period is not None else self.get_ytd_return_percent()
+        market_data = self.get_market_data_snapshot()
+        market_snapshot = self.get_market_snapshot_fields()
 
         ratings_snapshot = self.get_ratings_snapshot(days=ratings_days)
         snapshot = YahooIndicatorsSnapshot(
-            price=price,
-            change=change,
-            change_percent_1d=change_percent_1d,
+            price=market_data["price"],
+            change=market_data["change"],
+            change_percent_1d=market_data["change_percent_1d"],
             market_cap=self.get_market_cap(),
             pe=self.get_pe_trailing(),
             pe_forward=self.get_forward_pe_ntm(),
             peg=self.get_peg(),
             beta=self.get_beta(),
-            iv=self._calculate_iv(),
-            change_percent_1m=period_values["change_percent_1m"],
-            change_percent_3m=period_values["change_percent_3m"],
-            change_percent_6m=period_values["change_percent_6m"],
-            change_percent_1y=period_values["change_percent_1y"],
+            iv=market_snapshot["iv"],
+            change_percent_1m=market_snapshot["change_percent_1m"],
+            change_percent_3m=market_snapshot["change_percent_3m"],
+            change_percent_6m=market_snapshot["change_percent_6m"],
+            change_percent_1y=market_snapshot["change_percent_1y"],
             median_upside=ratings_snapshot.median_upside_pct if ratings_snapshot else None,
             revenue_growth=self.get_revenue_growth_percent(),
             gross_margin=self.get_gross_margin_percent(),
@@ -717,9 +750,9 @@ class YahooFinanceSource:
             free_cash_flow=self.get_free_cash_flow_in_quote_currency(),
             eps_diluted=self.get_eps_diluted(),
             eps_growth=None,
-            rsi=self._calculate_rsi(),
-            change_percent_mtd=mtd,
-            change_percent_ytd=ytd,
+            rsi=market_snapshot["rsi"],
+            change_percent_mtd=market_snapshot["change_percent_mtd"],
+            change_percent_ytd=market_snapshot["change_percent_ytd"],
             ratings=ratings_snapshot.ratings if ratings_snapshot else None,
         )
         self._indicator_cache[ratings_days] = snapshot

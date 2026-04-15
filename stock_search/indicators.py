@@ -11,29 +11,23 @@ from stock_search.data_sources.stockanalysis import StockAnalysisSource
 from stock_search.data_sources.yahoofinance import YahooFinanceSource, normalize_yahoo_ticker
 from stock_search.models import StockIndicators
 from stock_search.models.field_definitions import INDICATOR_FIELDS
+from stock_search.stats_families import FIELD_TO_FAMILY, family_timestamp_fields
 
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 # --- Configuration ---
 DEFAULT_RATINGS_LOOKBACK_DAYS = 90
 DEFAULT_FUNDAMENTALS_CACHE_MAX_AGE = timedelta(seconds=CacheConfig.INFO_STALE_SECONDS)
-FUNDAMENTALS_FETCHED_AT_FIELD = "fundamentals_fetched_at"
 DATA_SOURCE_YAHOOFINANCE = "YAHOOFINANCE"
 DATA_SOURCE_STOCKANALYSIS_STATISTICS = "STOCKANALYSIS_STATISTICS"
 DATA_SOURCE_STOCKANALYSIS_FINANCIALS = "STOCKANALYSIS_FINANCIALS"
 DATA_SOURCE_STOCKANALYSIS_ETF_HOLDINGS = "STOCKANALYSIS_ETF_HOLDINGS"
-FUNDAMENTALS_CACHE_MAX_AGE_BY_FIELD: dict[str, timedelta] = {
-    "market_cap": timedelta(days=3),
-    "pe": timedelta(days=3),
-    "pe_forward": timedelta(days=3),
-    "peg": timedelta(days=7),
-    "beta": timedelta(days=7),
-    "revenue_growth": timedelta(days=7),
-    "gross_margin": timedelta(days=7),
-    "debt_to_equity": timedelta(days=7),
-    "free_cash_flow": timedelta(days=7),
-    "median_upside": timedelta(days=7),
-    "ratings": timedelta(days=7),
+FAMILY_CACHE_MAX_AGE: dict[str, timedelta] = {
+    "market_data": timedelta(seconds=CacheConfig.HISTORY_TTL_SECONDS),
+    "market_snapshot": timedelta(seconds=CacheConfig.INFO_TTL_SECONDS),
+    "statistics": timedelta(days=1),
+    "financials": timedelta(days=1),
+    "ratings": timedelta(days=1),
 }
 INDICATOR_FIELDS_BY_SOURCE: dict[str, tuple[str, ...]] = {
     DATA_SOURCE_YAHOOFINANCE: (
@@ -114,10 +108,7 @@ class StockIndicator:
         self._cached_row = dict(cached_row) if isinstance(cached_row, dict) else {}
         self._now = now or datetime.now(tz=UTC)
         self._fundamentals_cache_max_age = fundamentals_cache_max_age
-        self._fundamentals_cache_max_age_by_field = {
-            **FUNDAMENTALS_CACHE_MAX_AGE_BY_FIELD,
-            **(fundamentals_cache_max_age_by_field or {}),
-        }
+        self._fundamentals_cache_max_age_by_field = dict(fundamentals_cache_max_age_by_field or {})
         self._yahoo_indicators = _UNSET
         self._stockanalysis_indicators = _UNSET
 
@@ -153,11 +144,25 @@ class StockIndicator:
 
     def _cache_max_age_for_field(self, field: str) -> timedelta:
         """Return the freshness window for one indicator field."""
-        return self._fundamentals_cache_max_age_by_field.get(field, self._fundamentals_cache_max_age)
+        family = FIELD_TO_FAMILY.get(field)
+        return self._fundamentals_cache_max_age_by_field.get(
+            field,
+            FAMILY_CACHE_MAX_AGE.get(family, self._fundamentals_cache_max_age),
+        )
+
+    def _cached_timestamp_for_field(self, field: str) -> datetime | None:
+        """Return the first usable cache timestamp for one field."""
+        family = FIELD_TO_FAMILY.get(field)
+        if family is None:
+            return None
+        for timestamp_field in family_timestamp_fields(family):
+            if (fetched_at := self._parse_iso(self._cached_row.get(timestamp_field))) is not None:
+                return fetched_at
+        return None
 
     def _has_fresh_fundamentals_cache(self, field: str) -> bool:
         """Return whether the cached fundamentals value is still fresh."""
-        fetched_at = self._parse_iso(self._cached_row.get(FUNDAMENTALS_FETCHED_AT_FIELD))
+        fetched_at = self._cached_timestamp_for_field(field)
         if fetched_at is None:
             return False
         return self._now - fetched_at <= self._cache_max_age_for_field(field)

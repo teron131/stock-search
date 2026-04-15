@@ -178,6 +178,26 @@ def store_etf_cache_in_stats(
     return changed
 
 
+def store_quote_type_in_stats(
+    stats_data: dict[str, Any],
+    ticker: str,
+    *,
+    is_etf: bool,
+) -> bool:
+    """Persist quote type learned during ETF classification."""
+    ticker_key = normalize_ticker_symbol(ticker)
+    entry = stats_data.get(ticker_key, {})
+    if not isinstance(entry, dict):
+        entry = {}
+
+    quote_type = ETF_QUOTE_TYPE if is_etf else "EQUITY"
+    if entry.get("quote_type") == quote_type:
+        return False
+    entry["quote_type"] = quote_type
+    stats_data[ticker_key] = entry
+    return True
+
+
 def is_etf_ticker(ticker: str) -> bool:
     """Return whether ETF ticker."""
     try:
@@ -235,7 +255,7 @@ def classify_and_resolve_etfs(
     for position in positions:
         ticker = normalize_ticker_symbol(position["ticker"])
         cached_snapshot = load_etf_cache_from_stats(stats_data, ticker, now)
-        if cached_snapshot is not None and cached_snapshot[1]:
+        if cached_snapshot is not None and (cached_snapshot[0] or cached_snapshot[1]):
             holdings, sectors = cached_snapshot
             etf_positions.append(position)
             snapshot_by_ticker[ticker] = ETFSnapshotResult(holdings=holdings, sectors=sectors, error=None)
@@ -250,11 +270,13 @@ def classify_and_resolve_etfs(
             continue
         unresolved_tickers.append(ticker)
 
+    cache_changed = False
     if unresolved_tickers:
         with ThreadPoolExecutor(max_workers=_pool_workers(len(unresolved_tickers), cap=32)) as executor:
             classified = list(executor.map(_fetch_quote_type, unresolved_tickers))
         for ticker, is_etf in classified:
             pos = position_by_ticker[ticker]
+            cache_changed = store_quote_type_in_stats(stats_data, ticker, is_etf=is_etf) or cache_changed
             if is_etf:
                 etf_positions.append(pos)
             else:
@@ -268,7 +290,6 @@ def classify_and_resolve_etfs(
 
     missing_tickers = [normalize_ticker_symbol(position["ticker"]) for position in etf_positions if normalize_ticker_symbol(position["ticker"]) not in snapshot_by_ticker]
     etf_refreshed_count = 0
-    cache_changed = False
     if missing_tickers:
         with ThreadPoolExecutor(max_workers=_pool_workers(len(missing_tickers), cap=16)) as executor:
             fetched = list(executor.map(_fetch_snapshot, missing_tickers))

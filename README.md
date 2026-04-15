@@ -11,6 +11,38 @@ A single-user stock analysis app that prioritizes free data, resilient fallbacks
 - **Cache-aware by design**: Missing fields resolve to `None` or cached values when freshness rules allow, reducing noisy failures and unnecessary refetches.
 - **Batch over piecemeal**: When a provider call naturally returns grouped data, the app consumes it as a batch to reduce duplicate requests.
 
+## Stats Resolution Flow
+
+```mermaid
+flowchart TD
+    accTitle: Family-based stats resolution flow
+    accDescr: Shows how cache-only, auto, and live requests resolve ticker stats through persisted cache, in-memory family cache, inline refresh, and background refresh.
+    Request["Portfolio or standalone stats request"] --> Mode{"Mode / scope?"}
+    Mode -->|`priority` or `cache`| Persisted["Read persisted stats row"]
+    Mode -->|`auto`, `portfolio_live`, `all`, or `live`| Resolver["Family-based stats resolver"]
+
+    Resolver --> Persisted
+    Persisted --> L1["Overlay fresher in-memory family cache"]
+    L1 --> Family{"Family fresh?"}
+
+    Family -->|Yes| ServeFresh["Use cached family"]
+    Family -->|No, `market_data`| InlineFast["Inline refresh realtime market data"]
+    Family -->|No, slow family stale| StaleServe["Serve stale family and queue background refresh"]
+    Family -->|No, slow family missing| InlineSlow["Inline fetch missing slow family"]
+
+    InlineFast --> Provider["Yahoo / StockAnalysis provider fetch"]
+    InlineSlow --> Provider
+    Provider --> Batch["If one page returns extra stats, persist those too"]
+    Batch --> WriteThrough["Write through L1 cache and persisted store"]
+
+    ServeFresh --> Merge["Merge family results into one ticker row"]
+    StaleServe --> Merge
+    WriteThrough --> Merge
+
+    Merge --> Payload["Build portfolio rows or standalone response"]
+    Payload --> Eval["Apply evaluation, labels, and ETF lookthrough tables"]
+```
+
 ## Module Overview
 
 - **`stock_search/data_sources/`**
