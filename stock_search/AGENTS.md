@@ -19,7 +19,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 - `stock_search/portfolio.py` -> portfolio payload orchestration and row assembly.
 - `stock_search/indicators.py` -> source precedence wrapper (`StockIndicator`).
 - `stock_search/data_sources/yahoofinance.py` -> Yahoo provider adapter.
-- `stock_search/data_sources/stockanalysis.py` -> StockAnalysis provider adapter.
+- `stock_search/data_sources/stockanalysis/source.py` -> StockAnalysis provider adapter.
 - `stock_search/evaluation/normalization.py` -> eval field normalization and aliases.
 - `stock_search/evaluation/evaluation.py` -> model/input assembly and score pipeline.
 
@@ -32,7 +32,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` is the central assembly point used by API and dataframe helpers.
 - `stock_search/indicators.py` -> `StockIndicator` resolves fundamental fields with StockAnalysis-first and Yahoo fallback; price/momentum remain Yahoo-led.
 - `stock_search/data_sources/yahoofinance.py` -> source-local extraction only; no cross-provider policy belongs here.
-- `stock_search/data_sources/stockanalysis.py` -> statistics/financials/ETF extraction with scrape-first then web-search fallback.
+- `stock_search/data_sources/stockanalysis/source.py` -> statistics/financials/ETF extraction with scrape-first then web-search fallback.
 
 ## Project-specific conventions and rationale
 

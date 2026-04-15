@@ -11,15 +11,16 @@ This guide is for changes inside `stock_search/data_sources/`.
 ## High-signal locations
 
 - `stock_search/data_sources/yahoofinance.py` -> `YahooFinanceSource`.
-- `stock_search/data_sources/stockanalysis.py` -> `StockAnalysisSource`.
+- `stock_search/data_sources/stockanalysis/source.py` -> `StockAnalysisSource`.
 - `stock_search/indicators.py` -> `StockIndicator` (consumes these adapters).
 
 ## Key takeaways per location
 
 - `stock_search/data_sources/yahoofinance.py -> YahooFinanceSource` centralizes Yahoo info/history/ratings extraction and computes indicator-style values.
 - `stock_search/data_sources/yahoofinance.py -> get_forward_pe_ntm` enforces fiscal-year-weighted NTM PE policy with FY1 fallback.
-- `stock_search/data_sources/stockanalysis.py -> StockAnalysisSource` separates statistics, financials, and ETF holdings/sectors snapshots.
-- `stock_search/data_sources/stockanalysis.py -> get_etf_holdings_snapshot` uses scrape-first, then web-search fallback.
+- `stock_search/data_sources/stockanalysis/source.py -> StockAnalysisSource` separates statistics, financials, and ETF holdings/sectors snapshots.
+- `stock_search/data_sources/stockanalysis/source.py -> get_etf_holdings_snapshot` uses scrape-first, then web-search fallback.
+- `stock_search/data_sources/stockanalysis/page_scrapers/` keeps StockAnalysis page-specific scraping logic grouped by source page.
 
 ## Project-specific conventions and rationale
 
