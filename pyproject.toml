@@ -85,6 +85,9 @@ force-sort-within-sections = true
 [tool.ruff.format]
 docstring-code-format = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.uv.workspace]
 members = [
     "llm-harness",
@@ -92,3 +95,8 @@ members = [
 
 [tool.uv.sources]
 llm-harness = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

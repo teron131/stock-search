@@ -5,6 +5,7 @@ data/
 !ui/sample_data/*.json
 *.ipynb
 *test*
+!tests/*.py
 *.png
 *.jpg
 .playwright-cli/
