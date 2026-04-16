@@ -141,7 +141,7 @@ This ensures the dashboard always shows the freshest data available, while remai
 
 ### Run API + UI
 
-- `uv run python -m uvicorn stock_search.api:app --reload`
+- `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
 
 ### Tests / Scripts
 

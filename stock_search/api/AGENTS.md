@@ -73,6 +73,6 @@ This guide is for changes inside `stock_search/api/`.
 ## Validation commands
 
 - Run API locally:
-  - `uv run python -m uvicorn stock_search.api:app --reload`
+  - `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
 - Formatting/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`

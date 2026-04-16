@@ -73,7 +73,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Validation commands
 
 - Server smoke run:
-  - `uv run python -m uvicorn stock_search.api:app --reload`
+  - `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
 - Formatter/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`
 
