@@ -94,3 +94,20 @@ Current Convex function namespaces are intentionally singular to match the one-p
 - `stock:list`, `stock:get`, `stock:replaceAll`
 - `news:list`, `news:replaceAll`
 - `meta_versions:get`, `meta_versions:set`
+
+## FastMCP
+
+A minimal FastMCP proxy server is available for the existing FastAPI backend. It converts the main backend endpoints into MCP tools without duplicating business logic.
+
+Run it with:
+
+```bash
+uv run python -m stock_search.mcp
+```
+
+The MCP server currently exposes tools for:
+
+- portfolio reads and position updates
+- standalone stock stats
+- stored eval and stock maps
+- realtime config, stock news, and ticker evaluation

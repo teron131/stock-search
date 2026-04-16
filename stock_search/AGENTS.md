@@ -16,6 +16,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 - `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
 - `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
 - `stock_search/api/ticker_standalone.py` -> standalone ticker fallback resolver.
+- `stock_search/mcp/server.py` -> FastMCP proxy surface generated from the existing FastAPI app.
 - `stock_search/portfolio.py` -> portfolio payload orchestration and row assembly.
 - `stock_search/indicators.py` -> source precedence wrapper (`StockIndicator`).
 - `stock_search/data_sources/yahoofinance.py` -> Yahoo provider adapter.
@@ -28,6 +29,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 - `stock_search/api/routes/portfolio.py` -> `portfolio_api` calls `get_portfolio_payload_async(...)`; portfolio handlers should stay thin and avoid embedding market logic.
 - `stock_search/api/data_store.py` is the storage seam: most modules should not call Convex directly.
 - `stock_search/api/routes/standalone_ticker.py` -> standalone ticker endpoints delegate to `resolve_standalone_ticker_stats(...)`.
+- `stock_search/mcp/server.py` -> `FastMCP.from_fastapi(...)` exposes existing backend routes as MCP tools; do not fork business logic here.
 - `stock_search/portfolio.py` -> `_build_row` merges cache + optional live values, then resolves eval with LLM-first and deterministic fallback.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` is the central assembly point used by API and dataframe helpers.
 - `stock_search/indicators.py` -> `StockIndicator` resolves fundamental fields with StockAnalysis-first and Yahoo fallback; price/momentum remain Yahoo-led.
@@ -50,6 +52,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Syntax relationship highlights (ast-grep-first)
 
 - `stock_search/api/app.py` -> includes routers from `stock_search/api/routes/`.
+- `stock_search/mcp/server.py` -> imports `stock_search/api/app.py` and proxies selected routes into MCP tools.
 - `stock_search/api/app.py -> validate_data_backend_on_startup` -> checks Convex connectivity with `meta_versions:get`.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` -> calls `stock_search/portfolio.py -> get_portfolio_payload_async`.
 - `stock_search/api/routes/standalone_ticker.py` -> calls `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats`.
@@ -76,7 +79,6 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## Notes
 
-- This repository currently has no `stock_search/mcp/` module on disk.
 - Existing module docs to keep aligned with this package map:
   - `stock_search/api/AGENTS.md`
   - `stock_search/data_sources/AGENTS.md`

@@ -8,6 +8,7 @@ dependencies = [
     "docling>=2.41.0",
     "exa-py>=2.4.0",
     "fastapi>=0.116.1",
+    "fastmcp>=3.2.4",
     "google-genai>=1.25.0",
     "httpx>=0.28.1",
     "ib-async>=2.0.1",
