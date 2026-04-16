@@ -21,6 +21,8 @@
 	--header-height: 56px;
 	--row-height: 28px;
 	--table-visible-rows: 25;
+	--ticker-char-count: 6;
+	--ticker-column-width: calc((var(--ticker-char-count) * 1ch) + 56px);
 
 	/* Border Radius */
 	--radius-sm: 0px;
@@ -766,8 +768,17 @@ body::after {
 
 table {
 	width: 100%;
-	min-width: fit-content;
+	min-width: max-content;
 	border-collapse: collapse;
+	table-layout: auto;
+}
+
+.table-col-ticker {
+	width: var(--ticker-column-width);
+}
+
+.table-col-remove {
+	width: 52px;
 }
 
 thead {
@@ -810,6 +821,9 @@ th:not(:first-child) {
 th:first-child,
 td:first-child {
 	padding-left: var(--space-md);
+	width: var(--ticker-column-width);
+	min-width: var(--ticker-column-width);
+	max-width: var(--ticker-column-width);
 	position: sticky;
 	left: 0;
 	z-index: 85;

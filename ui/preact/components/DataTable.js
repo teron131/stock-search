@@ -216,6 +216,10 @@ export function DataTable({
 	animateRows = true,
 }) {
 	const cols = COLS[tab];
+	const tickerCharCount = Math.max(
+		"TICKER".length,
+		...rows.map((row) => normalizeTicker(row.ticker).replace("-", ".").length),
+	);
 
 	const filtered = rows.filter((r) => {
 		const qty = Number(r.quantity);
@@ -237,8 +241,22 @@ export function DataTable({
 	});
 
 	return html`
-    <div class="table-wrapper">
+    <div
+      class="table-wrapper"
+      style=${{ "--ticker-char-count": tickerCharCount }}
+    >
       <table id="main-table">
+        <colgroup>
+          ${cols.map((col) => {
+						const className =
+							col.key === "ticker"
+								? "table-col-ticker"
+								: col.key === "remove"
+									? "table-col-remove"
+									: "";
+						return html`<col class=${className} />`;
+					})}
+        </colgroup>
         <thead>
           <tr>
             ${cols.map((c) => {
