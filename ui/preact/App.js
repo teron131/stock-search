@@ -9,7 +9,7 @@ import { DataTable } from "./components/DataTable.js?v=20260416d";
 import { QuickAdd } from "./components/QuickAdd.js?v=20260416d";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js?v=20260416d";
 import { fmt } from "./format.js?v=20260416d";
-import { usePortfolioData } from "./usePortfolioData.js?v=20260416e";
+import { usePortfolioData } from "./usePortfolioData.js?v=20260416f";
 
 const VIEW_TITLES = {
 	dashboard: "DASHBOARD",
@@ -248,7 +248,7 @@ export function App() {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
 		createCalendarWidget();
-		actions.sync({ background: false, scope: "portfolio_live" });
+		actions.sync({ background: false, scope: "all" });
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const onRefresh = () => actions.sync({ background: false });
@@ -331,7 +331,7 @@ export function App() {
 			syncRef.current?.({
 				background: true,
 				silent: false,
-				scope: "portfolio_live",
+				scope: "all",
 			});
 		}, 180_000);
 

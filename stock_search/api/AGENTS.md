@@ -6,24 +6,24 @@ This guide is for changes inside `stock_search/api/`.
 
 - FastAPI entrypoint, route contracts, and static mounts.
 - API-layer orchestration only (no heavy market/eval logic in handlers).
-- Data-store orchestration via `stock_search/api/data_store.py` (Convex primary, file fallback).
+- Data-store orchestration via `stock_search/api/data_store.py` (Convex primary, SQLite local mode).
 
 ## High-signal locations
 
 - `stock_search/api/app.py` -> FastAPI app bootstrap, router registration, static mounts.
-- `stock_search/api/data_store.py` -> backend-agnostic data access (`convex|file`) for positions/stats/evals.
+- `stock_search/api/data_store.py` -> backend-agnostic data access (`convex|sqlite`) for positions/stats/evals.
 - `stock_search/models/convex/client.py` -> Convex HTTP adapter (`query`, `mutation`, `action`).
 - `stock_search/api/routes/portfolio.py` -> portfolio list/read-write routes and scope policy.
 - `stock_search/api/routes/standalone_ticker.py` -> standalone ticker routes (`/api/portfolio/{ticker}`, `/api/stats/{ticker}`).
 - `stock_search/api/ticker_standalone.py` -> ticker standalone resolver (`source=auto|live|cache`).
 - `stock_search/api/routes/misc.py` -> lightweight eval/news/color utility routes.
 - `stock_search/portfolio.py` -> `get_portfolio_payload` consumed by portfolio routes.
-- `stock_search/models/convex/import_data.py` -> one-way bootstrap from local JSON into Convex tables.
+- `stock_search/models/convex/import_data.py` -> one-way import from the local SQLite store into Convex tables.
 
 ## Key takeaways per location
 
 - `stock_search/api/app.py -> validate_data_backend_on_startup` performs Convex startup check when backend is `convex`.
-- `stock_search/api/data_store.py` is the only module that should know whether storage is Convex or file-backed.
+- `stock_search/api/data_store.py` is the only module that should know whether storage is Convex or SQLite-backed.
 - `stock_search/api/routes/portfolio.py -> portfolio_api` controls scope-to-behavior mapping (`priority`, `portfolio_live`, `all`) and response metadata.
 - `stock_search/api/routes/standalone_ticker.py` keeps ticker routes standalone and free from portfolio scope/priority behavior.
 - `stock_search/api/ticker_standalone.py -> resolve_standalone_ticker_stats` owns `source=auto|live|cache` fallback semantics and live-failure handling.
@@ -36,9 +36,7 @@ This guide is for changes inside `stock_search/api/`.
 - Preserve public API shape while backend storage evolves.
 - Preserve source-of-truth policy:
   - default runtime source: Convex (`DATA_STORE_BACKEND=convex`)
-  - fallback/dev source: local JSON (`DATA_STORE_BACKEND=file`)
-- Preserve mount order invariant:
-  - `app.mount("/data", ...)` must remain before `app.mount("/", ...)`.
+  - local runtime source: SQLite (`DATA_STORE_BACKEND=sqlite`)
 - Preserve `/api/portfolio` scope behavior:
   - `priority`: cache-only holdings rows, no live market, cache timestamp.
   - `portfolio_live`: holdings rows with live market fetch.

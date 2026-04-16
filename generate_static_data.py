@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 import random
 
+from stock_search.api.config import DATA_SQLITE_PATH, SAMPLE_DATA_SQLITE_PATH
 from stock_search.common_utils import format_market_cap, round_optional
 from stock_search.config import PortfolioConfig
 from stock_search.evaluation.evaluation import evaluate_asset
@@ -15,9 +16,9 @@ from stock_search.evaluation.scores import (
     calculate_valuation_score,
     market_cap_score,
 )
-from stock_search.file_utils import load_json, write_json
 from stock_search.indicators import StockIndicator
 from stock_search.models import Evaluation, ScoredReason
+from stock_search.sqlite_store import SQLiteStore
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
@@ -272,7 +273,7 @@ def generate_eval_entry(ticker: str, stats: dict) -> dict:
         quality_score = 6.5
 
     # Assemble the eval entry to match Evaluation schema + flat properties
-    # Note: We return a dict that matches the 'eval.json' structure
+    # Note: We return a dict that matches the persisted evaluation row shape.
 
     # Compute overall score roughly matching the Core Index logic
     overall = (moat_score + quality_score + valuation_score + upside_score) / 4.0
@@ -353,21 +354,15 @@ def allocate_portfolio(stats_map: dict[str, dict], eval_map: dict[str, dict]) ->
     return portfolio_entries
 
 
-def _load_portfolio_tickers(path: Path) -> set[str]:
-    """Load unique tickers from a `portfolio.json` file."""
-    data = load_json(path, default=[])
-    if not data:
-        return set()
+def _local_store(path: Path) -> SQLiteStore:
+    """Build a SQLite store for generation flows."""
+    return SQLiteStore(path)
 
-    if isinstance(data, list):
-        rows = data
-    elif isinstance(data, dict):
-        rows = data.get("positions") or data.get("rows") or []
-    else:
-        rows = []
 
+def _load_portfolio_tickers(store: SQLiteStore) -> set[str]:
+    """Load unique tickers from the configured SQLite store."""
     tickers: set[str] = set()
-    for row in rows:
+    for row in store.load_positions():
         if isinstance(row, dict) and (ticker := row.get("ticker")):
             tickers.add(str(ticker))
 
@@ -380,12 +375,14 @@ def generate_static_data(
     include_portfolio: bool = False,
     prod_write_portfolio: bool = False,
 ):
-    """Generate sample data (and optionally refresh production caches)."""
+    """Generate sample data into SQLite stores."""
 
-    # Default behavior: sample-only generation
+    main_store = _local_store(DATA_SQLITE_PATH)
+    sample_store = _local_store(SAMPLE_DATA_SQLITE_PATH)
+
     portfolio_tickers: set[str] = set()
     if include_portfolio or prod:
-        portfolio_tickers = _load_portfolio_tickers(Path("data/portfolio.json"))
+        portfolio_tickers = _load_portfolio_tickers(main_store)
 
     all_tickers = sorted(set(SAMPLE_TICKERS) | portfolio_tickers)
 
@@ -421,37 +418,33 @@ def generate_static_data(
         data.pop("_raw_info_snapshot", None)
         data.pop("_market_cap_raw", None)
 
-    # 5. Save
-    print("Saving files...")
+    print("Saving SQLite stores...")
 
-    # Always save to ui/sample_data for frontend dev
-    sample_dir = Path("ui/sample_data")
+    generated_at = datetime.now(tz=UTC).isoformat()
+    stock_map = {
+        ticker: {
+            "indicators": dict(stats_map.get(ticker) or {}),
+            "evaluation": dict(eval_map.get(ticker) or {}),
+            "labels": [],
+        }
+        for ticker in sorted(set(stats_map) | set(eval_map))
+    }
 
-    write_json(
-        sample_dir / "portfolio.json",
-        {
-            "rows": portfolio_list,
-            "generated_at": datetime.now(tz=UTC).isoformat(),
-        },
-    )
-    write_json(sample_dir / "stats.json", stats_map)
-    write_json(sample_dir / "eval.json", eval_map)
-    print(f"Saved to {sample_dir}")
+    sample_store.save_stocks(stock_map)
+    sample_store.save_positions(portfolio_list)
+    sample_store.set_meta_value(key="stats_generated_at", value=generated_at)
+    print(f"Saved sample data to {sample_store.db_path}")
 
-    # Conditionally save to data/ for backend use
-    # Note: portfolio.json is the server source of truth and is NOT overwritten unless requested.
     if prod:
-        data_dir = Path("data")
-
-        write_json(data_dir / "stats.json", stats_map)
-        write_json(data_dir / "eval.json", eval_map)
+        main_store.save_stocks(stock_map)
+        main_store.set_meta_value(key="stats_generated_at", value=generated_at)
 
         if prod_write_portfolio:
-            write_json(data_dir / "portfolio.json", portfolio_list)
+            main_store.save_positions(portfolio_list)
 
-        print(f"Saved caches to {data_dir}")
+        print(f"Saved production data to {main_store.db_path}")
     else:
-        print("Skipping save to data/ (use --prod to save caches there)")
+        print("Skipping production database update (use --prod to save there)")
 
     print(f"SUCCESS: Generated {len(portfolio_list)} positions.")
     print(f"Stats: {len(stats_map)} entries")
@@ -459,21 +452,21 @@ def generate_static_data(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate static data for stock search.")
+    parser = argparse.ArgumentParser(description="Generate sample data for stock search.")
     parser.add_argument(
         "--include-portfolio",
         action="store_true",
-        help="Include tickers from data/portfolio.json in generated sample data",
+        help="Include tickers from the production SQLite portfolio in generated sample data",
     )
     parser.add_argument(
         "--prod",
         action="store_true",
-        help="Write refreshed caches (stats/eval) to data/",
+        help="Write refreshed stats and eval data to the production SQLite database",
     )
     parser.add_argument(
         "--prod-write-portfolio",
         action="store_true",
-        help="Also overwrite data/portfolio.json (not recommended)",
+        help="Also overwrite production portfolio positions in SQLite",
     )
 
     args = parser.parse_args()

@@ -7,11 +7,7 @@ import {
 } from "https://esm.sh/preact@10.19.6/hooks";
 
 import { CONFIG } from "./config.js";
-import {
-	isValidStaticPortfolioPayload,
-	normalizeApiDashboardPayload,
-	normalizeStaticDashboardPayload,
-} from "./dataContract.js";
+import { normalizeApiDashboardPayload } from "./dataContract.js";
 import { normalizeTicker } from "./format.js";
 
 const EVAL_KEYS = [
@@ -184,51 +180,6 @@ function removeRow(rows, ticker) {
 	);
 }
 
-function staticPathCandidates() {
-	const primary = CONFIG.demoPaths.primary;
-	const fallback = CONFIG.demoPaths.fallback;
-	const basePaths = [primary, fallback].filter(Boolean);
-
-	return [...new Set(basePaths)].flatMap((basePath) => {
-		if (String(basePath).startsWith("/")) {
-			return [basePath];
-		}
-		return [basePath, `/${String(basePath).replace(/^\/+/, "")}`];
-	});
-}
-
-async function determineStaticBasePath() {
-	const candidates = staticPathCandidates();
-
-	for (const basePath of candidates) {
-		const payload = await tryFetchJson(`${basePath}/portfolio.json`);
-		if (isValidStaticPortfolioPayload(payload)) {
-			return basePath;
-		}
-	}
-
-	return CONFIG.demoPaths.fallback;
-}
-
-async function fetchStaticPortfolioData(basePath) {
-	const [portfolioRaw, statsRaw, evalRaw] = await Promise.all([
-		tryFetchJson(`${basePath}/portfolio.json`),
-		tryFetchJson(`${basePath}/stats.json`),
-		tryFetchJson(`${basePath}/eval.json`),
-	]);
-
-	const normalized = normalizeStaticDashboardPayload({
-		portfolioPayload: portfolioRaw,
-		statsPayload: statsRaw,
-		evalPayload: evalRaw,
-	});
-	if (!normalized) {
-		throw new Error("Static portfolio not found");
-	}
-
-	return normalized;
-}
-
 export function usePortfolioData() {
 	const [rows, setRows] = useState([]);
 	const [portfolioStats, setPortfolioStats] = useState(null);
@@ -239,19 +190,11 @@ export function usePortfolioData() {
 	const [lastError, setLastError] = useState(null);
 
 	const syncInFlightRef = useRef(false);
-	const demoPathRef = useRef(null);
 	const syncActionRef = useRef(null);
 	const realtimeClientRef = useRef(null);
 	const realtimeUnsubscribersRef = useRef([]);
 	const realtimeRefreshTimeoutRef = useRef(null);
 	const realtimeEnabledRef = useRef(false);
-
-	const resolveDemoPath = useCallback(async () => {
-		if (demoPathRef.current) return demoPathRef.current;
-		const resolved = await determineStaticBasePath();
-		demoPathRef.current = resolved;
-		return resolved;
-	}, []);
 
 	const stats = useMemo(() => {
 		const { totalVal, rows: weighted } = calculateWeights(rows);
@@ -315,11 +258,6 @@ export function usePortfolioData() {
 				: null,
 		);
 	}, []);
-
-	const loadFromStatic = useCallback(async () => {
-		const basePath = await resolveDemoPath();
-		return fetchStaticPortfolioData(basePath);
-	}, [resolveDemoPath]);
 
 	const stopRealtimeSync = useCallback(async () => {
 		if (realtimeRefreshTimeoutRef.current != null) {
@@ -438,14 +376,6 @@ export function usePortfolioData() {
 			}
 			setLastError(null);
 			try {
-				if (CONFIG.isDemoMode) {
-					await stopRealtimeSync();
-					setIsUsingDemoData(true);
-					const payload = await loadFromStatic();
-					applyPayload(payload);
-					return;
-				}
-
 				const { dashData, standards } = await loadFromApi({
 					background,
 					scope,
@@ -459,23 +389,15 @@ export function usePortfolioData() {
 				applyPayload({ dashData, evalData: {} });
 				await startRealtimeSync();
 			} catch (e) {
+				await stopRealtimeSync();
 				setLastError(e);
+				setIsUsingDemoData(false);
 
 				if (background) {
 					return;
 				}
-
-				try {
-					const payload = await loadFromStatic();
-					await stopRealtimeSync();
-					setIsUsingDemoData(true);
-					applyPayload(payload);
-				} catch {
-					if (!background) {
-						setRows([]);
-						setPortfolioStats(null);
-					}
-				}
+				setRows([]);
+				setPortfolioStats(null);
 			} finally {
 				syncInFlightRef.current = false;
 				if (!silent) {
@@ -486,7 +408,6 @@ export function usePortfolioData() {
 		[
 			applyPayload,
 			loadFromApi,
-			loadFromStatic,
 			loadingMode,
 			startRealtimeSync,
 			stopRealtimeSync,
@@ -616,7 +537,7 @@ export function usePortfolioData() {
 			if (!res.ok) return { ok: false, reason: "server" };
 
 			const payload = await res.json();
-			await load({ background: false, silent: false, scope: "portfolio_live" });
+			await load({ background: false, silent: false, scope: "all" });
 			return { ok: true, payload };
 		},
 		[isUsingDemoData, load],

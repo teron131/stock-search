@@ -1,4 +1,4 @@
-"""Import local JSON data into the Convex backend."""
+"""Import the local SQLite data store into the Convex backend."""
 
 from __future__ import annotations
 
@@ -8,9 +8,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from ...api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
-from ...file_utils import load_json
-from ...utils import normalize_ticker_symbol
+from ...api.config import DATA_SQLITE_PATH
+from ...sqlite_store import SQLiteStore
 from .client import ConvexHttpAdapter
 from .convex_schemas import normalize_portfolio_positions, stock_map_to_rows
 from .function_names import (
@@ -22,57 +21,18 @@ from .function_names import (
 STATS_GENERATED_AT_KEY = "stats_generated_at"
 
 
-def _load_positions(path: Path) -> list[dict[str, object]]:
-    """Load local portfolio positions for Convex import."""
-    payload = load_json(path, default=[])
-    if isinstance(payload, list):
-        return [row for row in payload if isinstance(row, dict)]
-    if isinstance(payload, dict):
-        positions = payload.get("positions", [])
-        if isinstance(positions, list):
-            return [row for row in positions if isinstance(row, dict)]
-    return []
-
-
-def _load_ticker_map(path: Path) -> dict[str, dict[str, object]]:
-    """Load a local ticker-keyed JSON map."""
-    payload = load_json(path, default={})
-    if not isinstance(payload, dict):
-        return {}
-    return {ticker_symbol: row for ticker, row in payload.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
-
-
-def run_import_from_local_files(
+def run_import_from_local_store(
     *,
-    portfolio_path: Path = PORTFOLIO_PATH,
-    stats_path: Path = STATS_PATH,
-    eval_path: Path = EVAL_PATH,
+    db_path: Path = DATA_SQLITE_PATH,
 ) -> dict[str, int]:
-    """Push the local portfolio and stock data files into Convex."""
+    """Push the local portfolio and stock data store into Convex."""
     client = ConvexHttpAdapter(
         base_url=os.getenv("CONVEX_URL", ""),
         deploy_key=os.getenv("CONVEX_DEPLOY_KEY", ""),
     )
-    positions = normalize_portfolio_positions(_load_positions(portfolio_path))
-    stats_map = _load_ticker_map(stats_path)
-    eval_map = _load_ticker_map(eval_path)
-    merged_stock_map: dict[str, dict[str, object]] = {}
-    for ticker, stats_row in stats_map.items():
-        merged_stock_map[ticker] = {
-            "indicators": dict(stats_row),
-            "evaluation": {},
-            "labels": [],
-        }
-    for ticker, eval_row in eval_map.items():
-        existing = merged_stock_map.setdefault(
-            ticker,
-            {
-                "indicators": {},
-                "evaluation": {},
-                "labels": [],
-            },
-        )
-        existing["evaluation"] = dict(eval_row)
+    store = SQLiteStore(db_path)
+    positions = normalize_portfolio_positions(store.load_positions())
+    merged_stock_map = store.load_stocks()
 
     client.mutation(
         CONVEX_PORTFOLIO_SET,
@@ -101,7 +61,20 @@ def run_import_from_local_files(
     }
 
 
+def run_import_from_local_files(
+    *,
+    db_path: Path = DATA_SQLITE_PATH,
+    portfolio_path: Path | None = None,
+    stats_path: Path | None = None,
+    eval_path: Path | None = None,
+) -> dict[str, int]:
+    """Deprecated compatibility wrapper for the old JSON import entrypoint."""
+    if portfolio_path is not None or stats_path is not None or eval_path is not None:
+        raise ValueError("JSON-based import arguments were removed. Use db_path or run_import_from_local_store() with the local SQLite database instead.")
+    return run_import_from_local_store(db_path=db_path)
+
+
 if __name__ == "__main__":
     load_dotenv(".env")
-    result = run_import_from_local_files()
+    result = run_import_from_local_store()
     print(result)

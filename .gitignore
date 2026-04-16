@@ -2,7 +2,9 @@
 uv.lock
 *.json
 data/
-!ui/sample_data/*.json
+*.db
+*.db-shm
+*.db-wal
 *.ipynb
 *test*
 !tests/*.py

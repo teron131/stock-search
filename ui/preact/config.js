@@ -22,11 +22,6 @@ export const CONFIG = {
 		portfolioBackground: 120_000,
 	},
 
-	demoPaths: {
-		primary: "sample_data",
-		fallback: "data",
-	},
-
 	defaultStrategy: "Speculation",
 	maxTickerLength: 10,
 	maxTickerTapeCount: 20,

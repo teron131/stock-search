@@ -13,7 +13,6 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 from llm_harness.clients import ImageAnalysisAgent
 from pydantic import BaseModel, Field
 
-from stock_search.api.config import EVAL_PATH, PORTFOLIO_PATH, STATS_PATH
 from stock_search.api.data_store import backend_name
 from stock_search.api.meta import now_iso, stats_cache_generated_at
 from stock_search.api.portfolio_store import find_position_index, load_positions, save_positions
@@ -148,13 +147,10 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
     include_live_market = scope_config["include_live_market"]
 
     payload = await get_portfolio_payload_async(
-        PORTFOLIO_PATH,
-        STATS_PATH,
-        EVAL_PATH,
         include_cached_universe=include_cached_universe,
         include_live_market=include_live_market,
     )
-    generated_at = stats_cache_generated_at(STATS_PATH) if scope_config["use_cache_timestamp"] else now_iso()
+    generated_at = stats_cache_generated_at() if scope_config["use_cache_timestamp"] else now_iso()
     payload["meta"]["generated_at"] = generated_at
     payload["meta"]["data_source"] = "cache" if resolved_scope == "priority" else payload["meta"].get("data_source", PORTFOLIO_DATA_SOURCE[resolved_scope])
     payload["meta"]["backend_store"] = backend_name()

@@ -15,32 +15,63 @@ A single-user stock analysis app that prioritizes free data, resilient fallbacks
 
 ```mermaid
 flowchart TD
-    accTitle: Family-based stats resolution flow
-    accDescr: Shows how cache-only, auto, and live requests resolve ticker stats through persisted cache, in-memory family cache, inline refresh, and background refresh.
-    Request["Portfolio or standalone stats request"] --> Mode{"Mode / scope?"}
-    Mode -->|`priority` or `cache`| Persisted["Read persisted stats row"]
-    Mode -->|`auto`, `portfolio_live`, `all`, or `live`| Resolver["Family-based stats resolver"]
+    accTitle: Family-based stats workflow
+    accDescr: Shows how portfolio and standalone requests resolve stats through mode selection, layered caches, family freshness checks, provider refreshes, and final payload assembly.
 
-    Resolver --> Persisted
-    Persisted --> L1["Overlay fresher in-memory family cache"]
-    L1 --> Family{"Family fresh?"}
+    Request["Portfolio or standalone request"]
+    Request --> Mode{"Scope / source"}
 
-    Family -->|Yes| ServeFresh["Use cached family"]
-    Family -->|No, `market_data`| InlineFast["Inline refresh realtime market data"]
-    Family -->|No, slow family stale| StaleServe["Serve stale family and queue background refresh"]
-    Family -->|No, slow family missing| InlineSlow["Inline fetch missing slow family"]
+    Mode -->|`priority` or `cache`| CacheMode["Cache-only path"]
+    Mode -->|`auto`, `portfolio_live`, `all`| AutoMode["Auto path"]
+    Mode -->|`live`| LiveMode["Live-only path"]
 
-    InlineFast --> Provider["Yahoo / StockAnalysis provider fetch"]
-    InlineSlow --> Provider
-    Provider --> Batch["If one page returns extra stats, persist those too"]
-    Batch --> WriteThrough["Write through L1 cache and persisted store"]
+    CacheMode --> Load["Read persisted ticker row"]
+    AutoMode --> Load
+    LiveMode --> Load
 
-    ServeFresh --> Merge["Merge family results into one ticker row"]
-    StaleServe --> Merge
-    WriteThrough --> Merge
+    Load --> Overlay["Overlay fresher in-memory family cache"]
+    Overlay --> Decision{"Family state?"}
 
-    Merge --> Payload["Build portfolio rows or standalone response"]
-    Payload --> Eval["Apply evaluation, labels, and ETF lookthrough tables"]
+    Decision -->|Fresh| Fresh["Use cached family"]
+    Decision -->|Slow family stale in `auto`| Stale["Serve stale family"]
+    Stale -.-> Queue["Queue background refresh"]
+    Decision -->|Slow family missing| InlineSlow["Inline scrape/fetch"]
+    Decision -->|Market family expired| InlineFast["Inline market refresh"]
+    Decision -->|`live` mode| ForceLive["Force inline refresh"]
+
+    InlineSlow --> Provider["Provider fetch"]
+    InlineFast --> Provider
+    ForceLive --> Provider
+
+    Provider --> Piggyback["Reuse grouped page results"]
+    Piggyback --> Persist["Write through memory + persisted cache"]
+
+    Fresh --> Merge["Merge family results into one ticker row"]
+    Stale --> Merge
+    Persist --> Merge
+
+    Merge --> Standalone["Standalone ticker response"]
+    Merge --> Portfolio["Portfolio rows"]
+    Portfolio --> Enrich["Apply labels, eval, and ETF lookthrough tables"]
+```
+
+```mermaid
+flowchart TD
+    accTitle: Source priority by stat family
+    accDescr: Shows which provider is preferred for each stat family and where cache fallback fits.
+
+    subgraph YahooLed["Yahoo-led families"]
+        direction LR
+        Market["Realtime market data"] --> MarketFlow["Yahoo first -> cache fallback"]
+        Snapshot["Market snapshot"] --> SnapshotFlow["Yahoo first -> cache fallback"]
+        Ratings["Ratings"] --> RatingsFlow["Yahoo first -> fresh cache second"]
+    end
+
+    subgraph ScrapeLed["Scrape-led families"]
+        direction LR
+        Stats["Statistics"] --> StatsFlow["StockAnalysis scrape -> fresh cache -> Yahoo fallback"]
+        Financials["Financials"] --> FinancialsFlow["StockAnalysis scrape -> fresh cache -> Yahoo fallback"]
+    end
 ```
 
 ## Module Overview
@@ -94,6 +125,11 @@ Current Convex function namespaces are intentionally singular to match the one-p
 - `stock:list`, `stock:get`, `stock:replaceAll`
 - `news:list`, `news:replaceAll`
 - `meta_versions:get`, `meta_versions:set`
+
+## Local SQLite
+
+- Local fallback and non-Convex mode now use `data/stock_search.db`.
+- `generate_static_data.py` writes sample data to `data/sample_stock_search.db` by default and can refresh the main SQLite store with `--prod`.
 
 ## FastMCP
 

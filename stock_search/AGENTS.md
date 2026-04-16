@@ -5,13 +5,13 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Scope
 
 - Package-level orchestration across API, portfolio assembly, indicators, and providers.
-- Data flow between Convex cloud tables and optional local JSON fallback/bootstrap files.
+- Data flow between Convex cloud tables and the local SQLite store.
 - How to change modules safely without breaking UI/API contracts.
 
 ## High-signal locations
 
 - `stock_search/api/app.py` -> FastAPI entrypoint/bootstrap and router registration.
-- `stock_search/api/data_store.py` -> unified storage boundary (`convex|file`) for positions/stats/evals.
+- `stock_search/api/data_store.py` -> unified storage boundary (`convex|sqlite`) for positions/stats/evals.
 - `stock_search/models/convex/client.py` -> Convex HTTP transport wrapper.
 - `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
 - `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
@@ -39,11 +39,8 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Project-specific conventions and rationale
 
 - Default source-of-truth is Convex tables (`positions`, `stats`, `evals`, `meta_versions`) via `stock_search/api/data_store.py`.
-- Keep local JSON files as fallback/bootstrap artifacts:
-  - `data/portfolio.json`
-  - `data/stats.json`
-  - `data/eval.json`
-- Use `stock_search/models/convex/import_data.py` for one-way bootstrap from local JSON into Convex.
+- Local non-Convex persistence uses `data/stock_search.db`.
+- Use `stock_search/models/convex/import_data.py` for one-way import from the local SQLite store into Convex.
 - Preserve source precedence policy:
   - Fundamentals: StockAnalysis primary, cached values secondary, Yahoo fallback.
   - Live market fields: Yahoo snapshot/cache path.

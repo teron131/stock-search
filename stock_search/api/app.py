@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from stock_search.api.config import CONVEX_DEPLOY_KEY, CONVEX_URL, DATA_DIR, INDEX_FILE, UI_DIR
+from stock_search.api.config import CONVEX_DEPLOY_KEY, CONVEX_URL, INDEX_FILE, UI_DIR
 from stock_search.api.data_store import backend_name
 from stock_search.api.routes import misc_router, portfolio_router, standalone_ticker_router
 from stock_search.models.convex.store import ConvexStore
@@ -33,10 +33,6 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Stock Search Dashboard", lifespan=lifespan)
-
-# Expose backend `data/` to the UI (portfolio/eval/stats JSON)
-# This must be mounted before the UI mount at "/".
-app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
 
 
 @app.get("/")

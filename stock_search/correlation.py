@@ -19,11 +19,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .api.portfolio_store import load_positions
 from .common_utils import normalize_ticker_symbol
 from .data_sources.yahoofinance import YahooFinanceSource
-from .file_utils import load_json
 
-PORTFOLIO_PATH = Path("data/portfolio.json")
 HISTORY_PERIOD = "5y"
 DEFAULT_TICKERS: list[str] = []
 TRADING_DAYS_PER_YEAR = 252
@@ -138,10 +137,10 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
-def _load_tickers_from_portfolio(path: Path) -> list[str]:
-    """Load ticker symbols from the configured portfolio file."""
-    raw_portfolio = load_json(path, default={})
-    positions = raw_portfolio.get("positions", [])
+def _load_tickers_from_portfolio(path: Path | None = None) -> list[str]:
+    """Load ticker symbols from the configured portfolio store."""
+    _ = path
+    positions = load_positions()
 
     tickers: list[str] = []
     for row in positions:
@@ -156,7 +155,7 @@ def _resolve_tickers() -> list[str]:
     configured = [ticker for raw in DEFAULT_TICKERS if (ticker := normalize_ticker_symbol(raw))]
     if configured:
         return _dedupe_preserve_order(configured)
-    return _load_tickers_from_portfolio(PORTFOLIO_PATH)
+    return _load_tickers_from_portfolio()
 
 
 def _fetch_single_ticker_history(ticker: str) -> tuple[str, pd.Series, str]:
@@ -580,7 +579,7 @@ def main() -> dict[str, Any]:
     """Run the correlation report's CLI entrypoint."""
     portfolio_tickers = _resolve_tickers()
     if not portfolio_tickers:
-        raise ValueError("No tickers found. Set DEFAULT_TICKERS or add positions to data/portfolio.json.")
+        raise ValueError("No tickers found. Set DEFAULT_TICKERS or add positions to the local portfolio store.")
     market_ticker = normalize_ticker_symbol(MARKET_PROXY_TICKER)
     fetch_tickers = portfolio_tickers.copy()
     if CORRELATION_MODE == CorrelationMode.MARKET_NEUTRAL and market_ticker:

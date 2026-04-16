@@ -41,7 +41,7 @@ This guide is for changes inside `stock_search/evaluation/`.
 
 - Change constants first when shifting calibration behavior, then update formulas only when required.
 - Keep scoring functions pure and easy to reason about; avoid hidden side effects.
-- Validate normalization behavior against mixed/legacy `eval.json` payload shapes.
+- Validate normalization behavior against mixed persisted evaluation payload shapes.
 
 ## Validation commands
 

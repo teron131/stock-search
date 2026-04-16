@@ -827,9 +827,9 @@ def _rank_rows(rows: list[dict[str, Any]]) -> None:
 
 def _load_payload_inputs(
     *,
-    portfolio_path: str | Path,
-    stats_path: str | Path,
-    eval_path: str | Path,
+    portfolio_path: str | Path | None,
+    stats_path: str | Path | None,
+    eval_path: str | Path | None,
     include_cached_universe: bool,
 ) -> PortfolioPayloadInputs:
     """Load the portfolio, stats, and evaluation inputs for payload building."""
@@ -1025,9 +1025,9 @@ def _assemble_portfolio_payload(
 
 
 def get_portfolio_payload(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> dict[str, Any]:
@@ -1058,9 +1058,9 @@ def get_portfolio_payload(
 
 
 async def get_portfolio_payload_async(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> dict[str, Any]:
@@ -1093,9 +1093,9 @@ async def get_portfolio_payload_async(
 
 
 def build_portfolio_dataframe(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
@@ -1114,9 +1114,9 @@ def build_portfolio_dataframe(
 
 
 def get_dashboard(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
     include_cached_universe: bool = True,
     include_live_market: bool = True,
 ) -> pd.DataFrame:
@@ -1133,9 +1133,9 @@ def get_dashboard(
 def get_weighted_indicators(
     indicators: Sequence[str] | None = None,
     *,
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
     include_cached_universe: bool = False,
 ) -> dict[str, float | None]:
     """Return weighted indicator averages for the portfolio.
@@ -1178,9 +1178,9 @@ def get_weighted_indicators(
 
 
 def display_dashboard(
-    portfolio_path: str | Path = "data/portfolio.json",
-    stats_path: str | Path = "data/stats.json",
-    eval_path: str | Path = "data/eval.json",
+    portfolio_path: str | Path | None = None,
+    stats_path: str | Path | None = None,
+    eval_path: str | Path | None = None,
 ) -> None:
     """Render the portfolio dashboard to the console."""
     dataframe = get_dashboard(

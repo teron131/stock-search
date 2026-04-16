@@ -30,7 +30,7 @@ def write_json(path: str | Path, data: Any, *, indent: int = 2) -> None:
     payload = json.dumps(data, indent=indent)
 
     # Write atomically to avoid readers observing partial files during concurrent
-    # reads (e.g., UI polling /data/*.json while an update is being persisted).
+    # reads while an update is being persisted.
     fd: int | None = None
     tmp_path: Path | None = None
     try:
