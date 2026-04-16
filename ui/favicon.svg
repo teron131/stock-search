@@ -1,19 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Stock Search">
-  <rect width="64" height="64" fill="#d9ff3f" rx="4" />
+  <rect width="64" height="64" rx="14" fill="#d9ff3f" />
   <path
-    d="M14 41.5 25 30l8 7 17-17"
-    fill="none"
-    stroke="#050505"
-    stroke-linecap="square"
-    stroke-linejoin="miter"
-    stroke-width="5"
+    d="M14 23 25 32 14 41 19 46 36 32 19 18Z"
+    fill="#050505"
   />
-  <path
-    d="M40 20h10v10"
-    fill="none"
-    stroke="#050505"
-    stroke-linecap="square"
-    stroke-linejoin="miter"
-    stroke-width="5"
-  />
+  <rect x="37" y="21" width="5.5" height="19" fill="#050505" />
+  <rect x="45.5" y="17" width="5.5" height="23" fill="#050505" />
+  <rect x="54" y="13" width="5.5" height="27" fill="#050505" />
+  <rect x="17.5" y="46.5" width="15" height="4.5" fill="#050505" />
 </svg>
