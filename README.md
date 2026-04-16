@@ -111,3 +111,18 @@ The MCP server currently exposes tools for:
 - standalone stock stats
 - stored eval and stock maps
 - realtime config, stock news, and ticker evaluation
+
+## CLI
+
+The same MCP-backed tool set is also available as a local CLI.
+
+Run it with:
+
+```bash
+uv run stock-search list-tools
+uv run stock-search get-portfolio --scope priority
+uv run stock-search get-stock-stats NVDA --source cache
+uv run stock-search evaluate-stock NVDA
+```
+
+The CLI discovers the MCP tools at runtime and maps them to kebab-case subcommands, so it stays aligned with the MCP surface.

@@ -29,6 +29,9 @@ dependencies = [
     "yfinance>=0.2.65",
 ]
 
+[project.scripts]
+stock-search = "stock_search.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
