@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -123,16 +123,29 @@ def _load_stocks_from_sqlite() -> dict[str, dict[str, Any]]:
     return _sqlite_store().load_stocks()
 
 
+def _normalize_ticker_list(tickers: Sequence[str] | None) -> list[str]:
+    """Normalize a ticker list and preserve unique order."""
+    if tickers is None:
+        return []
+    normalized = [ticker_symbol for ticker in tickers if (ticker_symbol := normalize_ticker_symbol(ticker))]
+    return list(dict.fromkeys(normalized))
+
+
+def _stock_families_from_map(stocks_map: dict[str, dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Split the merged stock map into indicator and evaluation families."""
+    stats_map = {ticker: dict(stock_row.get("indicators") or {}) for ticker, stock_row in stocks_map.items()}
+    eval_map = {ticker: dict(stock_row.get("evaluation") or {}) for ticker, stock_row in stocks_map.items()}
+    return stats_map, eval_map
+
+
 def _load_stats_map_from_sqlite() -> dict[str, dict[str, Any]]:
     """Load the indicator cache map from the local SQLite store."""
-    stocks_map = _load_stocks_from_sqlite()
-    return {ticker: dict(stock_row.get("indicators") or {}) for ticker, stock_row in stocks_map.items()}
+    return _stock_families_from_map(_load_stocks_from_sqlite())[0]
 
 
 def _load_eval_map_from_sqlite() -> dict[str, dict[str, Any]]:
     """Load the evaluation map from the local SQLite store."""
-    stocks_map = _load_stocks_from_sqlite()
-    return {ticker: dict(stock_row.get("evaluation") or {}) for ticker, stock_row in stocks_map.items()}
+    return _stock_families_from_map(_load_stocks_from_sqlite())[1]
 
 
 def _sqlite_stats_generated_at_iso() -> str | None:
@@ -211,13 +224,12 @@ def load_ticker_context(ticker: str) -> tuple[list[dict[str, Any]], dict[str, An
             store = _convex_store()
             with ThreadPoolExecutor(max_workers=2) as executor:
                 portfolio_future = executor.submit(store.load_portfolio)
-                stocks_future = executor.submit(store.load_stocks)
+                stock_future = executor.submit(store.load_stock, ticker_symbol)
                 portfolio = portfolio_future.result()
-                stocks_map = stocks_future.result()
+                stock_row = stock_future.result()
 
             positions = portfolio.get("positions")
             normalized_positions = [row for row in positions if isinstance(row, dict)] if isinstance(positions, list) else []
-            stock_row = stocks_map.get(ticker_symbol)
             if not isinstance(stock_row, dict):
                 return normalized_positions, {}, []
 
@@ -248,6 +260,33 @@ def load_stocks() -> dict[str, dict[str, Any]]:
     return _load_stocks_from_sqlite()
 
 
+def load_stock_families(*, tickers: Sequence[str] | None = None) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Load indicator and evaluation maps with a single backend read when possible."""
+    normalized_tickers = _normalize_ticker_list(tickers)
+
+    if BACKEND == "convex":
+
+        def _load_from_convex() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+            stocks_map = _convex_store().load_stocks() if tickers is None else _convex_store().load_stocks_by_tickers(normalized_tickers)
+            return _stock_families_from_map(stocks_map)
+
+        return _convex_read_or_local_fallback(
+            "stock families",
+            _load_from_convex,
+            lambda: _stock_families_from_map(
+                _load_stocks_from_sqlite()
+                if tickers is None
+                else {ticker: stock_row for ticker, stock_row in _load_stocks_from_sqlite().items() if ticker in set(normalized_tickers)}
+            ),
+        )
+
+    stocks_map = _load_stocks_from_sqlite()
+    if tickers is not None:
+        requested = set(normalized_tickers)
+        stocks_map = {ticker: stock_row for ticker, stock_row in stocks_map.items() if ticker in requested}
+    return _stock_families_from_map(stocks_map)
+
+
 def save_stocks(stocks_map: dict[str, dict[str, Any]]) -> None:
     """Save the merged stock map to the active data store."""
     normalized_stocks = _normalize_stocks_map(stocks_map)
@@ -275,6 +314,29 @@ def load_stats_map() -> dict[str, dict[str, Any]]:
         )
 
     return _load_stats_map_from_sqlite()
+
+
+def load_stats_row(ticker: str) -> dict[str, Any]:
+    """Load one ticker's indicator row from the active data store."""
+    ticker_symbol = normalize_ticker_symbol(ticker)
+    if not ticker_symbol:
+        return {}
+
+    if BACKEND == "convex":
+
+        def _load_from_convex() -> dict[str, Any]:
+            stock_row = _convex_store().load_stock(ticker_symbol)
+            if not isinstance(stock_row, dict):
+                return {}
+            return dict(stock_row.get("indicators") or {})
+
+        return _convex_read_or_local_fallback(
+            "stats row",
+            _load_from_convex,
+            lambda: dict(_load_stats_map_from_sqlite().get(ticker_symbol) or {}),
+        )
+
+    return dict(_load_stats_map_from_sqlite().get(ticker_symbol) or {})
 
 
 def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
@@ -320,6 +382,45 @@ def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:
 
     merged = _merge_stock_family(family_name="evaluation", payload=normalized)
     _sqlite_store().save_stocks(merged)
+
+
+def upsert_stats_row(ticker: str, row: dict[str, Any]) -> None:
+    """Persist one ticker's indicator payload without rewriting the whole stock table in Convex."""
+    ticker_symbol = normalize_ticker_symbol(ticker)
+    if not ticker_symbol or not isinstance(row, dict):
+        return
+
+    normalized_row = dict(row)
+    if BACKEND == "convex":
+        _convex_store().upsert_stock(ticker=ticker_symbol, indicators=normalized_row)
+        return
+
+    merged = _merge_stock_family(
+        family_name="indicators",
+        payload={ticker_symbol: normalized_row},
+    )
+    _sqlite_store().save_stocks(merged)
+
+
+def upsert_stats_rows(
+    rows: dict[str, dict[str, Any]],
+    *,
+    timestamp: str | None = None,
+    update_generated_at: bool = False,
+) -> None:
+    """Persist multiple ticker indicator rows without a full Convex table rewrite."""
+    normalized = {ticker_symbol: dict(row) for ticker, row in rows.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
+    if not normalized:
+        return
+
+    if BACKEND == "convex":
+        _convex_store().upsert_stocks([{"ticker": ticker_symbol, "indicators": row} for ticker_symbol, row in normalized.items()])
+    else:
+        merged = _merge_stock_family(family_name="indicators", payload=normalized)
+        _sqlite_store().save_stocks(merged)
+
+    if update_generated_at:
+        set_stats_generated_at_iso(timestamp)
 
 
 def stats_generated_at_iso() -> str | None:

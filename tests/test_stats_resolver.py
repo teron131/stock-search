@@ -145,7 +145,7 @@ class StatsResolverTestCase(unittest.TestCase):
         with (
             patch.object(stats_resolver, "_refresh_family", return_value=outcome) as refresh_family,
             patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": row}),
-            patch.object(stats_resolver, "save_stats_map"),
+            patch.object(stats_resolver, "upsert_stats_row"),
         ):
             result = stats_resolver.resolve_ticker_stats("AAPL", mode="auto", persisted_row=row)
 
@@ -179,7 +179,7 @@ class StatsResolverTestCase(unittest.TestCase):
         with (
             patch.object(stats_resolver, "_refresh_family", return_value=outcome) as refresh_family,
             patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": row}),
-            patch.object(stats_resolver, "save_stats_map"),
+            patch.object(stats_resolver, "upsert_stats_row"),
         ):
             result = stats_resolver.resolve_ticker_stats("AAPL", mode="auto", persisted_row=row)
 
@@ -234,10 +234,9 @@ class StatsResolverTestCase(unittest.TestCase):
         saved: dict[str, dict[str, object]] = {}
 
         with (
-            patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": existing}),
-            patch.object(stats_resolver, "save_stats_map", side_effect=lambda payload: saved.update(payload)),
+            patch.object(stats_resolver, "upsert_stats_row", side_effect=lambda ticker, row: saved.update({ticker: row})),
         ):
-            merged = stats_resolver._persist_refresh_outcome("AAPL", outcome)
+            merged = stats_resolver._persist_refresh_outcome("AAPL", outcome, existing_row=existing)
 
         assert merged["ratings"] == existing["ratings"]
         assert merged["price"] == 200.0
@@ -266,10 +265,9 @@ class StatsResolverTestCase(unittest.TestCase):
         )
 
         with (
-            patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": existing}),
-            patch.object(stats_resolver, "save_stats_map"),
+            patch.object(stats_resolver, "upsert_stats_row"),
         ):
-            merged = stats_resolver._persist_refresh_outcome("AAPL", outcome)
+            merged = stats_resolver._persist_refresh_outcome("AAPL", outcome, existing_row=existing)
 
         assert merged["gross_margin"] == 45.0
         assert merged["debt_to_equity"] == 18.0
@@ -310,8 +308,8 @@ class StatsResolverTestCase(unittest.TestCase):
 
         with (
             patch.object(stats_resolver, "_refresh_family", return_value=outcome),
-            patch.object(stats_resolver, "load_stats_map", return_value={}),
-            patch.object(stats_resolver, "save_stats_map", side_effect=lambda payload: saved.update(payload)),
+            patch.object(stats_resolver, "load_stats_row", return_value={}),
+            patch.object(stats_resolver, "upsert_stats_row", side_effect=lambda ticker, row: saved.update({ticker: row})),
             patch.object(stats_resolver._REFRESH_EXECUTOR, "submit", side_effect=submit_now),
         ):
             queued = stats_resolver._queue_refresh("AAPL", "statistics")

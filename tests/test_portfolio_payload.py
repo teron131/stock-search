@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from stock_search.portfolio import _merge_live_results_into_stats_data, _portfolio_payload_data_source
+from stock_search.portfolio import (
+    _load_payload_inputs,
+    _merge_live_results_into_stats_data,
+    _portfolio_payload_data_source,
+)
 from stock_search.stats_resolver import StatsResolutionResult
 
 
@@ -66,6 +71,44 @@ class PortfolioPayloadTestCase(unittest.TestCase):
         )
 
         assert data_source == "live"
+
+    def test_load_payload_inputs_limits_stock_family_reads_when_cached_universe_is_disabled(self) -> None:
+        portfolio_data = [
+            {"ticker": "nvda", "quantity": 10},
+            {"ticker": " msft ", "quantity": 5},
+        ]
+        stock_families = (
+            {"NVDA": {"price": 1.0}, "MSFT": {"price": 2.0}},
+            {"NVDA": {"overall_score": 9.0}},
+        )
+
+        with (
+            patch("stock_search.portfolio.load_positions_store", return_value=portfolio_data),
+            patch("stock_search.portfolio.load_stock_families", return_value=stock_families) as load_stock_families,
+        ):
+            payload_inputs = _load_payload_inputs(
+                portfolio_path=None,
+                stats_path=None,
+                eval_path=None,
+                include_cached_universe=False,
+            )
+
+        load_stock_families.assert_called_once_with(tickers=["NVDA", "MSFT"])
+        assert payload_inputs.held_tickers == ["NVDA", "MSFT"]
+
+    def test_load_payload_inputs_reads_full_stock_universe_when_requested(self) -> None:
+        with (
+            patch("stock_search.portfolio.load_positions_store", return_value=[]),
+            patch("stock_search.portfolio.load_stock_families", return_value=({}, {})) as load_stock_families,
+        ):
+            _load_payload_inputs(
+                portfolio_path=None,
+                stats_path=None,
+                eval_path=None,
+                include_cached_universe=True,
+            )
+
+        load_stock_families.assert_called_once_with(tickers=None)
 
 
 if __name__ == "__main__":

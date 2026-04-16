@@ -36,6 +36,7 @@ class ETFResolutionResult:
     snapshot_by_ticker: dict[str, ETFSnapshotResult]
     etf_refreshed_count: int
     cache_changed: bool
+    changed_tickers: frozenset[str]
 
 
 def _pool_workers(item_count: int, cap: int | None = None) -> int:
@@ -252,6 +253,7 @@ def classify_and_resolve_etfs(
     etf_positions: list[dict[str, Any]] = []
     snapshot_by_ticker: dict[str, ETFSnapshotResult] = {}
     unresolved_tickers: list[str] = []
+    changed_tickers: set[str] = set()
     position_by_ticker = {normalize_ticker_symbol(position["ticker"]): position for position in positions}
 
     for position in positions:
@@ -285,7 +287,9 @@ def classify_and_resolve_etfs(
             classified = list(executor.map(_fetch_quote_type, unresolved_tickers))
         for ticker, is_etf in classified:
             pos = position_by_ticker[ticker]
-            cache_changed = store_quote_type_in_stats(stats_data, ticker, is_etf=is_etf) or cache_changed
+            if store_quote_type_in_stats(stats_data, ticker, is_etf=is_etf):
+                changed_tickers.add(ticker)
+                cache_changed = True
             if is_etf:
                 etf_positions.append(pos)
             else:
@@ -307,7 +311,9 @@ def classify_and_resolve_etfs(
         for ticker, holdings, sectors, error in fetched:
             if error is None:
                 etf_refreshed_count += 1
-                cache_changed = store_etf_cache_in_stats(stats_data, ticker, holdings, sectors, now) or cache_changed
+                if store_etf_cache_in_stats(stats_data, ticker, holdings, sectors, now):
+                    changed_tickers.add(ticker)
+                    cache_changed = True
                 snapshot_by_ticker[ticker] = ETFSnapshotResult(holdings=holdings, sectors=sectors, error=None)
                 continue
 
@@ -328,4 +334,5 @@ def classify_and_resolve_etfs(
         snapshot_by_ticker=snapshot_by_ticker,
         etf_refreshed_count=etf_refreshed_count,
         cache_changed=cache_changed,
+        changed_tickers=frozenset(changed_tickers),
     )

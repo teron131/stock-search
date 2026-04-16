@@ -18,8 +18,12 @@ from .function_names import (
     CONVEX_NEWS_REPLACE_ALL,
     CONVEX_PORTFOLIO_GET,
     CONVEX_PORTFOLIO_SET,
+    CONVEX_STOCK_GET,
+    CONVEX_STOCK_GET_MANY,
     CONVEX_STOCK_LIST,
     CONVEX_STOCK_REPLACE_ALL,
+    CONVEX_STOCK_UPSERT,
+    CONVEX_STOCK_UPSERT_MANY,
 )
 
 
@@ -38,12 +42,50 @@ class ConvexStore:
         payload = self._client.query(CONVEX_STOCK_LIST)
         return payload_to_stock_map(payload)
 
+    def load_stock(self, ticker: str) -> dict[str, Any] | None:
+        """Load one stock row from Convex."""
+        payload = self._client.query(CONVEX_STOCK_GET, {"ticker": ticker})
+        if not isinstance(payload, dict):
+            return None
+        mapped = payload_to_stock_map([payload])
+        return mapped.get(ticker.upper())
+
+    def load_stocks_by_tickers(self, tickers: list[str]) -> dict[str, dict[str, Any]]:
+        """Load multiple stock rows from Convex."""
+        payload = self._client.query(CONVEX_STOCK_GET_MANY, {"tickers": tickers})
+        return payload_to_stock_map(payload)
+
     def save_stocks(self, stocks_map: dict[str, dict[str, Any]]) -> None:
         """Save stocks."""
         self._client.mutation(
             CONVEX_STOCK_REPLACE_ALL,
             {"rows": stock_map_to_rows(normalize_stock_map(stocks_map))},
         )
+
+    def upsert_stock(
+        self,
+        *,
+        ticker: str,
+        indicators: dict[str, Any] | None = None,
+        evaluation: dict[str, Any] | None = None,
+        labels: list[str] | None = None,
+    ) -> None:
+        """Upsert one stock row while preserving omitted families."""
+        args: dict[str, Any] = {"ticker": ticker}
+        if indicators is not None:
+            args["indicators"] = dict(indicators)
+        if evaluation is not None:
+            args["evaluation"] = dict(evaluation)
+        if labels is not None:
+            args["labels"] = list(labels)
+        self._client.mutation(CONVEX_STOCK_UPSERT, args)
+
+    def upsert_stocks(self, rows: list[dict[str, Any]]) -> None:
+        """Upsert multiple stock rows while preserving omitted families."""
+        normalized_rows = [dict(row) for row in rows if isinstance(row, dict)]
+        if not normalized_rows:
+            return
+        self._client.mutation(CONVEX_STOCK_UPSERT_MANY, {"rows": normalized_rows})
 
     def load_portfolio(self, *, key: str = "default") -> dict[str, Any]:
         """Load the portfolio payload from Convex."""

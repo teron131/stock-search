@@ -17,8 +17,11 @@ from .function_names import (
     CONVEX_PORTFOLIO_SET,
     CONVEX_REALTIME_TOPICS,
     CONVEX_STOCK_GET,
+    CONVEX_STOCK_GET_MANY,
     CONVEX_STOCK_LIST,
     CONVEX_STOCK_REPLACE_ALL,
+    CONVEX_STOCK_UPSERT,
+    CONVEX_STOCK_UPSERT_MANY,
 )
 from .store import ConvexStore
 
@@ -31,8 +34,11 @@ __all__ = [
     "CONVEX_PORTFOLIO_SET",
     "CONVEX_REALTIME_TOPICS",
     "CONVEX_STOCK_GET",
+    "CONVEX_STOCK_GET_MANY",
     "CONVEX_STOCK_LIST",
     "CONVEX_STOCK_REPLACE_ALL",
+    "CONVEX_STOCK_UPSERT",
+    "CONVEX_STOCK_UPSERT_MANY",
     "ConvexAPIError",
     "ConvexHttpAdapter",
     "ConvexMetaVersionRow",

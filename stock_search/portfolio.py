@@ -14,11 +14,10 @@ from rich.console import Console
 from rich.table import Table
 
 from stock_search.api.data_store import (
-    load_eval_map,
     load_positions as load_positions_store,
     load_stats_map,
-    save_stats_map,
-    set_stats_generated_at_iso,
+    load_stock_families,
+    upsert_stats_rows,
 )
 from stock_search.cache import TieredCache
 from stock_search.common_utils import clamp, normalize_ticker_symbol, safe_float
@@ -116,14 +115,20 @@ def _load_label_cache(
     return cache
 
 
-def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path | None = None) -> None:
-    """Persist refreshed portfolio labels into the stats store."""
-    _ = path
-    stats_data = load_stats_map()
-
-    for ticker, entry in cache.items():
+def _save_label_cache_rows(
+    cache: dict[str, dict[str, Any]],
+    *,
+    updated_tickers: list[str],
+    stats_data: dict[str, Any],
+) -> None:
+    """Persist refreshed label cache entries for only the changed tickers."""
+    changed_rows: dict[str, dict[str, Any]] = {}
+    for ticker in updated_tickers:
         ticker_symbol = normalize_ticker_symbol(ticker)
         if not ticker_symbol:
+            continue
+        entry = cache.get(ticker_symbol)
+        if not isinstance(entry, dict):
             continue
         labels = normalize_labels(entry.get("labels"))
         if not labels:
@@ -134,8 +139,9 @@ def _save_label_cache(cache: dict[str, dict[str, Any]], path: Path | None = None
         row[_PORTFOLIO_LABEL_FIELD] = labels
         row[_LABEL_FETCHED_AT_FIELD] = fetched_at.isoformat() if isinstance(fetched_at, datetime) else datetime.now(tz=UTC).isoformat()
         stats_data[ticker_symbol] = row
+        changed_rows[ticker_symbol] = row
 
-    save_stats_map(stats_data)
+    upsert_stats_rows(changed_rows, update_generated_at=True)
 
 
 def _portfolio_tickers(positions: list[dict[str, Any]]) -> list[str]:
@@ -196,7 +202,12 @@ def resolve_portfolio_labels(
             changed = True
         cache[ticker] = {"labels": labels, "fetched_at": datetime.now(tz=UTC)}
     if changed:
-        _save_label_cache(cache, cache_path)
+        current_stats = dict(stats_data) if isinstance(stats_data, dict) else load_stats_map()
+        _save_label_cache_rows(
+            cache,
+            updated_tickers=list(fetched),
+            stats_data=current_stats,
+        )
 
     return {ticker: normalize_labels(cache.get(ticker, {}).get("labels")) for ticker in tickers}
 
@@ -231,7 +242,12 @@ async def resolve_portfolio_labels_async(
             changed = True
         cache[ticker] = {"labels": labels, "fetched_at": datetime.now(tz=UTC)}
     if changed:
-        _save_label_cache(cache, cache_path)
+        current_stats = dict(stats_data) if isinstance(stats_data, dict) else load_stats_map()
+        _save_label_cache_rows(
+            cache,
+            updated_tickers=list(fetched),
+            stats_data=current_stats,
+        )
 
     return {ticker: normalize_labels(cache.get(ticker, {}).get("labels")) for ticker in tickers}
 
@@ -835,8 +851,8 @@ def _load_payload_inputs(
     """Load the portfolio, stats, and evaluation inputs for payload building."""
     _ = portfolio_path, stats_path, eval_path
     portfolio_data = load_positions_store()
-    stats_data = load_stats_map()
-    eval_data = load_eval_map()
+    requested_tickers = None if include_cached_universe else _portfolio_tickers(portfolio_data)
+    stats_data, eval_data = load_stock_families(tickers=requested_tickers)
     positions, held_positions, held_tickers = _normalize_positions(
         portfolio_data,
         stats_data,
@@ -969,8 +985,12 @@ def _persist_portfolio_cache_updates(
     """Persist ETF cache changes made during payload assembly."""
     if not resolution.cache_changed:
         return
-    save_stats_map(stats_data)
-    set_stats_generated_at_iso(now.isoformat())
+    changed_rows = {ticker: dict(stats_data.get(ticker) or {}) for ticker in resolution.changed_tickers if isinstance(stats_data.get(ticker), dict)}
+    upsert_stats_rows(
+        changed_rows,
+        timestamp=now.isoformat(),
+        update_generated_at=True,
+    )
 
 
 def _assemble_portfolio_payload(

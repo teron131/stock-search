@@ -11,7 +11,7 @@ import logging
 from threading import Lock, RLock
 from typing import Any, Literal
 
-from stock_search.api.data_store import load_stats_map, save_stats_map
+from stock_search.api.data_store import load_stats_map, load_stats_row, upsert_stats_row
 from stock_search.cache import TieredCache
 from stock_search.common_utils import normalize_ticker_symbol
 from stock_search.config import CacheConfig, PortfolioConfig
@@ -224,15 +224,19 @@ def _cached_snapshot(
     )
 
 
-def _persist_refresh_outcome(ticker: str, outcome: RefreshOutcome) -> dict[str, Any]:
+def _persist_refresh_outcome(
+    ticker: str,
+    outcome: RefreshOutcome,
+    *,
+    existing_row: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Write through one refresh outcome into the persisted stats row."""
     ticker_symbol = normalize_ticker_symbol(ticker)
     if not ticker_symbol:
         return {}
 
     with _PERSISTENCE_LOCK:
-        stats_map = load_stats_map()
-        existing = stats_map.get(ticker_symbol)
+        existing = existing_row if isinstance(existing_row, Mapping) else load_stats_row(ticker_symbol)
         merged = dict(existing) if isinstance(existing, dict) else {}
 
         for family, family_row in outcome.family_rows.items():
@@ -244,8 +248,7 @@ def _persist_refresh_outcome(ticker: str, outcome: RefreshOutcome) -> dict[str, 
         for field, value in outcome.extra_fields.items():
             merged[field] = value
 
-        stats_map[ticker_symbol] = merged
-        save_stats_map(stats_map)
+        upsert_stats_row(ticker_symbol, merged)
         return dict(merged)
 
 
@@ -518,7 +521,7 @@ def _resolve_family(
                 family_row,
                 now=outcome.family_timestamps[refreshed_family],
             )
-        _persist_refresh_outcome(ticker, outcome)
+        _persist_refresh_outcome(ticker, outcome, existing_row=persisted_row)
         resolution = FamilyResolution(
             family=family,
             row=dict(outcome.family_rows.get(family) or {}),
