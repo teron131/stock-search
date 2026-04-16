@@ -437,8 +437,6 @@ export function usePortfolioData() {
 				setLoadingMode(background ? "background" : "foreground");
 			}
 			setLastError(null);
-			let shouldBackfill = false;
-
 			try {
 				if (CONFIG.isDemoMode) {
 					await stopRealtimeSync();
@@ -460,7 +458,6 @@ export function usePortfolioData() {
 				setIsUsingDemoData(false);
 				applyPayload({ dashData, evalData: {} });
 				await startRealtimeSync();
-				shouldBackfill = scope === "priority" && !background;
 			} catch (e) {
 				setLastError(e);
 
@@ -483,15 +480,6 @@ export function usePortfolioData() {
 				syncInFlightRef.current = false;
 				if (!silent) {
 					setLoadingMode("idle");
-				}
-				if (shouldBackfill) {
-					setTimeout(() => {
-						load({
-							background: true,
-							silent: false,
-							scope: "portfolio_live",
-						});
-					}, 0);
 				}
 			}
 		},
@@ -628,7 +616,7 @@ export function usePortfolioData() {
 			if (!res.ok) return { ok: false, reason: "server" };
 
 			const payload = await res.json();
-			await load({ background: false, silent: false, scope: "priority" });
+			await load({ background: false, silent: false, scope: "portfolio_live" });
 			return { ok: true, payload };
 		},
 		[isUsingDemoData, load],

@@ -1,7 +1,7 @@
 import { html } from "https://esm.sh/htm@3.1.1/preact";
 import { render } from "https://esm.sh/preact@10.19.6";
 
-import { App } from "./preact/App.js";
+import { App } from "./preact/App.js?v=20260416e";
 
 const root = document.getElementById("preact-root");
 if (!root) {

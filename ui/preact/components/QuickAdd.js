@@ -33,11 +33,14 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 		}
 	};
 
+	const submitLabel = existingQty != null ? "UPDATE" : "ADD";
+
 	return html`
     <form id="quick-add-form" class="quick-add-compact" onSubmit=${submit}>
       <input
         type="text"
         id="input-ticker"
+        aria-label="Ticker symbol"
         placeholder="TICKER"
         required
         autocomplete="off"
@@ -48,6 +51,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
       <input
         type="number"
         id="input-qty"
+        aria-label="Position quantity"
         placeholder="QTY"
         step="any"
         required
@@ -58,31 +62,10 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
       <button
         type="submit"
         class="btn-add-mini"
-        title="Update or Add Position"
+        title=${existingQty != null ? "Update existing position" : "Add new position"}
         disabled=${isSubmitting}
       >
-        ${
-					isSubmitting
-						? "…"
-						: html`
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-                <polyline points="12 5 19 12 12 19"></polyline>
-              </svg>
-            `
-				}
+        ${isSubmitting ? "…" : submitLabel}
       </button>
     </form>
   `;

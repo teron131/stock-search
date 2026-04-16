@@ -241,72 +241,76 @@ export function DataTable({
 	});
 
 	return html`
-    <div
-      class="table-wrapper"
-      style=${{ "--ticker-char-count": tickerCharCount }}
-    >
-      <table id="main-table">
-        <colgroup>
-          ${cols.map((col) => {
-						const className =
-							col.key === "ticker"
-								? "table-col-ticker"
-								: col.key === "remove"
-									? "table-col-remove"
-									: "";
-						return html`<col class=${className} />`;
-					})}
-        </colgroup>
-        <thead>
-          <tr>
-            ${cols.map((c) => {
-							if (c.key === "remove") return html`<th></th>`;
-							const sortedClass = sortCol === c.key ? `sorted ${sortDir}` : "";
-							return html`<th
-                data-sort=${c.key}
-                class=${sortedClass}
-                onClick=${() => onSort(c.key)}
-              >
-                ${c.label}
-              </th>`;
+    <div class="table-shell">
+      <div class="table-scroll-hint">Swipe sideways for full factor view</div>
+      <div
+        class="table-wrapper"
+        style=${{ "--ticker-char-count": tickerCharCount }}
+      >
+        <table id="main-table">
+          <colgroup>
+            ${cols.map((col) => {
+							const className =
+								col.key === "ticker"
+									? "table-col-ticker"
+									: col.key === "remove"
+										? "table-col-remove"
+										: "";
+							return html`<col class=${className} />`;
 						})}
-          </tr>
-        </thead>
-        <tbody>
-          ${
-						sorted.length
-							? sorted.map(
-									(row, i) =>
-										html`<tr
-                    key=${normalizeTicker(row.ticker)}
-                    class=${animateRows ? "animate-in" : ""}
-                    style=${
-											animateRows
-												? {
-														animationDelay: `${i * CONFIG.animationDelayMs}ms`,
-													}
-												: null
-										}
-                  >
-                    ${cols.map(
-											(col) =>
-												html`<td>
-                          ${renderCell({
-														row,
-														col,
-														colorMeta,
-														onRemove,
-														onSetQuantity,
-														isUsingDemoData,
-													})}
-                        </td>`,
-										)}
-                  </tr>`,
-								)
-							: null
-					}
-        </tbody>
-      </table>
+          </colgroup>
+          <thead>
+            <tr>
+              ${cols.map((c) => {
+								if (c.key === "remove") return html`<th></th>`;
+								const sortedClass =
+									sortCol === c.key ? `sorted ${sortDir}` : "";
+								return html`<th
+                  data-sort=${c.key}
+                  class=${sortedClass}
+                  onClick=${() => onSort(c.key)}
+                >
+                  ${c.label}
+                </th>`;
+							})}
+            </tr>
+          </thead>
+          <tbody>
+            ${
+							sorted.length
+								? sorted.map(
+										(row, i) =>
+											html`<tr
+                      key=${normalizeTicker(row.ticker)}
+                      class=${animateRows ? "animate-in" : ""}
+                      style=${
+												animateRows
+													? {
+															animationDelay: `${i * CONFIG.animationDelayMs}ms`,
+														}
+													: null
+											}
+                    >
+                      ${cols.map(
+												(col) =>
+													html`<td>
+                            ${renderCell({
+															row,
+															col,
+															colorMeta,
+															onRemove,
+															onSetQuantity,
+															isUsingDemoData,
+														})}
+                          </td>`,
+											)}
+                    </tr>`,
+									)
+								: null
+						}
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 }

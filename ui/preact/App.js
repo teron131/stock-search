@@ -5,11 +5,11 @@ import {
 	useState,
 } from "https://esm.sh/preact@10.19.6/hooks";
 
-import { DataTable } from "./components/DataTable.js";
-import { QuickAdd } from "./components/QuickAdd.js";
-import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
-import { fmt } from "./format.js";
-import { usePortfolioData } from "./usePortfolioData.js";
+import { DataTable } from "./components/DataTable.js?v=20260416d";
+import { QuickAdd } from "./components/QuickAdd.js?v=20260416d";
+import { CONFIG, DEFAULT_SORT_COLS } from "./config.js?v=20260416d";
+import { fmt } from "./format.js?v=20260416d";
+import { usePortfolioData } from "./usePortfolioData.js?v=20260416e";
 
 const VIEW_TITLES = {
 	dashboard: "DASHBOARD",
@@ -248,7 +248,7 @@ export function App() {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
 		createCalendarWidget();
-		actions.sync({ background: false, scope: "priority" });
+		actions.sync({ background: false, scope: "portfolio_live" });
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const onRefresh = () => actions.sync({ background: false });
@@ -509,8 +509,48 @@ export function App() {
 		return res;
 	};
 
+	const totalValueText =
+		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--";
+	const totalPositionsText = stats.positions
+		? `${stats.positions} names`
+		: "--";
+	const changePercent = Number(stats.change?.percent || 0);
+	const changeAbsolute = Number(stats.change?.absolute || 0);
+	const changeTone =
+		changePercent > 0 ? "positive" : changePercent < 0 ? "negative" : "neutral";
+	const changeText =
+		stats.totalVal > 0
+			? `${changeAbsolute >= 0 ? "+" : "-"}${fmt.currency(Math.abs(changeAbsolute))} (${fmt.percent(changePercent)})`
+			: "--";
+	const tableDescription =
+		tab === "holdings"
+			? "Live portfolio lines"
+			: tab === "evaluations"
+				? "Ranked idea set"
+				: "Portfolio and ranked ideas";
+
 	return html`
     <div class="tabs-container" id="dashboard-tables">
+      <div class="dashboard-summary">
+        <div class="dashboard-summary-copy">
+          <div class="dashboard-summary-label">Portfolio desk</div>
+          <div class="dashboard-summary-headline">${totalValueText}</div>
+          <div class="dashboard-summary-meta">
+            <span>${totalPositionsText}</span>
+            <span class=${`dashboard-summary-change ${changeTone}`}>
+              ${changeText}
+            </span>
+          </div>
+        </div>
+        <div class="dashboard-summary-actions">
+          <div class="dashboard-summary-label">Quick add</div>
+          <${QuickAdd}
+            rows=${rows}
+            isUsingDemoData=${isUsingDemoData}
+            onSubmit=${onAddOrUpdate}
+          />
+        </div>
+      </div>
       <div class="tabs-header">
         <div class="tab-group">
           <button
@@ -535,11 +575,7 @@ export function App() {
             EVALUATION
           </button>
         </div>
-        <${QuickAdd}
-          rows=${rows}
-          isUsingDemoData=${isUsingDemoData}
-          onSubmit=${onAddOrUpdate}
-        />
+        <div class="table-status">${tableDescription}</div>
       </div>
 
       <${DataTable}
