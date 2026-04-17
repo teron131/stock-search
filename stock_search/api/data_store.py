@@ -344,8 +344,7 @@ def save_stats_map(stats_map: dict[str, dict[str, Any]]) -> None:
     normalized = {ticker_symbol: dict(row) for ticker, row in stats_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
-        merged = _merge_stock_family(family_name="indicators", payload=normalized)
-        _convex_store().save_stocks(merged)
+        _convex_store().upsert_stocks([{"ticker": ticker_symbol, "indicators": row} for ticker_symbol, row in normalized.items()])
         set_stats_generated_at_iso()
         return
 
@@ -376,8 +375,7 @@ def save_eval_map(eval_map: dict[str, dict[str, Any]]) -> None:
     normalized = {ticker_symbol: dict(row) for ticker, row in eval_map.items() if isinstance(row, dict) and (ticker_symbol := normalize_ticker_symbol(ticker))}
 
     if BACKEND == "convex":
-        merged = _merge_stock_family(family_name="evaluation", payload=normalized)
-        _convex_store().save_stocks(merged)
+        _convex_store().upsert_stocks([{"ticker": ticker_symbol, "evaluation": row} for ticker_symbol, row in normalized.items()])
         return
 
     merged = _merge_stock_family(family_name="evaluation", payload=normalized)

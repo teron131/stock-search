@@ -229,7 +229,6 @@ function updatePortfolioSummary(stats) {
 function renderIndustryScreen(industryData) {
 	return html`
 		<${IndustryView}
-			meta=${industryData.meta}
 			isLoading=${industryData.isLoading}
 			lastError=${industryData.lastError}
 			sectorOptions=${industryData.sectorOptions}

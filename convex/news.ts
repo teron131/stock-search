@@ -3,6 +3,39 @@ import { mutation, query } from "./_generated/server";
 
 type GenericRow = Record<string, unknown>;
 
+function normalizeNewsEntries(rows: unknown, key: string): Array<{
+	ticker: string;
+	row: GenericRow;
+}> {
+	if (!Array.isArray(rows)) {
+		return [];
+	}
+
+	const normalizedByTicker = new Map<string, GenericRow>();
+	for (const value of rows) {
+		if (!value || typeof value !== "object") {
+			continue;
+		}
+		const entry = value as GenericRow;
+		const tickerRaw = entry.ticker;
+		const ticker =
+			typeof tickerRaw === "string" ? tickerRaw.toUpperCase().trim() : "";
+		if (!ticker) {
+			continue;
+		}
+		const row = { ...entry };
+		delete row.ticker;
+		delete row.key;
+		normalizedByTicker.set(ticker, row);
+	}
+
+	return Array.from(normalizedByTicker.entries()).map(([ticker, row]) => ({
+		key,
+		ticker,
+		row,
+	}));
+}
+
 export const list = query({
 	args: { key: v.string() },
 	handler: async (ctx, args) => {
@@ -34,30 +67,36 @@ export const replaceAll = mutation({
 			.query("news")
 			.withIndex("by_key", (q) => q.eq("key", key))
 			.collect();
-		for (const row of existing) {
-			await ctx.db.delete(row._id);
-		}
+		const existingByTicker = new Map(existing.map((row) => [row.ticker, row]));
+		const normalizedEntries = normalizeNewsEntries(args.rows, key);
+		const nextTickers = new Set<string>();
 
-		for (const entry of args.rows) {
-			if (!entry || typeof entry !== "object") {
+		for (const entry of normalizedEntries) {
+			nextTickers.add(entry.ticker);
+			const existingRow = existingByTicker.get(entry.ticker);
+			if (existingRow) {
+				if (JSON.stringify(existingRow.row) !== JSON.stringify(entry.row)) {
+					await ctx.db.patch(existingRow._id, {
+						row: entry.row,
+						updatedAt: now,
+					});
+				}
 				continue;
 			}
-			const tickerRaw = (entry as GenericRow).ticker;
-			const ticker =
-				typeof tickerRaw === "string" ? tickerRaw.toUpperCase().trim() : "";
-			if (!ticker) {
-				continue;
-			}
-			const row = { ...(entry as GenericRow) };
-			delete row.ticker;
-			delete row.key;
+
 			await ctx.db.insert("news", {
 				key,
-				ticker,
-				row,
+				ticker: entry.ticker,
+				row: entry.row,
 				updatedAt: now,
 			});
 		}
-		return { ok: true, count: args.rows.length };
+
+		for (const row of existing) {
+			if (!nextTickers.has(row.ticker)) {
+				await ctx.db.delete(row._id);
+			}
+		}
+		return { ok: true, count: normalizedEntries.length };
 	},
 });

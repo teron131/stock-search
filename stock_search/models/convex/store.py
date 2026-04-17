@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .client import ConvexHttpAdapter
+from .client import ConvexAPIError, ConvexHttpAdapter
 from .convex_schemas import (
     normalize_portfolio_positions,
     normalize_stock_map,
@@ -42,6 +42,48 @@ class ConvexStore:
         payload = self._client.query(CONVEX_STOCK_LIST)
         return payload_to_stock_map(payload)
 
+    @staticmethod
+    def _is_missing_function_error(error: ConvexAPIError) -> bool:
+        """Return whether Convex rejected a call because the function is undeployed."""
+        return "Could not find function" in str(error)
+
+    @staticmethod
+    def _normalize_requested_tickers(tickers: list[str]) -> list[str]:
+        """Normalize requested tickers while preserving order."""
+        return [normalized_ticker for ticker in tickers if (normalized_ticker := str(ticker).strip().upper())]
+
+    @staticmethod
+    def _build_upsert_args(row: dict[str, Any]) -> dict[str, Any] | None:
+        """Build one stock upsert payload from a partial row."""
+        ticker = str(row.get("ticker") or "").strip()
+        if not ticker:
+            return None
+
+        args: dict[str, Any] = {"ticker": ticker}
+        if isinstance(row.get("indicators"), dict):
+            args["indicators"] = row["indicators"]
+        if isinstance(row.get("evaluation"), dict):
+            args["evaluation"] = row["evaluation"]
+        if isinstance(row.get("labels"), list):
+            args["labels"] = row["labels"]
+        return args
+
+    def _load_stocks_one_by_one(
+        self,
+        tickers: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Load stock rows with single-ticker queries."""
+        rows = [self.load_stock(ticker_symbol) for ticker_symbol in tickers]
+        return {ticker_symbol: row for ticker_symbol, row in zip(tickers, rows, strict=False) if isinstance(row, dict)}
+
+    def _upsert_stocks_one_by_one(self, rows: list[dict[str, Any]]) -> None:
+        """Upsert stock rows through the single-row mutation."""
+        for row in rows:
+            args = self._build_upsert_args(row)
+            if args is None:
+                continue
+            self._client.mutation(CONVEX_STOCK_UPSERT, args)
+
     def load_stock(self, ticker: str) -> dict[str, Any] | None:
         """Load one stock row from Convex."""
         payload = self._client.query(CONVEX_STOCK_GET, {"ticker": ticker})
@@ -52,7 +94,18 @@ class ConvexStore:
 
     def load_stocks_by_tickers(self, tickers: list[str]) -> dict[str, dict[str, Any]]:
         """Load multiple stock rows from Convex."""
-        payload = self._client.query(CONVEX_STOCK_GET_MANY, {"tickers": tickers})
+        normalized_tickers = self._normalize_requested_tickers(tickers)
+        if not normalized_tickers:
+            return {}
+        try:
+            payload = self._client.query(
+                CONVEX_STOCK_GET_MANY,
+                {"tickers": normalized_tickers},
+            )
+        except ConvexAPIError as error:
+            if not self._is_missing_function_error(error):
+                raise
+            return self._load_stocks_one_by_one(normalized_tickers)
         return payload_to_stock_map(payload)
 
     def save_stocks(self, stocks_map: dict[str, dict[str, Any]]) -> None:
@@ -85,7 +138,12 @@ class ConvexStore:
         normalized_rows = [dict(row) for row in rows if isinstance(row, dict)]
         if not normalized_rows:
             return
-        self._client.mutation(CONVEX_STOCK_UPSERT_MANY, {"rows": normalized_rows})
+        try:
+            self._client.mutation(CONVEX_STOCK_UPSERT_MANY, {"rows": normalized_rows})
+        except ConvexAPIError as error:
+            if not self._is_missing_function_error(error):
+                raise
+            self._upsert_stocks_one_by_one(normalized_rows)
 
     def load_portfolio(self, *, key: str = "default") -> dict[str, Any]:
         """Load the portfolio payload from Convex."""

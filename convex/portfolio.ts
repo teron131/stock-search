@@ -29,6 +29,13 @@ function normalizePositions(
 	return normalized;
 }
 
+function normalizePortfolioStats(value: unknown): GenericRow | null {
+	if (typeof value !== "object" || value === null) {
+		return null;
+	}
+	return value as GenericRow;
+}
+
 export const get = query({
 	args: { key: v.string() },
 	handler: async (ctx, args) => {
@@ -66,21 +73,28 @@ export const set = mutation({
 	handler: async (ctx, args) => {
 		const key = args.key.trim() || "default";
 		const now = Date.now();
+		const normalizedPositions = normalizePositions(args.positions);
+		const normalizedPortfolioStats = normalizePortfolioStats(args.portfolioStats);
 		const existing = await ctx.db
 			.query("portfolios")
 			.withIndex("by_key", (q) => q.eq("key", key))
 			.unique();
 		const payload = {
 			key,
-			positions: normalizePositions(args.positions),
-			portfolioStats:
-				typeof args.portfolioStats === "object" && args.portfolioStats !== null
-					? (args.portfolioStats as GenericRow)
-					: undefined,
+			positions: normalizedPositions,
+			portfolioStats: normalizedPortfolioStats ?? undefined,
 			updatedAt: now,
 		};
 		if (existing) {
-			await ctx.db.patch(existing._id, payload);
+			const positionsUnchanged =
+				JSON.stringify(normalizePositions(existing.positions)) ===
+				JSON.stringify(normalizedPositions);
+			const portfolioStatsUnchanged =
+				JSON.stringify(normalizePortfolioStats(existing.portfolioStats)) ===
+				JSON.stringify(normalizedPortfolioStats);
+			if (!positionsUnchanged || !portfolioStatsUnchanged) {
+				await ctx.db.patch(existing._id, payload);
+			}
 			return { ok: true, updated: true };
 		}
 		await ctx.db.insert("portfolios", payload);

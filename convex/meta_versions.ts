@@ -31,10 +31,12 @@ export const set = mutation({
 			.unique();
 		const now = Date.now();
 		if (existing) {
-			await ctx.db.patch(existing._id, {
-				value: args.value,
-				updatedAt: now,
-			});
+			if (existing.value !== args.value) {
+				await ctx.db.patch(existing._id, {
+					value: args.value,
+					updatedAt: now,
+				});
+			}
 			return { ok: true, updated: true };
 		}
 		await ctx.db.insert("meta_versions", {

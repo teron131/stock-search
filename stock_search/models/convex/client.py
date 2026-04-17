@@ -36,6 +36,9 @@ class ConvexHttpAdapter:
             "Content-Type": "application/json",
             "Authorization": f"Convex {deploy_key}",
         }
+        self._client = httpx.Client(timeout=self._timeout)
+        self._async_client = httpx.AsyncClient(timeout=self._timeout)
+        self._async_close_task: asyncio.Task[None] | None = None
 
     def query(self, path: str, args: dict[str, Any] | None = None) -> Any:
         """Call a Convex query function."""
@@ -70,12 +73,11 @@ class ConvexHttpAdapter:
         response: httpx.Response | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                with httpx.Client(timeout=self._timeout) as client:
-                    response = client.post(
-                        f"{self._base_url}/api/{endpoint}",
-                        headers=self._headers,
-                        json=self._request_body(path, args),
-                    )
+                response = self._client.post(
+                    f"{self._base_url}/api/{endpoint}",
+                    headers=self._headers,
+                    json=self._request_body(path, args),
+                )
                 break
             except httpx.HTTPError:
                 if attempt >= self._max_retries:
@@ -91,12 +93,11 @@ class ConvexHttpAdapter:
         response: httpx.Response | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.post(
-                        f"{self._base_url}/api/{endpoint}",
-                        headers=self._headers,
-                        json=self._request_body(path, args),
-                    )
+                response = await self._async_client.post(
+                    f"{self._base_url}/api/{endpoint}",
+                    headers=self._headers,
+                    json=self._request_body(path, args),
+                )
                 break
             except httpx.HTTPError:
                 if attempt >= self._max_retries:
@@ -115,3 +116,14 @@ class ConvexHttpAdapter:
             error_message = str(payload.get("errorMessage") or "Unknown Convex error")
             raise ConvexAPIError(f"Convex {endpoint} failed for {path}: {error_message}")
         return payload.get("value")
+
+    def close(self) -> None:
+        """Close the shared HTTP clients used by this adapter."""
+        self._client.close()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._async_client.aclose())
+            return
+
+        self._async_close_task = loop.create_task(self._async_client.aclose())

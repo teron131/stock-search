@@ -53,7 +53,6 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 }
 
 export function IndustryView({
-	meta,
 	isLoading,
 	lastError,
 	sectorOptions,

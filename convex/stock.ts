@@ -1,7 +1,25 @@
 import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 
 type GenericRow = Record<string, unknown>;
+type StockDocument = Doc<"stocks">;
+type StoredStockFamilies = Pick<
+	StockDocument,
+	"indicators" | "evaluation" | "labels"
+>;
+type StockPayload = {
+	ticker: string;
+	indicators: GenericRow;
+	evaluation: GenericRow;
+	labels: string[];
+	updatedAt: number;
+};
+type NormalizedStockEntry = GenericRow & { ticker: string };
+type StockWrite =
+	| { kind: "skip" }
+	| { kind: "insert"; payload: StockPayload }
+	| { kind: "patch"; id: Id<"stocks">; payload: StockPayload };
 
 function normalizeTicker(value: unknown): string {
 	return typeof value === "string" ? value.toUpperCase().trim() : "";
@@ -31,6 +49,94 @@ function normalizeTickers(tickers: unknown): string[] {
 		.map((ticker) => normalizeTicker(ticker))
 		.filter((ticker) => ticker.length > 0);
 	return Array.from(new Set(normalized));
+}
+
+function normalizeStockEntry(value: unknown): GenericRow | null {
+	if (typeof value !== "object" || value === null) {
+		return null;
+	}
+	return value as GenericRow;
+}
+
+function buildStockPayload(
+	entry: GenericRow,
+	{
+		existing,
+		now,
+	}: {
+		existing?: StoredStockFamilies | null;
+		now: number;
+	},
+): StockPayload {
+	return {
+		ticker: normalizeTicker(entry.ticker),
+		indicators:
+			entry.indicators === undefined
+				? normalizeObject(existing?.indicators)
+				: normalizeObject(entry.indicators),
+		evaluation:
+			entry.evaluation === undefined
+				? normalizeObject(existing?.evaluation)
+				: normalizeObject(entry.evaluation),
+		labels:
+			entry.labels === undefined
+				? normalizeLabels(existing?.labels)
+				: normalizeLabels(entry.labels),
+		updatedAt: now,
+	};
+}
+
+function stockPayloadChanged(
+	existing: StoredStockFamilies,
+	payload: StockPayload,
+): boolean {
+	return (
+		JSON.stringify(normalizeObject(existing.indicators)) !==
+			JSON.stringify(payload.indicators) ||
+		JSON.stringify(normalizeObject(existing.evaluation)) !==
+			JSON.stringify(payload.evaluation) ||
+		JSON.stringify(normalizeLabels(existing.labels)) !==
+			JSON.stringify(payload.labels)
+	);
+}
+
+function buildStockWrite(
+	existing: StockDocument | null | undefined,
+	payload: StockPayload,
+): StockWrite {
+	if (!existing) {
+		return { kind: "insert", payload };
+	}
+
+	if (!stockPayloadChanged(existing, payload)) {
+		return { kind: "skip" };
+	}
+
+	return { kind: "patch", id: existing._id, payload };
+}
+
+function buildExistingStocksByTicker(rows: StockDocument[]) {
+	return new Map(rows.map((row) => [row.ticker, row]));
+}
+
+function normalizeStockEntries(rows: unknown): NormalizedStockEntry[] {
+	if (!Array.isArray(rows)) {
+		return [];
+	}
+
+	const normalizedByTicker = new Map<string, NormalizedStockEntry>();
+	for (const row of rows) {
+		const entry = normalizeStockEntry(row);
+		if (!entry) {
+			continue;
+		}
+		const ticker = normalizeTicker(entry.ticker);
+		if (!ticker) {
+			continue;
+		}
+		normalizedByTicker.set(ticker, { ...entry, ticker });
+	}
+	return Array.from(normalizedByTicker.values());
 }
 
 function toStockPayload(row: {
@@ -112,7 +218,7 @@ export const upsert = mutation({
 		labels: v.optional(v.array(v.string())),
 	},
 	handler: async (ctx, args) => {
-		const ticker = args.ticker.toUpperCase().trim();
+		const ticker = normalizeTicker(args.ticker);
 		if (!ticker) {
 			return { ok: false, updated: false };
 		}
@@ -123,29 +229,25 @@ export const upsert = mutation({
 			.withIndex("by_ticker", (q) => q.eq("ticker", ticker))
 			.unique();
 
-		const payload = {
-			ticker,
-			indicators:
-				args.indicators === undefined
-					? normalizeObject(existing?.indicators)
-					: normalizeObject(args.indicators),
-			evaluation:
-				args.evaluation === undefined
-					? normalizeObject(existing?.evaluation)
-					: normalizeObject(args.evaluation),
-			labels:
-				args.labels === undefined
-					? normalizeLabels(existing?.labels)
-					: normalizeLabels(args.labels),
-			updatedAt: now,
-		};
+		const payload = buildStockPayload(
+			{
+				ticker,
+				indicators: args.indicators,
+				evaluation: args.evaluation,
+				labels: args.labels,
+			},
+			{ existing, now },
+		);
 
-		if (existing) {
-			await ctx.db.patch(existing._id, payload);
+		const write = buildStockWrite(existing, payload);
+		if (write.kind === "patch") {
+			await ctx.db.patch(write.id, write.payload);
+		}
+		if (write.kind !== "insert") {
 			return { ok: true, updated: true };
 		}
 
-		await ctx.db.insert("stocks", payload);
+		await ctx.db.insert("stocks", write.payload);
 		return { ok: true, updated: false };
 	},
 });
@@ -154,49 +256,29 @@ export const upsertMany = mutation({
 	args: { rows: v.array(v.any()) },
 	handler: async (ctx, args) => {
 		const now = Date.now();
-		let count = 0;
-
-		for (const entry of args.rows) {
-			if (!entry || typeof entry !== "object") {
-				continue;
-			}
-
-			const ticker = normalizeTicker((entry as GenericRow).ticker);
-			if (!ticker) {
-				continue;
-			}
-
-			const existing = await ctx.db
-				.query("stocks")
-				.withIndex("by_ticker", (q) => q.eq("ticker", ticker))
-				.unique();
-
-			const payload = {
-				ticker,
-				indicators:
-					(entry as GenericRow).indicators === undefined
-						? normalizeObject(existing?.indicators)
-						: normalizeObject((entry as GenericRow).indicators),
-				evaluation:
-					(entry as GenericRow).evaluation === undefined
-						? normalizeObject(existing?.evaluation)
-						: normalizeObject((entry as GenericRow).evaluation),
-				labels:
-					(entry as GenericRow).labels === undefined
-						? normalizeLabels(existing?.labels)
-						: normalizeLabels((entry as GenericRow).labels),
-				updatedAt: now,
-			};
-
-			if (existing) {
-				await ctx.db.patch(existing._id, payload);
-			} else {
-				await ctx.db.insert("stocks", payload);
-			}
-			count += 1;
+		const normalizedEntries = normalizeStockEntries(args.rows);
+		if (normalizedEntries.length === 0) {
+			return { ok: true, count: 0 };
 		}
 
-		return { ok: true, count };
+		const existingRows = await ctx.db.query("stocks").collect();
+		const existingByTicker = buildExistingStocksByTicker(existingRows);
+
+		for (const entry of normalizedEntries) {
+			const ticker = normalizeTicker(entry.ticker);
+			const existing = existingByTicker.get(ticker);
+			const payload = buildStockPayload(entry, { existing, now });
+			const write = buildStockWrite(existing, payload);
+
+			if (write.kind === "patch") {
+				await ctx.db.patch(write.id, write.payload);
+			}
+			if (write.kind === "insert") {
+				await ctx.db.insert("stocks", write.payload);
+			}
+		}
+
+		return { ok: true, count: normalizedEntries.length };
 	},
 });
 
@@ -204,30 +286,36 @@ export const replaceAll = mutation({
 	args: { rows: v.array(v.any()) },
 	handler: async (ctx, args) => {
 		const now = Date.now();
-		const existing = await ctx.db.query("stocks").collect();
-		for (const row of existing) {
-			await ctx.db.delete(row._id);
-		}
+		const normalizedEntries = normalizeStockEntries(args.rows);
+		const existingRows = await ctx.db.query("stocks").collect();
+		const existingByTicker = buildExistingStocksByTicker(existingRows);
+		const nextTickers = new Set<string>();
 
-		for (const entry of args.rows) {
-			if (!entry || typeof entry !== "object") {
-				continue;
-			}
-			const tickerRaw = (entry as GenericRow).ticker;
-			const ticker =
-				typeof tickerRaw === "string" ? tickerRaw.toUpperCase().trim() : "";
+		for (const entry of normalizedEntries) {
+			const ticker = normalizeTicker(entry.ticker);
 			if (!ticker) {
 				continue;
 			}
-			await ctx.db.insert("stocks", {
-				ticker,
-				indicators: normalizeObject((entry as GenericRow).indicators),
-				evaluation: normalizeObject((entry as GenericRow).evaluation),
-				labels: normalizeLabels((entry as GenericRow).labels),
-				updatedAt: now,
-			});
+			nextTickers.add(ticker);
+
+			const existing = existingByTicker.get(ticker);
+			const payload = buildStockPayload(entry, { existing: null, now });
+			const write = buildStockWrite(existing, payload);
+
+			if (write.kind === "patch") {
+				await ctx.db.patch(write.id, write.payload);
+			}
+			if (write.kind === "insert") {
+				await ctx.db.insert("stocks", write.payload);
+			}
 		}
 
-		return { ok: true, count: args.rows.length };
+		for (const row of existingRows) {
+			if (!nextTickers.has(row.ticker)) {
+				await ctx.db.delete(row._id);
+			}
+		}
+
+		return { ok: true, count: normalizedEntries.length };
 	},
 });
