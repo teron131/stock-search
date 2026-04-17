@@ -15,7 +15,6 @@ const DASHBOARD_VIEW = "dashboard";
 const INDUSTRY_VIEW = "industry";
 const MARKETMAP_VIEW = "marketmap";
 const CALENDAR_VIEW = "calendar";
-const PORTFOLIO_SYNC_SCOPE = "all";
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
 
 const VIEW_TITLES = {
@@ -35,14 +34,8 @@ function setDisplay(id, display) {
 	if (el) el.style.display = display;
 }
 
-function formatLastUpdatedText(
-	timestamp,
-	{ isUpdating, isUsingDemoData = false } = {},
-) {
+function formatLastUpdatedText(timestamp, { isUsingDemoData = false } = {}) {
 	const modeText = isUsingDemoData ? " [DEMO]" : "";
-	if (isUpdating) {
-		return `UPDATING...${modeText}`;
-	}
 	if (!timestamp) {
 		return `LAST UPDATED: --${modeText}`;
 	}
@@ -533,7 +526,10 @@ export function App() {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
 		createCalendarWidget();
-		actions.sync({ background: false, scope: PORTFOLIO_SYNC_SCOPE });
+		actions.sync({
+			scope: CONFIG.portfolioScopes.live,
+			preferCached: true,
+		});
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const importBtn = document.getElementById("import-image-btn");
@@ -544,7 +540,7 @@ export function App() {
 				industryRefreshRef.current?.();
 				return;
 			}
-			syncRef.current?.({ background: false, scope: PORTFOLIO_SYNC_SCOPE });
+			syncRef.current?.({ scope: CONFIG.portfolioScopes.live });
 		};
 		const onImportClick = () => importInput?.click();
 		const onImportChange = async (event) => {
@@ -621,11 +617,7 @@ export function App() {
 		const intervalId = setInterval(() => {
 			if (viewRef.current !== DASHBOARD_VIEW) return;
 			if (document.visibilityState !== "visible" || !navigator.onLine) return;
-			syncRef.current?.({
-				background: true,
-				silent: false,
-				scope: PORTFOLIO_SYNC_SCOPE,
-			});
+			syncRef.current?.({ scope: CONFIG.portfolioScopes.live });
 		}, BACKGROUND_SYNC_INTERVAL_MS);
 
 		return () => {
@@ -639,10 +631,6 @@ export function App() {
 
 	const activeTimestamp =
 		view === INDUSTRY_VIEW ? industryData.meta.fetched_at : generatedAt;
-	const activeIsUpdating =
-		view === INDUSTRY_VIEW ? industryData.isLoading : isBackgroundLoading;
-	const activeIsLoading =
-		view === INDUSTRY_VIEW ? industryData.isLoading : isLoading;
 	const activeIsUsingDemoData =
 		view === DASHBOARD_VIEW ? isUsingDemoData : false;
 
@@ -650,11 +638,10 @@ export function App() {
 		setText(
 			"last-update",
 			formatLastUpdatedText(activeTimestamp, {
-				isUpdating: activeIsUpdating,
 				isUsingDemoData: activeIsUsingDemoData,
 			}),
 		);
-	}, [activeIsUpdating, activeIsUsingDemoData, activeTimestamp]);
+	}, [activeIsUsingDemoData, activeTimestamp]);
 
 	useEffect(() => {
 		updatePortfolioSummary(stats);
@@ -663,19 +650,6 @@ export function App() {
 	useEffect(() => {
 		updateTickerTape(topTickers);
 	}, [topTickers]);
-
-	useEffect(() => {
-		const overlay = document.getElementById("loading-overlay");
-		if (!overlay) return;
-
-		const show = activeIsLoading && !isBackgroundLoading;
-		overlay.style.display = show ? "flex" : "none";
-		document.body.classList.toggle("is-loading", show);
-
-		return () => {
-			document.body.classList.remove("is-loading");
-		};
-	}, [activeIsLoading, isBackgroundLoading]);
 
 	useEffect(() => {
 		if (lastError && !isLoading && view === DASHBOARD_VIEW) {

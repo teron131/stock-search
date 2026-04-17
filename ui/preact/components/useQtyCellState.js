@@ -36,18 +36,9 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
 		lastCommitted.current = next;
 	}, [row.quantity]);
 
-	const markHeaderUpdating = () => {
-		const lastUpdateEl = document.getElementById("last-update");
-		if (!lastUpdateEl) return;
-		const modeText = isUsingDemoData ? " [DEMO]" : "";
-		lastUpdateEl.textContent = `UPDATING...${modeText}`;
-	};
-
 	const commit = async (qty) => {
 		if (!canEdit) return;
 		if (Number.isNaN(qty)) return;
-
-		markHeaderUpdating();
 
 		lastCommitted.current = qty;
 		const res = await onSetQuantity({
@@ -62,8 +53,6 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
 
 	const scheduleCommit = (qty) => {
 		if (!canEdit) return;
-
-		markHeaderUpdating();
 
 		clearDebounce();
 

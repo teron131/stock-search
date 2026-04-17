@@ -24,6 +24,11 @@ export const CONFIG = {
 		industries: 30_000,
 	},
 
+	portfolioScopes: {
+		initial: "all_cached",
+		live: "all",
+	},
+
 	defaultStrategy: "Speculation",
 	maxTickerLength: 10,
 	maxTickerTapeCount: 20,

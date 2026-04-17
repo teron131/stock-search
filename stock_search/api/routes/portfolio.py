@@ -30,6 +30,11 @@ PORTFOLIO_SCOPE_CONFIG = {
         "include_live_market": False,
         "use_cache_timestamp": True,
     },
+    "all_cached": {
+        "include_cached_universe": True,
+        "include_live_market": False,
+        "use_cache_timestamp": True,
+    },
     "portfolio_live": {
         "include_cached_universe": False,
         "include_live_market": True,
@@ -44,9 +49,11 @@ PORTFOLIO_SCOPE_CONFIG = {
 
 PORTFOLIO_DATA_SOURCE = {
     "priority": "cache",
+    "all_cached": "cache",
     "portfolio_live": "live_with_cache_fallback",
     "all": "live_with_cache_fallback",
 }
+PORTFOLIO_CACHE_SCOPES = {"priority", "all_cached"}
 
 
 class PortfolioPositionPatch(BaseModel):
@@ -152,7 +159,7 @@ async def portfolio_api(response: Response, scope: str = "all") -> dict:
     )
     generated_at = stats_cache_generated_at() if scope_config["use_cache_timestamp"] else now_iso()
     payload["meta"]["generated_at"] = generated_at
-    payload["meta"]["data_source"] = "cache" if resolved_scope == "priority" else payload["meta"].get("data_source", PORTFOLIO_DATA_SOURCE[resolved_scope])
+    payload["meta"]["data_source"] = "cache" if resolved_scope in PORTFOLIO_CACHE_SCOPES else payload["meta"].get("data_source", PORTFOLIO_DATA_SOURCE[resolved_scope])
     payload["meta"]["backend_store"] = backend_name()
     payload["meta"]["sync_mode"] = "realtime_subscription"
     elapsed_ms = (perf_counter() - started_at) * 1000

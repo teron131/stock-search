@@ -22,6 +22,12 @@ const EVAL_KEYS = [
 	"rank",
 ];
 
+const LOADING_MODE_IDLE = "idle";
+const LOADING_MODE_FOREGROUND = "foreground";
+const LOADING_MODE_BACKGROUND = "background";
+const { initial: INITIAL_PORTFOLIO_SCOPE, live: LIVE_PORTFOLIO_SCOPE } =
+	CONFIG.portfolioScopes;
+
 function withCacheBuster(url) {
 	const cacheBuster = `_=${Date.now()}`;
 	return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
@@ -180,12 +186,47 @@ function removeRow(rows, ticker) {
 	);
 }
 
+function isJsonEqual(left, right) {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function setValueIfChanged(setter, nextValue, areEqual = Object.is) {
+	setter((currentValue) =>
+		areEqual(currentValue, nextValue) ? currentValue : nextValue,
+	);
+}
+
+function getPortfolioUrl(scope) {
+	if (scope === LIVE_PORTFOLIO_SCOPE) {
+		return CONFIG.endpoints.portfolio;
+	}
+
+	return `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
+}
+
+function getLoadingMode(background) {
+	return background ? LOADING_MODE_BACKGROUND : LOADING_MODE_FOREGROUND;
+}
+
+function getNormalizedPortfolioStats(dashData) {
+	return dashData?.portfolio_stats &&
+		typeof dashData.portfolio_stats === "object"
+		? dashData.portfolio_stats
+		: null;
+}
+
+function getGeneratedAtTimestamp(dashData) {
+	return typeof dashData?.generated_at === "string" && dashData.generated_at
+		? dashData.generated_at
+		: null;
+}
+
 export function usePortfolioData() {
 	const [rows, setRows] = useState([]);
 	const [portfolioStats, setPortfolioStats] = useState(null);
 	const [colorStandards, setColorStandards] = useState(null);
 	const [generatedAt, setGeneratedAt] = useState(null);
-	const [loadingMode, setLoadingMode] = useState("idle");
+	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
 	const [lastError, setLastError] = useState(null);
 
@@ -245,18 +286,13 @@ export function usePortfolioData() {
 	}, [portfolioStats, rows]);
 
 	const applyPayload = useCallback(({ dashData, evalData = {} }) => {
-		const merged = calculateRanks(mergeRows(dashData, evalData));
-		setRows(merged);
-		setPortfolioStats(
-			dashData?.portfolio_stats && typeof dashData.portfolio_stats === "object"
-				? dashData.portfolio_stats
-				: null,
-		);
-		setGeneratedAt(
-			typeof dashData?.generated_at === "string" && dashData.generated_at
-				? dashData.generated_at
-				: null,
-		);
+		const nextRows = calculateRanks(mergeRows(dashData, evalData));
+		const nextPortfolioStats = getNormalizedPortfolioStats(dashData);
+		const nextGeneratedAt = getGeneratedAtTimestamp(dashData);
+
+		setValueIfChanged(setRows, nextRows, isJsonEqual);
+		setValueIfChanged(setPortfolioStats, nextPortfolioStats, isJsonEqual);
+		setValueIfChanged(setGeneratedAt, nextGeneratedAt);
 	}, []);
 
 	const stopRealtimeSync = useCallback(async () => {
@@ -314,7 +350,11 @@ export function usePortfolioData() {
 			realtimeRefreshTimeoutRef.current = setTimeout(() => {
 				const sync = syncActionRef.current;
 				if (typeof sync === "function") {
-					sync({ background: true, silent: true, scope: "all" });
+					sync({
+						background: true,
+						silent: true,
+						scope: LIVE_PORTFOLIO_SCOPE,
+					});
 				}
 			}, 250);
 		};
@@ -332,7 +372,7 @@ export function usePortfolioData() {
 	}, []);
 
 	const loadFromApi = useCallback(
-		async ({ background = false, scope = "all" } = {}) => {
+		async ({ background = false, scope = LIVE_PORTFOLIO_SCOPE } = {}) => {
 			const shouldFetchMetadata = !background;
 
 			const standardsPromise =
@@ -340,14 +380,13 @@ export function usePortfolioData() {
 					? tryFetchJson(CONFIG.endpoints.colorStandards)
 					: Promise.resolve(null);
 
-			const portfolioUrl =
-				scope === "all"
-					? CONFIG.endpoints.portfolio
-					: `${CONFIG.endpoints.portfolio}?scope=${encodeURIComponent(scope)}`;
 			const timeoutMs = background
 				? CONFIG.requestTimeoutMs.portfolioBackground
 				: CONFIG.requestTimeoutMs.portfolioForeground;
-			const rawPayload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
+			const rawPayload = await fetchJsonWithTimeout(
+				getPortfolioUrl(scope),
+				timeoutMs,
+			);
 			const dashData = normalizeApiDashboardPayload(rawPayload);
 			if (!dashData) {
 				throw new Error("API Failure");
@@ -365,56 +404,122 @@ export function usePortfolioData() {
 		[colorStandards],
 	);
 
+	const applyApiResult = useCallback(
+		({ dashData, standards }) => {
+			if (standards) {
+				setColorStandards(standards);
+			}
+
+			setLastError(null);
+			setIsUsingDemoData(false);
+			applyPayload({ dashData, evalData: {} });
+		},
+		[applyPayload],
+	);
+
+	const clearDashboardData = useCallback(() => {
+		setRows([]);
+		setPortfolioStats(null);
+		setGeneratedAt(null);
+	}, []);
+
+	const loadCachedSnapshot = useCallback(async () => {
+		if (syncInFlightRef.current) return false;
+
+		syncInFlightRef.current = true;
+		try {
+			const apiResult = await loadFromApi({
+				background: false,
+				scope: INITIAL_PORTFOLIO_SCOPE,
+			});
+			applyApiResult(apiResult);
+			return true;
+		} catch {
+			return false;
+		} finally {
+			syncInFlightRef.current = false;
+		}
+	}, [applyApiResult, loadFromApi]);
+
 	const load = useCallback(
-		async ({ background = false, silent = false, scope = "all" } = {}) => {
+		async ({
+			background = false,
+			silent = false,
+			scope = LIVE_PORTFOLIO_SCOPE,
+		} = {}) => {
 			if (syncInFlightRef.current) return;
-			if (!silent && loadingMode !== "idle") return;
+			if (!silent && loadingMode !== LOADING_MODE_IDLE) return;
 
 			syncInFlightRef.current = true;
 			if (!silent) {
-				setLoadingMode(background ? "background" : "foreground");
+				setLoadingMode(getLoadingMode(background));
 			}
 			setLastError(null);
 			try {
-				const { dashData, standards } = await loadFromApi({
+				const apiResult = await loadFromApi({
 					background,
 					scope,
 				});
-
-				if (standards) {
-					setColorStandards(standards);
-				}
-
-				setIsUsingDemoData(false);
-				applyPayload({ dashData, evalData: {} });
+				applyApiResult(apiResult);
 				await startRealtimeSync();
 			} catch (e) {
 				await stopRealtimeSync();
-				setLastError(e);
+				if (!background) {
+					setLastError(e);
+				}
 				setIsUsingDemoData(false);
 
 				if (background) {
 					return;
 				}
-				setRows([]);
-				setPortfolioStats(null);
+				if (rows.length === 0) {
+					clearDashboardData();
+				}
 			} finally {
 				syncInFlightRef.current = false;
 				if (!silent) {
-					setLoadingMode("idle");
+					setLoadingMode(LOADING_MODE_IDLE);
 				}
 			}
 		},
 		[
-			applyPayload,
+			applyApiResult,
+			clearDashboardData,
 			loadFromApi,
 			loadingMode,
+			rows.length,
 			startRealtimeSync,
 			stopRealtimeSync,
 		],
 	);
 
-	syncActionRef.current = load;
+	const sync = useCallback(
+		async ({
+			background = false,
+			silent = false,
+			scope = LIVE_PORTFOLIO_SCOPE,
+			preferCached = false,
+		} = {}) => {
+			if (preferCached) {
+				const restoredCache = await loadCachedSnapshot();
+				return load({
+					background: restoredCache,
+					silent: true,
+					scope,
+				});
+			}
+
+			const keepCurrentRowsVisible = rows.length > 0;
+			return load({
+				background: background || keepCurrentRowsVisible,
+				silent: silent || keepCurrentRowsVisible,
+				scope,
+			});
+		},
+		[load, loadCachedSnapshot, rows.length],
+	);
+
+	syncActionRef.current = sync;
 
 	useEffect(() => {
 		return () => {
@@ -537,10 +642,10 @@ export function usePortfolioData() {
 			if (!res.ok) return { ok: false, reason: "server" };
 
 			const payload = await res.json();
-			await load({ background: false, silent: false, scope: "all" });
+			await sync({ scope: LIVE_PORTFOLIO_SCOPE });
 			return { ok: true, payload };
 		},
-		[isUsingDemoData, load],
+		[isUsingDemoData, sync],
 	);
 
 	const remove = useCallback(
@@ -594,14 +699,14 @@ export function usePortfolioData() {
 		rows,
 		generatedAt,
 		colorStandards,
-		isLoading: loadingMode !== "idle",
-		isBackgroundLoading: loadingMode === "background",
+		isLoading: loadingMode !== LOADING_MODE_IDLE,
+		isBackgroundLoading: loadingMode === LOADING_MODE_BACKGROUND,
 		isUsingDemoData,
 		lastError,
 		stats,
 		topTickers,
 		actions: {
-			sync: load,
+			sync,
 			addOrUpdate,
 			setQuantity,
 			importFromImage,
