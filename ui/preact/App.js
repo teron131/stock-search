@@ -246,7 +246,6 @@ function renderIndustryScreen(industryData) {
 			sortDirection=${industryData.sortDirection}
 			setSortKey=${industryData.setSortKey}
 			filteredIndustries=${industryData.sortedIndustries}
-			breadth=${industryData.breadth}
 		/>
 	`;
 }

@@ -49,6 +49,11 @@ const ICON_DEFS = {
 	cross: {
 		paths: ["M8 3.25v9.5", "M3.25 8h9.5", "M4.25 4.25h7.5v7.5h-7.5Z"],
 	},
+	heart: {
+		paths: [
+			"M8 12.75 3.5 8.5a2.75 2.75 0 0 1 0-3.89 2.8 2.8 0 0 1 3.96 0L8 5.16l.54-.55a2.8 2.8 0 0 1 3.96 0 2.75 2.75 0 0 1 0 3.89Z",
+		],
+	},
 	bank: {
 		paths: [
 			"M2.5 6.25 8 3l5.5 3.25",
@@ -123,7 +128,7 @@ const NAV_ICON_NAMES = {
 const SECTOR_ICON_NAMES = {
 	all: "grid",
 	technology: "chip",
-	healthcare: "cross",
+	healthcare: "heart",
 	financials: "bank",
 	energy: "bolt",
 	industrials: "factory",
@@ -135,6 +140,21 @@ const SECTOR_ICON_NAMES = {
 	utilities: "plug",
 };
 
+const SECTOR_DISPLAY_LABELS = {
+	all: "ALL",
+	technology: "TECH",
+	healthcare: "HEALTH",
+	financials: "FINANCIALS",
+	energy: "ENERGY",
+	industrials: "INDUSTRIALS",
+	"consumer discretionary": "CONS DISC",
+	"consumer staples": "CONS STAPLES",
+	"communication services": "COMM SVCS",
+	"real estate": "REAL ESTATE",
+	materials: "MATERIALS",
+	utilities: "UTILITIES",
+};
+
 const ICON_SYMBOLS = {
 	grid: "G",
 	factory: "I",
@@ -142,6 +162,7 @@ const ICON_SYMBOLS = {
 	calendar: "C",
 	chip: "T",
 	cross: "H",
+	heart: "H",
 	bank: "F",
 	bolt: "E",
 	bag: "D",
@@ -179,4 +200,10 @@ export function getSectorIconName(sector) {
 
 export function getSectorIconSymbol(sector) {
 	return ICON_SYMBOLS[getSectorIconName(sector)] || "I";
+}
+
+export function getSectorDisplayLabel(sector) {
+	return (
+		SECTOR_DISPLAY_LABELS[normalizeSectorKey(sector)] || String(sector || "")
+	);
 }

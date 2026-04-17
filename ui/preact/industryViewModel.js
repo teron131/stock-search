@@ -18,6 +18,14 @@ function average(values) {
 	return total / values.length;
 }
 
+function averageIndustryField(industries, key) {
+	return average(
+		industries
+			.map((industry) => toNumericOrNull(industry[key]))
+			.filter((value) => value != null),
+	);
+}
+
 function getSortValue(industry, sortKey) {
 	if (sortKey === "sector") {
 		return String(industry.sector || "").toLowerCase();
@@ -81,6 +89,16 @@ export function buildSectorOptions(industries) {
 		};
 	});
 
+	const allSector = {
+		sector: "ALL",
+		count: industries.length,
+		avg_change_percent_1d: average(
+			industries
+				.map((industry) => toNumericOrNull(industry.change_percent_1d))
+				.filter((value) => value != null),
+		),
+	};
+
 	sectors.sort((left, right) => {
 		const compared = compareNullable(
 			left.avg_change_percent_1d,
@@ -91,18 +109,7 @@ export function buildSectorOptions(industries) {
 		return left.sector.localeCompare(right.sector);
 	});
 
-	return [
-		{
-			sector: "ALL",
-			count: industries.length,
-			avg_change_percent_1d: average(
-				industries
-					.map((industry) => toNumericOrNull(industry.change_percent_1d))
-					.filter((value) => value != null),
-			),
-		},
-		...sectors,
-	];
+	return [allSector, ...sectors];
 }
 
 export function buildIndustryViewModel(
@@ -134,6 +141,25 @@ export function buildIndustryViewModel(
 	return {
 		filteredIndustries,
 		sortedIndustries,
+		marketSummary: {
+			industryCount: filteredIndustries.length,
+			marketCap: averageIndustryField(filteredIndustries, "market_cap"),
+			pe: averageIndustryField(filteredIndustries, "pe"),
+			profitMargin: averageIndustryField(filteredIndustries, "profit_margin"),
+			grossMargin: averageIndustryField(filteredIndustries, "gross_margin"),
+			changePercent1d: averageIndustryField(
+				filteredIndustries,
+				"change_percent_1d",
+			),
+			changePercent1m: averageIndustryField(
+				filteredIndustries,
+				"change_percent_1m",
+			),
+			changePercent1y: averageIndustryField(
+				filteredIndustries,
+				"change_percent_1y",
+			),
+		},
 		breadth: {
 			advancingCount,
 			decliningCount,

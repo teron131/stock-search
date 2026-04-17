@@ -1,24 +1,16 @@
 import { html } from "htm/preact";
 
 import { fmt } from "../format.js";
-import { getIconDefinition, getSectorIconName } from "../industryIcons.js";
+import {
+	getIconDefinition,
+	getSectorDisplayLabel,
+	getSectorIconName,
+} from "../industryIcons.js";
 
 function toneClass(value) {
 	const numeric = Number(value);
 	if (Number.isNaN(numeric) || numeric === 0) return "neutral";
 	return numeric > 0 ? "positive" : "negative";
-}
-
-function formatTimestamp(value) {
-	if (!value) return "Awaiting snapshot";
-	const timestamp = new Date(value);
-	return timestamp.toLocaleString("en-US", {
-		month: "short",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		hour12: false,
-	});
 }
 
 function maxTextLength(values, fallbackLength) {
@@ -71,16 +63,7 @@ export function IndustryView({
 	sortDirection,
 	setSortKey,
 	filteredIndustries,
-	breadth,
 }) {
-	const breadthCopy = filteredIndustries.length
-		? `${breadth.advancingCount} up / ${breadth.decliningCount} down / ${breadth.unchangedCount} flat`
-		: "No industries loaded";
-	const showSectorColumn = selectedSector === "ALL";
-	const sectorCharCount = maxTextLength(
-		filteredIndustries.map((industry) => industry.sector),
-		"Sector".length,
-	);
 	const industryCharCount = maxTextLength(
 		filteredIndustries.map((industry) => industry.industry),
 		"Industry".length,
@@ -89,86 +72,54 @@ export function IndustryView({
 	return html`
 		<div class="industry-view">
 			<section class="industry-hero">
-				<div class="industry-hero-copy">
-					<div class="industry-section-label">Market-wide scan</div>
-					<h2 class="industry-hero-title">Industry Pulse</h2>
-					<p class="industry-hero-text">
-						Track sector rotation, market-cap concentration, and operating
-						quality shifts across the StockAnalysis industry universe.
-					</p>
-					<div class="industry-breadth-row">
-						<span class="industry-breadth-label">Breadth</span>
-						<span class=${`industry-breadth-value ${toneClass(
-							breadth.averageChangePercent1d,
-						)}`}>
-							${breadthCopy}
-						</span>
+				<div class="industry-hero-top">
+					<div class="industry-hero-copy">
+						<div class="industry-section-label">Market-wide scan</div>
+						<h2 class="industry-hero-title">Industry Pulse</h2>
 					</div>
-				</div>
-				<div class="industry-hero-metrics">
-					<div class="industry-metric-card">
-						<div class="industry-section-label">Updated</div>
-						<div class="industry-metric-value">
-							${formatTimestamp(meta.fetched_at)}
-						</div>
-					</div>
-					<div class="industry-metric-card">
-						<div class="industry-section-label">Sectors</div>
-						<div class="industry-metric-value">${meta.sector_count || 0}</div>
-					</div>
-					<div class="industry-metric-card">
-						<div class="industry-section-label">Industries</div>
-						<div class="industry-metric-value">${meta.industry_count || 0}</div>
-					</div>
-					<div class="industry-metric-card">
-						<div class="industry-section-label">Average 1D</div>
-						<div class=${`industry-metric-value industry-tone ${toneClass(
-							breadth.averageChangePercent1d,
-						)}`}>
-							${fmt.percent_neutral(breadth.averageChangePercent1d)}
+					<div class="industry-controls">
+						<div class="industry-sector-rail">
+							${sectorOptions.map(
+								(option) => html`
+								<button
+									type="button"
+									class=${`industry-sector-chip ${
+										selectedSector === option.sector ? "active" : ""
+									}`}
+									onClick=${() => setSelectedSector(option.sector)}
+								>
+									<span class="industry-sector-name">
+										${renderIcon(
+											getSectorIconName(option.sector),
+											"industry-sector-glyph",
+										)}
+										<span class="industry-sector-label">
+											${getSectorDisplayLabel(option.sector)}
+										</span>
+									</span>
+									<span class=${`industry-sector-move industry-tone ${toneClass(
+										option.avg_change_percent_1d,
+									)}`}>
+										${fmt.percent_neutral(option.avg_change_percent_1d)}
+									</span>
+								</button>
+							`,
+							)}
 						</div>
 					</div>
 				</div>
 			</section>
 
-			<section class="industry-controls">
-				<div class="industry-sector-rail">
-					${sectorOptions.map(
-						(option) => html`
-						<button
-							type="button"
-							class=${`industry-sector-chip ${
-								selectedSector === option.sector ? "active" : ""
-							}`}
-							onClick=${() => setSelectedSector(option.sector)}
-						>
-							<span class="industry-sector-top">
-								<span class="industry-sector-name">
-									${renderIcon(
-										getSectorIconName(option.sector),
-										"industry-sector-glyph",
-									)}
-									<span class="industry-sector-label">${option.sector}</span>
-								</span>
-								<span class="industry-sector-meta">${option.count}</span>
-							</span>
-							<span class=${`industry-sector-move industry-tone ${toneClass(
-								option.avg_change_percent_1d,
-							)}`}>
-								${fmt.percent_neutral(option.avg_change_percent_1d)}
-							</span>
-						</button>
-					`,
-					)}
-				</div>
-			</section>
-
-			<section class="industry-ledger-shell">
+			<section
+				class=${`industry-ledger-shell ${
+					!filteredIndustries.length && !isLoading ? "is-empty" : ""
+				}`}
+			>
 				<div class="industry-ledger-header">
 					<div class="industry-ledger-title-wrap">
 						<div class="industry-section-label">Industry ledger</div>
 						<div class="industry-ledger-title">
-							${selectedSector === "ALL" ? "Full market tape" : selectedSector}
+							${selectedSector === "ALL" ? "All" : selectedSector}
 						</div>
 					</div>
 					<div class="industry-ledger-status">
@@ -199,20 +150,12 @@ export function IndustryView({
 						: html`
 							<div class="industry-ledger-table-wrap">
 								<table
-									class=${`industry-ledger-table ${
-										showSectorColumn ? "show-sector-column" : ""
-									}`}
+									class="industry-ledger-table"
 									style=${{
-										"--industry-sector-char-count": sectorCharCount + 3,
-										"--industry-name-char-count": industryCharCount + 4,
+										"--industry-name-char-count": industryCharCount + 6,
 									}}
 								>
 									<colgroup>
-										${
-											showSectorColumn
-												? html`<col class="industry-col-sector" />`
-												: null
-										}
 										<col class="industry-col-name" />
 										<col class="industry-col-stocks" />
 										<col class="industry-col-cap" />
@@ -225,7 +168,6 @@ export function IndustryView({
 									</colgroup>
 									<thead>
 										<tr>
-											${showSectorColumn ? html`<th>${renderSortableHeader("Sector", "sector", sortKey, sortDirection, setSortKey)}</th>` : null}
 											<th>${renderSortableHeader("Industry", "industry", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("Stocks", "stock_count", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("Mkt Cap", "market_cap", sortKey, sortDirection, setSortKey)}</th>
@@ -241,25 +183,20 @@ export function IndustryView({
 										${filteredIndustries.map(
 											(industry) => html`
 											<tr>
-												${
-													showSectorColumn
-														? html`
-															<td class="industry-sector-cell">
-																<span class="industry-sector-ident">
-																	${renderIcon(
-																		getSectorIconName(industry.sector),
-																		"industry-row-glyph",
-																	)}
-																	<span class="industry-sector-text">
-																		${industry.sector}
-																	</span>
-																</span>
-															</td>
-														`
-														: null
-												}
 												<td class="industry-name-cell">
-													<span class="industry-name">${industry.industry}</span>
+													<span class="industry-name-ident">
+														<span
+															class="industry-sector-icon"
+															title=${industry.sector}
+															aria-label=${industry.sector}
+														>
+															${renderIcon(
+																getSectorIconName(industry.sector),
+																"industry-row-glyph",
+															)}
+														</span>
+														<span class="industry-name">${industry.industry}</span>
+													</span>
 												</td>
 												<td>${industry.stock_count ?? "--"}</td>
 												<td>${fmt.market_cap(industry.market_cap)}</td>
