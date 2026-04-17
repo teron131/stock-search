@@ -109,16 +109,12 @@ async function importImageFile(file, importImageRef) {
 
 function updateTickerTape(tickers) {
 	const tape = document.getElementById("ticker-tape-widget");
-	const container = document.getElementById("ticker-tape-view");
-	if (!tape || !container) return;
+	if (!tape) return;
 
 	if (!tickers.length) {
 		tape.setAttribute("symbols", "");
-		container.style.display = "none";
 		return;
 	}
-
-	container.style.display = "block";
 
 	const symbols = tickers
 		.map((ticker) =>
