@@ -38,6 +38,7 @@ from .schemas import (
 
 STOCKANALYSIS_STATISTICS_URL = "https://stockanalysis.com/stocks/{ticker}/statistics/"
 STOCKANALYSIS_FINANCIALS_URL = "https://stockanalysis.com/stocks/{ticker}/financials/"
+STOCKANALYSIS_API_URL = "https://stockanalysis.com/api"
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ def get_industry_snapshot() -> StockAnalysisIndustrySnapshot:
     """Fetch sector and industry summary rows from the StockAnalysis industries page."""
     return page_scrapers.scrape_industry_snapshot(
         fetch_soup=lambda url: _fetch_stockanalysis_soup(url, subject="industries"),
+        fetch_aggregation_rows=_fetch_stockanalysis_aggregation_rows,
     )
 
 
@@ -363,3 +365,29 @@ def _fetch_stockanalysis_soup(url: str, *, subject: str) -> LexborHTMLParser | N
     if html is None:
         return None
     return LexborHTMLParser(html)
+
+
+def _fetch_stockanalysis_aggregation_rows(
+    table_id: str,
+    columns: list[str],
+) -> list[dict[str, float | None]]:
+    """Fetch extra aggregation columns for a StockAnalysis table."""
+    cols = ",".join(columns)
+    url = f"{STOCKANALYSIS_API_URL}/aggregation/{table_id}/?cols={cols}"
+    try:
+        response = httpx.get(url, timeout=20)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        logger.warning(f"StockAnalysis aggregation request failed (table_id={table_id}, cols={cols}, status={status_code})")
+        return []
+    except httpx.RequestError as exc:
+        logger.warning(f"StockAnalysis aggregation request failed (table_id={table_id}, cols={cols}): {exc}")
+        return []
+
+    payload = response.json()
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        logger.warning(f"StockAnalysis aggregation returned unexpected payload (table_id={table_id}, cols={cols})")
+        return []
+    return [row for row in rows if isinstance(row, dict)]

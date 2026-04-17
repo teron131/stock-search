@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from stock_search.models import ETFHoldings, ETFSectors
 
@@ -82,13 +80,17 @@ class StockAnalysisIndustrySummary(BaseModel):
         default=None,
         description="Industry profit margin percent",
     )
+    gross_margin: float | None = Field(
+        default=None,
+        description="Industry gross margin percent",
+    )
     change_percent_1d: float | None = Field(
         default=None,
         description="1-day change percent",
     )
     change_percent_1m: float | None = Field(
         default=None,
-        description="1-month change percent when available",
+        description="1-month change percent",
     )
     change_percent_1y: float | None = Field(
         default=None,
@@ -105,12 +107,17 @@ class StockAnalysisIndustrySnapshot(BaseModel):
     )
 
 
-@dataclass(frozen=True)
-class StockAnalysisEtfSnapshot:
+class StockAnalysisEtfSnapshot(BaseModel):
     """ETF holdings snapshot extracted from supported holdings pages."""
 
-    holdings: ETFHoldings
-    sectors: ETFSectors
+    model_config = ConfigDict(frozen=True)
+
+    holdings: ETFHoldings = Field(
+        description="ETF holdings table extracted from the supported holdings page.",
+    )
+    sectors: ETFSectors = Field(
+        description="ETF sector allocation breakdown extracted from the supported holdings page.",
+    )
 
 
 class StockAnalysisIndicatorsSnapshot(
