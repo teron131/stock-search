@@ -17,9 +17,10 @@ from ..parsing import (
     parse_percent_points,
 )
 
+logger = logging.getLogger(__name__)
+
 STOCKANALYSIS_ETF_HOLDINGS_URL = "https://stockanalysis.com/etf/{ticker}/holdings/"
 
-logger = logging.getLogger(__name__)
 
 ETF_DATA_SCRIPT_FRAGMENTS = ("holdings:[", "sectors:[")
 HOLDINGS_BLOCK_PATTERN = re.compile(r"holdings:\[(.*?)\],asset_allocation:", re.DOTALL)
@@ -46,55 +47,6 @@ SECTOR_FIELD_BY_LABEL = {
     "Utilities": "utilities",
     "Other": "other",
 }
-
-
-def scrape_etf_holdings(
-    *,
-    ticker: str,
-    ticker_lower: str,
-    fetch_soup: Callable[[str], LexborHTMLParser | None],
-) -> ETFHoldings:
-    """Scrape ETF holdings from the StockAnalysis holdings page."""
-    try:
-        holdings_url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=ticker_lower)
-        soup = fetch_soup(holdings_url)
-        parsed_holdings = _extract_holdings_from_table(soup)
-        if not parsed_holdings:
-            parsed_holdings = _extract_holdings_from_script(soup)
-        return ETFHoldings(holdings=parsed_holdings)
-    except Exception as exc:
-        logger.warning(
-            "Failed to scrape ETF holdings from StockAnalysis for %s: %s",
-            ticker,
-            exc,
-        )
-    return ETFHoldings()
-
-
-def scrape_etf_sectors(
-    *,
-    ticker: str,
-    ticker_lower: str,
-    fetch_soup: Callable[[str], LexborHTMLParser | None],
-) -> ETFSectors:
-    """Scrape ETF sector allocation from the StockAnalysis holdings page."""
-    try:
-        items_text = _extract_sectors_block(
-            fetch_soup(_holdings_url(ticker_lower)),
-        )
-        if not items_text:
-            return ETFSectors()
-
-        payload = {field_name: float(weight_str) for sector_name, weight_str in SECTOR_ROW_PATTERN.findall(items_text) if (field_name := SECTOR_FIELD_BY_LABEL.get(sector_name))}
-        if payload:
-            return ETFSectors(**payload)
-    except Exception as exc:
-        logger.warning(
-            "Failed to scrape ETF sectors from StockAnalysis for %s: %s",
-            ticker,
-            exc,
-        )
-    return ETFSectors()
 
 
 def _holdings_url(ticker_lower: str) -> str:
@@ -148,3 +100,52 @@ def _extract_sectors_block(soup: LexborHTMLParser | None) -> str | None:
         pattern=SECTORS_BLOCK_PATTERN,
         required_fragments=ETF_DATA_SCRIPT_FRAGMENTS,
     )
+
+
+def scrape_etf_holdings(
+    *,
+    ticker: str,
+    ticker_lower: str,
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
+) -> ETFHoldings:
+    """Scrape ETF holdings from the StockAnalysis holdings page."""
+    try:
+        holdings_url = STOCKANALYSIS_ETF_HOLDINGS_URL.format(ticker=ticker_lower)
+        soup = fetch_soup(holdings_url)
+        parsed_holdings = _extract_holdings_from_table(soup)
+        if not parsed_holdings:
+            parsed_holdings = _extract_holdings_from_script(soup)
+        return ETFHoldings(holdings=parsed_holdings)
+    except Exception as exc:
+        logger.warning(
+            "Failed to scrape ETF holdings from StockAnalysis for %s: %s",
+            ticker,
+            exc,
+        )
+    return ETFHoldings()
+
+
+def scrape_etf_sectors(
+    *,
+    ticker: str,
+    ticker_lower: str,
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
+) -> ETFSectors:
+    """Scrape ETF sector allocation from the StockAnalysis holdings page."""
+    try:
+        items_text = _extract_sectors_block(
+            fetch_soup(_holdings_url(ticker_lower)),
+        )
+        if not items_text:
+            return ETFSectors()
+
+        payload = {field_name: float(weight_str) for sector_name, weight_str in SECTOR_ROW_PATTERN.findall(items_text) if (field_name := SECTOR_FIELD_BY_LABEL.get(sector_name))}
+        if payload:
+            return ETFSectors(**payload)
+    except Exception as exc:
+        logger.warning(
+            "Failed to scrape ETF sectors from StockAnalysis for %s: %s",
+            ticker,
+            exc,
+        )
+    return ETFSectors()

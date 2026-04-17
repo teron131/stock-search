@@ -43,6 +43,31 @@ STATISTICS_FIELD_SPECS = {
 }
 
 
+def _extract_quote_block(
+    *,
+    ticker_lower: str,
+    fetch_html: Callable[[str], str | None],
+) -> str | None:
+    """Extract the embedded quote block from the statistics page."""
+    statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=ticker_lower)
+    html = fetch_html(statistics_url)
+    if html is None:
+        return None
+
+    quote_match = QUOTE_BLOCK_PATTERN.search(html)
+    if not quote_match:
+        return None
+    return quote_match.group(1)
+
+
+def _extract_quote_values(
+    quote_block: str,
+    field_keys: dict[str, str],
+) -> dict[str, float | None]:
+    """Parse a set of quote fields from an embedded quote block."""
+    return {field_name: parse_number(extract_quote_scalar(quote_block, key) or "") for field_name, key in field_keys.items()}
+
+
 def scrape_statistics_snapshot(
     *,
     ticker_lower: str,
@@ -79,28 +104,3 @@ def scrape_quote_fields(
     if extended_session in EXTENDED_SESSION_NAMES and extended_quote["price"] is not None:
         return extended_quote
     return regular_quote
-
-
-def _extract_quote_block(
-    *,
-    ticker_lower: str,
-    fetch_html: Callable[[str], str | None],
-) -> str | None:
-    """Extract the embedded quote block from the statistics page."""
-    statistics_url = STOCKANALYSIS_STATISTICS_URL.format(ticker=ticker_lower)
-    html = fetch_html(statistics_url)
-    if html is None:
-        return None
-
-    quote_match = QUOTE_BLOCK_PATTERN.search(html)
-    if not quote_match:
-        return None
-    return quote_match.group(1)
-
-
-def _extract_quote_values(
-    quote_block: str,
-    field_keys: dict[str, str],
-) -> dict[str, float | None]:
-    """Parse a set of quote fields from an embedded quote block."""
-    return {field_name: parse_number(extract_quote_scalar(quote_block, key) or "") for field_name, key in field_keys.items()}

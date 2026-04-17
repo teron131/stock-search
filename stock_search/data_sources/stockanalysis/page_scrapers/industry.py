@@ -17,37 +17,9 @@ from ..schemas import (
     StockAnalysisIndustrySummary,
 )
 
-STOCKANALYSIS_INDUSTRY_URL = "https://stockanalysis.com/stocks/industry/"
-
 logger = logging.getLogger(__name__)
 
-
-def scrape_industry_snapshot(
-    *,
-    fetch_soup: Callable[[str], LexborHTMLParser | None],
-) -> StockAnalysisIndustrySnapshot:
-    """Scrape sector and industry summary rows from the StockAnalysis industries page."""
-    try:
-        soup = fetch_soup(STOCKANALYSIS_INDUSTRY_URL)
-        if soup is None:
-            return StockAnalysisIndustrySnapshot()
-
-        sector_names = _extract_sector_names(soup)
-        tables = soup.css("table")
-        if not sector_names or not tables:
-            return StockAnalysisIndustrySnapshot()
-
-        if len(sector_names) != len(tables):
-            logger.warning(f"Sector/table count mismatch on StockAnalysis industries page (sectors={len(sector_names)}, tables={len(tables)})")
-
-        industries: list[StockAnalysisIndustrySummary] = []
-        for sector_name, table in zip(sector_names, tables, strict=False):
-            industries.extend(_extract_sector_rows(table, sector_name))
-
-        return StockAnalysisIndustrySnapshot(industries=industries)
-    except Exception as exc:
-        logger.warning(f"Failed to scrape StockAnalysis industries page: {exc}")
-        return StockAnalysisIndustrySnapshot()
+STOCKANALYSIS_INDUSTRY_URL = "https://stockanalysis.com/stocks/industry/"
 
 
 def _extract_sector_names(soup: LexborHTMLParser) -> list[str]:
@@ -99,3 +71,31 @@ def _parse_stock_count(raw_value: str) -> int | None:
     """Parse the industry stock-count column."""
     parsed_value = parse_number(raw_value)
     return int(parsed_value) if parsed_value is not None else None
+
+
+def scrape_industry_snapshot(
+    *,
+    fetch_soup: Callable[[str], LexborHTMLParser | None],
+) -> StockAnalysisIndustrySnapshot:
+    """Scrape sector and industry summary rows from the StockAnalysis industries page."""
+    try:
+        soup = fetch_soup(STOCKANALYSIS_INDUSTRY_URL)
+        if soup is None:
+            return StockAnalysisIndustrySnapshot()
+
+        sector_names = _extract_sector_names(soup)
+        tables = soup.css("table")
+        if not sector_names or not tables:
+            return StockAnalysisIndustrySnapshot()
+
+        if len(sector_names) != len(tables):
+            logger.warning(f"Sector/table count mismatch on StockAnalysis industries page (sectors={len(sector_names)}, tables={len(tables)})")
+
+        industries: list[StockAnalysisIndustrySummary] = []
+        for sector_name, table in zip(sector_names, tables, strict=False):
+            industries.extend(_extract_sector_rows(table, sector_name))
+
+        return StockAnalysisIndustrySnapshot(industries=industries)
+    except Exception as exc:
+        logger.warning(f"Failed to scrape StockAnalysis industries page: {exc}")
+        return StockAnalysisIndustrySnapshot()
