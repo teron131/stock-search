@@ -50,8 +50,8 @@ def serve_index() -> FileResponse:
 @app.get("/industry")
 @app.get("/marketmap")
 @app.get("/calendar")
-def serve_dashboard_page() -> FileResponse:
-    """Serve client-side application pages."""
+def serve_dashboard() -> FileResponse:
+    """Serve client-side dashboard routes."""
     return serve_index_file()
 
 

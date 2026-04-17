@@ -73,14 +73,14 @@ const MOMENTUM_COLUMNS = [
 
 const FUNDAMENTAL_COLUMNS_ALL = [
 	{ key: "revenue_growth", label: "GROWTH", format: "percent_neutral" },
-	{ key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
+	{ key: "gross_margin", label: "GROSS", format: "percent_neutral" },
 	{ key: "debt_to_equity", label: "DEBT", format: "percent_neutral" },
 	{ key: "free_cash_flow", label: "FCF", format: "market_cap" },
 ];
 
 const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	{ key: "revenue_growth", label: "GROWTH", format: "percent" },
-	{ key: "gross_margin", label: "MARGIN", format: "percent_neutral" },
+	{ key: "gross_margin", label: "GROSS", format: "percent_neutral" },
 	{ key: "debt_to_equity", label: "DEBT", format: "percent_neutral" },
 	{ key: "free_cash_flow", label: "FCF", format: "market_cap" },
 ];

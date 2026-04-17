@@ -796,7 +796,9 @@ thead {
 /* Fix for widget alignment + font consistency */
 tv-ticker-tag {
 	vertical-align: middle;
-	margin-left: -4px;
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
 	font-family: var(--font-sans);
 	font-size: var(--text-base);
 	font-variant-numeric: tabular-nums;
@@ -834,6 +836,7 @@ td:first-child {
 	max-width: var(--ticker-column-width);
 	position: sticky;
 	left: 0;
+	overflow: hidden;
 	z-index: 85;
 	background-color: var(--bg-surface-high);
 	box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
@@ -2058,7 +2061,7 @@ th {
 th:first-child,
 td:first-child {
 	padding-left: 18px;
-	background: rgba(20, 20, 20, 0.98);
+	background: var(--bg-surface-high);
 }
 
 td {
@@ -2070,12 +2073,16 @@ tbody tr:nth-child(even) td {
 	background: rgba(255, 255, 255, 0.015);
 }
 
+tbody tr:nth-child(even) td:first-child {
+	background: var(--bg-surface-high);
+}
+
 tbody tr:hover td {
 	background: rgba(255, 255, 255, 0.04);
 }
 
 tbody tr:hover td:first-child {
-	background: rgba(22, 22, 22, 0.98);
+	background: var(--bg-surface-high);
 }
 
 .btn-remove-cell {

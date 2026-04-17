@@ -46,7 +46,7 @@ def test_root_route_serves_index_when_file_backend_is_forced(monkeypatch) -> Non
     assert response.headers["content-type"].startswith("text/html")
 
 
-def test_page_routes_serve_index_when_file_backend_is_forced(monkeypatch) -> None:
+def test_dashboard_routes_serve_index_when_file_backend_is_forced(monkeypatch) -> None:
     monkeypatch.setattr(app_module, "backend_name", lambda: "file")
 
     with TestClient(app_module.app) as client:

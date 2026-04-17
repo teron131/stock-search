@@ -226,12 +226,12 @@ export function IndustryView({
 									<thead>
 										<tr>
 											${showSectorColumn ? html`<th>${renderSortableHeader("Sector", "sector", sortKey, sortDirection, setSortKey)}</th>` : null}
-											<th>Industry</th>
+											<th>${renderSortableHeader("Industry", "industry", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("Stocks", "stock_count", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("Mkt Cap", "market_cap", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("PE", "pe", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("Profit", "profit_margin", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("Gross", "gross_margin", sortKey, sortDirection, setSortKey)}</th>
+											<th>${renderSortableHeader("PROFIT", "profit_margin", sortKey, sortDirection, setSortKey)}</th>
+											<th>${renderSortableHeader("GROSS", "gross_margin", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("1D", "change_percent_1d", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("1M", "change_percent_1m", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("1Y", "change_percent_1y", sortKey, sortDirection, setSortKey)}</th>
