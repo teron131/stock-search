@@ -161,13 +161,23 @@ class NewsAnalysis(BaseModel):
     sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
 
 
-class NewsItem(NewsAnalysis):
+class NewsMetadata(BaseModel):
+    """Optional provider/debug metadata attached to a news item."""
+
+    provider: str | None = Field(default=None, description="Provider that returned the article.")
+    source_domain: str | None = Field(default=None, description="Normalized source domain.")
+    published_at: str | None = Field(default=None, description="Publication timestamp in ISO 8601 format.")
+    fetched_at: str | None = Field(default=None, description="Fetch timestamp in ISO 8601 format.")
+
+
+class NewsArticle(NewsAnalysis):
     """News article data with attached analysis fields."""
 
     url: str = Field(description="Source URL")
     title: str | None = Field(default=None, description="Headline")
     date: str | None = Field(default=None, description="Publication date (YYYY-MM-DD)")
     days_ago: int | None = Field(default=None, description="Days since publication")
+    metadata: NewsMetadata | None = Field(default=None, description="Optional provider/debug metadata.")
 
 
 class Holding(BaseModel):
@@ -276,4 +286,4 @@ class News(BaseModel):
 
     key: str = Field(default="default", description="News collection key.")
     ticker: Ticker
-    item: NewsItem = Field(description="News item payload.")
+    item: NewsArticle = Field(description="News item payload.")

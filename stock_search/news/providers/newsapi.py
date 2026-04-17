@@ -12,8 +12,8 @@ import os
 from dotenv import load_dotenv
 import httpx
 
-from ..models.schemas import NewsItem as News
-from ..utils import format_date, get_days_ago, parse_date, parse_ticker
+from ...models.schemas import NewsArticle, NewsMetadata
+from ...utils import extract_domain, format_date, get_days_ago, parse_date, parse_ticker
 
 load_dotenv()
 
@@ -26,7 +26,7 @@ async def get_news_newsapi_async(
     max_results: int = 25,
     *,
     client: httpx.AsyncClient,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Get financial news using NewsAPI."""
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
@@ -45,15 +45,23 @@ async def get_news_newsapi_async(
     results = response.json().get("articles", [])
 
     news_list = []
+    fetched_at = datetime.now(UTC).isoformat()
     for result in results:
         dt = parse_date(result["publishedAt"])
+        url = result["url"]
         news_list.append(
-            News(
+            NewsArticle(
                 title=result["title"],
-                url=result["url"],
+                url=url,
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
                 summary=f"[TRUNCATED] {result['description']}",
+                metadata=NewsMetadata(
+                    provider="newsapi",
+                    source_domain=extract_domain(url),
+                    published_at=dt.astimezone(UTC).isoformat(),
+                    fetched_at=fetched_at,
+                ),
             )
         )
     return news_list
@@ -63,11 +71,10 @@ def get_news_newsapi(
     query: str,
     n_days: int = 3,
     max_results: int = 25,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Get financial news using NewsAPI."""
 
-    async def _fetch() -> list[News]:
-        """Fetch NewsAPI results for one ticker query."""
+    async def _fetch() -> list[NewsArticle]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_newsapi_async(
                 query=query,

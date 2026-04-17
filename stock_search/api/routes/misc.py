@@ -8,6 +8,7 @@ from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, REALTIME_CONFIG,
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.indicators import StockIndicator
 from stock_search.models.convex.function_names import CONVEX_REALTIME_TOPICS
+from stock_search.news.orchestrator import get_news_async
 
 router = APIRouter()
 
@@ -93,26 +94,11 @@ def realtime_config_api(response: Response) -> dict:
 
 
 @router.get(STOCK_NEWS)
-def news_api(ticker: str) -> list[dict]:
+async def news_api(ticker: str, response: Response) -> list[dict]:
     """Return recent news articles for a ticker."""
-    return [
-        {
-            "title": f"Strategic analysis of {ticker} performance",
-            "url": f"https://example.com/{ticker}-news-1",
-            "summary": f"A deep dive into {ticker}'s latest quarterly results and future outlook.",
-            "relevancy": "high",
-            "category": "company_news",
-            "sentiment": "bullish",
-        },
-        {
-            "title": f"Market trends affecting {ticker}",
-            "url": f"https://example.com/{ticker}-news-2",
-            "summary": f"Recent sector rotation and macroeconomic factors impacting {ticker}.",
-            "relevancy": "medium",
-            "category": "market_news",
-            "sentiment": "neutral",
-        },
-    ]
+    response.headers["Cache-Control"] = "no-store"
+    news_items = await get_news_async(ticker)
+    return [item.model_dump(exclude_none=True) for item in news_items]
 
 
 @router.get(STOCK_EVALUATE)

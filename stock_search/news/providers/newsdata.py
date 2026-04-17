@@ -8,13 +8,14 @@ Documentation: https://newsdata.io/documentation#latest-news
 """
 
 import asyncio
+from datetime import UTC, datetime
 import os
 
 from dotenv import load_dotenv
 import httpx
 
-from ..models.schemas import NewsItem as News
-from ..utils import format_date, get_days_ago, parse_date, parse_ticker
+from ...models.schemas import NewsArticle, NewsMetadata
+from ...utils import extract_domain, format_date, get_days_ago, parse_date, parse_ticker
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ DEFAULT_TIMEOUT_S = 60
 async def get_news_newsdata_async(
     query: str,
     client: httpx.AsyncClient,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Get the last 48 hours of financial news using NewsData."""
     params = {
         "apikey": os.getenv("NEWSDATA_API_KEY"),
@@ -45,15 +46,23 @@ async def get_news_newsdata_async(
     results = response.json().get("results", [])
 
     news_list = []
+    fetched_at = datetime.now(UTC).isoformat()
     for result in results:
         dt = parse_date(result["pubDate"])
+        url = result["link"]
         news_list.append(
-            News(
+            NewsArticle(
                 title=result["title"],
-                url=result["link"],
+                url=url,
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
                 summary=f"[TRUNCATED] {result['description']}",
+                metadata=NewsMetadata(
+                    provider="newsdata",
+                    source_domain=extract_domain(url),
+                    published_at=dt.astimezone(UTC).isoformat(),
+                    fetched_at=fetched_at,
+                ),
             )
         )
     return news_list
@@ -61,11 +70,10 @@ async def get_news_newsdata_async(
 
 def get_news_newsdata(
     query: str,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Get the last 48 hours of financial news using NewsData."""
 
-    async def _fetch() -> list[News]:
-        """Fetch NewsData results for one ticker query."""
+    async def _fetch() -> list[NewsArticle]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_newsdata_async(query=query, client=client)
 

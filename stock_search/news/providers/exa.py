@@ -11,8 +11,8 @@ import os
 
 import httpx
 
-from ..models.schemas import NewsItem as News
-from ..utils import format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
+from ...models.schemas import NewsArticle, NewsMetadata
+from ...utils import extract_domain, format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
 DEFAULT_TIMEOUT_S = 60
 
@@ -23,7 +23,7 @@ async def get_news_exa_async(
     max_results: int = 25,
     *,
     client: httpx.AsyncClient,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Search Exa for news results and return raw payload items."""
     payload = {
         "query": parse_ticker(query),
@@ -47,15 +47,23 @@ async def get_news_exa_async(
     results = response.json().get("results", [])
 
     news_list = []
+    fetched_at = datetime.now(UTC).isoformat()
     for result in results:
         dt = parse_date(result["publishedDate"])
+        url = result["url"]
         news_list.append(
-            News(
+            NewsArticle(
                 title=result["title"],
-                url=result["url"],
+                url=url,
                 date=format_date(dt),
                 days_ago=get_days_ago(dt),
                 summary="[FAILED TO FETCH]",
+                metadata=NewsMetadata(
+                    provider="exa",
+                    source_domain=extract_domain(url),
+                    published_at=dt.astimezone(UTC).isoformat(),
+                    fetched_at=fetched_at,
+                ),
             )
         )
     return news_list
@@ -65,11 +73,10 @@ def get_news_exa(
     query: str,
     n_days: int = 3,
     max_results: int = 25,
-) -> list[News]:
+) -> list[NewsArticle]:
     """Search Exa for news results and return raw payload items."""
 
-    async def _fetch() -> list[News]:
-        """Fetch Exa news results for one ticker query."""
+    async def _fetch() -> list[NewsArticle]:
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
             return await get_news_exa_async(
                 query=query,

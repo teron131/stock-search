@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 import stock_search.api.app as app_module
 from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
 import stock_search.api.routes.misc as misc_routes
+from stock_search.models.schemas import NewsArticle, NewsMetadata
 
 NEWS_ARTICLE_FIELDS = {"title", "url", "summary", "relevancy", "category", "sentiment"}
 EVALUATION_FIELDS = {
@@ -79,14 +80,32 @@ def test_misc_data_endpoints_return_patched_payloads_and_disable_caching(monkeyp
     assert_no_store(standards_response)
 
 
-def test_stock_news_endpoint_includes_the_requested_ticker(misc_client: TestClient) -> None:
+async def _fake_news_fetch(ticker: str) -> list[NewsArticle]:
+    return [
+        NewsArticle(
+            title=f"{ticker.upper()} headline",
+            url=f"https://example.com/{ticker}-news-1",
+            summary="Real fetched summary",
+            relevancy="high",
+            category="company_news",
+            sentiment="bullish",
+            metadata=NewsMetadata(provider="test"),
+        )
+    ]
+
+
+def test_stock_news_endpoint_uses_live_pipeline(monkeypatch, misc_client: TestClient) -> None:
+    monkeypatch.setattr(misc_routes, "get_news_async", _fake_news_fetch)
+
     response = misc_client.get(STOCK_NEWS.replace("{ticker}", "nvda"))
 
     assert response.status_code == 200
+    assert_no_store(response)
     payload = response.json()
-    assert len(payload) == 2
+    assert len(payload) == 1
     for article in payload:
         assert set(article) >= NEWS_ARTICLE_FIELDS
+        assert article["metadata"]["provider"] == "test"
         assert "nvda" in article["url"]
 
 
