@@ -1,10 +1,13 @@
 """Serve auxiliary dashboard API routes."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Response
 
 from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
+from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, INDUSTRIES, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
 from stock_search.api.data_store import load_eval_map, load_stocks
-from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
+from stock_search.data_sources.stockanalysis import get_industry_snapshot_async
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.indicators import StockIndicator
 from stock_search.models.convex.function_names import CONVEX_REALTIME_TOPICS
@@ -25,6 +28,25 @@ def stocks_api(response: Response) -> dict:
     """Return the stored stock indicator map."""
     response.headers["Cache-Control"] = "no-store"
     return load_stocks()
+
+
+@router.get(INDUSTRIES)
+async def industries_api(response: Response) -> dict:
+    """Return the current StockAnalysis industry snapshot."""
+    response.headers["Cache-Control"] = "no-store"
+    snapshot = await get_industry_snapshot_async()
+    industries = [industry.model_dump() for industry in snapshot.industries]
+    sector_count = len({industry["sector"] for industry in industries})
+    fetched_at = datetime.now(tz=UTC).isoformat() if industries else None
+    return {
+        "industries": industries,
+        "meta": {
+            "source": "stockanalysis",
+            "fetched_at": fetched_at,
+            "sector_count": sector_count,
+            "industry_count": len(industries),
+        },
+    }
 
 
 @router.get(COLOR_STANDARDS)

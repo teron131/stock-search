@@ -1,4 +1,4 @@
-import { html } from "https://esm.sh/htm@3.1.1/preact";
+import { html } from "htm/preact";
 
 import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
 import { COLS, CONFIG } from "../config.js";

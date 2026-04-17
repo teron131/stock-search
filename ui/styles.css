@@ -286,6 +286,10 @@ body::after {
 }
 
 .nav-item svg {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+	stroke: currentColor;
 	opacity: 0.7;
 	transition: opacity 0.2s;
 }
@@ -2232,5 +2236,457 @@ tbody tr:hover td:first-child {
 	.table-scroll-hint {
 		display: block;
 		padding-bottom: 10px;
+	}
+}
+
+.industry-view {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	padding: 18px;
+	border-top: 1px solid var(--border);
+	background:
+		linear-gradient(180deg, rgba(11, 11, 11, 0.98), rgba(7, 7, 7, 0.98)),
+		var(--bg-surface);
+}
+
+.industry-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+	gap: 18px;
+	padding: 20px;
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	background:
+		linear-gradient(135deg, rgba(217, 255, 63, 0.08), transparent 42%),
+		linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+}
+
+.industry-hero-copy {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.industry-section-label {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--ink-ghost);
+}
+
+.industry-hero-title {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 32px;
+	font-weight: 600;
+	letter-spacing: -0.04em;
+	line-height: 0.95;
+	color: var(--ink);
+}
+
+.industry-hero-text {
+	max-width: 46ch;
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 13px;
+	line-height: 1.55;
+	color: var(--ink-dim);
+}
+
+.industry-breadth-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin-top: auto;
+	padding-top: 10px;
+	border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.industry-breadth-label {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-ghost);
+}
+
+.industry-breadth-value {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.industry-hero-metrics {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	align-content: start;
+}
+
+.industry-metric-card {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	min-height: 108px;
+	padding: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.05);
+	background: rgba(255, 255, 255, 0.02);
+}
+
+.industry-metric-value {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 20px;
+	font-weight: 600;
+	letter-spacing: -0.03em;
+	color: var(--ink);
+}
+
+.industry-controls {
+	display: block;
+}
+
+.industry-sector-rail {
+	display: flex;
+	gap: 10px;
+	overflow-x: auto;
+	padding-bottom: 2px;
+	scrollbar-width: thin;
+}
+
+.industry-sector-chip {
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(255, 255, 255, 0.02);
+	color: var(--ink);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 6px;
+	min-width: 146px;
+	width: max-content;
+	max-width: none;
+	flex: 0 0 auto;
+	padding: 11px 12px 10px;
+	text-align: left;
+}
+
+.industry-sector-chip.active {
+	border-color: rgba(217, 255, 63, 0.38);
+	background: rgba(217, 255, 63, 0.08);
+}
+
+.industry-sector-top {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 10px;
+	align-items: start;
+}
+
+.industry-sector-name {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+}
+
+.industry-sector-label {
+	min-width: 0;
+	line-height: 1.2;
+	white-space: nowrap;
+	overflow-wrap: normal;
+}
+
+.industry-sector-glyph,
+.industry-row-glyph {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+	stroke: currentColor;
+}
+
+.industry-sector-meta,
+.industry-sector-move {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 11px;
+	color: var(--ink-dim);
+}
+
+.industry-sector-meta {
+	justify-self: end;
+	padding-top: 1px;
+}
+
+.industry-ledger-shell {
+	border: 1px solid rgba(255, 255, 255, 0.05);
+	background:
+		linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)),
+		rgba(8, 8, 8, 0.96);
+	min-height: 60vh;
+}
+
+.industry-ledger-header {
+	display: flex;
+	justify-content: space-between;
+	gap: 14px;
+	padding: 16px 18px 14px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.industry-ledger-title-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.industry-ledger-title {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 22px;
+	font-weight: 600;
+	letter-spacing: -0.03em;
+}
+
+.industry-ledger-status {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-ghost);
+	white-space: nowrap;
+}
+
+.industry-empty-state {
+	padding: 40px 18px;
+	text-align: left;
+}
+
+.industry-empty-title {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.industry-empty-copy {
+	margin-top: 8px;
+	max-width: 44ch;
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--ink-dim);
+}
+
+.industry-ledger-table-wrap {
+	overflow: auto;
+}
+
+.industry-ledger-table {
+	width: max-content;
+	min-width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.industry-ledger-table tbody tr:hover {
+	background: rgba(255, 255, 255, 0.02);
+}
+
+.industry-col-sector {
+	width: calc((var(--industry-sector-char-count, 14) * 1ch) + 42px);
+}
+
+.industry-col-name {
+	width: calc((var(--industry-name-char-count, 24) * 1ch) + 42px);
+}
+
+.industry-col-stocks {
+	width: 88px;
+}
+
+.industry-col-cap {
+	width: 126px;
+}
+
+.industry-col-pe,
+.industry-col-profit,
+.industry-col-gross,
+.industry-col-1d,
+.industry-col-1m,
+.industry-col-1y {
+	width: 98px;
+}
+
+.industry-ledger-table th,
+.industry-ledger-table td {
+	padding: 12px 18px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: 12px;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.industry-ledger-table th:first-child,
+.industry-ledger-table td:first-child {
+	text-align: left;
+}
+
+.industry-ledger-table.show-sector-column th:nth-child(2),
+.industry-ledger-table.show-sector-column td:nth-child(2) {
+	text-align: left;
+}
+
+.industry-ledger-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: rgba(5, 5, 5, 0.98);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--ink-ghost);
+}
+
+.industry-header-btn {
+	all: unset;
+	cursor: pointer;
+}
+
+.industry-header-btn.active {
+	color: var(--ink);
+}
+
+.industry-sector-cell,
+.industry-name-cell {
+	text-align: left;
+}
+
+.industry-sector-cell {
+	color: var(--ink-ghost);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.industry-sector-ident {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.industry-sector-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.industry-name-cell {
+	overflow: hidden;
+}
+
+.industry-name {
+	display: block;
+	font-weight: 600;
+	color: var(--ink);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.industry-tone.positive {
+	color: var(--positive);
+}
+
+.industry-tone.negative {
+	color: var(--negative);
+}
+
+.industry-tone.neutral {
+	color: var(--ink-dim);
+}
+
+@media (max-width: 960px) {
+	.industry-view {
+		padding: 14px;
+	}
+
+	.industry-hero,
+	.industry-controls {
+		grid-template-columns: 1fr;
+	}
+
+	.industry-hero-title {
+		font-size: 28px;
+	}
+
+	.industry-ledger-header {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.industry-ledger-status {
+		white-space: normal;
+	}
+}
+
+@media (max-width: 640px) {
+	.industry-view {
+		padding: 12px;
+		gap: 12px;
+	}
+
+	.industry-hero {
+		padding: 14px;
+	}
+
+	.industry-hero-title {
+		font-size: 24px;
+	}
+
+	.industry-hero-text,
+	.industry-empty-copy {
+		font-size: 12px;
+	}
+
+	.industry-hero-metrics {
+		grid-template-columns: 1fr;
+	}
+
+	.industry-sector-chip {
+		min-width: 138px;
+	}
+
+	.industry-sector-glyph,
+	.industry-row-glyph {
+		width: 13px;
+		height: 13px;
+	}
+
+	.industry-ledger-table th,
+	.industry-ledger-table td {
+		padding: 10px 12px;
+		font-size: 11px;
+	}
+
+	.industry-col-stocks {
+		width: 78px;
+	}
+
+	.industry-col-cap {
+		width: 112px;
+	}
+
+	.industry-col-pe,
+	.industry-col-profit,
+	.industry-col-gross,
+	.industry-col-1d,
+	.industry-col-1m,
+	.industry-col-1y {
+		width: 88px;
 	}
 }

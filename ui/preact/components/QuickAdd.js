@@ -1,5 +1,5 @@
-import { html } from "https://esm.sh/htm@3.1.1/preact";
-import { useMemo, useState } from "https://esm.sh/preact@10.19.6/hooks";
+import { html } from "htm/preact";
+import { useMemo, useState } from "preact/hooks";
 
 import { normalizeTicker } from "../format.js";
 

@@ -35,10 +35,24 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Stock Search Dashboard", lifespan=lifespan)
 
 
-@app.get("/")
-def serve_index() -> FileResponse:
+def serve_index_file() -> FileResponse:
     """Serve the dashboard index file."""
     return FileResponse(INDEX_FILE)
+
+
+@app.get("/")
+def serve_index() -> FileResponse:
+    """Serve the dashboard root page."""
+    return serve_index_file()
+
+
+@app.get("/dashboard")
+@app.get("/industry")
+@app.get("/marketmap")
+@app.get("/calendar")
+def serve_dashboard_page() -> FileResponse:
+    """Serve client-side application pages."""
+    return serve_index_file()
 
 
 app.include_router(portfolio_router)

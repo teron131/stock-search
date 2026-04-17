@@ -1,20 +1,28 @@
-import { html } from "https://esm.sh/htm@3.1.1/preact";
-import {
-	useEffect,
-	useRef,
-	useState,
-} from "https://esm.sh/preact@10.19.6/hooks";
+import { html } from "htm/preact";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { DataTable } from "./components/DataTable.js";
+import { IndustryView } from "./components/IndustryView.js";
+import { QuickAdd } from "./components/QuickAdd.js";
+import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
+import { fmt } from "./format.js";
+import { getIconDefinition, getNavIconName } from "./industryIcons.js";
+import { useIndustryData } from "./useIndustryData.js";
+import { usePortfolioData } from "./usePortfolioData.js";
+import { getPathForView, getViewForPath } from "./viewRoutes.js";
 
-import { DataTable } from "./components/DataTable.js?v=20260416d";
-import { QuickAdd } from "./components/QuickAdd.js?v=20260416d";
-import { CONFIG, DEFAULT_SORT_COLS } from "./config.js?v=20260416d";
-import { fmt } from "./format.js?v=20260416d";
-import { usePortfolioData } from "./usePortfolioData.js?v=20260416f";
+const SVG_NS = "http://www.w3.org/2000/svg";
+const DASHBOARD_VIEW = "dashboard";
+const INDUSTRY_VIEW = "industry";
+const MARKETMAP_VIEW = "marketmap";
+const CALENDAR_VIEW = "calendar";
+const PORTFOLIO_SYNC_SCOPE = "all";
+const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
 
 const VIEW_TITLES = {
-	dashboard: "DASHBOARD",
-	heatmap: "MARKET MAP",
-	calendar: "ECONOMIC CALENDAR",
+	[DASHBOARD_VIEW]: "DASHBOARD",
+	[INDUSTRY_VIEW]: "INDUSTRY",
+	[MARKETMAP_VIEW]: "MARKET MAP",
+	[CALENDAR_VIEW]: "ECONOMIC CALENDAR",
 };
 
 function setText(id, value) {
@@ -25,6 +33,33 @@ function setText(id, value) {
 function setDisplay(id, display) {
 	const el = document.getElementById(id);
 	if (el) el.style.display = display;
+}
+
+function formatLastUpdatedText(
+	timestamp,
+	{ isUpdating, isUsingDemoData = false } = {},
+) {
+	const modeText = isUsingDemoData ? " [DEMO]" : "";
+	if (isUpdating) {
+		return `UPDATING...${modeText}`;
+	}
+	if (!timestamp) {
+		return `LAST UPDATED: --${modeText}`;
+	}
+
+	const time = new Date(timestamp);
+	const dateStr = time.toLocaleDateString("en-US", {
+		month: "short",
+		day: "2-digit",
+	});
+	const timeStr = time.toLocaleTimeString("en-US", {
+		hour12: false,
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+
+	return `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`;
 }
 
 function showToast(message) {
@@ -85,10 +120,9 @@ function updateTickerTape(tickers) {
 
 	container.style.display = "block";
 
-	// TradingView ticker tape expects a comma-separated list of symbols.
 	const symbols = tickers
-		.map((t) =>
-			String(t || "")
+		.map((ticker) =>
+			String(ticker || "")
 				.trim()
 				.toLowerCase(),
 		)
@@ -97,6 +131,228 @@ function updateTickerTape(tickers) {
 
 	tape.setAttribute("symbols", symbols);
 	tape.style.height = "auto";
+}
+
+function createIconSvgElement(iconName, className) {
+	const iconDefinition = getIconDefinition(iconName);
+	const svg = document.createElementNS(SVG_NS, "svg");
+	svg.setAttribute("aria-hidden", "true");
+	svg.setAttribute("focusable", "false");
+	svg.setAttribute("viewBox", "0 0 16 16");
+	svg.setAttribute("fill", "none");
+	svg.setAttribute("stroke", "currentColor");
+	svg.setAttribute("stroke-width", "1.3");
+	svg.setAttribute("stroke-linecap", "round");
+	svg.setAttribute("stroke-linejoin", "round");
+	if (className) {
+		svg.setAttribute("class", className);
+	}
+
+	iconDefinition.paths.forEach((pathValue) => {
+		const path = document.createElementNS(SVG_NS, "path");
+		path.setAttribute("d", pathValue);
+		svg.append(path);
+	});
+
+	return svg;
+}
+
+function decorateNavItems(navItems) {
+	navItems.forEach((button) => {
+		if (button.dataset.iconReady === "true") return;
+
+		const label = String(button.textContent || "").trim();
+		const iconName = getNavIconName(button.dataset.view);
+		button.textContent = "";
+		button.append(createIconSvgElement(iconName));
+
+		const labelSpan = document.createElement("span");
+		labelSpan.textContent = label;
+		button.append(labelSpan);
+		button.dataset.iconReady = "true";
+	});
+}
+
+function syncNavItems(viewName) {
+	document.querySelectorAll(".nav-item").forEach((navItem) => {
+		navItem.classList.toggle("active", navItem.dataset.view === viewName);
+	});
+}
+
+function syncViewLayout(view) {
+	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
+
+	const isDashboard = view === DASHBOARD_VIEW;
+	const showsPreactRoot = isDashboard || view === INDUSTRY_VIEW;
+
+	const preactRoot = document.getElementById("preact-root");
+	if (preactRoot) {
+		preactRoot.style.display = showsPreactRoot ? "block" : "none";
+	}
+
+	setDisplay("heatmap-section", view === MARKETMAP_VIEW ? "block" : "none");
+	setDisplay("calendar-section", view === CALENDAR_VIEW ? "block" : "none");
+	setDisplay("stats-strip", isDashboard ? "flex" : "none");
+	setDisplay("import-image-btn", isDashboard ? "inline-flex" : "none");
+	setDisplay("import-status", isDashboard ? "inline" : "none");
+
+	const tapeView = document.getElementById("ticker-tape-view");
+	if (!tapeView) return;
+
+	if (isDashboard) {
+		tapeView.style.display = "block";
+		tapeView.style.visibility = "visible";
+		tapeView.style.height = "auto";
+		return;
+	}
+
+	tapeView.style.display = "none";
+	tapeView.style.visibility = "hidden";
+	tapeView.style.height = "0";
+}
+
+function updatePortfolioSummary(stats) {
+	setText("total-positions", stats.positions ? String(stats.positions) : "--");
+	setText(
+		"total-value",
+		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
+	);
+
+	if (stats.totalVal <= 0) {
+		setText("portfolio-change", "--");
+		return;
+	}
+
+	const { percent, absolute } = stats.change;
+	const sign = absolute >= 0 ? "+" : "";
+	const absoluteText = sign + fmt.currency(Math.abs(absolute));
+	const percentText = fmt.percent(percent);
+	setText("portfolio-change", `${absoluteText} (${percentText})`);
+
+	const trend = document.getElementById("portfolio-change");
+	if (!trend) return;
+
+	trend.className = `stats-value stats-trend ${
+		percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"
+	}`;
+}
+
+function renderIndustryScreen(industryData) {
+	return html`
+		<${IndustryView}
+			meta=${industryData.meta}
+			isLoading=${industryData.isLoading}
+			lastError=${industryData.lastError}
+			sectorOptions=${industryData.sectorOptions}
+			selectedSector=${industryData.selectedSector}
+			setSelectedSector=${industryData.setSelectedSector}
+			sortKey=${industryData.sortKey}
+			sortDirection=${industryData.sortDirection}
+			setSortKey=${industryData.setSortKey}
+			filteredIndustries=${industryData.sortedIndustries}
+			breadth=${industryData.breadth}
+		/>
+	`;
+}
+
+function renderDashboardScreen({
+	stats,
+	tab,
+	rows,
+	sortCol,
+	sortDir,
+	onTabChange,
+	onSort,
+	onRemove,
+	onSetQuantity,
+	colorStandards,
+	isUsingDemoData,
+	isBackgroundLoading,
+	onAddOrUpdate,
+}) {
+	const totalValueText =
+		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--";
+	const totalPositionsText = stats.positions
+		? `${stats.positions} names`
+		: "--";
+	const changePercent = Number(stats.change?.percent || 0);
+	const changeAbsolute = Number(stats.change?.absolute || 0);
+	const changeTone =
+		changePercent > 0 ? "positive" : changePercent < 0 ? "negative" : "neutral";
+	const changeText =
+		stats.totalVal > 0
+			? `${changeAbsolute >= 0 ? "+" : "-"}${fmt.currency(Math.abs(changeAbsolute))} (${fmt.percent(changePercent)})`
+			: "--";
+	const tableDescription =
+		tab === "holdings"
+			? "Live portfolio lines"
+			: tab === "evaluations"
+				? "Ranked idea set"
+				: "Portfolio and ranked ideas";
+
+	return html`
+		<div class="tabs-container" id="dashboard-tables">
+			<div class="dashboard-summary">
+				<div class="dashboard-summary-copy">
+					<div class="dashboard-summary-label">Portfolio desk</div>
+					<div class="dashboard-summary-headline">${totalValueText}</div>
+					<div class="dashboard-summary-meta">
+						<span>${totalPositionsText}</span>
+						<span class=${`dashboard-summary-change ${changeTone}`}>
+							${changeText}
+						</span>
+					</div>
+				</div>
+				<div class="dashboard-summary-actions">
+					<div class="dashboard-summary-label">Quick add</div>
+					<${QuickAdd}
+						rows=${rows}
+						isUsingDemoData=${isUsingDemoData}
+						onSubmit=${onAddOrUpdate}
+					/>
+				</div>
+			</div>
+			<div class="tabs-header">
+				<div class="tab-group">
+					<button
+						type="button"
+						class=${`tab-btn ${tab === "all" ? "active" : ""}`}
+						onClick=${() => onTabChange("all")}
+					>
+						ALL
+					</button>
+					<button
+						type="button"
+						class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
+						onClick=${() => onTabChange("holdings")}
+					>
+						PORTFOLIO
+					</button>
+					<button
+						type="button"
+						class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
+						onClick=${() => onTabChange("evaluations")}
+					>
+						EVALUATION
+					</button>
+				</div>
+				<div class="table-status">${tableDescription}</div>
+			</div>
+
+			<${DataTable}
+				tab=${tab}
+				rows=${rows}
+				sortCol=${sortCol}
+				sortDir=${sortDir}
+				onSort=${onSort}
+				onRemove=${onRemove}
+				onSetQuantity=${onSetQuantity}
+				colorStandards=${colorStandards}
+				isUsingDemoData=${isUsingDemoData}
+				animateRows=${!isBackgroundLoading}
+			/>
+		</div>
+	`;
 }
 
 function initSidebarAndNav({ onViewChange }) {
@@ -124,14 +380,11 @@ function initSidebarAndNav({ onViewChange }) {
 	}
 
 	const navItems = document.querySelectorAll(".nav-item");
+	decorateNavItems(navItems);
 	navItems.forEach((btn) => {
 		const onClick = () => {
 			const viewName = btn.dataset.view;
 			if (!viewName) return;
-
-			navItems.forEach((n) => {
-				n.classList.toggle("active", n.dataset.view === viewName);
-			});
 			onViewChange(viewName);
 
 			if (window.innerWidth <= 1024 && sidebar) {
@@ -198,8 +451,11 @@ function initHeatmapTabs() {
 			const source = tab.dataset.source;
 			if (!source) return;
 
-			tabs.forEach((t) => {
-				t.classList.toggle("active", t.dataset.source === source);
+			tabs.forEach((tabButton) => {
+				tabButton.classList.toggle(
+					"active",
+					tabButton.dataset.source === source,
+				);
 			});
 			createHeatmapWidget(source);
 		};
@@ -216,7 +472,9 @@ function initHeatmapTabs() {
 }
 
 export function App() {
-	const [view, setView] = useState("dashboard");
+	const [view, setView] = useState(() =>
+		getViewForPath(window.location.pathname),
+	);
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
@@ -234,26 +492,65 @@ export function App() {
 		actions,
 	} = usePortfolioData();
 
+	const industryData = useIndustryData({ enabled: view === INDUSTRY_VIEW });
+
 	const syncRef = useRef(actions.sync);
 	const importImageRef = useRef(actions.importFromImage);
+	const industryRefreshRef = useRef(industryData.refresh);
+	const viewRef = useRef(view);
+
 	useEffect(() => {
 		syncRef.current = actions.sync;
 	}, [actions.sync]);
+
 	useEffect(() => {
 		importImageRef.current = actions.importFromImage;
 	}, [actions.importFromImage]);
 
-	// Initial boot
+	useEffect(() => {
+		industryRefreshRef.current = industryData.refresh;
+	}, [industryData.refresh]);
+
+	useEffect(() => {
+		viewRef.current = view;
+	}, [view]);
+
+	useEffect(() => {
+		const nextPath = getPathForView(view);
+		if (window.location.pathname !== nextPath) {
+			window.history.pushState({}, "", nextPath);
+		}
+		syncNavItems(view);
+	}, [view]);
+
+	useEffect(() => {
+		const onPopState = () => {
+			setView(getViewForPath(window.location.pathname));
+		};
+
+		window.addEventListener("popstate", onPopState);
+		return () => {
+			window.removeEventListener("popstate", onPopState);
+		};
+	}, []);
+
 	useEffect(() => {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
 		createCalendarWidget();
-		actions.sync({ background: false, scope: "all" });
+		actions.sync({ background: false, scope: PORTFOLIO_SYNC_SCOPE });
 
 		const refreshBtn = document.getElementById("refresh-btn");
-		const onRefresh = () => actions.sync({ background: false });
 		const importBtn = document.getElementById("import-image-btn");
 		const importInput = document.getElementById("import-image-input");
+
+		const onRefresh = () => {
+			if (viewRef.current === INDUSTRY_VIEW) {
+				industryRefreshRef.current?.();
+				return;
+			}
+			syncRef.current?.({ background: false, scope: PORTFOLIO_SYNC_SCOPE });
+		};
 		const onImportClick = () => importInput?.click();
 		const onImportChange = async (event) => {
 			const file = event?.target?.files?.[0];
@@ -288,6 +585,7 @@ export function App() {
 			}
 			await importImageFile(file, importImageRef);
 		};
+
 		if (refreshBtn) {
 			refreshBtn.addEventListener("click", onRefresh);
 		}
@@ -322,135 +620,79 @@ export function App() {
 		};
 	}, []);
 
-	// Periodic background refresh (skip demo mode)
 	useEffect(() => {
 		if (CONFIG.isDemoMode) return;
 
 		const intervalId = setInterval(() => {
+			if (viewRef.current !== DASHBOARD_VIEW) return;
 			if (document.visibilityState !== "visible" || !navigator.onLine) return;
 			syncRef.current?.({
 				background: true,
 				silent: false,
-				scope: "all",
+				scope: PORTFOLIO_SYNC_SCOPE,
 			});
-		}, 180_000);
+		}, BACKGROUND_SYNC_INTERVAL_MS);
 
 		return () => {
 			clearInterval(intervalId);
 		};
 	}, []);
 
-	// View toggles (keep TradingView embeds mounted)
 	useEffect(() => {
-		setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES.calendar);
-
-		const isDashboard = view === "dashboard";
-
-		const preactRoot = document.getElementById("preact-root");
-		if (preactRoot) preactRoot.style.display = isDashboard ? "block" : "none";
-
-		setDisplay("heatmap-section", view === "heatmap" ? "block" : "none");
-		setDisplay("calendar-section", view === "calendar" ? "block" : "none");
-
-		// Ticker tape is only for dashboard. In Preact, updating standard display sometimes conflicts
-		// with TradingView widget life cycles, so we force visibility hidden as well if necessary,
-		// or rely on strict display:none to hide the whole container safely.
-		const tapeView = document.getElementById("ticker-tape-view");
-		if (tapeView) {
-			if (isDashboard) {
-				tapeView.style.display = "block";
-				tapeView.style.visibility = "visible";
-				tapeView.style.height = "auto";
-			} else {
-				tapeView.style.display = "none";
-				tapeView.style.visibility = "hidden";
-				tapeView.style.height = "0";
-			}
-		}
-
-		setDisplay("stats-strip", isDashboard ? "flex" : "none");
+		syncViewLayout(view);
 	}, [view]);
 
-	// Update stats strip + timestamp
+	const activeTimestamp =
+		view === INDUSTRY_VIEW ? industryData.meta.fetched_at : generatedAt;
+	const activeIsUpdating =
+		view === INDUSTRY_VIEW ? industryData.isLoading : isBackgroundLoading;
+	const activeIsLoading =
+		view === INDUSTRY_VIEW ? industryData.isLoading : isLoading;
+	const activeIsUsingDemoData =
+		view === DASHBOARD_VIEW ? isUsingDemoData : false;
+
 	useEffect(() => {
 		setText(
-			"total-positions",
-			stats.positions ? String(stats.positions) : "--",
+			"last-update",
+			formatLastUpdatedText(activeTimestamp, {
+				isUpdating: activeIsUpdating,
+				isUsingDemoData: activeIsUsingDemoData,
+			}),
 		);
-		setText(
-			"total-value",
-			stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
-		);
+	}, [activeIsUpdating, activeIsUsingDemoData, activeTimestamp]);
 
-		if (stats.totalVal > 0) {
-			const { percent, absolute } = stats.change;
-			const sign = absolute >= 0 ? "+" : "";
-			const absFormatted = sign + fmt.currency(Math.abs(absolute));
-			const pctFormatted = fmt.percent(percent);
-			setText("portfolio-change", `${absFormatted} (${pctFormatted})`);
+	useEffect(() => {
+		updatePortfolioSummary(stats);
+	}, [stats]);
 
-			const trend = document.getElementById("portfolio-change");
-			if (trend) {
-				trend.className = `stats-value stats-trend ${percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"}`;
-			}
-		} else {
-			setText("portfolio-change", "--");
-		}
-
-		const modeText = isUsingDemoData ? " [DEMO]" : "";
-
-		if (isBackgroundLoading) {
-			setText("last-update", `UPDATING...${modeText}`);
-			return;
-		}
-
-		// last updated
-		if (!generatedAt) {
-			setText("last-update", `LAST UPDATED: --${modeText}`);
-			return;
-		}
-
-		const time = new Date(generatedAt);
-		const dateStr = time.toLocaleDateString("en-US", {
-			month: "short",
-			day: "2-digit",
-		});
-		const timeStr = time.toLocaleTimeString("en-US", {
-			hour12: false,
-			hour: "2-digit",
-			minute: "2-digit",
-			second: "2-digit",
-		});
-
-		setText("last-update", `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`);
-	}, [generatedAt, isUsingDemoData, isBackgroundLoading, stats]);
-
-	// Update ticker tape
 	useEffect(() => {
 		updateTickerTape(topTickers);
 	}, [topTickers]);
 
-	// Loading overlay (only for foreground loads)
 	useEffect(() => {
 		const overlay = document.getElementById("loading-overlay");
 		if (!overlay) return;
 
-		const show = isLoading && !isBackgroundLoading;
-
-		// Show overlay only for foreground sync actions; background refresh stays unobtrusive.
+		const show = activeIsLoading && !isBackgroundLoading;
 		overlay.style.display = show ? "flex" : "none";
 		document.body.classList.toggle("is-loading", show);
 
 		return () => {
 			document.body.classList.remove("is-loading");
 		};
-	}, [isLoading, isBackgroundLoading]);
+	}, [activeIsLoading, isBackgroundLoading]);
 
 	useEffect(() => {
-		if (lastError && !isLoading) {
+		if (lastError && !isLoading && view === DASHBOARD_VIEW) {
 			showToast("SYNCHRONIZATION FAILED");
 		}
-	}, [lastError, isLoading]);
+	}, [isLoading, lastError, view]);
+
+	useEffect(() => {
+		if (industryData.lastError && !industryData.isLoading) {
+			showToast("INDUSTRY SNAPSHOT FAILED");
+		}
+	}, [industryData.isLoading, industryData.lastError]);
 
 	const onSort = (key) => {
 		const isSame = sortCol === key;
@@ -509,87 +751,23 @@ export function App() {
 		return res;
 	};
 
-	const totalValueText =
-		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--";
-	const totalPositionsText = stats.positions
-		? `${stats.positions} names`
-		: "--";
-	const changePercent = Number(stats.change?.percent || 0);
-	const changeAbsolute = Number(stats.change?.absolute || 0);
-	const changeTone =
-		changePercent > 0 ? "positive" : changePercent < 0 ? "negative" : "neutral";
-	const changeText =
-		stats.totalVal > 0
-			? `${changeAbsolute >= 0 ? "+" : "-"}${fmt.currency(Math.abs(changeAbsolute))} (${fmt.percent(changePercent)})`
-			: "--";
-	const tableDescription =
-		tab === "holdings"
-			? "Live portfolio lines"
-			: tab === "evaluations"
-				? "Ranked idea set"
-				: "Portfolio and ranked ideas";
+	if (view === INDUSTRY_VIEW) {
+		return renderIndustryScreen(industryData);
+	}
 
-	return html`
-    <div class="tabs-container" id="dashboard-tables">
-      <div class="dashboard-summary">
-        <div class="dashboard-summary-copy">
-          <div class="dashboard-summary-label">Portfolio desk</div>
-          <div class="dashboard-summary-headline">${totalValueText}</div>
-          <div class="dashboard-summary-meta">
-            <span>${totalPositionsText}</span>
-            <span class=${`dashboard-summary-change ${changeTone}`}>
-              ${changeText}
-            </span>
-          </div>
-        </div>
-        <div class="dashboard-summary-actions">
-          <div class="dashboard-summary-label">Quick add</div>
-          <${QuickAdd}
-            rows=${rows}
-            isUsingDemoData=${isUsingDemoData}
-            onSubmit=${onAddOrUpdate}
-          />
-        </div>
-      </div>
-      <div class="tabs-header">
-        <div class="tab-group">
-          <button
-            type="button"
-            class=${`tab-btn ${tab === "all" ? "active" : ""}`}
-            onClick=${() => onTabChange("all")}
-          >
-            ALL
-          </button>
-          <button
-            type="button"
-            class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
-            onClick=${() => onTabChange("holdings")}
-          >
-            PORTFOLIO
-          </button>
-          <button
-            type="button"
-            class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
-            onClick=${() => onTabChange("evaluations")}
-          >
-            EVALUATION
-          </button>
-        </div>
-        <div class="table-status">${tableDescription}</div>
-      </div>
-
-      <${DataTable}
-        tab=${tab}
-        rows=${rows}
-        sortCol=${sortCol}
-        sortDir=${sortDir}
-        onSort=${onSort}
-        onRemove=${onRemove}
-        onSetQuantity=${onSetQuantity}
-        colorStandards=${colorStandards}
-        isUsingDemoData=${isUsingDemoData}
-        animateRows=${!isBackgroundLoading}
-      />
-    </div>
-  `;
+	return renderDashboardScreen({
+		stats,
+		tab,
+		rows,
+		sortCol,
+		sortDir,
+		onTabChange,
+		onSort,
+		onRemove,
+		onSetQuantity,
+		colorStandards,
+		isUsingDemoData,
+		isBackgroundLoading,
+		onAddOrUpdate,
+	});
 }

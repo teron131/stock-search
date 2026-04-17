@@ -12,5 +12,6 @@ STOCK_NEWS = "/stock/{ticker}/news"
 
 STOCKS = "/stocks"
 EVAL = "/eval"
+INDUSTRIES = "/industries"
 COLOR_STANDARDS = "/color-standards"
 REALTIME_CONFIG = "/realtime-config"

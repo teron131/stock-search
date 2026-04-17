@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
 
 import stock_search.api.app as app_module
-from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
+from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, INDUSTRIES, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
 import stock_search.api.routes.misc as misc_routes
+from stock_search.data_sources.stockanalysis import StockAnalysisIndustrySnapshot, StockAnalysisIndustrySummary
 from stock_search.models.schemas import NewsArticle, NewsMetadata
 
 NEWS_ARTICLE_FIELDS = {"title", "url", "summary", "relevancy", "category", "sentiment"}
@@ -43,6 +44,17 @@ def test_root_route_serves_index_when_file_backend_is_forced(monkeypatch) -> Non
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
+
+
+def test_page_routes_serve_index_when_file_backend_is_forced(monkeypatch) -> None:
+    monkeypatch.setattr(app_module, "backend_name", lambda: "file")
+
+    with TestClient(app_module.app) as client:
+        responses = {path: client.get(path) for path in ("/dashboard", "/industry", "/marketmap", "/calendar")}
+
+    for response in responses.values():
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
 
 
 def test_misc_data_endpoints_return_patched_payloads_and_disable_caching(monkeypatch, misc_client: TestClient) -> None:
@@ -121,3 +133,90 @@ def test_evaluate_endpoint_returns_indicator_values_from_stock_indicator(monkeyp
     assert payload["price"] == 123.45
     assert payload["change_percent_1d"] == 1.5
     assert payload["rsi"] == 54.2
+
+
+async def _fake_industry_snapshot() -> StockAnalysisIndustrySnapshot:
+    return StockAnalysisIndustrySnapshot(
+        industries=[
+            StockAnalysisIndustrySummary(
+                sector="Technology",
+                industry="Semiconductors",
+                stock_count=78,
+                market_cap=8_500_000_000_000.0,
+                pe=31.2,
+                profit_margin=22.5,
+                gross_margin=54.1,
+                change_percent_1d=1.8,
+                change_percent_1m=9.7,
+                change_percent_1y=42.4,
+            ),
+            StockAnalysisIndustrySummary(
+                sector="Healthcare",
+                industry="Biotechnology",
+                stock_count=590,
+                market_cap=1_170_000_000_000.0,
+                pe=None,
+                profit_margin=-36.04,
+                gross_margin=46.01,
+                change_percent_1d=-0.68,
+                change_percent_1m=10.84,
+                change_percent_1y=148.46,
+            ),
+        ]
+    )
+
+
+async def _fake_empty_industry_snapshot() -> StockAnalysisIndustrySnapshot:
+    return StockAnalysisIndustrySnapshot()
+
+
+def test_industries_endpoint_returns_snapshot_metadata_and_disables_caching(
+    monkeypatch,
+    misc_client: TestClient,
+) -> None:
+    monkeypatch.setattr(
+        misc_routes,
+        "get_industry_snapshot_async",
+        _fake_industry_snapshot,
+    )
+
+    response = misc_client.get(INDUSTRIES)
+
+    assert response.status_code == 200
+    assert_no_store(response)
+    payload = response.json()
+    assert len(payload["industries"]) == 2
+    assert payload["industries"][0]["industry"] == "Semiconductors"
+    assert payload["industries"][1]["sector"] == "Healthcare"
+    assert payload["meta"] == {
+        "source": "stockanalysis",
+        "fetched_at": payload["meta"]["fetched_at"],
+        "sector_count": 2,
+        "industry_count": 2,
+    }
+    assert isinstance(payload["meta"]["fetched_at"], str)
+
+
+def test_industries_endpoint_returns_empty_payload_when_snapshot_is_empty(
+    monkeypatch,
+    misc_client: TestClient,
+) -> None:
+    monkeypatch.setattr(
+        misc_routes,
+        "get_industry_snapshot_async",
+        _fake_empty_industry_snapshot,
+    )
+
+    response = misc_client.get(INDUSTRIES)
+
+    assert response.status_code == 200
+    assert_no_store(response)
+    assert response.json() == {
+        "industries": [],
+        "meta": {
+            "source": "stockanalysis",
+            "fetched_at": None,
+            "sector_count": 0,
+            "industry_count": 0,
+        },
+    }

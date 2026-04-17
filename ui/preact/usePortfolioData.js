@@ -4,7 +4,7 @@ import {
 	useMemo,
 	useRef,
 	useState,
-} from "https://esm.sh/preact@10.19.6/hooks";
+} from "preact/hooks";
 
 import { CONFIG } from "./config.js";
 import { normalizeApiDashboardPayload } from "./dataContract.js";
@@ -300,7 +300,7 @@ export function usePortfolioData() {
 			return false;
 		}
 
-		const convex = await import("https://esm.sh/convex@1.32.0/browser");
+		const convex = await import("convex/browser");
 		const { BaseConvexClient } = convex || {};
 		if (!BaseConvexClient) {
 			return false;

@@ -1,8 +1,4 @@
-import {
-	useEffect,
-	useRef,
-	useState,
-} from "https://esm.sh/preact@10.19.6/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
 	const canEdit = !isUsingDemoData;

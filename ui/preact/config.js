@@ -6,6 +6,7 @@ export const CONFIG = {
 	endpoints: {
 		portfolio: "/portfolio",
 		portfolioImportImage: "/portfolio/import-image",
+		industries: "/industries",
 		stock: "/stock",
 		stockStats: (ticker) =>
 			`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`,
@@ -20,6 +21,7 @@ export const CONFIG = {
 	requestTimeoutMs: {
 		portfolioForeground: 30_000,
 		portfolioBackground: 120_000,
+		industries: 30_000,
 	},
 
 	defaultStrategy: "Speculation",
