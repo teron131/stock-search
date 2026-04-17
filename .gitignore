@@ -1,6 +1,7 @@
 .DS_Store
 uv.lock
 *.json
+!package.json
 data/
 *.db
 *.db-shm
