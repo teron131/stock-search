@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 
 const backendTarget = process.env.VITE_BACKEND_URL || "http://localhost:8000";
+const base = process.env.VITE_BASE_URL || "/";
 const proxyPaths = [
 	"/portfolio",
 	"/industries",
@@ -20,6 +21,7 @@ const proxy = Object.fromEntries(
 );
 
 export default defineConfig({
+	base,
 	root: "ui",
 	server: {
 		host: "localhost",
