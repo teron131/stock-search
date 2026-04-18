@@ -2215,6 +2215,7 @@ tbody tr:hover td:first-child {
 	padding: 12px 16px 14px;
 	border: 1px solid rgba(255, 255, 255, 0.06);
 	background:
+		linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(15, 15, 15, 0.98)),
 		linear-gradient(135deg, rgba(217, 255, 63, 0.08), transparent 42%),
 		linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
 }
@@ -2277,8 +2278,9 @@ tbody tr:hover td:first-child {
 }
 
 .industry-sector-chip.active {
-	border-color: rgba(217, 255, 63, 0.42);
+	border-color: transparent;
 	background: rgba(217, 255, 63, 0.1);
+	box-shadow: inset 0 0 0 1px rgba(217, 255, 63, 0.42);
 }
 
 .industry-sector-name {
@@ -2386,6 +2388,9 @@ tbody tr:hover td:first-child {
 	border-collapse: separate;
 	border-spacing: 0;
 	table-layout: auto;
+	--industry-row-bg: rgb(12, 12, 12);
+	--industry-row-bg-alt: rgb(18, 18, 18);
+	--industry-row-bg-hover: rgb(20, 20, 20);
 }
 
 .industry-ledger-table tbody tr:hover {
@@ -2393,15 +2398,15 @@ tbody tr:hover td:first-child {
 }
 
 .industry-col-name {
-	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
+	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 16px), 228px);
 }
 
 .industry-col-stocks {
-	width: 84px;
+	width: 68px;
 }
 
 .industry-col-cap {
-	width: 132px;
+	width: 114px;
 }
 
 .industry-col-pe,
@@ -2409,16 +2414,16 @@ tbody tr:hover td:first-child {
 .industry-col-gross,
 .industry-col-1d,
 .industry-col-1m {
-	width: 96px;
+	width: 80px;
 }
 
 .industry-col-1y {
-	width: 112px;
+	width: 90px;
 }
 
 .industry-ledger-table th,
 .industry-ledger-table td {
-	padding: 11px 16px;
+	padding: 10px 12px;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 	font-family: "IBM Plex Sans", sans-serif;
 	font-size: 12px;
@@ -2426,20 +2431,28 @@ tbody tr:hover td:first-child {
 	white-space: nowrap;
 }
 
+.industry-ledger-table tbody td {
+	background: var(--industry-row-bg);
+}
+
+.industry-ledger-table tbody tr:nth-child(even) td {
+	background: var(--industry-row-bg-alt);
+}
+
 .industry-ledger-table th:first-child,
 .industry-ledger-table td:first-child {
 	text-align: left;
 	padding-left: 12px;
 	padding-right: 8px;
-	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
-	min-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
-	max-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
+	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 16px), 228px);
+	min-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 16px), 228px);
+	max-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 16px), 228px);
 	position: sticky;
 	left: 0;
-	background: rgb(15, 15, 15);
-	border-right: 1px solid rgba(255, 255, 255, 0.04);
-	box-shadow: none;
-	background-clip: padding-box;
+	overflow: hidden;
+	z-index: 85;
+	background-color: var(--bg-surface);
+	box-shadow: 1px 0 2px rgba(0, 0, 0, 0.22);
 }
 
 .industry-ledger-table th:nth-child(2),
@@ -2452,8 +2465,7 @@ tbody tr:hover td:first-child {
 	position: sticky;
 	top: 0;
 	z-index: 3;
-	background: rgba(5, 5, 5, 0.98);
-	box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+	background: var(--bg-surface-high);
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.1em;
@@ -2462,16 +2474,26 @@ tbody tr:hover td:first-child {
 }
 
 .industry-ledger-table thead th:first-child {
-	z-index: 4;
-	background: rgb(5, 5, 5);
+	z-index: 95;
+	background: var(--bg-surface-high);
+	box-shadow: 1px 0 2px rgba(0, 0, 0, 0.22);
 }
 
 .industry-ledger-table tbody td:first-child {
-	z-index: 2;
+	z-index: 85;
+	background-color: var(--industry-row-bg);
+}
+
+.industry-ledger-table tbody tr:nth-child(even) td:first-child {
+	background-color: var(--industry-row-bg-alt);
+}
+
+.industry-ledger-table tbody tr:hover td {
+	background: var(--industry-row-bg-hover);
 }
 
 .industry-ledger-table tbody tr:hover td:first-child {
-	background: rgb(24, 24, 24);
+	background-color: var(--industry-row-bg-hover);
 }
 
 .industry-header-btn {
@@ -2596,16 +2618,16 @@ tbody tr:hover td:first-child {
 
 	.industry-ledger-table th,
 	.industry-ledger-table td {
-		padding: 10px 12px;
+		padding: 9px 10px;
 		font-size: 11px;
 	}
 
 	.industry-col-stocks {
-		width: 76px;
+		width: 46px;
 	}
 
 	.industry-col-cap {
-		width: 108px;
+		width: 68px;
 	}
 
 	.industry-col-pe,
@@ -2613,10 +2635,22 @@ tbody tr:hover td:first-child {
 	.industry-col-gross,
 	.industry-col-1d,
 	.industry-col-1m {
-		width: 84px;
+		width: 70px;
 	}
 
 	.industry-col-1y {
-		width: 100px;
+		width: 82px;
+	}
+
+	.industry-ledger-table th:nth-child(2),
+	.industry-ledger-table td:nth-child(2) {
+		padding-left: 2px;
+		padding-right: 2px;
+	}
+
+	.industry-ledger-table th:nth-child(3),
+	.industry-ledger-table td:nth-child(3) {
+		padding-left: 3px;
+		padding-right: 4px;
 	}
 }

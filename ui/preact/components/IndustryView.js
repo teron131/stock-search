@@ -1,11 +1,63 @@
 import { html } from "htm/preact";
 
-import { fmt } from "../format.js";
+import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
+import { CONFIG } from "../config.js";
+import { fmt, parseMarketCap } from "../format.js";
 import {
 	getIconDefinition,
 	getSectorDisplayLabel,
 	getSectorIconName,
 } from "../industryIcons.js";
+
+const INDUSTRY_ALIAS_MIN_LENGTH = 24;
+
+const INDUSTRY_ABBREVIATIONS = [
+	[/\bManufacturing\b/g, "Mfg."],
+	[/\bManufacturers\b/g, "Mfrs"],
+	[/\bIndependent\b/g, "Indep."],
+	[/\bPower\b/g, "Pwr."],
+	[/\bProducers\b/g, "Prod."],
+	[/\bSemiconductor\b/g, "Semi."],
+	[/\bDistribution\b/g, "Dist."],
+	[/\bEquipment\b/g, "Equip."],
+	[/\bConstruction\b/g, "Constr."],
+	[/\bMachinery\b/g, "Mach."],
+	[/\bDealerships\b/g, "Dealers"],
+	[/\bRecreational\b/g, "Rec."],
+	[/\bVehicles\b/g, "Veh."],
+	[/\bDistilleries\b/g, "Distill."],
+	[/\bAppliances\b/g, "Appl."],
+	[/\bExploration\b/g, "Expl."],
+	[/\bProduction\b/g, "Prod."],
+	[/\bTechnical\b/g, "Tech."],
+	[/\bInstruments\b/g, "Instr."],
+	[/\bIndustrial\b/g, "Ind."],
+	[/\bFinancial\b/g, "Fin."],
+	[/\bExchanges\b/g, "Exchs."],
+	[/\bInformation\b/g, "Info"],
+	[/\bTechnology\b/g, "Tech."],
+	[/\bCommunications\b/g, "Comms."],
+	[/\bProperty\b/g, "Prop."],
+	[/\bCasualty\b/g, "Cas."],
+	[/\bServices\b/g, "Svcs."],
+	[/\bMarketing\b/g, "Mktg."],
+	[/\bElectric\b/g, "Elec."],
+	[/\bIntegrated\b/g, "Integ."],
+	[/\bPrecious\b/g, "Prec."],
+	[/\bSpecialty\b/g, "Spec."],
+	[/\bFinancial\b/g, "Fin."],
+	[/\bScientific\b/g, "Sci."],
+	[/\bMedical\b/g, "Med."],
+	[/\bResidential\b/g, "Res."],
+	[/\bControls\b/g, "Ctrls."],
+];
+
+const INDUSTRY_COLOR_COLUMNS = [
+	{ key: "market_cap", format: "market_cap" },
+	{ key: "pe", format: "number" },
+	{ key: "profit_margin", format: "percent_neutral" },
+	{ key: "gross_margin", format: "percent_neutral" },
+];
 
 function toneClass(value) {
 	const numeric = Number(value);
@@ -18,6 +70,23 @@ function maxTextLength(values, fallbackLength) {
 		(maxLength, value) => Math.max(maxLength, String(value || "").length),
 		fallbackLength,
 	);
+}
+
+function getIndustryDisplayName(industryName) {
+	const fullName = String(industryName || "").trim();
+	if (!fullName) return "";
+
+	if (fullName.length < INDUSTRY_ALIAS_MIN_LENGTH) {
+		return fullName;
+	}
+
+	const compactName = INDUSTRY_ABBREVIATIONS.reduce(
+		(currentName, [pattern, replacement]) =>
+			currentName.replace(pattern, replacement),
+		fullName,
+	);
+
+	return compactName.length < fullName.length ? compactName : fullName;
 }
 
 function renderIcon(iconName, className) {
@@ -52,6 +121,11 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 	`;
 }
 
+function renderIndustryMetric(value, color) {
+	if (!color) return value;
+	return html`<span style=${{ color }}>${value}</span>`;
+}
+
 export function IndustryView({
 	isLoading,
 	lastError,
@@ -64,12 +138,17 @@ export function IndustryView({
 	filteredIndustries,
 }) {
 	const industryCharCount = maxTextLength(
-		filteredIndustries.map((industry) => industry.industry),
+		filteredIndustries.map((industry) =>
+			getIndustryDisplayName(industry.industry),
+		),
 		"Industry".length,
 	);
-	const stockCountCharCount = maxTextLength(
-		filteredIndustries.map((industry) => industry.stock_count ?? "--"),
-		"Stocks".length,
+	const industryColorMeta = calculateScoreColorMetadata(
+		filteredIndustries,
+		INDUSTRY_COLOR_COLUMNS,
+		{
+			colorBandFraction: CONFIG.colorBandFraction,
+		},
 	);
 
 	return html`
@@ -156,7 +235,6 @@ export function IndustryView({
 									class="industry-ledger-table"
 									style=${{
 										"--industry-name-char-count": industryCharCount,
-										"--industry-stocks-char-count": stockCountCharCount,
 									}}
 								>
 									<colgroup>
@@ -184,8 +262,27 @@ export function IndustryView({
 										</tr>
 									</thead>
 									<tbody>
-										${filteredIndustries.map(
-											(industry) => html`
+										${filteredIndustries.map((industry) => {
+											const displayIndustryName = getIndustryDisplayName(
+												industry.industry,
+											);
+											const marketCapColor = getScoreColor(
+												parseMarketCap(industry.market_cap),
+												industryColorMeta.market_cap,
+											);
+											const peColor = getScoreColor(
+												industry.pe,
+												industryColorMeta.pe,
+											);
+											const profitMarginColor = getScoreColor(
+												industry.profit_margin,
+												industryColorMeta.profit_margin,
+											);
+											const grossMarginColor = getScoreColor(
+												industry.gross_margin,
+												industryColorMeta.gross_margin,
+											);
+											return html`
 											<tr>
 												<td class="industry-name-cell">
 													<span class="industry-name-ident">
@@ -199,17 +296,31 @@ export function IndustryView({
 																"industry-row-glyph",
 															)}
 														</span>
-														<span class="industry-name">${industry.industry}</span>
+														<span class="industry-name" title=${industry.industry}>
+															${displayIndustryName}
+														</span>
 													</span>
 												</td>
 												<td>${industry.stock_count ?? "--"}</td>
-												<td>${fmt.market_cap(industry.market_cap)}</td>
-												<td>${fmt.number(industry.pe)}</td>
+												<td>${renderIndustryMetric(
+													fmt.market_cap(industry.market_cap),
+													marketCapColor,
+												)}</td>
+												<td>${renderIndustryMetric(
+													fmt.number(industry.pe),
+													peColor,
+												)}</td>
 												<td class=${`industry-tone ${toneClass(industry.profit_margin)}`}>
-													${fmt.percent_neutral(industry.profit_margin)}
+													${renderIndustryMetric(
+														fmt.percent_neutral(industry.profit_margin),
+														profitMarginColor,
+													)}
 												</td>
 												<td class=${`industry-tone ${toneClass(industry.gross_margin)}`}>
-													${fmt.percent_neutral(industry.gross_margin)}
+													${renderIndustryMetric(
+														fmt.percent_neutral(industry.gross_margin),
+														grossMarginColor,
+													)}
 												</td>
 												<td class=${`industry-tone ${toneClass(industry.change_percent_1d)}`}>
 													${fmt.percent(industry.change_percent_1d)}
@@ -221,8 +332,8 @@ export function IndustryView({
 													${fmt.percent(industry.change_percent_1y)}
 												</td>
 											</tr>
-										`,
-										)}
+										`;
+										})}
 									</tbody>
 								</table>
 							</div>
