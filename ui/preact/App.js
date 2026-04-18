@@ -270,13 +270,6 @@ function renderDashboardScreen({
 		stats.totalVal > 0
 			? `${changeAbsolute >= 0 ? "+" : "-"}${fmt.currency(Math.abs(changeAbsolute))} (${fmt.percent(changePercent)})`
 			: "--";
-	const tableDescription =
-		tab === "holdings"
-			? "Live portfolio lines"
-			: tab === "evaluations"
-				? "Ranked idea set"
-				: "Portfolio and ranked ideas";
-
 	return html`
 		<div class="tabs-container" id="dashboard-tables">
 			<div class="dashboard-summary">
@@ -323,7 +316,6 @@ function renderDashboardScreen({
 						EVALUATION
 					</button>
 				</div>
-				<div class="table-status">${tableDescription}</div>
 			</div>
 
 			<${DataTable}
