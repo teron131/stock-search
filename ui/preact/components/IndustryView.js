@@ -69,7 +69,7 @@ export function IndustryView({
 	);
 	const stockCountCharCount = maxTextLength(
 		filteredIndustries.map((industry) => industry.stock_count ?? "--"),
-		2,
+		"Stocks".length,
 	);
 
 	return html`
@@ -155,8 +155,8 @@ export function IndustryView({
 								<table
 									class="industry-ledger-table"
 									style=${{
-										"--industry-name-char-count": industryCharCount + 1,
-										"--industry-stocks-char-count": stockCountCharCount + 2,
+										"--industry-name-char-count": industryCharCount,
+										"--industry-stocks-char-count": stockCountCharCount,
 									}}
 								>
 									<colgroup>
@@ -173,7 +173,7 @@ export function IndustryView({
 									<thead>
 										<tr>
 											<th>${renderSortableHeader("Industry", "industry", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("No.", "stock_count", sortKey, sortDirection, setSortKey)}</th>
+											<th>${renderSortableHeader("Stocks", "stock_count", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("Mkt Cap", "market_cap", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("PE", "pe", sortKey, sortDirection, setSortKey)}</th>
 											<th>${renderSortableHeader("PROFIT", "profit_margin", sortKey, sortDirection, setSortKey)}</th>

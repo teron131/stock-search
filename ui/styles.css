@@ -2381,9 +2381,11 @@ tbody tr:hover td:first-child {
 }
 
 .industry-ledger-table {
-	width: 100%;
-	border-collapse: collapse;
-	table-layout: fixed;
+	width: max-content;
+	min-width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	table-layout: auto;
 }
 
 .industry-ledger-table tbody tr:hover {
@@ -2391,30 +2393,27 @@ tbody tr:hover td:first-child {
 }
 
 .industry-col-name {
-	width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
+	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
 }
 
 .industry-col-stocks {
-	width: calc((var(--industry-stocks-char-count, 4) * 1ch) + 8px);
+	width: 84px;
 }
 
 .industry-col-cap {
-	width: 126px;
+	width: 132px;
 }
 
 .industry-col-pe,
 .industry-col-profit,
 .industry-col-gross,
 .industry-col-1d,
-.industry-col-1m,
+.industry-col-1m {
+	width: 96px;
+}
+
 .industry-col-1y {
-	width: calc(
-		(
-				100% -
-					calc((var(--industry-name-char-count, 24) * 1ch) + 28px) - 126px -
-					calc((var(--industry-stocks-char-count, 4) * 1ch) + 8px)
-			) / 6
-	);
+	width: 112px;
 }
 
 .industry-ledger-table th,
@@ -2431,20 +2430,22 @@ tbody tr:hover td:first-child {
 .industry-ledger-table td:first-child {
 	text-align: left;
 	padding-left: 12px;
-	padding-right: 12px;
-	width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
-	min-width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
-	max-width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
+	padding-right: 8px;
+	width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
+	min-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
+	max-width: min(calc((var(--industry-name-char-count, 24) * 1ch) + 22px), 280px);
 	position: sticky;
 	left: 0;
-	background: rgba(15, 15, 15, 0.98);
-	box-shadow: 8px 0 18px rgba(0, 0, 0, 0.34);
+	background: rgb(15, 15, 15);
+	border-right: 1px solid rgba(255, 255, 255, 0.04);
+	box-shadow: none;
+	background-clip: padding-box;
 }
 
 .industry-ledger-table th:nth-child(2),
 .industry-ledger-table td:nth-child(2) {
-	padding-left: 10px;
-	padding-right: 10px;
+	padding-left: 6px;
+	padding-right: 6px;
 }
 
 .industry-ledger-table thead th {
@@ -2462,7 +2463,7 @@ tbody tr:hover td:first-child {
 
 .industry-ledger-table thead th:first-child {
 	z-index: 4;
-	background: rgba(5, 5, 5, 0.98);
+	background: rgb(5, 5, 5);
 }
 
 .industry-ledger-table tbody td:first-child {
@@ -2470,12 +2471,24 @@ tbody tr:hover td:first-child {
 }
 
 .industry-ledger-table tbody tr:hover td:first-child {
-	background: rgba(24, 24, 24, 0.98);
+	background: rgb(24, 24, 24);
 }
 
 .industry-header-btn {
 	all: unset;
+	display: flex;
+	width: 100%;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 4px;
 	cursor: pointer;
+	text-align: right;
+	box-sizing: border-box;
+}
+
+.industry-ledger-table thead th:first-child .industry-header-btn {
+	justify-content: flex-start;
+	text-align: left;
 }
 
 .industry-header-btn.active {
@@ -2588,19 +2601,22 @@ tbody tr:hover td:first-child {
 	}
 
 	.industry-col-stocks {
-		width: 78px;
+		width: 76px;
 	}
 
 	.industry-col-cap {
-		width: 112px;
+		width: 108px;
 	}
 
 	.industry-col-pe,
 	.industry-col-profit,
 	.industry-col-gross,
 	.industry-col-1d,
-	.industry-col-1m,
+	.industry-col-1m {
+		width: 84px;
+	}
+
 	.industry-col-1y {
-		width: 88px;
+		width: 100px;
 	}
 }
