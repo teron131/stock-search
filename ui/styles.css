@@ -22,7 +22,7 @@
 	--row-height: 28px;
 	--table-visible-rows: 25;
 	--ticker-char-count: 6;
-	--ticker-column-width: calc((var(--ticker-char-count) * 1ch) + 56px);
+	--ticker-column-width: calc((var(--ticker-char-count) * 1ch) + 64px);
 
 	/* Border Radius */
 	--radius-sm: 0px;
@@ -823,6 +823,10 @@ th:not(:first-child) {
 	z-index: 70;
 }
 
+#main-table th:not(:first-child) {
+	text-align: right;
+}
+
 th:first-child,
 td:first-child {
 	padding-left: var(--space-md);
@@ -863,6 +867,10 @@ td {
 	white-space: nowrap;
 	background: var(--bg-surface);
 	font-variant-numeric: tabular-nums;
+}
+
+#main-table td:not(:first-child) {
+	text-align: right;
 }
 
 tbody tr {
@@ -2427,6 +2435,10 @@ tbody tr:hover td:first-child {
 	width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
 	min-width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
 	max-width: calc((var(--industry-name-char-count, 24) * 1ch) + 28px);
+	position: sticky;
+	left: 0;
+	background: rgba(15, 15, 15, 0.98);
+	box-shadow: 8px 0 18px rgba(0, 0, 0, 0.34);
 }
 
 .industry-ledger-table th:nth-child(2),
@@ -2446,6 +2458,19 @@ tbody tr:hover td:first-child {
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	color: var(--ink-ghost);
+}
+
+.industry-ledger-table thead th:first-child {
+	z-index: 4;
+	background: rgba(5, 5, 5, 0.98);
+}
+
+.industry-ledger-table tbody td:first-child {
+	z-index: 2;
+}
+
+.industry-ledger-table tbody tr:hover td:first-child {
+	background: rgba(24, 24, 24, 0.98);
 }
 
 .industry-header-btn {

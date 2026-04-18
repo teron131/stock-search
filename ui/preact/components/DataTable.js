@@ -158,7 +158,7 @@ function renderCell({
 	let content;
 	if (format === "percent") {
 		const numeric = Number(valueForDisplay);
-		const badgeClass = numeric >= 0 ? "positive" : "negative";
+		const badgeClass = numeric > 0 ? "positive" : numeric < 0 ? "negative" : "";
 		content = html`<span class=${`badge ${badgeClass}`}
       >${formatter(valueForDisplay)}</span
     >`;
