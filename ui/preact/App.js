@@ -504,13 +504,17 @@ export function App() {
 
 	useEffect(() => {
 		const nextPath = getPathForView(view);
-		if (window.location.pathname !== nextPath) {
+		if (!CONFIG.isDemoMode && window.location.pathname !== nextPath) {
 			window.history.pushState({}, "", nextPath);
 		}
 		syncNavItems(view);
 	}, [view]);
 
 	useEffect(() => {
+		if (CONFIG.isDemoMode) {
+			return undefined;
+		}
+
 		const onPopState = () => {
 			setView(getViewForPath(window.location.pathname));
 		};

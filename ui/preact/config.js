@@ -1,7 +1,13 @@
+const isDemoMode =
+	window.location.hostname.includes("github.io") ||
+	new URLSearchParams(window.location.search).get("demo") === "true";
+
+function getDemoAssetUrl(filename) {
+	return new URL(`demo/${filename}`, window.location.href).toString();
+}
+
 export const CONFIG = {
-	isDemoMode:
-		window.location.hostname.includes("github.io") ||
-		new URLSearchParams(window.location.search).get("demo") === "true",
+	isDemoMode,
 
 	endpoints: {
 		portfolio: "/portfolio",
@@ -16,6 +22,12 @@ export const CONFIG = {
 			`/stock/${encodeURIComponent(String(ticker || "").trim())}/news`,
 		colorStandards: "/color-standards",
 		realtimeConfig: "/realtime-config",
+	},
+
+	demoEndpoints: {
+		portfolio: getDemoAssetUrl("portfolio.json"),
+		industries: getDemoAssetUrl("industries.json"),
+		colorStandards: getDemoAssetUrl("color-standards.json"),
 	},
 
 	requestTimeoutMs: {

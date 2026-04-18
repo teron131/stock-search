@@ -197,6 +197,10 @@ function setValueIfChanged(setter, nextValue, areEqual = Object.is) {
 }
 
 function getPortfolioUrl(scope) {
+	if (CONFIG.isDemoMode) {
+		return CONFIG.demoEndpoints.portfolio;
+	}
+
 	if (scope === LIVE_PORTFOLIO_SCOPE) {
 		return CONFIG.endpoints.portfolio;
 	}
@@ -374,44 +378,70 @@ export function usePortfolioData() {
 	const loadFromApi = useCallback(
 		async ({ background = false, scope = LIVE_PORTFOLIO_SCOPE } = {}) => {
 			const shouldFetchMetadata = !background;
-
-			const standardsPromise =
-				shouldFetchMetadata && !colorStandards
-					? tryFetchJson(CONFIG.endpoints.colorStandards)
-					: Promise.resolve(null);
-
 			const timeoutMs = background
 				? CONFIG.requestTimeoutMs.portfolioBackground
 				: CONFIG.requestTimeoutMs.portfolioForeground;
-			const rawPayload = await fetchJsonWithTimeout(
-				getPortfolioUrl(scope),
-				timeoutMs,
-			);
-			const dashData = normalizeApiDashboardPayload(rawPayload);
-			if (!dashData) {
-				throw new Error("API Failure");
+
+			async function readPayload({ portfolioUrl, standardsUrl, isDemoData }) {
+				const standardsPromise =
+					shouldFetchMetadata && !colorStandards
+						? tryFetchJson(standardsUrl)
+						: Promise.resolve(null);
+				const rawPayload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
+				const dashData = normalizeApiDashboardPayload(rawPayload);
+				if (!dashData) {
+					throw new Error("API Failure");
+				}
+
+				const standardsPayload = await standardsPromise;
+				const standards = standardsPayload?.standards;
+				return {
+					dashData,
+					standards:
+						standards && typeof standards === "object" ? standards : null,
+					isDemoData,
+				};
 			}
 
-			const standardsPayload = await standardsPromise;
-			const standards = standardsPayload?.standards;
+			if (CONFIG.isDemoMode) {
+				return readPayload({
+					portfolioUrl: CONFIG.demoEndpoints.portfolio,
+					standardsUrl: CONFIG.demoEndpoints.colorStandards,
+					isDemoData: true,
+				});
+			}
 
-			return {
-				dashData,
-				standards:
-					standards && typeof standards === "object" ? standards : null,
-			};
+			try {
+				return await readPayload({
+					portfolioUrl: getPortfolioUrl(scope),
+					standardsUrl: CONFIG.endpoints.colorStandards,
+					isDemoData: false,
+				});
+			} catch (error) {
+				const fallbackResult = await readPayload({
+					portfolioUrl: CONFIG.demoEndpoints.portfolio,
+					standardsUrl: CONFIG.demoEndpoints.colorStandards,
+					isDemoData: true,
+				}).catch(() => null);
+
+				if (fallbackResult) {
+					return fallbackResult;
+				}
+
+				throw error;
+			}
 		},
 		[colorStandards],
 	);
 
 	const applyApiResult = useCallback(
-		({ dashData, standards }) => {
+		({ dashData, standards, isDemoData = false }) => {
 			if (standards) {
 				setColorStandards(standards);
 			}
 
 			setLastError(null);
-			setIsUsingDemoData(false);
+			setIsUsingDemoData(Boolean(isDemoData));
 			applyPayload({ dashData, evalData: {} });
 		},
 		[applyPayload],

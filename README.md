@@ -2,6 +2,8 @@
 
 **Static Demo**: https://teron131.github.io/stock-search
 
+The GitHub Pages demo is bundled from `ui/public/demo/` and uses a seeded random-share portfolio snapshot so the README link stays self-contained.
+
 A single-user stock analysis app that prioritizes free data, resilient fallbacks, and simple storage.
 
 ## Core Methodology

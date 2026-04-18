@@ -56,11 +56,21 @@ export function useIndustryData({ enabled = false } = {}) {
 		setIsLoading(true);
 		setLastError(null);
 		try {
-			const rawPayload = await fetchJsonWithTimeout(
-				CONFIG.endpoints.industries,
-				CONFIG.requestTimeoutMs.industries,
-			);
-			const payload = normalizeIndustryPayload(rawPayload);
+			const endpoints = CONFIG.isDemoMode
+				? [CONFIG.demoEndpoints.industries]
+				: [CONFIG.endpoints.industries, CONFIG.demoEndpoints.industries];
+
+			let payload = null;
+			for (const endpoint of endpoints) {
+				const rawPayload = await fetchJsonWithTimeout(
+					endpoint,
+					CONFIG.requestTimeoutMs.industries,
+				);
+				payload = normalizeIndustryPayload(rawPayload);
+				if (payload) {
+					break;
+				}
+			}
 			if (!payload) {
 				throw new Error("Industry API failure");
 			}

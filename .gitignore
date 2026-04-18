@@ -2,6 +2,8 @@
 uv.lock
 *.json
 !package.json
+!ui/public/demo/
+!ui/public/demo/*.json
 data/
 *.db
 *.db-shm

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import logging
 from pathlib import Path
 import random
+from types import SimpleNamespace
 
 from stock_search.api.config import DATA_SQLITE_PATH, SAMPLE_DATA_SQLITE_PATH
 from stock_search.common_utils import format_market_cap, round_optional
@@ -19,6 +20,7 @@ from stock_search.evaluation.scores import (
 from stock_search.indicators import StockIndicator
 from stock_search.models import Evaluation, ScoredReason
 from stock_search.sqlite_store import SQLiteStore
+from stock_search.static_demo import write_static_demo_snapshot
 
 # Mute yfinance logging
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
@@ -227,13 +229,21 @@ def create_fallback_stats(ticker: str) -> dict:
     }
 
 
-def generate_eval_entry(ticker: str, stats: dict) -> dict:
+def generate_eval_entry(_ticker: str, stats: dict) -> dict:
     """Generate evaluation scores for a ticker using statistical proxies."""
     info = stats.get("_raw_info_snapshot") or {}
+    indicator = SimpleNamespace(
+        peg=stats.get("peg"),
+        pe=stats.get("pe"),
+        pe_forward=stats.get("pe_forward"),
+        debt_to_equity=stats.get("debt_to_equity"),
+        market_cap=stats.get("_market_cap_raw") or info.get("marketCap"),
+        free_cash_flow=stats.get("free_cash_flow"),
+    )
 
     # 1. Calculate Scores using indicators/metrics
-    size_score = market_cap_score(ticker, info) or 5.0
-    valuation_score = calculate_valuation_score(info) or 5.0
+    size_score = market_cap_score(info) or 5.0
+    valuation_score = calculate_valuation_score(indicator) or 5.0
 
     m_upside = stats.get("median_upside")
     upside_score = calculate_combined_upside_score(m_upside, ratings=None, outlook_score=None) or 5.0
@@ -434,6 +444,12 @@ def generate_static_data(
     sample_store.save_positions(portfolio_list)
     sample_store.set_meta_value(key="stats_generated_at", value=generated_at)
     print(f"Saved sample data to {sample_store.db_path}")
+
+    demo_paths = write_static_demo_snapshot(
+        stocks_map=stock_map,
+        generated_at=generated_at,
+    )
+    print(f"Refreshed static demo payloads from freshly generated stats/evals in {demo_paths['portfolio'].parent}")
 
     if prod:
         main_store.save_stocks(stock_map)
