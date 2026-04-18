@@ -2,6 +2,7 @@
 uv.lock
 *.json
 !package.json
+!package-lock.json
 !ui/public/demo/
 !ui/public/demo/*.json
 data/
