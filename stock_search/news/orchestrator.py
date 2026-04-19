@@ -126,33 +126,6 @@ def _rate_limit_provider_specs(
     return tuple(allowed_specs), skipped_counts
 
 
-async def _fetch_provider_batch(
-    ticker: str,
-    provider_specs: tuple[tuple[str, object], ...],
-) -> tuple[
-    list[NewsArticle],
-    dict[str, int],
-]:
-    """Run one provider batch and flatten the successful results."""
-    allowed_specs, skipped_counts = _rate_limit_provider_specs(
-        ticker,
-        provider_specs,
-    )
-    if not allowed_specs:
-        return [], skipped_counts
-    provider_results = await asyncio.gather(
-        *(call for _, call in allowed_specs),
-        return_exceptions=True,
-    )
-    raw_news_list, provider_counts = _collect_provider_results(
-        ticker,
-        allowed_specs,
-        provider_results,
-    )
-    provider_counts.update(skipped_counts)
-    return raw_news_list, provider_counts
-
-
 def _balance_domains(items: list[NewsArticle]) -> list[NewsArticle]:
     """Limit items per domain to ensure source diversity."""
     if not items:
@@ -256,6 +229,33 @@ def _collect_provider_results(
             continue
         provider_counts[provider_name] = len(result)
         raw_news_list.extend(result)
+    return raw_news_list, provider_counts
+
+
+async def _fetch_provider_batch(
+    ticker: str,
+    provider_specs: tuple[tuple[str, object], ...],
+) -> tuple[
+    list[NewsArticle],
+    dict[str, int],
+]:
+    """Run one provider batch and flatten the successful results."""
+    allowed_specs, skipped_counts = _rate_limit_provider_specs(
+        ticker,
+        provider_specs,
+    )
+    if not allowed_specs:
+        return [], skipped_counts
+    provider_results = await asyncio.gather(
+        *(call for _, call in allowed_specs),
+        return_exceptions=True,
+    )
+    raw_news_list, provider_counts = _collect_provider_results(
+        ticker,
+        allowed_specs,
+        provider_results,
+    )
+    provider_counts.update(skipped_counts)
     return raw_news_list, provider_counts
 
 
