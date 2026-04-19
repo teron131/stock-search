@@ -3,7 +3,9 @@ import { useState } from "preact/hooks";
 
 function toTimestamp(article) {
 	const publishedAt =
-		article?.metadata?.published_at || article?.date || article?.metadata?.fetched_at;
+		article?.metadata?.published_at ||
+		article?.date ||
+		article?.metadata?.fetched_at;
 	if (!publishedAt) {
 		return 0;
 	}
@@ -102,12 +104,15 @@ export function NewsView({
 	isWaitingOnPortfolio,
 	lastError,
 }) {
-	const [expandedArticleKeys, setExpandedArticleKeys] = useState(() => new Set());
+	const [expandedArticleKeys, setExpandedArticleKeys] = useState(
+		() => new Set(),
+	);
 	const hasItems = items.length > 0;
 	const hasHoldings = heldTickers.length > 0;
-	const coverageText = isLoading && !hasItems
-		? "Refreshing portfolio wire..."
-		: `${items.length} stories across ${heldTickers.length} held tickers`;
+	const coverageText =
+		isLoading && !hasItems
+			? "Refreshing portfolio wire..."
+			: `${items.length} stories across ${heldTickers.length} held tickers`;
 
 	const toggleExpanded = (articleKey) => {
 		setExpandedArticleKeys((currentKeys) => {
@@ -252,7 +257,8 @@ export function NewsView({
 								<div class="news-list">
 									${items.map((item) => {
 										const articleKey = item.url;
-										const summary = item.summary || "No summary available for this article.";
+										const summary =
+											item.summary || "No summary available for this article.";
 										const canToggleSummary = shouldShowSummaryToggle(summary);
 										const isExpanded = expandedArticleKeys.has(articleKey);
 										return html`

@@ -1,279 +1,279 @@
 {
-  "meta": {
-    "generated_at": "2026-04-19T09:30:00Z"
-  },
-  "items_by_ticker": {
-    "MSFT": [
-      {
-        "url": "https://demo.example.com/news/cloud-ai-capex-cycle",
-        "title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
-        "date": "2026-04-19",
-        "summary": "Enterprise AI spending remains concentrated in cloud and infrastructure, with Microsoft positioned as both a platform owner and a capex beneficiary through Azure demand.",
-        "relevancy": "high",
-        "category": "company_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "terminal wire",
-          "published_at": "2026-04-19T08:30:00Z"
-        }
-      }
-    ],
-    "AVGO": [
-      {
-        "url": "https://demo.example.com/news/cloud-ai-capex-cycle",
-        "title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
-        "date": "2026-04-19",
-        "summary": "Broadcom stays tied to the same cloud build-out cycle, with switching and custom silicon demand reinforcing a favorable infrastructure spending backdrop.",
-        "relevancy": "high",
-        "category": "industry_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "terminal wire",
-          "published_at": "2026-04-19T08:30:00Z"
-        }
-      }
-    ],
-    "TSM": [
-      {
-        "url": "https://demo.example.com/news/foundry-utilization-tightens",
-        "title": "Advanced-node foundry utilization tightens as accelerator demand stays elevated",
-        "date": "2026-04-18",
-        "summary": "Leading-edge capacity remains a strategic bottleneck, reinforcing TSMC's pricing power and its leverage to persistent accelerator and high-performance compute demand.",
-        "relevancy": "high",
-        "category": "industry_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "semiconductor daily",
-          "published_at": "2026-04-18T14:20:00Z"
-        }
-      }
-    ],
-    "ORCL": [
-      {
-        "url": "https://demo.example.com/news/cloud-ai-capex-cycle",
-        "title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
-        "date": "2026-04-19",
-        "summary": "Oracle remains in the conversation as enterprise buyers look for additional cloud capacity, though the article is more ecosystem-oriented than Oracle-specific.",
-        "relevancy": "medium",
-        "category": "market_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "terminal wire",
-          "published_at": "2026-04-19T08:30:00Z"
-        }
-      }
-    ],
-    "SPOT": [
-      {
-        "url": "https://demo.example.com/news/spotify-ads-margin-mix",
-        "title": "Spotify ad mix and premium retention support a steadier margin narrative",
-        "date": "2026-04-18",
-        "summary": "The latest channel checks point to resilient premium churn and better monetization of the ad-supported tier, supporting a more constructive operating margin outlook.",
-        "relevancy": "high",
-        "category": "analysis",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "streaming note",
-          "published_at": "2026-04-18T09:15:00Z"
-        }
-      }
-    ],
-    "CRM": [
-      {
-        "url": "https://demo.example.com/news/enterprise-software-pricing-discipline",
-        "title": "Enterprise software pricing discipline offsets slower seat expansion",
-        "date": "2026-04-17",
-        "summary": "Salesforce is benefiting from disciplined pricing and tighter cost control even as seat growth normalizes, leaving sentiment balanced but still constructive.",
-        "relevancy": "medium",
-        "category": "company_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "software ledger",
-          "published_at": "2026-04-17T18:05:00Z"
-        }
-      }
-    ],
-    "INTU": [
-      {
-        "url": "https://demo.example.com/news/tax-software-demand-holds",
-        "title": "Tax software demand holds firm as automation features deepen customer lock-in",
-        "date": "2026-04-16",
-        "summary": "The article frames Intuit as a quality compounder, with workflow automation helping defend pricing and embed the platform more deeply into small-business finance operations.",
-        "relevancy": "high",
-        "category": "analysis",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "payments and software",
-          "published_at": "2026-04-16T12:10:00Z"
-        }
-      }
-    ],
-    "V": [
-      {
-        "url": "https://demo.example.com/news/card-spend-cross-border",
-        "title": "Cross-border card spend stays firm despite softer domestic discretionary trends",
-        "date": "2026-04-19",
-        "summary": "Visa's cross-border and travel-linked volumes remain supportive, offsetting mixed signals in domestic discretionary categories and preserving a healthy payments backdrop.",
-        "relevancy": "high",
-        "category": "company_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "payments monitor",
-          "published_at": "2026-04-19T06:45:00Z"
-        }
-      }
-    ],
-    "MU": [
-      {
-        "url": "https://demo.example.com/news/memory-pricing-stabilizes",
-        "title": "Memory pricing stabilizes as AI server demand absorbs premium supply",
-        "date": "2026-04-18",
-        "summary": "Micron stands to benefit from tighter high-bandwidth memory supply and improving pricing discipline, though the tone remains tied to cyclical execution.",
-        "relevancy": "high",
-        "category": "industry_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "semiconductor daily",
-          "published_at": "2026-04-18T07:50:00Z"
-        }
-      }
-    ],
-    "XOM": [
-      {
-        "url": "https://demo.example.com/news/integrated-energy-cash-returns",
-        "title": "Integrated energy cash returns stay central as crude range remains contained",
-        "date": "2026-04-17",
-        "summary": "Exxon remains supported by capital-return durability and downstream stability, even with crude prices moving sideways rather than breaking out.",
-        "relevancy": "medium",
-        "category": "market_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "energy briefing",
-          "published_at": "2026-04-17T11:25:00Z"
-        }
-      }
-    ],
-    "VOO": [
-      {
-        "url": "https://demo.example.com/news/mega-cap-index-concentration",
-        "title": "Mega-cap concentration keeps index performance tied to a narrow leadership cohort",
-        "date": "2026-04-19",
-        "summary": "Broad-market ETF performance still hinges on a concentrated set of large-cap winners, making VOO more sensitive to leadership breadth than headline index stability suggests.",
-        "relevancy": "medium",
-        "category": "market_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "index flow",
-          "published_at": "2026-04-19T05:55:00Z"
-        }
-      }
-    ],
-    "RIOT": [
-      {
-        "url": "https://demo.example.com/news/bitcoin-miners-power-efficiency",
-        "title": "Bitcoin miners lean harder on fleet efficiency as hash-rate competition rises",
-        "date": "2026-04-16",
-        "summary": "Riot's positioning depends less on headline crypto beta and more on execution around power costs, uptime, and fleet efficiency as mining competition intensifies.",
-        "relevancy": "medium",
-        "category": "analysis",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "crypto infrastructure",
-          "published_at": "2026-04-16T16:40:00Z"
-        }
-      }
-    ],
-    "MAGS": [
-      {
-        "url": "https://demo.example.com/news/mega-cap-index-concentration",
-        "title": "Mega-cap concentration keeps index performance tied to a narrow leadership cohort",
-        "date": "2026-04-19",
-        "summary": "The same mega-cap leadership theme shows up even more directly in concentrated thematic funds, where a small set of technology names dominate overall exposure.",
-        "relevancy": "medium",
-        "category": "market_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "index flow",
-          "published_at": "2026-04-19T05:55:00Z"
-        }
-      }
-    ],
-    "DASH": [
-      {
-        "url": "https://demo.example.com/news/local-commerce-ad-units",
-        "title": "Local commerce platforms push higher-value ad units to expand take rates",
-        "date": "2026-04-18",
-        "summary": "DoorDash is seeing incremental monetization opportunities from sponsored placements and merchant tools, supporting a healthier unit-economics conversation.",
-        "relevancy": "high",
-        "category": "company_news",
-        "sentiment": "bullish",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "consumer internet",
-          "published_at": "2026-04-18T10:30:00Z"
-        }
-      }
-    ],
-    "CLSK": [
-      {
-        "url": "https://demo.example.com/news/bitcoin-miners-power-efficiency",
-        "title": "Bitcoin miners lean harder on fleet efficiency as hash-rate competition rises",
-        "date": "2026-04-16",
-        "summary": "CleanSpark shares the same operating theme as peers: power sourcing and fleet performance matter more than simple crypto price moves at the margin.",
-        "relevancy": "medium",
-        "category": "industry_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "crypto infrastructure",
-          "published_at": "2026-04-16T16:40:00Z"
-        }
-      }
-    ],
-    "IBM": [
-      {
-        "url": "https://demo.example.com/news/enterprise-software-pricing-discipline",
-        "title": "Enterprise software pricing discipline offsets slower seat expansion",
-        "date": "2026-04-17",
-        "summary": "IBM appears in the broader enterprise software discussion as buyers stay selective, with demand skewing toward automation and infrastructure modernization rather than broad expansion.",
-        "relevancy": "medium",
-        "category": "market_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "software ledger",
-          "published_at": "2026-04-17T18:05:00Z"
-        }
-      }
-    ],
-    "SNAP": [
-      {
-        "url": "https://demo.example.com/news/digital-ad-auction-clearing",
-        "title": "Digital ad auction clearing improves for scaled consumer apps",
-        "date": "2026-04-18",
-        "summary": "Snap's ad environment looks steadier as campaign demand broadens, though execution still matters more than pure macro relief for the stock narrative.",
-        "relevancy": "medium",
-        "category": "company_news",
-        "sentiment": "neutral",
-        "metadata": {
-          "provider": "demo_wire",
-          "source_domain": "ad market brief",
-          "published_at": "2026-04-18T13:05:00Z"
-        }
-      }
-    ]
-  }
+	"meta": {
+		"generated_at": "2026-04-19T09:30:00Z"
+	},
+	"items_by_ticker": {
+		"MSFT": [
+			{
+				"url": "https://demo.example.com/news/cloud-ai-capex-cycle",
+				"title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
+				"date": "2026-04-19",
+				"summary": "Enterprise AI spending remains concentrated in cloud and infrastructure, with Microsoft positioned as both a platform owner and a capex beneficiary through Azure demand.",
+				"relevancy": "high",
+				"category": "company_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "terminal wire",
+					"published_at": "2026-04-19T08:30:00Z"
+				}
+			}
+		],
+		"AVGO": [
+			{
+				"url": "https://demo.example.com/news/cloud-ai-capex-cycle",
+				"title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
+				"date": "2026-04-19",
+				"summary": "Broadcom stays tied to the same cloud build-out cycle, with switching and custom silicon demand reinforcing a favorable infrastructure spending backdrop.",
+				"relevancy": "high",
+				"category": "industry_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "terminal wire",
+					"published_at": "2026-04-19T08:30:00Z"
+				}
+			}
+		],
+		"TSM": [
+			{
+				"url": "https://demo.example.com/news/foundry-utilization-tightens",
+				"title": "Advanced-node foundry utilization tightens as accelerator demand stays elevated",
+				"date": "2026-04-18",
+				"summary": "Leading-edge capacity remains a strategic bottleneck, reinforcing TSMC's pricing power and its leverage to persistent accelerator and high-performance compute demand.",
+				"relevancy": "high",
+				"category": "industry_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "semiconductor daily",
+					"published_at": "2026-04-18T14:20:00Z"
+				}
+			}
+		],
+		"ORCL": [
+			{
+				"url": "https://demo.example.com/news/cloud-ai-capex-cycle",
+				"title": "Cloud AI capex cycle widens across hyperscalers and infrastructure suppliers",
+				"date": "2026-04-19",
+				"summary": "Oracle remains in the conversation as enterprise buyers look for additional cloud capacity, though the article is more ecosystem-oriented than Oracle-specific.",
+				"relevancy": "medium",
+				"category": "market_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "terminal wire",
+					"published_at": "2026-04-19T08:30:00Z"
+				}
+			}
+		],
+		"SPOT": [
+			{
+				"url": "https://demo.example.com/news/spotify-ads-margin-mix",
+				"title": "Spotify ad mix and premium retention support a steadier margin narrative",
+				"date": "2026-04-18",
+				"summary": "The latest channel checks point to resilient premium churn and better monetization of the ad-supported tier, supporting a more constructive operating margin outlook.",
+				"relevancy": "high",
+				"category": "analysis",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "streaming note",
+					"published_at": "2026-04-18T09:15:00Z"
+				}
+			}
+		],
+		"CRM": [
+			{
+				"url": "https://demo.example.com/news/enterprise-software-pricing-discipline",
+				"title": "Enterprise software pricing discipline offsets slower seat expansion",
+				"date": "2026-04-17",
+				"summary": "Salesforce is benefiting from disciplined pricing and tighter cost control even as seat growth normalizes, leaving sentiment balanced but still constructive.",
+				"relevancy": "medium",
+				"category": "company_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "software ledger",
+					"published_at": "2026-04-17T18:05:00Z"
+				}
+			}
+		],
+		"INTU": [
+			{
+				"url": "https://demo.example.com/news/tax-software-demand-holds",
+				"title": "Tax software demand holds firm as automation features deepen customer lock-in",
+				"date": "2026-04-16",
+				"summary": "The article frames Intuit as a quality compounder, with workflow automation helping defend pricing and embed the platform more deeply into small-business finance operations.",
+				"relevancy": "high",
+				"category": "analysis",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "payments and software",
+					"published_at": "2026-04-16T12:10:00Z"
+				}
+			}
+		],
+		"V": [
+			{
+				"url": "https://demo.example.com/news/card-spend-cross-border",
+				"title": "Cross-border card spend stays firm despite softer domestic discretionary trends",
+				"date": "2026-04-19",
+				"summary": "Visa's cross-border and travel-linked volumes remain supportive, offsetting mixed signals in domestic discretionary categories and preserving a healthy payments backdrop.",
+				"relevancy": "high",
+				"category": "company_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "payments monitor",
+					"published_at": "2026-04-19T06:45:00Z"
+				}
+			}
+		],
+		"MU": [
+			{
+				"url": "https://demo.example.com/news/memory-pricing-stabilizes",
+				"title": "Memory pricing stabilizes as AI server demand absorbs premium supply",
+				"date": "2026-04-18",
+				"summary": "Micron stands to benefit from tighter high-bandwidth memory supply and improving pricing discipline, though the tone remains tied to cyclical execution.",
+				"relevancy": "high",
+				"category": "industry_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "semiconductor daily",
+					"published_at": "2026-04-18T07:50:00Z"
+				}
+			}
+		],
+		"XOM": [
+			{
+				"url": "https://demo.example.com/news/integrated-energy-cash-returns",
+				"title": "Integrated energy cash returns stay central as crude range remains contained",
+				"date": "2026-04-17",
+				"summary": "Exxon remains supported by capital-return durability and downstream stability, even with crude prices moving sideways rather than breaking out.",
+				"relevancy": "medium",
+				"category": "market_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "energy briefing",
+					"published_at": "2026-04-17T11:25:00Z"
+				}
+			}
+		],
+		"VOO": [
+			{
+				"url": "https://demo.example.com/news/mega-cap-index-concentration",
+				"title": "Mega-cap concentration keeps index performance tied to a narrow leadership cohort",
+				"date": "2026-04-19",
+				"summary": "Broad-market ETF performance still hinges on a concentrated set of large-cap winners, making VOO more sensitive to leadership breadth than headline index stability suggests.",
+				"relevancy": "medium",
+				"category": "market_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "index flow",
+					"published_at": "2026-04-19T05:55:00Z"
+				}
+			}
+		],
+		"RIOT": [
+			{
+				"url": "https://demo.example.com/news/bitcoin-miners-power-efficiency",
+				"title": "Bitcoin miners lean harder on fleet efficiency as hash-rate competition rises",
+				"date": "2026-04-16",
+				"summary": "Riot's positioning depends less on headline crypto beta and more on execution around power costs, uptime, and fleet efficiency as mining competition intensifies.",
+				"relevancy": "medium",
+				"category": "analysis",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "crypto infrastructure",
+					"published_at": "2026-04-16T16:40:00Z"
+				}
+			}
+		],
+		"MAGS": [
+			{
+				"url": "https://demo.example.com/news/mega-cap-index-concentration",
+				"title": "Mega-cap concentration keeps index performance tied to a narrow leadership cohort",
+				"date": "2026-04-19",
+				"summary": "The same mega-cap leadership theme shows up even more directly in concentrated thematic funds, where a small set of technology names dominate overall exposure.",
+				"relevancy": "medium",
+				"category": "market_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "index flow",
+					"published_at": "2026-04-19T05:55:00Z"
+				}
+			}
+		],
+		"DASH": [
+			{
+				"url": "https://demo.example.com/news/local-commerce-ad-units",
+				"title": "Local commerce platforms push higher-value ad units to expand take rates",
+				"date": "2026-04-18",
+				"summary": "DoorDash is seeing incremental monetization opportunities from sponsored placements and merchant tools, supporting a healthier unit-economics conversation.",
+				"relevancy": "high",
+				"category": "company_news",
+				"sentiment": "bullish",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "consumer internet",
+					"published_at": "2026-04-18T10:30:00Z"
+				}
+			}
+		],
+		"CLSK": [
+			{
+				"url": "https://demo.example.com/news/bitcoin-miners-power-efficiency",
+				"title": "Bitcoin miners lean harder on fleet efficiency as hash-rate competition rises",
+				"date": "2026-04-16",
+				"summary": "CleanSpark shares the same operating theme as peers: power sourcing and fleet performance matter more than simple crypto price moves at the margin.",
+				"relevancy": "medium",
+				"category": "industry_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "crypto infrastructure",
+					"published_at": "2026-04-16T16:40:00Z"
+				}
+			}
+		],
+		"IBM": [
+			{
+				"url": "https://demo.example.com/news/enterprise-software-pricing-discipline",
+				"title": "Enterprise software pricing discipline offsets slower seat expansion",
+				"date": "2026-04-17",
+				"summary": "IBM appears in the broader enterprise software discussion as buyers stay selective, with demand skewing toward automation and infrastructure modernization rather than broad expansion.",
+				"relevancy": "medium",
+				"category": "market_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "software ledger",
+					"published_at": "2026-04-17T18:05:00Z"
+				}
+			}
+		],
+		"SNAP": [
+			{
+				"url": "https://demo.example.com/news/digital-ad-auction-clearing",
+				"title": "Digital ad auction clearing improves for scaled consumer apps",
+				"date": "2026-04-18",
+				"summary": "Snap's ad environment looks steadier as campaign demand broadens, though execution still matters more than pure macro relief for the stock narrative.",
+				"relevancy": "medium",
+				"category": "company_news",
+				"sentiment": "neutral",
+				"metadata": {
+					"provider": "demo_wire",
+					"source_domain": "ad market brief",
+					"published_at": "2026-04-18T13:05:00Z"
+				}
+			}
+		]
+	}
 }

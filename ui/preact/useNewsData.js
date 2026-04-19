@@ -85,13 +85,33 @@ function createArticleKey(article) {
 
 function getPublishedTimestamp(article) {
 	const publishedAt =
-		article?.metadata?.published_at || article?.date || article?.metadata?.fetched_at;
+		article?.metadata?.published_at ||
+		article?.date ||
+		article?.metadata?.fetched_at;
 	if (!publishedAt) {
 		return 0;
 	}
 
 	const timestamp = Date.parse(publishedAt);
 	return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortNewsItems(items) {
+	return [...items].sort((left, right) => {
+		const timestampDiff =
+			getPublishedTimestamp(right) - getPublishedTimestamp(left);
+		if (timestampDiff !== 0) {
+			return timestampDiff;
+		}
+
+		const relevanceDiff =
+			RELEVANCE_SCORES[right.relevancy] - RELEVANCE_SCORES[left.relevancy];
+		if (relevanceDiff !== 0) {
+			return relevanceDiff;
+		}
+
+		return String(left.title || "").localeCompare(String(right.title || ""));
+	});
 }
 
 function getHeldTickers(rows) {
@@ -123,12 +143,14 @@ function mergeNewsItems(items) {
 		}
 
 		const sourceTickers = Array.from(
-			new Set([
-				...(existingItem.sourceTickers || []),
-				...(item.sourceTickers || []),
-				existingItem.sourceTicker,
-				item.sourceTicker,
-			].filter(Boolean)),
+			new Set(
+				[
+					...(existingItem.sourceTickers || []),
+					...(item.sourceTickers || []),
+					existingItem.sourceTicker,
+					item.sourceTicker,
+				].filter(Boolean),
+			),
 		);
 		const preferredItem =
 			getPublishedTimestamp(item) > getPublishedTimestamp(existingItem)
@@ -160,20 +182,7 @@ function mergeNewsItems(items) {
 		});
 	}
 
-	return Array.from(mergedItems.values()).sort((left, right) => {
-		const timestampDiff = getPublishedTimestamp(right) - getPublishedTimestamp(left);
-		if (timestampDiff !== 0) {
-			return timestampDiff;
-		}
-
-		const relevanceDiff =
-			RELEVANCE_SCORES[right.relevancy] - RELEVANCE_SCORES[left.relevancy];
-		if (relevanceDiff !== 0) {
-			return relevanceDiff;
-		}
-
-		return String(left.title || "").localeCompare(String(right.title || ""));
-	});
+	return sortNewsItems(Array.from(mergedItems.values()));
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -417,7 +426,9 @@ export function useNewsData({
 			}
 
 			loadInFlightRef.current = true;
-			const cacheSnapshot = preferDemoData ? null : buildCacheSnapshot(heldTickers);
+			const cacheSnapshot = preferDemoData
+				? null
+				: buildCacheSnapshot(heldTickers);
 			const hasCachedItems = Boolean(cacheSnapshot?.items.length);
 			const staleTickers = preferDemoData
 				? []
@@ -425,8 +436,12 @@ export function useNewsData({
 						const cacheEntry = cacheSnapshot?.cacheEntryMap.get(ticker);
 						return !cacheEntry || !isCacheFresh(cacheEntry.fetchedAt);
 					});
-			const shouldFetchLive = !preferDemoData && (force || staleTickers.length > 0);
-			if (hasCachedItems) {
+			const shouldFetchLive =
+				!preferDemoData && (force || staleTickers.length > 0);
+			const shouldHydrateFromCache =
+				hasCachedItems &&
+				(!background || allItemsRef.current.length === 0 || Boolean(force));
+			if (shouldHydrateFromCache) {
 				setAllItems(cacheSnapshot.items);
 				setGeneratedAt(cacheSnapshot.generatedAt);
 				setFailedTickers([]);
@@ -504,7 +519,14 @@ export function useNewsData({
 		}
 
 		load();
-	}, [enabled, heldTickerKey, heldTickers.length, load, portfolioLoading, resetFeed]);
+	}, [
+		enabled,
+		heldTickerKey,
+		heldTickers.length,
+		load,
+		portfolioLoading,
+		resetFeed,
+	]);
 
 	useEffect(() => {
 		if (tickerFilter === "ALL" || heldTickers.includes(tickerFilter)) {
@@ -514,7 +536,10 @@ export function useNewsData({
 	}, [heldTickers, tickerFilter]);
 
 	const items = useMemo(
-		() => filterNewsItems(allItems, { tickerFilter, relevanceFilter }),
+		() =>
+			sortNewsItems(
+				filterNewsItems(allItems, { tickerFilter, relevanceFilter }),
+			),
 		[allItems, relevanceFilter, tickerFilter],
 	);
 
@@ -530,7 +555,8 @@ export function useNewsData({
 		generatedAt,
 		isLoading: loadingMode !== LOADING_MODE_IDLE,
 		isRefreshing: loadingMode === LOADING_MODE_BACKGROUND,
-		isWaitingOnPortfolio: enabled && portfolioLoading && heldTickers.length === 0,
+		isWaitingOnPortfolio:
+			enabled && portfolioLoading && heldTickers.length === 0,
 		isUsingDemoData,
 		lastError,
 		refresh: load,
