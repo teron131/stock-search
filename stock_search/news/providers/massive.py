@@ -2,6 +2,7 @@
 Documentation: https://massive.com/docs/rest/stocks/news
 - Free
 - 5 API Calls / Minute
+- Max 1000 results per query
 """
 
 import asyncio
@@ -22,6 +23,7 @@ SENTIMENT_MAP = {
     "negative": "bearish",
 }
 DEFAULT_TIMEOUT_SEC = 60
+MASSIVE_MAX_RESULTS = 1000
 
 
 async def get_news_massive_async(
@@ -32,12 +34,13 @@ async def get_news_massive_async(
     client: httpx.AsyncClient,
 ) -> list[NewsArticle]:
     """Get financial news using Massive API."""
+    bounded_max_results = min(max_results, MASSIVE_MAX_RESULTS)
     params = {
         "apiKey": os.getenv("MASSIVE_API_KEY"),
         "ticker": ticker,
         "published_utc.gte": (datetime.now(UTC) - timedelta(days=n_days)).isoformat(),
         "order": "desc",
-        "limit": max_results,
+        "limit": bounded_max_results,
         "sort": "published_utc",
     }
     response = await client.get(

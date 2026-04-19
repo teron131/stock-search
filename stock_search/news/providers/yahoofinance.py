@@ -10,13 +10,16 @@ import yfinance as yf
 from ...models.schemas import NewsArticle, NewsMetadata
 from ...utils import extract_domain, format_date, get_days_ago, parse_date
 
+YFINANCE_MAX_RESULTS = 25
+
 
 def get_news_yfinance(
     ticker: str,
-    max_results: int = 25,
+    max_results: int = YFINANCE_MAX_RESULTS,
 ) -> list[NewsArticle]:
     """Get news about a given stock ticker using Yahoo Finance."""
-    results = yf.Search(query=ticker, max_results=max_results).news
+    bounded_max_results = min(max_results, YFINANCE_MAX_RESULTS)
+    results = yf.Search(query=ticker, max_results=bounded_max_results).news
     if not results:
         return []
 

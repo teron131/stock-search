@@ -3,6 +3,7 @@ Documentation: https://newsapi.org/docs/endpoints/everything
 - Free
 - 24 hours delay
 - 100 requests per day
+- Max 100 results per query
 """
 
 import asyncio
@@ -18,6 +19,7 @@ from ...utils import extract_domain, format_date, get_days_ago, parse_date, pars
 load_dotenv()
 
 DEFAULT_TIMEOUT_SEC = 60
+NEWSAPI_MAX_RESULTS = 100
 
 
 async def get_news_newsapi_async(
@@ -28,6 +30,7 @@ async def get_news_newsapi_async(
     client: httpx.AsyncClient,
 ) -> list[NewsArticle]:
     """Get financial news using NewsAPI."""
+    bounded_max_results = min(max_results, NEWSAPI_MAX_RESULTS)
     params = {
         "apiKey": os.getenv("NEWS_API_KEY"),
         "q": parse_ticker(query),
@@ -35,7 +38,7 @@ async def get_news_newsapi_async(
         "to": (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d"),
         "language": "en",
         "sortBy": "popularity",
-        "pageSize": max_results,
+        "pageSize": bounded_max_results,
     }
     response = await client.get(
         url="https://newsapi.org/v2/everything",
