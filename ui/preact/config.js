@@ -67,58 +67,190 @@ export const CONFIG = {
 	},
 };
 
+const WIDTH_GROUPS = {
+	changePercent: "change-percent",
+	abbrevCurrency: "abbrev-currency",
+	marketNumber: "market-number",
+	fundamentalPercent: "fundamental-percent",
+	evaluationScore: "evaluation-score",
+	evaluationProbability: "evaluation-probability",
+};
+
+function createColumn(key, label, format) {
+	return format ? { key, label, format } : { key, label };
+}
+
+function createGroupedColumn(key, label, format, widthGroup) {
+	return { ...createColumn(key, label, format), widthGroup };
+}
+
 const BASE_COLUMNS = [
-	{ key: "ticker", label: "TICKER" },
-	{ key: "price", label: "PRICE", format: "currency" },
-	{ key: "change_percent_1d", label: "CHANGE%", format: "percent" },
-	{ key: "market_cap", label: "MKT_CAP", format: "market_cap" },
-	{ key: "pe", label: "PE", format: "number" },
-	{ key: "pe_forward", label: "FWD_PE", format: "number" },
-	{ key: "peg", label: "PEG", format: "number" },
-	{ key: "beta", label: "BETA", format: "number" },
-	{ key: "iv", label: "IV", format: "percent_neutral" },
-	{ key: "rsi", label: "RSI", format: "number" },
+	createColumn("ticker", "TICKER"),
+	createColumn("price", "PRICE", "currency"),
+	createGroupedColumn(
+		"change_percent_1d",
+		"CHANGE%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
+	createGroupedColumn(
+		"market_cap",
+		"MKT_CAP",
+		"market_cap",
+		WIDTH_GROUPS.abbrevCurrency,
+	),
+	createGroupedColumn("pe", "PE", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn(
+		"pe_forward",
+		"FWD_PE",
+		"number",
+		WIDTH_GROUPS.marketNumber,
+	),
+	createGroupedColumn("peg", "PEG", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("beta", "BETA", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("iv", "IV", "percent_neutral", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("rsi", "RSI", "number", WIDTH_GROUPS.marketNumber),
 ];
 
 const MOMENTUM_COLUMNS = [
-	{ key: "change_percent_1m", label: "1M%", format: "percent" },
-	{ key: "change_percent_3m", label: "3M%", format: "percent" },
-	{ key: "change_percent_6m", label: "6M%", format: "percent" },
-	{ key: "change_percent_1y", label: "1Y%", format: "percent" },
-	{ key: "median_upside", label: "UPSIDE%", format: "percent" },
+	createGroupedColumn(
+		"change_percent_1m",
+		"1M%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
+	createGroupedColumn(
+		"change_percent_3m",
+		"3M%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
+	createGroupedColumn(
+		"change_percent_6m",
+		"6M%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
+	createGroupedColumn(
+		"change_percent_1y",
+		"1Y%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
+	createGroupedColumn(
+		"median_upside",
+		"UPSIDE%",
+		"percent",
+		WIDTH_GROUPS.changePercent,
+	),
 ];
 
 const FUNDAMENTAL_COLUMNS_ALL = [
-	{ key: "revenue_growth", label: "GROWTH", format: "percent_neutral" },
-	{ key: "gross_margin", label: "GROSS", format: "percent_neutral" },
-	{ key: "debt_to_equity", label: "DEBT", format: "percent_neutral" },
-	{ key: "free_cash_flow", label: "FCF", format: "market_cap" },
+	createGroupedColumn(
+		"revenue_growth",
+		"GROWTH",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"gross_margin",
+		"GROSS",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"debt_to_equity",
+		"DEBT",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"free_cash_flow",
+		"FCF",
+		"market_cap",
+		WIDTH_GROUPS.abbrevCurrency,
+	),
 ];
 
 const FUNDAMENTAL_COLUMNS_HOLDINGS = [
-	{ key: "revenue_growth", label: "GROWTH", format: "percent" },
-	{ key: "gross_margin", label: "GROSS", format: "percent_neutral" },
-	{ key: "debt_to_equity", label: "DEBT", format: "percent_neutral" },
-	{ key: "free_cash_flow", label: "FCF", format: "market_cap" },
+	createGroupedColumn(
+		"revenue_growth",
+		"GROWTH",
+		"percent",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"gross_margin",
+		"GROSS",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"debt_to_equity",
+		"DEBT",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"free_cash_flow",
+		"FCF",
+		"market_cap",
+		WIDTH_GROUPS.abbrevCurrency,
+	),
 ];
 
 const EVALUATION_COLUMNS = [
-	{ key: "rank", label: "RANK" },
-	{ key: "overall_score", label: "SCORE", format: "score" },
-	{ key: "quality_score", label: "QUALITY", format: "score" },
-	{ key: "valuation_score", label: "VALUE", format: "score" },
-	{ key: "moat_score", label: "MOAT", format: "score" },
-	{ key: "upside_score", label: "UPSIDE", format: "score" },
-	{ key: "bull_probability", label: "BULL", format: "prob" },
-	{ key: "bear_probability", label: "BEAR", format: "prob" },
+	createColumn("rank", "RANK"),
+	createGroupedColumn(
+		"overall_score",
+		"SCORE",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"quality_score",
+		"QUALITY",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"valuation_score",
+		"VALUE",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"moat_score",
+		"MOAT",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"upside_score",
+		"UPSIDE",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"bull_probability",
+		"BULL",
+		"prob",
+		WIDTH_GROUPS.evaluationProbability,
+	),
+	createGroupedColumn(
+		"bear_probability",
+		"BEAR",
+		"prob",
+		WIDTH_GROUPS.evaluationProbability,
+	),
 ];
 
 const HOLDING_ACTION_COLUMNS = [
-	{ key: "strategy", label: "STRATEGY" },
-	{ key: "total", label: "VALUE", format: "currency" },
-	{ key: "weight_pct", label: "WEIGHT", format: "percent_neutral" },
-	{ key: "quantity", label: "QTY", format: "number" },
-	{ key: "remove", label: "", format: "action" },
+	createColumn("strategy", "STRATEGY"),
+	createColumn("total", "VALUE", "currency"),
+	createColumn("weight_pct", "WEIGHT", "percent_neutral"),
+	createColumn("quantity", "QTY", "number"),
+	createColumn("remove", "", "action"),
 ];
 
 export const COLS = {
@@ -136,10 +268,10 @@ export const COLS = {
 		...HOLDING_ACTION_COLUMNS,
 	],
 	evaluations: [
-		{ key: "ticker", label: "TICKER" },
+		createColumn("ticker", "TICKER"),
 		...EVALUATION_COLUMNS,
-		{ key: "strategy", label: "STRATEGY" },
-		{ key: "remove", label: "", format: "action" },
+		createColumn("strategy", "STRATEGY"),
+		createColumn("remove", "", "action"),
 	],
 };
 

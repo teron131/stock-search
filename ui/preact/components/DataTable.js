@@ -4,10 +4,15 @@ import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG } from "../config.js";
 import { fmt, normalizeTicker, parseMarketCap } from "../format.js";
 import {
-	getColumnCharCount,
+	getGroupedColumnCharCount,
+	getGroupedColumnWidthStyle,
 	renderConditionallyColoredValue,
 } from "../tableStyle.js";
 import { useQtyCellState } from "./useQtyCellState.js";
+
+function getTickerDisplayValue(ticker) {
+	return normalizeTicker(ticker).replace("-", ".");
+}
 
 function compareNullable(a, b, dir) {
 	if (a == null) return 1;
@@ -34,6 +39,37 @@ function sortRows(rows, col, dir) {
 		return compareNullable(a[col], b[col], dir);
 	});
 	return sorted;
+}
+
+function getColumnDisplayValues(rows, col) {
+	if (col.key === "ticker") {
+		return rows.map((row) => getTickerDisplayValue(row.ticker));
+	}
+
+	const formatter = fmt[col.format] || fmt.default;
+	return rows.map((row) => formatter(row[col.key]));
+}
+
+function getWidthGroupCharCounts(rows, cols) {
+	const widthGroupCharCounts = {};
+
+	for (const col of cols) {
+		if (!col.widthGroup) {
+			continue;
+		}
+
+		const charCount = getGroupedColumnCharCount(
+			getColumnDisplayValues(rows, col),
+			col.label || "",
+		);
+
+		widthGroupCharCounts[col.widthGroup] = Math.max(
+			widthGroupCharCounts[col.widthGroup] || 0,
+			charCount,
+		);
+	}
+
+	return widthGroupCharCounts;
 }
 
 function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
@@ -144,7 +180,7 @@ function renderCell({
 	}
 
 	if (key === "ticker") {
-		const val = normalizeTicker(row.ticker).replace("-", ".");
+		const val = getTickerDisplayValue(row.ticker);
 		return html`<tv-ticker-tag
       symbol=${val}
       preserve-text
@@ -220,10 +256,9 @@ export function DataTable({
 	animateRows = true,
 }) {
 	const cols = COLS[tab];
-	const tickerCharCount = getColumnCharCount(
-		rows.map((row) => normalizeTicker(row.ticker).replace("-", ".")),
+	const tickerCharCount = getGroupedColumnCharCount(
+		rows.map((row) => getTickerDisplayValue(row.ticker)),
 		"TICKER",
-		{ paddingChars: 1 },
 	);
 
 	const filtered = rows.filter((r) => {
@@ -240,6 +275,7 @@ export function DataTable({
 	});
 
 	const sorted = sortRows(filtered, sortCol, sortDir);
+	const widthGroupCharCounts = getWidthGroupCharCounts(sorted, cols);
 	const colorMeta = calculateScoreColorMetadata(sorted, cols, {
 		colorBandFraction: CONFIG.colorBandFraction,
 		keyStandards: colorStandards,
@@ -261,7 +297,12 @@ export function DataTable({
 									: col.key === "remove"
 										? "table-col-remove"
 										: "";
-							return html`<col class=${className} />`;
+							return html`<col
+								class=${className}
+								style=${getGroupedColumnWidthStyle(
+									widthGroupCharCounts[col.widthGroup],
+								)}
+							/>`;
 						})}
 					</colgroup>
 					<thead>

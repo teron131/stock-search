@@ -2,6 +2,9 @@ import { html } from "htm/preact";
 
 import { getScoreColor } from "./color.js";
 
+const GROUPED_COLUMN_PADDING_CHARS = 1;
+const GROUPED_COLUMN_EXTRA_PX = 18;
+
 function getTextLength(value) {
 	return String(value ?? "").length;
 }
@@ -18,6 +21,12 @@ export function getColumnCharCount(
 		0,
 	);
 	return Math.max(headerLength, contentLength);
+}
+
+export function getGroupedColumnCharCount(values, headerLabel) {
+	return getColumnCharCount(values, headerLabel, {
+		paddingChars: GROUPED_COLUMN_PADDING_CHARS,
+	});
 }
 
 export function getToneClass(value, baseClass = "") {
@@ -45,4 +54,17 @@ export function renderConditionallyColoredValue(
 	}
 
 	return html`<span style=${{ color: textColor }}>${content}</span>`;
+}
+
+export function getGroupedColumnWidthStyle(charCount) {
+	if (!charCount) {
+		return null;
+	}
+
+	const width = `calc((${charCount} * 1ch) + ${GROUPED_COLUMN_EXTRA_PX}px)`;
+	return {
+		width,
+		minWidth: width,
+		maxWidth: width,
+	};
 }
