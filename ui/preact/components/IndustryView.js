@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
+import { calculateScoreColorMetadata } from "../color.js";
 import { CONFIG } from "../config.js";
 import { fmt, parseMarketCap } from "../format.js";
 import {
@@ -8,6 +8,11 @@ import {
 	getSectorDisplayLabel,
 	getSectorIconName,
 } from "../industryIcons.js";
+import {
+	getColumnCharCount,
+	getToneClass,
+	renderConditionallyColoredValue,
+} from "../tableStyle.js";
 
 const INDUSTRY_ALIAS_MIN_LENGTH = 24;
 
@@ -59,19 +64,6 @@ const INDUSTRY_COLOR_COLUMNS = [
 	{ key: "gross_margin", format: "percent_neutral" },
 ];
 
-function toneClass(value) {
-	const numeric = Number(value);
-	if (Number.isNaN(numeric) || numeric === 0) return "neutral";
-	return numeric > 0 ? "positive" : "negative";
-}
-
-function maxTextLength(values, fallbackLength) {
-	return values.reduce(
-		(maxLength, value) => Math.max(maxLength, String(value || "").length),
-		fallbackLength,
-	);
-}
-
 function getIndustryDisplayName(industryName) {
 	const fullName = String(industryName || "").trim();
 	if (!fullName) return "";
@@ -121,11 +113,6 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 	`;
 }
 
-function renderIndustryMetric(value, color) {
-	if (!color) return value;
-	return html`<span style=${{ color }}>${value}</span>`;
-}
-
 export function IndustryView({
 	isLoading,
 	lastError,
@@ -137,11 +124,12 @@ export function IndustryView({
 	setSortKey,
 	filteredIndustries,
 }) {
-	const industryCharCount = maxTextLength(
+	const industryCharCount = getColumnCharCount(
 		filteredIndustries.map((industry) =>
 			getIndustryDisplayName(industry.industry),
 		),
-		"Industry".length,
+		"Industry",
+		{ paddingChars: 2 },
 	);
 	const industryColorMeta = calculateScoreColorMetadata(
 		filteredIndustries,
@@ -163,29 +151,30 @@ export function IndustryView({
 						<div class="industry-sector-rail">
 							${sectorOptions.map(
 								(option) => html`
-								<button
-									type="button"
-									class=${`industry-sector-chip ${
-										selectedSector === option.sector ? "active" : ""
-									}`}
-									onClick=${() => setSelectedSector(option.sector)}
-								>
-									<span class="industry-sector-name">
-										${renderIcon(
-											getSectorIconName(option.sector),
-											"industry-sector-glyph",
-										)}
-										<span class="industry-sector-label">
-											${getSectorDisplayLabel(option.sector)}
+									<button
+										type="button"
+										class=${`industry-sector-chip ${
+											selectedSector === option.sector ? "active" : ""
+										}`}
+										onClick=${() => setSelectedSector(option.sector)}
+									>
+										<span class="industry-sector-name">
+											${renderIcon(
+												getSectorIconName(option.sector),
+												"industry-sector-glyph",
+											)}
+											<span class="industry-sector-label">
+												${getSectorDisplayLabel(option.sector)}
+											</span>
 										</span>
-									</span>
-									<span class=${`industry-sector-move industry-tone ${toneClass(
-										option.avg_change_percent_1d,
-									)}`}>
-										${fmt.percent_neutral(option.avg_change_percent_1d)}
-									</span>
-								</button>
-							`,
+										<span class=${getToneClass(
+											option.avg_change_percent_1d,
+											"industry-sector-move industry-tone",
+										)}>
+											${fmt.percent_neutral(option.avg_change_percent_1d)}
+										</span>
+									</button>
+								`,
 							)}
 						</div>
 					</div>
@@ -230,114 +219,132 @@ export function IndustryView({
 							</div>
 						`
 						: html`
-							<div class="industry-ledger-table-wrap">
-								<table
-									class="industry-ledger-table"
-									style=${{
-										"--industry-name-char-count": industryCharCount,
-									}}
-								>
-									<colgroup>
-										<col class="industry-col-name" />
-										<col class="industry-col-stocks" />
-										<col class="industry-col-cap" />
-										<col class="industry-col-pe" />
-										<col class="industry-col-profit" />
-										<col class="industry-col-gross" />
-										<col class="industry-col-1d" />
-										<col class="industry-col-1m" />
-										<col class="industry-col-1y" />
-									</colgroup>
-									<thead>
-										<tr>
-											<th>${renderSortableHeader("Industry", "industry", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("Stocks", "stock_count", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("Mkt Cap", "market_cap", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("PE", "pe", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("PROFIT", "profit_margin", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("GROSS", "gross_margin", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("1D", "change_percent_1d", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("1M", "change_percent_1m", sortKey, sortDirection, setSortKey)}</th>
-											<th>${renderSortableHeader("1Y", "change_percent_1y", sortKey, sortDirection, setSortKey)}</th>
-										</tr>
-									</thead>
-									<tbody>
-										${filteredIndustries.map((industry) => {
-											const displayIndustryName = getIndustryDisplayName(
-												industry.industry,
-											);
-											const marketCapColor = getScoreColor(
-												parseMarketCap(industry.market_cap),
-												industryColorMeta.market_cap,
-											);
-											const peColor = getScoreColor(
-												industry.pe,
-												industryColorMeta.pe,
-											);
-											const profitMarginColor = getScoreColor(
-												industry.profit_margin,
-												industryColorMeta.profit_margin,
-											);
-											const grossMarginColor = getScoreColor(
-												industry.gross_margin,
-												industryColorMeta.gross_margin,
-											);
-											return html`
+								<div class="industry-ledger-table-wrap data-table-scroll">
+									<table
+										class="industry-ledger-table data-table"
+										style=${{
+											"--industry-name-char-count": industryCharCount,
+										}}
+									>
+										<colgroup>
+											<col class="industry-col-name" />
+											<col class="industry-col-stocks" />
+											<col class="industry-col-cap" />
+											<col class="industry-col-pe" />
+											<col class="industry-col-profit" />
+											<col class="industry-col-gross" />
+											<col class="industry-col-1d" />
+											<col class="industry-col-1m" />
+											<col class="industry-col-1y" />
+										</colgroup>
+										<thead>
 											<tr>
-												<td class="industry-name-cell">
-													<span class="industry-name-ident">
-														<span
-															class="industry-sector-icon"
-															title=${industry.sector}
-															aria-label=${industry.sector}
-														>
-															${renderIcon(
-																getSectorIconName(industry.sector),
-																"industry-row-glyph",
-															)}
-														</span>
-														<span class="industry-name" title=${industry.industry}>
-															${displayIndustryName}
-														</span>
-													</span>
-												</td>
-												<td>${industry.stock_count ?? "--"}</td>
-												<td>${renderIndustryMetric(
-													fmt.market_cap(industry.market_cap),
-													marketCapColor,
-												)}</td>
-												<td>${renderIndustryMetric(
-													fmt.number(industry.pe),
-													peColor,
-												)}</td>
-												<td class=${`industry-tone ${toneClass(industry.profit_margin)}`}>
-													${renderIndustryMetric(
-														fmt.percent_neutral(industry.profit_margin),
-														profitMarginColor,
-													)}
-												</td>
-												<td class=${`industry-tone ${toneClass(industry.gross_margin)}`}>
-													${renderIndustryMetric(
-														fmt.percent_neutral(industry.gross_margin),
-														grossMarginColor,
-													)}
-												</td>
-												<td class=${`industry-tone ${toneClass(industry.change_percent_1d)}`}>
-													${fmt.percent(industry.change_percent_1d)}
-												</td>
-												<td class=${`industry-tone ${toneClass(industry.change_percent_1m)}`}>
-													${fmt.percent(industry.change_percent_1m)}
-												</td>
-												<td class=${`industry-tone ${toneClass(industry.change_percent_1y)}`}>
-													${fmt.percent(industry.change_percent_1y)}
-												</td>
+												<th>${renderSortableHeader("Industry", "industry", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("Stocks", "stock_count", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("Mkt Cap", "market_cap", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("PE", "pe", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("PROFIT", "profit_margin", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("GROSS", "gross_margin", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("1D", "change_percent_1d", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("1M", "change_percent_1m", sortKey, sortDirection, setSortKey)}</th>
+												<th>${renderSortableHeader("1Y", "change_percent_1y", sortKey, sortDirection, setSortKey)}</th>
 											</tr>
-										`;
-										})}
-									</tbody>
-								</table>
-							</div>
-						`
+										</thead>
+										<tbody>
+											${filteredIndustries.map((industry) => {
+												const displayIndustryName = getIndustryDisplayName(
+													industry.industry,
+												);
+												const marketCapValue = parseMarketCap(
+													industry.market_cap,
+												);
+												return html`
+													<tr>
+														<td class="industry-name-cell">
+															<span class="industry-name-ident">
+																<span
+																	class="industry-sector-icon"
+																	title=${industry.sector}
+																	aria-label=${industry.sector}
+																>
+																	${renderIcon(
+																		getSectorIconName(industry.sector),
+																		"industry-row-glyph",
+																	)}
+																</span>
+																<span class="industry-name" title=${industry.industry}>
+																	${displayIndustryName}
+																</span>
+															</span>
+														</td>
+														<td>${industry.stock_count ?? "--"}</td>
+														<td>${renderConditionallyColoredValue(
+															fmt.market_cap(industry.market_cap),
+															{
+																value: marketCapValue,
+																colorMeta: industryColorMeta,
+																colorKey: "market_cap",
+															},
+														)}</td>
+														<td>${renderConditionallyColoredValue(
+															fmt.number(industry.pe),
+															{
+																value: industry.pe,
+																colorMeta: industryColorMeta,
+																colorKey: "pe",
+															},
+														)}</td>
+														<td class=${getToneClass(
+															industry.profit_margin,
+															"industry-tone",
+														)}>
+															${renderConditionallyColoredValue(
+																fmt.percent_neutral(industry.profit_margin),
+																{
+																	value: industry.profit_margin,
+																	colorMeta: industryColorMeta,
+																	colorKey: "profit_margin",
+																},
+															)}
+														</td>
+														<td class=${getToneClass(
+															industry.gross_margin,
+															"industry-tone",
+														)}>
+															${renderConditionallyColoredValue(
+																fmt.percent_neutral(industry.gross_margin),
+																{
+																	value: industry.gross_margin,
+																	colorMeta: industryColorMeta,
+																	colorKey: "gross_margin",
+																},
+															)}
+														</td>
+														<td class=${getToneClass(
+															industry.change_percent_1d,
+															"industry-tone",
+														)}>
+															${fmt.percent(industry.change_percent_1d)}
+														</td>
+														<td class=${getToneClass(
+															industry.change_percent_1m,
+															"industry-tone",
+														)}>
+															${fmt.percent(industry.change_percent_1m)}
+														</td>
+														<td class=${getToneClass(
+															industry.change_percent_1y,
+															"industry-tone",
+														)}>
+															${fmt.percent(industry.change_percent_1y)}
+														</td>
+													</tr>
+												`;
+											})}
+										</tbody>
+									</table>
+								</div>
+							`
 				}
 			</section>
 		</div>

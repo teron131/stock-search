@@ -1,8 +1,12 @@
 import { html } from "htm/preact";
 
-import { calculateScoreColorMetadata, getScoreColor } from "../color.js";
+import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG } from "../config.js";
 import { fmt, normalizeTicker, parseMarketCap } from "../format.js";
+import {
+	getColumnCharCount,
+	renderConditionallyColoredValue,
+} from "../tableStyle.js";
 import { useQtyCellState } from "./useQtyCellState.js";
 
 function compareNullable(a, b, dir) {
@@ -193,11 +197,11 @@ function renderCell({
 			colorKey === "market_cap"
 				? parseMarketCap(row.market_cap)
 				: row[colorKey];
-		const textColor = getScoreColor(rawValue, colorMeta[colorKey]);
-
-		if (textColor) {
-			return html`<span style=${{ color: textColor }}>${content}</span>`;
-		}
+		return renderConditionallyColoredValue(content, {
+			value: rawValue,
+			colorMeta,
+			colorKey,
+		});
 	}
 
 	return content;
@@ -216,9 +220,10 @@ export function DataTable({
 	animateRows = true,
 }) {
 	const cols = COLS[tab];
-	const tickerCharCount = Math.max(
-		"TICKER".length,
-		...rows.map((row) => normalizeTicker(row.ticker).replace("-", ".").length),
+	const tickerCharCount = getColumnCharCount(
+		rows.map((row) => normalizeTicker(row.ticker).replace("-", ".")),
+		"TICKER",
+		{ paddingChars: 1 },
 	);
 
 	const filtered = rows.filter((r) => {
@@ -241,15 +246,15 @@ export function DataTable({
 	});
 
 	return html`
-    <div class="table-shell">
-      <div class="table-scroll-hint">Swipe sideways for full factor view</div>
-      <div
-        class="table-wrapper"
-        style=${{ "--ticker-char-count": tickerCharCount }}
-      >
-        <table id="main-table">
-          <colgroup>
-            ${cols.map((col) => {
+		<div class="table-shell">
+			<div class="table-scroll-hint">Swipe sideways for full factor view</div>
+			<div
+				class="table-wrapper data-table-scroll"
+				style=${{ "--ticker-char-count": tickerCharCount }}
+			>
+				<table id="main-table" class="data-table">
+					<colgroup>
+						${cols.map((col) => {
 							const className =
 								col.key === "ticker"
 									? "table-col-ticker"
@@ -258,43 +263,43 @@ export function DataTable({
 										: "";
 							return html`<col class=${className} />`;
 						})}
-          </colgroup>
-          <thead>
-            <tr>
-              ${cols.map((c) => {
+					</colgroup>
+					<thead>
+						<tr>
+							${cols.map((c) => {
 								if (c.key === "remove") return html`<th></th>`;
 								const sortedClass =
 									sortCol === c.key ? `sorted ${sortDir}` : "";
 								return html`<th
-                  data-sort=${c.key}
-                  class=${sortedClass}
-                  onClick=${() => onSort(c.key)}
-                >
-                  ${c.label}
-                </th>`;
+									data-sort=${c.key}
+									class=${sortedClass}
+									onClick=${() => onSort(c.key)}
+								>
+									${c.label}
+								</th>`;
 							})}
-            </tr>
-          </thead>
-          <tbody>
-            ${
+						</tr>
+					</thead>
+					<tbody>
+						${
 							sorted.length
 								? sorted.map(
 										(row, i) =>
 											html`<tr
-                      key=${normalizeTicker(row.ticker)}
-                      class=${animateRows ? "animate-in" : ""}
-                      style=${
-												animateRows
-													? {
-															animationDelay: `${i * CONFIG.animationDelayMs}ms`,
-														}
-													: null
-											}
-                    >
-                      ${cols.map(
-												(col) =>
-													html`<td>
-                            ${renderCell({
+												key=${normalizeTicker(row.ticker)}
+												class=${animateRows ? "animate-in" : ""}
+												style=${
+													animateRows
+														? {
+																animationDelay: `${i * CONFIG.animationDelayMs}ms`,
+															}
+														: null
+												}
+											>
+												${cols.map(
+													(col) =>
+														html`<td>
+														${renderCell({
 															row,
 															col,
 															colorMeta,
@@ -302,15 +307,15 @@ export function DataTable({
 															onSetQuantity,
 															isUsingDemoData,
 														})}
-                          </td>`,
-											)}
-                    </tr>`,
+													</td>`,
+												)}
+											</tr>`,
 									)
 								: null
 						}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
+					</tbody>
+				</table>
+			</div>
+		</div>
+	`;
 }

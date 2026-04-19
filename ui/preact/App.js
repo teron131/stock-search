@@ -257,34 +257,10 @@ function renderDashboardScreen({
 	isBackgroundLoading,
 	onAddOrUpdate,
 }) {
-	const totalValueText =
-		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--";
-	const totalPositionsText = stats.positions
-		? `${stats.positions} names`
-		: "--";
-	const changePercent = Number(stats.change?.percent || 0);
-	const changeAbsolute = Number(stats.change?.absolute || 0);
-	const changeTone =
-		changePercent > 0 ? "positive" : changePercent < 0 ? "negative" : "neutral";
-	const changeText =
-		stats.totalVal > 0
-			? `${changeAbsolute >= 0 ? "+" : "-"}${fmt.currency(Math.abs(changeAbsolute))} (${fmt.percent(changePercent)})`
-			: "--";
 	return html`
 		<div class="tabs-container" id="dashboard-tables">
 			<div class="dashboard-summary">
-				<div class="dashboard-summary-copy">
-					<div class="dashboard-summary-label">Portfolio desk</div>
-					<div class="dashboard-summary-headline">${totalValueText}</div>
-					<div class="dashboard-summary-meta">
-						<span>${totalPositionsText}</span>
-						<span class=${`dashboard-summary-change ${changeTone}`}>
-							${changeText}
-						</span>
-					</div>
-				</div>
 				<div class="dashboard-summary-actions">
-					<div class="dashboard-summary-label">Quick add</div>
 					<${QuickAdd}
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
