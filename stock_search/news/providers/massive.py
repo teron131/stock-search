@@ -21,7 +21,7 @@ SENTIMENT_MAP = {
     "neutral": "neutral",
     "negative": "bearish",
 }
-DEFAULT_TIMEOUT_S = 60
+DEFAULT_TIMEOUT_SEC = 60
 
 
 async def get_news_massive_async(
@@ -81,7 +81,7 @@ def get_news_massive(
     """Get financial news using Massive API."""
 
     async def _fetch() -> list[NewsArticle]:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_SEC) as client:
             return await get_news_massive_async(
                 ticker=ticker,
                 n_days=n_days,

@@ -17,7 +17,7 @@ from ...utils import extract_domain, format_date, get_days_ago, parse_date, pars
 
 load_dotenv()
 
-DEFAULT_TIMEOUT_S = 60
+DEFAULT_TIMEOUT_SEC = 60
 
 
 async def get_news_newsapi_async(
@@ -75,7 +75,7 @@ def get_news_newsapi(
     """Get financial news using NewsAPI."""
 
     async def _fetch() -> list[NewsArticle]:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_SEC) as client:
             return await get_news_newsapi_async(
                 query=query,
                 n_days=n_days,

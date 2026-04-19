@@ -31,7 +31,7 @@ from .providers import (
 
 logger = logging.getLogger(__name__)
 FAST_LLM = os.getenv("FAST_LLM")
-DEFAULT_TIMEOUT_S = 60
+DEFAULT_TIMEOUT_SEC = 60
 MAX_ANALYSIS_WORKERS = 10
 ANALYSIS_CACHE = TieredCache[NewsAnalysis](
     ttl_seconds=7 * 24 * 60 * 60,
@@ -208,7 +208,7 @@ async def get_news_async(
 ) -> list[NewsArticle]:
     """Fetch news from multiple providers, dedupe by URL, then analyze."""
     started_at = perf_counter()
-    async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_S) as client:
+    async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT_SEC) as client:
         provider_specs = (
             ("newsdata", get_news_newsdata_async(query=ticker, client=client)),
             (
