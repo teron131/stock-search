@@ -1,5 +1,6 @@
 const VIEW_PATHS = {
 	dashboard: "/dashboard",
+	news: "/news",
 	industry: "/industry",
 	marketmap: "/marketmap",
 	calendar: "/calendar",
@@ -8,6 +9,7 @@ const VIEW_PATHS = {
 const PATH_VIEWS = {
 	"/": "dashboard",
 	"/dashboard": "dashboard",
+	"/news": "news",
 	"/industry": "industry",
 	"/marketmap": "marketmap",
 	"/calendar": "calendar",

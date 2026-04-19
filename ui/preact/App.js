@@ -2,23 +2,28 @@ import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { DataTable } from "./components/DataTable.js";
 import { IndustryView } from "./components/IndustryView.js";
+import { NewsView } from "./components/NewsView.js";
 import { QuickAdd } from "./components/QuickAdd.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
 import { fmt } from "./format.js";
 import { getIconDefinition, getNavIconName } from "./industryIcons.js";
 import { useIndustryData } from "./useIndustryData.js";
+import { useNewsData } from "./useNewsData.js";
 import { usePortfolioData } from "./usePortfolioData.js";
 import { getPathForView, getViewForPath } from "./viewRoutes.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DASHBOARD_VIEW = "dashboard";
+const NEWS_VIEW = "news";
 const INDUSTRY_VIEW = "industry";
 const MARKETMAP_VIEW = "marketmap";
 const CALENDAR_VIEW = "calendar";
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
+const NEWS_BACKGROUND_SYNC_INTERVAL_MS = CONFIG.newsAutoRefreshIntervalMs;
 
 const VIEW_TITLES = {
 	[DASHBOARD_VIEW]: "DASHBOARD",
+	[NEWS_VIEW]: "NEWS",
 	[INDUSTRY_VIEW]: "INDUSTRY",
 	[MARKETMAP_VIEW]: "MARKET MAP",
 	[CALENDAR_VIEW]: "ECONOMIC CALENDAR",
@@ -172,7 +177,8 @@ function syncViewLayout(view) {
 	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
 
 	const isDashboard = view === DASHBOARD_VIEW;
-	const showsPreactRoot = isDashboard || view === INDUSTRY_VIEW;
+	const showsPreactRoot =
+		isDashboard || view === INDUSTRY_VIEW || view === NEWS_VIEW;
 
 	const preactRoot = document.getElementById("preact-root");
 	if (preactRoot) {
@@ -238,6 +244,24 @@ function renderIndustryScreen(industryData) {
 			sortDirection=${industryData.sortDirection}
 			setSortKey=${industryData.setSortKey}
 			filteredIndustries=${industryData.sortedIndustries}
+		/>
+	`;
+}
+
+function renderNewsScreen(newsData) {
+	return html`
+		<${NewsView}
+			items=${newsData.items}
+			tickerFilter=${newsData.tickerFilter}
+			setTickerFilter=${newsData.setTickerFilter}
+			relevanceFilter=${newsData.relevanceFilter}
+			setRelevanceFilter=${newsData.setRelevanceFilter}
+			heldTickers=${newsData.heldTickers}
+			failedTickers=${newsData.failedTickers}
+			isLoading=${newsData.isLoading}
+			isRefreshing=${newsData.isRefreshing}
+			isWaitingOnPortfolio=${newsData.isWaitingOnPortfolio}
+			lastError=${newsData.lastError}
 		/>
 	`;
 }
@@ -448,10 +472,17 @@ export function App() {
 	} = usePortfolioData();
 
 	const industryData = useIndustryData({ enabled: view === INDUSTRY_VIEW });
+	const newsData = useNewsData({
+		rows,
+		enabled: view === NEWS_VIEW,
+		portfolioLoading: isLoading,
+		preferDemoData: isUsingDemoData,
+	});
 
 	const syncRef = useRef(actions.sync);
 	const importImageRef = useRef(actions.importFromImage);
 	const industryRefreshRef = useRef(industryData.refresh);
+	const newsRefreshRef = useRef(newsData.refresh);
 	const viewRef = useRef(view);
 
 	useEffect(() => {
@@ -465,6 +496,10 @@ export function App() {
 	useEffect(() => {
 		industryRefreshRef.current = industryData.refresh;
 	}, [industryData.refresh]);
+
+	useEffect(() => {
+		newsRefreshRef.current = newsData.refresh;
+	}, [newsData.refresh]);
 
 	useEffect(() => {
 		viewRef.current = view;
@@ -509,6 +544,10 @@ export function App() {
 		const onRefresh = () => {
 			if (viewRef.current === INDUSTRY_VIEW) {
 				industryRefreshRef.current?.();
+				return;
+			}
+			if (viewRef.current === NEWS_VIEW) {
+				newsRefreshRef.current?.({ force: true });
 				return;
 			}
 			syncRef.current?.({ scope: CONFIG.portfolioScopes.live });
@@ -597,13 +636,35 @@ export function App() {
 	}, []);
 
 	useEffect(() => {
+		if (CONFIG.isDemoMode) return;
+
+		const intervalId = setInterval(() => {
+			if (viewRef.current !== NEWS_VIEW) return;
+			if (document.visibilityState !== "visible" || !navigator.onLine) return;
+			newsRefreshRef.current?.({ background: true });
+		}, NEWS_BACKGROUND_SYNC_INTERVAL_MS);
+
+		return () => {
+			clearInterval(intervalId);
+		};
+	}, []);
+
+	useEffect(() => {
 		syncViewLayout(view);
 	}, [view]);
 
 	const activeTimestamp =
-		view === INDUSTRY_VIEW ? industryData.meta.fetched_at : generatedAt;
+		view === INDUSTRY_VIEW
+			? industryData.meta.fetched_at
+			: view === NEWS_VIEW
+				? newsData.generatedAt
+				: generatedAt;
 	const activeIsUsingDemoData =
-		view === DASHBOARD_VIEW ? isUsingDemoData : false;
+		view === DASHBOARD_VIEW
+			? isUsingDemoData
+			: view === NEWS_VIEW
+				? newsData.isUsingDemoData
+				: false;
 
 	useEffect(() => {
 		setText(
@@ -633,6 +694,17 @@ export function App() {
 			showToast("INDUSTRY SNAPSHOT FAILED");
 		}
 	}, [industryData.isLoading, industryData.lastError]);
+
+	useEffect(() => {
+		if (
+			view === NEWS_VIEW &&
+			newsData.lastError &&
+			!newsData.isLoading &&
+			newsData.items.length === 0
+		) {
+			showToast("NEWS FEED FAILED");
+		}
+	}, [newsData.isLoading, newsData.items.length, newsData.lastError, view]);
 
 	const onSort = (key) => {
 		const isSame = sortCol === key;
@@ -690,6 +762,10 @@ export function App() {
 		showToast("UPDATED");
 		return res;
 	};
+
+	if (view === NEWS_VIEW) {
+		return renderNewsScreen(newsData);
+	}
 
 	if (view === INDUSTRY_VIEW) {
 		return renderIndustryScreen(industryData);

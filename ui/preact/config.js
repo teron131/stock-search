@@ -27,6 +27,7 @@ export const CONFIG = {
 	demoEndpoints: {
 		portfolio: getDemoAssetUrl("portfolio.json"),
 		industries: getDemoAssetUrl("industries.json"),
+		news: getDemoAssetUrl("news.json"),
 		colorStandards: getDemoAssetUrl("color-standards.json"),
 	},
 
@@ -34,7 +35,12 @@ export const CONFIG = {
 		portfolioForeground: 30_000,
 		portfolioBackground: 120_000,
 		industries: 30_000,
+		news: 30_000,
 	},
+
+	newsConcurrency: 4,
+	newsCacheTtlMs: 60 * 60 * 1000,
+	newsAutoRefreshIntervalMs: 60 * 60 * 1000,
 
 	portfolioScopes: {
 		initial: "all_cached",

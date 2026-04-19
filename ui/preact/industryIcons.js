@@ -33,6 +33,14 @@ const ICON_DEFS = {
 			"M2.25 7.25h11.5",
 		],
 	},
+	news: {
+		paths: [
+			"M3.25 2.75h9.5v10.5h-9.5Z",
+			"M5.25 5.25h5.5",
+			"M5.25 7.75h5.5",
+			"M5.25 10.25h3.25",
+		],
+	},
 	chip: {
 		paths: [
 			"M5 5h6v6H5Z",
@@ -120,6 +128,7 @@ const ICON_DEFS = {
 
 const NAV_ICON_NAMES = {
 	dashboard: "grid",
+	news: "news",
 	industry: "factory",
 	marketmap: "heatmap",
 	calendar: "calendar",
@@ -157,6 +166,7 @@ const SECTOR_DISPLAY_LABELS = {
 
 const ICON_SYMBOLS = {
 	grid: "G",
+	news: "N",
 	factory: "I",
 	heatmap: "H",
 	calendar: "C",
