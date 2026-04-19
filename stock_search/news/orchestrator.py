@@ -13,6 +13,7 @@ import math
 import os
 from threading import Lock
 from time import perf_counter
+import unicodedata
 
 import httpx
 from langchain_core.prompts import PromptTemplate
@@ -50,6 +51,8 @@ FALLBACK_SUMMARIES = (
     "[TRUNCATED]",
     "[FAILED TO FETCH]",
 )
+MAX_NON_ASCII_LATIN_RATIO = 0.1
+MIN_NON_ASCII_LATIN_LETTERS = 5
 
 
 @dataclass(frozen=True)
@@ -157,6 +160,38 @@ def _dedupe_news(items: list[NewsArticle]) -> list[NewsArticle]:
     return list(seen.values())
 
 
+def _is_english_news_item(news: NewsArticle) -> bool:
+    """Return True when the article text looks English enough to keep."""
+    text = " ".join(part for part in (news.title, news.summary) if part).strip()
+    if not text:
+        return True
+
+    letter_count = 0
+    non_ascii_latin_letters = 0
+    non_latin_letters = 0
+
+    for character in text:
+        if not character.isalpha():
+            continue
+        letter_count += 1
+        if ord(character) <= 127:
+            continue
+        unicode_name = unicodedata.name(character, "")
+        if "LATIN" in unicode_name:
+            non_ascii_latin_letters += 1
+            continue
+        non_latin_letters += 1
+
+    if letter_count == 0:
+        return True
+    if non_latin_letters > 0:
+        return False
+    if non_ascii_latin_letters < MIN_NON_ASCII_LATIN_LETTERS:
+        return True
+
+    return (non_ascii_latin_letters / letter_count) <= MAX_NON_ASCII_LATIN_RATIO
+
+
 def _split_cached_analysis(
     news_list: list[NewsArticle],
 ) -> tuple[list[NewsAnalysis], int, list[tuple[int, str, NewsArticle]]]:
@@ -261,7 +296,7 @@ async def _fetch_provider_batch(
 
 def _finalize_news_feed(news_list: list[NewsArticle]) -> list[NewsArticle]:
     """Apply final feed filtering and stable ranking."""
-    filtered_news_list = [news for news in news_list if not news.summary.startswith(FALLBACK_SUMMARIES) and news.relevancy != "low"]
+    filtered_news_list = [news for news in news_list if not news.summary.startswith(FALLBACK_SUMMARIES) and news.relevancy != "low" and _is_english_news_item(news)]
     return sorted(
         filtered_news_list,
         key=lambda item: (

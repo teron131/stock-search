@@ -16,6 +16,39 @@ def _make_news(*, title: str, url: str, days_ago: int) -> NewsArticle:
     )
 
 
+def test_finalize_news_feed_filters_non_english_unicode_articles() -> None:
+    english_news = _make_news(
+        title="TSMC plans sub-1nm pilot production in 2029",
+        url="https://example.com/english",
+        days_ago=0,
+    ).model_copy(
+        update=NewsAnalysis(
+            summary="TSMC is preparing an early pilot line for sub-1nm production.",
+            relevancy="high",
+            category="industry_news",
+            sentiment="neutral",
+        ).model_dump()
+    )
+    accented_non_english_news = _make_news(
+        title="TSMC du kien san xuat thu nghiem chip duoi 1nm vao nam 2029",
+        url="https://example.com/accented-non-english",
+        days_ago=0,
+    ).model_copy(
+        update=NewsAnalysis(
+            summary="TSMC dự kiến sản xuất thử nghiệm chip dưới 1nm bắt đầu vào năm 2029.",
+            relevancy="high",
+            category="industry_news",
+            sentiment="neutral",
+        ).model_dump()
+    )
+
+    result = news_orchestrator._finalize_news_feed([english_news, accented_non_english_news])
+
+    assert [item.url for item in result] == [
+        "https://example.com/english",
+    ]
+
+
 def test_get_news_async_tolerates_provider_failures_and_preserves_selection(monkeypatch) -> None:
     deduped_inputs: list[str] = []
     exa_called = False
