@@ -15,20 +15,22 @@ from ...models.schemas import NewsArticle, NewsMetadata
 from ...utils import extract_domain, format_date, format_iso_z, get_days_ago, parse_date, parse_ticker
 
 DEFAULT_TIMEOUT_SEC = 60
+MAX_RESULTS = 25
 
 
 async def get_news_exa_async(
     query: str,
     n_days: int = 3,
-    max_results: int = 25,
+    max_results: int = MAX_RESULTS,
     *,
     client: httpx.AsyncClient,
 ) -> list[NewsArticle]:
     """Search Exa for news results and return raw payload items."""
+    bounded_max_results = min(max_results, MAX_RESULTS)
     payload = {
         "query": parse_ticker(query),
         "category": "news",
-        "num_results": max_results,
+        "num_results": bounded_max_results,
         "start_published_date": format_iso_z(datetime.now(UTC) - timedelta(days=n_days)),
         "end_published_date": format_iso_z(datetime.now(UTC)),
         "type": "auto",
@@ -72,7 +74,7 @@ async def get_news_exa_async(
 def get_news_exa(
     query: str,
     n_days: int = 3,
-    max_results: int = 25,
+    max_results: int = MAX_RESULTS,
 ) -> list[NewsArticle]:
     """Search Exa for news results and return raw payload items."""
 

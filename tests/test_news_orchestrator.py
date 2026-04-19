@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from stock_search.cache import TieredCache
 from stock_search.models.schemas import NewsAnalysis, NewsArticle, NewsMetadata
@@ -17,6 +18,7 @@ def _make_news(*, title: str, url: str, days_ago: int) -> NewsArticle:
 
 def test_get_news_async_tolerates_provider_failures_and_preserves_selection(monkeypatch) -> None:
     deduped_inputs: list[str] = []
+    exa_called = False
 
     async def fake_newsdata(*, query: str, client) -> list[NewsArticle]:
         assert query == "NVDA"
@@ -29,6 +31,8 @@ def test_get_news_async_tolerates_provider_failures_and_preserves_selection(monk
         raise RuntimeError("massive offline")
 
     async def fake_exa(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        nonlocal exa_called
+        exa_called = True
         return [_make_news(title="Duplicate A", url="https://example.com/a?utm_source=test", days_ago=1)]
 
     async def fake_newsapi(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
@@ -56,6 +60,7 @@ def test_get_news_async_tolerates_provider_failures_and_preserves_selection(monk
 
     result = asyncio.run(news_orchestrator.get_news_async("NVDA"))
 
+    assert exa_called is True
     assert deduped_inputs == [
         "https://example.com/a",
         "https://example.com/b",
@@ -109,3 +114,98 @@ def test_analyze_news_reuses_cached_url_analysis(monkeypatch) -> None:
     assert second_result[0].summary == "Cached summary"
     assert webloader_calls == [["https://example.com/a?utm_source=alpha"]]
     assert len(invoke_calls) == 1
+
+
+def test_get_news_async_skips_exa_when_primary_providers_have_enough_results(monkeypatch) -> None:
+    async def fake_newsdata(*, query: str, client) -> list[NewsArticle]:
+        assert query == "NVDA"
+        return [
+            _make_news(title="A", url="https://example.com/a", days_ago=0),
+            _make_news(title="B", url="https://example.com/b", days_ago=0),
+        ]
+
+    async def fake_massive(*, ticker: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        assert ticker == "NVDA"
+        return [_make_news(title="C", url="https://example.com/c", days_ago=1)]
+
+    async def fake_newsapi(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        assert query == "NVDA"
+        return [_make_news(title="D", url="https://example.com/d", days_ago=2)]
+
+    def fake_yfinance(*, ticker: str, max_results: int) -> list[NewsArticle]:
+        assert ticker == "NVDA"
+        return []
+
+    async def fake_exa(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        raise AssertionError("Exa should not run when primary providers already have enough items")
+
+    def fake_analyze_news(ticker: str, news_list: list[NewsArticle]) -> list[NewsAnalysis]:
+        assert ticker == "NVDA"
+        return [NewsAnalysis(summary=f"summary-{idx}", relevancy="high", category="company_news", sentiment="neutral") for idx, _news in enumerate(news_list)]
+
+    monkeypatch.setattr(news_orchestrator, "get_news_newsdata_async", fake_newsdata)
+    monkeypatch.setattr(news_orchestrator, "get_news_massive_async", fake_massive)
+    monkeypatch.setattr(news_orchestrator, "get_news_newsapi_async", fake_newsapi)
+    monkeypatch.setattr(news_orchestrator, "get_news_yfinance", fake_yfinance)
+    monkeypatch.setattr(news_orchestrator, "get_news_exa_async", fake_exa)
+    monkeypatch.setattr(news_orchestrator, "_analyze_news", fake_analyze_news)
+
+    result = asyncio.run(news_orchestrator.get_news_async("NVDA", max_results=4))
+
+    assert [item.url for item in result] == [
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+        "https://example.com/d",
+    ]
+
+
+def test_get_news_async_skips_rate_limited_provider(monkeypatch) -> None:
+    massive_called = False
+
+    async def fake_newsdata(*, query: str, client) -> list[NewsArticle]:
+        assert query == "NVDA"
+        return [_make_news(title="A", url="https://example.com/a", days_ago=0)]
+
+    async def fake_massive(*, ticker: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        nonlocal massive_called
+        massive_called = True
+        return [_make_news(title="B", url="https://example.com/b", days_ago=0)]
+
+    async def fake_newsapi(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        assert query == "NVDA"
+        return [_make_news(title="C", url="https://example.com/c", days_ago=1)]
+
+    def fake_yfinance(*, ticker: str, max_results: int) -> list[NewsArticle]:
+        assert ticker == "NVDA"
+        return []
+
+    async def fake_exa(*, query: str, n_days: int, max_results: int, client) -> list[NewsArticle]:
+        return [_make_news(title="D", url="https://example.com/d", days_ago=2)]
+
+    def fake_analyze_news(ticker: str, news_list: list[NewsArticle]) -> list[NewsAnalysis]:
+        assert ticker == "NVDA"
+        return [NewsAnalysis(summary=f"summary-{idx}", relevancy="high", category="company_news", sentiment="neutral") for idx, _news in enumerate(news_list)]
+
+    monkeypatch.setattr(news_orchestrator, "get_news_newsdata_async", fake_newsdata)
+    monkeypatch.setattr(news_orchestrator, "get_news_massive_async", fake_massive)
+    monkeypatch.setattr(news_orchestrator, "get_news_newsapi_async", fake_newsapi)
+    monkeypatch.setattr(news_orchestrator, "get_news_yfinance", fake_yfinance)
+    monkeypatch.setattr(news_orchestrator, "get_news_exa_async", fake_exa)
+    monkeypatch.setitem(
+        news_orchestrator.PROVIDER_RATE_LIMITERS,
+        "massive",
+        news_orchestrator.ProviderRequestLimiter(
+            news_orchestrator.ProviderRateLimit(max_requests=0, window=timedelta(minutes=1)),
+        ),
+    )
+    monkeypatch.setattr(news_orchestrator, "_analyze_news", fake_analyze_news)
+
+    result = asyncio.run(news_orchestrator.get_news_async("NVDA", max_results=4))
+
+    assert massive_called is False
+    assert [item.url for item in result] == [
+        "https://example.com/a",
+        "https://example.com/c",
+        "https://example.com/d",
+    ]
