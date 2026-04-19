@@ -2129,15 +2129,18 @@ tbody tr:hover td:first-child {
 	}
 
 	.dashboard-summary-actions {
-		align-items: stretch;
+		align-items: flex-end;
 		flex-direction: column;
 		gap: 6px;
 		width: 100%;
 	}
 
 	.quick-add-compact {
-		width: 100%;
+		width: min(232px, 100%);
 		min-width: 0;
+		grid-template-columns: minmax(0, 108px) minmax(0, 74px) 48px;
+		justify-self: end;
+		margin-left: auto;
 	}
 
 	.quick-add-compact input {
@@ -2147,12 +2150,11 @@ tbody tr:hover td:first-child {
 
 	.quick-add-compact input:last-of-type {
 		width: 100%;
-		flex: 0 0 auto;
 	}
 
 	.btn-add-mini {
-		min-width: 78px;
-		padding: 0 14px;
+		min-width: 48px;
+		padding: 0 12px;
 	}
 
 	.tabs-header {
