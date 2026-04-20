@@ -12,6 +12,7 @@ export const CONFIG = {
 	endpoints: {
 		portfolio: "/portfolio",
 		portfolioImportImage: "/portfolio/import-image",
+		portfolioNewsSummary: "/portfolio/news-summary",
 		industries: "/industries",
 		stock: "/stock",
 		stockStats: (ticker) =>

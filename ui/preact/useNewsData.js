@@ -9,6 +9,7 @@ import {
 import { CONFIG } from "./config.js";
 import {
 	normalizeDemoNewsPayload,
+	normalizePortfolioNewsSummaryPayload,
 	normalizeTickerNewsPayload,
 } from "./dataContract.js";
 import { normalizeTicker } from "./format.js";
@@ -35,6 +36,27 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 	try {
 		const response = await fetch(withCacheBuster(url), {
+			signal: controller.signal,
+		});
+		if (!response.ok) {
+			throw new Error(`Request failed: ${response.status}`);
+		}
+		return await response.json();
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
+
+async function postJsonWithTimeout(url, payload, timeoutMs) {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const response = await fetch(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(payload),
 			signal: controller.signal,
 		});
 		if (!response.ok) {
@@ -300,6 +322,39 @@ function buildCacheSnapshot(heldTickers) {
 	};
 }
 
+function normalizeSummaryRequestRow(row) {
+	return {
+		ticker: normalizeTicker(row?.ticker),
+		quantity: Number(row?.quantity),
+		total: Number(row?.total),
+		weight_pct: Number(row?.weight_pct),
+	};
+}
+
+function normalizeSummaryRequestItem(item) {
+	return {
+		title: item.title || null,
+		summary: item.summary || "",
+		relevancy: item.relevancy || "low",
+		category: item.category || "other",
+		sentiment: item.sentiment || "neutral",
+		source_tickers: (item.sourceTickers || [])
+			.map(normalizeTicker)
+			.filter(Boolean),
+	};
+}
+
+function buildPortfolioSummaryRequestPayload(rows, items) {
+	return {
+		rows: rows.map((row) => normalizeSummaryRequestRow(row)),
+		items: items.map((item) => normalizeSummaryRequestItem(item)),
+	};
+}
+
+function shouldUseFallbackPortfolioSummary({ allItems, preferDemoData }) {
+	return allItems.length === 0 || CONFIG.isDemoMode || preferDemoData;
+}
+
 export function useNewsData({
 	rows,
 	enabled,
@@ -314,8 +369,10 @@ export function useNewsData({
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
 	const [lastError, setLastError] = useState(null);
 	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
+	const [portfolioSummaryResult, setPortfolioSummaryResult] = useState(null);
 
 	const loadInFlightRef = useRef(false);
+	const summaryRequestRef = useRef(0);
 	const allItemsRef = useRef(allItems);
 	const heldTickers = useMemo(() => getHeldTickers(rows), [rows]);
 	const heldTickerKey = heldTickers.join("|");
@@ -543,10 +600,65 @@ export function useNewsData({
 			),
 		[allItems, relevanceFilter, tickerFilter],
 	);
-	const portfolioSummary = useMemo(
+	const fallbackPortfolioSummary = useMemo(
 		() => buildPortfolioNewsSummary({ rows, items: allItems }),
 		[allItems, rows],
 	);
+
+	useEffect(() => {
+		const requestId = summaryRequestRef.current + 1;
+		summaryRequestRef.current = requestId;
+
+		if (!enabled || heldTickers.length === 0) {
+			setPortfolioSummaryResult(null);
+			return;
+		}
+
+		if (
+			shouldUseFallbackPortfolioSummary({
+				allItems,
+				preferDemoData,
+			})
+		) {
+			setPortfolioSummaryResult(fallbackPortfolioSummary);
+			return;
+		}
+
+		setPortfolioSummaryResult(fallbackPortfolioSummary);
+		const payload = buildPortfolioSummaryRequestPayload(rows, allItems);
+
+		(async () => {
+			try {
+				const response = await postJsonWithTimeout(
+					CONFIG.endpoints.portfolioNewsSummary,
+					payload,
+					CONFIG.requestTimeoutMs.news,
+				);
+				if (summaryRequestRef.current !== requestId) {
+					return;
+				}
+				setPortfolioSummaryResult(
+					normalizePortfolioNewsSummaryPayload(response) ||
+						fallbackPortfolioSummary,
+				);
+			} catch {
+				if (summaryRequestRef.current !== requestId) {
+					return;
+				}
+				setPortfolioSummaryResult(fallbackPortfolioSummary);
+			}
+		})();
+	}, [
+		allItems,
+		enabled,
+		fallbackPortfolioSummary,
+		heldTickerKey,
+		heldTickers.length,
+		preferDemoData,
+		rows,
+	]);
+
+	const portfolioSummary = portfolioSummaryResult || fallbackPortfolioSummary;
 
 	return {
 		items,

@@ -87,8 +87,81 @@ function renderTickerPills(sourceTickers) {
 	);
 }
 
+function formatWeight(weightPct) {
+	const numericWeight = Number(weightPct);
+	if (!Number.isFinite(numericWeight) || numericWeight <= 0) {
+		return "--";
+	}
+	if (numericWeight < 0.5) {
+		return "<1%";
+	}
+	if (numericWeight < 10) {
+		return `${numericWeight.toFixed(1)}%`;
+	}
+	return `${Math.round(numericWeight)}%`;
+}
+
 function shouldShowSummaryToggle(summary) {
 	return String(summary || "").trim().length > 160;
+}
+
+function escapeRegex(text) {
+	return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderHighlightedText(text, tickers) {
+	const content = String(text || "");
+	const normalizedTickers = Array.from(
+		new Set(
+			(tickers || [])
+				.map((ticker) => String(ticker || "").trim())
+				.filter(Boolean),
+		),
+	).sort((left, right) => right.length - left.length);
+	if (!content || normalizedTickers.length === 0) {
+		return content;
+	}
+
+	const tickerPattern = new RegExp(
+		`(${normalizedTickers.map((ticker) => escapeRegex(ticker)).join("|")})`,
+		"g",
+	);
+	const parts = content.split(tickerPattern);
+	if (parts.length === 1) {
+		return content;
+	}
+
+	const tickerSet = new Set(normalizedTickers);
+	return parts.map((part, index) =>
+		tickerSet.has(part)
+			? html`<strong key=${`${part}-${index}`} class="news-inline-ticker">${part}</strong>`
+			: part,
+	);
+}
+
+function renderSummaryChapters(chapters) {
+	const safeChapters = Array.isArray(chapters) ? chapters.filter(Boolean) : [];
+	if (safeChapters.length === 0) {
+		return null;
+	}
+
+	return html`
+		<div class="news-summary-list">
+			${safeChapters.map(
+				(chapter) => html`
+					<div class="news-summary-item">
+						<div class="news-summary-item-topic">${chapter.headline}</div>
+						<div class="news-summary-item-text">
+							${renderHighlightedText(
+								chapter.paragraph,
+								chapter.relatedTickers,
+							)}
+						</div>
+					</div>
+				`,
+			)}
+		</div>
+	`;
 }
 
 export function NewsView({
@@ -110,6 +183,7 @@ export function NewsView({
 	);
 	const hasItems = items.length > 0;
 	const hasHoldings = heldTickers.length > 0;
+	const hasMacroItems = (portfolioSummary?.macros || []).length > 0;
 	const coverageText =
 		isLoading && !hasItems
 			? "Refreshing portfolio wire..."
@@ -194,21 +268,18 @@ export function NewsView({
 						portfolioSummary?.hasNews
 							? html`
 								<div class="news-summary-body">
-									<div class="news-summary-section">
-										<div class="news-summary-title">Portfolio overview</div>
-										<div class="news-summary-copy">
-											${portfolioSummary.overview}
-										</div>
-									</div>
+									${
+										hasMacroItems
+											? html`
+												<div class="news-summary-section is-macros">
+													<div class="news-summary-title">Macros</div>
+													${renderSummaryChapters(portfolioSummary.macros)}
+												</div>
+											`
+											: null
+									}
 
-									<div class="news-summary-section">
-										<div class="news-summary-title">Macros</div>
-										<div class="news-summary-copy">
-											${portfolioSummary.macros}
-										</div>
-									</div>
-
-									<div class="news-summary-section">
+									<div class="news-summary-section is-top-tickers">
 										<div class="news-summary-title">Top tickers</div>
 										<div class="news-ticker-briefs">
 											${portfolioSummary.topTickers.map(
@@ -219,12 +290,13 @@ export function NewsView({
 																${summaryItem.ticker}
 															</div>
 															<div class="news-ticker-brief-weight">
-																${summaryItem.weightLabel}
+																${
+																	summaryItem.weightLabel ||
+																	formatWeight(summaryItem.weightPct)
+																}
 															</div>
 														</div>
-														<div class="news-ticker-brief-copy">
-															${summaryItem.summary}
-														</div>
+														${renderSummaryChapters(summaryItem.chapters)}
 													</article>
 												`,
 											)}
@@ -234,10 +306,9 @@ export function NewsView({
 							`
 							: html`
 								<div class="news-summary-body news-summary-placeholder">
-									<div class="news-summary-title">Portfolio overview</div>
+									<div class="news-summary-title">Macros</div>
 									<div class="news-summary-copy">
-										Add held positions and load the feed to generate a weight-aware
-										portfolio summary.
+										Add held positions and load the feed to generate the chaptered desk note.
 									</div>
 								</div>
 							`
@@ -330,7 +401,7 @@ export function NewsView({
 												<div
 													class=${`news-story-summary ${isExpanded ? "is-expanded" : ""}`}
 												>
-													${summary}
+													${renderHighlightedText(summary, item.sourceTickers)}
 												</div>
 												${
 													canToggleSummary

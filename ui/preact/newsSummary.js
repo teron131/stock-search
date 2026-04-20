@@ -1,5 +1,12 @@
 import { normalizeTicker } from "./format.js";
 
+const MAX_TOP_TICKERS = 5;
+const MAX_SOURCE_ARTICLES = 2;
+const MAX_CHAPTERS_PER_GROUP = 3;
+const THIN_COVERAGE_HEADLINE = "Coverage Remains Thin";
+const THIN_COVERAGE_PARAGRAPH =
+	"Current feed does not surface a clear ticker-specific theme yet.";
+
 const RELEVANCE_SCORES = {
 	high: 3,
 	medium: 2,
@@ -103,6 +110,18 @@ function getArticleTickers(article) {
 	return Array.from(tickers);
 }
 
+function unionTickers(...tickerLists) {
+	return Array.from(
+		new Set(
+			tickerLists.flatMap((tickerList) =>
+				(tickerList || [])
+					.map((ticker) => normalizeTicker(ticker))
+					.filter(Boolean),
+			),
+		),
+	);
+}
+
 function getHeldTickerRows(rows) {
 	const heldRows = [];
 	const seenTickers = new Set();
@@ -152,6 +171,84 @@ function summarizeArticle(article) {
 	return normalizeText(article?.summary);
 }
 
+function buildChapter(headline, paragraph, relatedTickers = []) {
+	const normalizedHeadline = normalizeText(headline);
+	const normalizedParagraph = normalizeText(paragraph);
+	if (!normalizedHeadline || !normalizedParagraph) {
+		return null;
+	}
+
+	return {
+		headline: normalizedHeadline,
+		paragraph: normalizedParagraph,
+		relatedTickers: unionTickers(relatedTickers),
+	};
+}
+
+function dedupeChapters(chapters) {
+	const dedupedChapters = [];
+	const seenKeys = new Set();
+
+	for (const chapter of chapters) {
+		if (!chapter) {
+			continue;
+		}
+
+		const chapterKey = `${chapter.headline.toLowerCase()}|${chapter.paragraph.toLowerCase()}`;
+		if (seenKeys.has(chapterKey)) {
+			continue;
+		}
+		seenKeys.add(chapterKey);
+		dedupedChapters.push(chapter);
+	}
+
+	return dedupedChapters;
+}
+
+function toHeadlineTitleCase(text) {
+	return normalizeText(text)
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((word) =>
+			word.length <= 3
+				? word.toUpperCase()
+				: `${word[0].toUpperCase()}${word.slice(1)}`,
+		)
+		.join(" ");
+}
+
+function chapterHeadlineFromArticle(article) {
+	const rawTitle = normalizeText(article?.title);
+	if (!rawTitle) {
+		return "Market thread";
+	}
+
+	const baseTitle = rawTitle
+		.replace(/\([A-Z.:-]{1,12}\)/g, "")
+		.split(/[|:;-]/)[0]
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!baseTitle) {
+		return "Market thread";
+	}
+
+	const words = baseTitle.split(" ").filter(Boolean).slice(0, 6);
+	return toHeadlineTitleCase(words.join(" "));
+}
+
+function buildArticleChapter(article) {
+	const summary = summarizeArticle(article);
+	if (!summary) {
+		return null;
+	}
+
+	return buildChapter(
+		chapterHeadlineFromArticle(article),
+		summary,
+		getArticleTickers(article),
+	);
+}
+
 function scoreTickerArticle(article, ticker) {
 	const sourceTickers = getArticleTickers(article);
 	if (!sourceTickers.includes(ticker)) {
@@ -197,32 +294,30 @@ function dedupeArticlesBySummary(articles) {
 	return dedupedArticles;
 }
 
-function getLeadArticlesForTicker(items, ticker) {
+function selectLeadArticles(
+	items,
+	{ filter, score, limit = MAX_SOURCE_ARTICLES },
+) {
 	return dedupeArticlesBySummary(
-		items
-			.filter((article) => getArticleTickers(article).includes(ticker))
-			.sort(
-				(left, right) =>
-					scoreTickerArticle(right, ticker) - scoreTickerArticle(left, ticker),
-			),
-	).slice(0, 2);
+		items.filter(filter).sort((left, right) => score(right) - score(left)),
+	).slice(0, limit);
+}
+
+function getLeadArticlesForTicker(items, ticker) {
+	return selectLeadArticles(items, {
+		filter: (article) => getArticleTickers(article).includes(ticker),
+		score: (article) => scoreTickerArticle(article, ticker),
+	});
 }
 
 function getMacroArticles(items) {
-	return dedupeArticlesBySummary(
-		items
-			.filter((article) => {
-				const category = article?.category;
-				return (
-					category === "macro_economics" ||
-					category === "market_news" ||
-					category === "industry_news"
-				);
-			})
-			.sort(
-				(left, right) => scoreMacroArticle(right) - scoreMacroArticle(left),
-			),
-	).slice(0, 2);
+	return selectLeadArticles(items, {
+		filter: (article) => {
+			const category = article?.category;
+			return category === "macro_economics" || category === "market_news";
+		},
+		score: scoreMacroArticle,
+	});
 }
 
 function formatWeight(weightPct) {
@@ -235,50 +330,16 @@ function formatWeight(weightPct) {
 	return `${Math.round(weightPct)}%`;
 }
 
-function joinTickers(tickers) {
-	if (tickers.length <= 1) {
-		return tickers[0] || "";
-	}
-	if (tickers.length === 2) {
-		return `${tickers[0]} and ${tickers[1]}`;
-	}
-	return `${tickers.slice(0, -1).join(", ")}, and ${tickers.at(-1)}`;
+function buildThinCoverageChapter(ticker) {
+	return buildChapter(THIN_COVERAGE_HEADLINE, THIN_COVERAGE_PARAGRAPH, [
+		ticker,
+	]);
 }
 
-function describeSentiment(articles) {
-	let weightedScore = 0;
-
-	for (const article of articles) {
-		const sentimentScore = SENTIMENT_SCORES[article?.sentiment] || 0;
-		const relevanceScore = RELEVANCE_SCORES[article?.relevancy] || 0;
-		weightedScore += sentimentScore * Math.max(relevanceScore, 1);
-	}
-
-	if (weightedScore >= 3) {
-		return "constructive";
-	}
-	if (weightedScore <= -3) {
-		return "pressured";
-	}
-	return "mixed";
-}
-
-function describeTickerCoverage(articles) {
-	const categories = new Set(articles.map((article) => article?.category));
-	if (
-		categories.has("earnings") ||
-		categories.has("company_news") ||
-		categories.has("analyst_rating")
-	) {
-		return "Coverage is centered on company-specific developments.";
-	}
-	if (categories.has("industry_news")) {
-		return "Coverage is leaning on industry read-through more than pure market noise.";
-	}
-	if (categories.has("macro_economics") || categories.has("market_news")) {
-		return "Coverage is mostly macro and market spillover.";
-	}
-	return "Coverage is present, but the read-through is still broad rather than company-specific.";
+function buildChaptersFromArticles(articles) {
+	return dedupeChapters(
+		articles.map((article) => buildArticleChapter(article)),
+	).slice(0, MAX_CHAPTERS_PER_GROUP);
 }
 
 function buildTickerSummary(row, items) {
@@ -290,64 +351,26 @@ function buildTickerSummary(row, items) {
 			ticker: row.ticker,
 			weightPct: row.weightPct,
 			weightLabel,
-			summary: `${row.ticker} is roughly ${weightLabel} of the portfolio, but the current feed is thin and does not yet add much beyond background context.`,
+			chapters: [buildThinCoverageChapter(row.ticker)],
 		};
 	}
-
-	const articleSummary = leadArticles
-		.map((article) => summarizeArticle(article))
-		.filter(Boolean)
-		.join(" ");
-	const coverage = describeTickerCoverage(leadArticles);
-	const sentiment = describeSentiment(leadArticles);
 
 	return {
 		ticker: row.ticker,
 		weightPct: row.weightPct,
 		weightLabel,
-		summary: `${row.ticker} is roughly ${weightLabel} of the portfolio. ${coverage} ${articleSummary} Overall tone is ${sentiment}.`,
+		chapters: buildChaptersFromArticles(leadArticles),
 	};
-}
-
-function buildOverview(heldRows, items, macroArticles) {
-	const topHeldRows = heldRows.slice(0, 3);
-	if (topHeldRows.length === 0) {
-		return "No held positions are currently available for a portfolio-wide readout.";
-	}
-
-	const topTickerList = joinTickers(topHeldRows.map((row) => row.ticker));
-	const topTickerWeight = topHeldRows.reduce(
-		(sum, row) => sum + row.weightPct,
-		0,
-	);
-	const tone = describeSentiment(
-		topHeldRows.flatMap((row) => getLeadArticlesForTicker(items, row.ticker)),
-	);
-
-	if (macroArticles.length === 0) {
-		return `${topTickerList} drive about ${Math.round(topTickerWeight)}% of the portfolio, so those holdings should dominate the tape. Shared macro coverage is light right now, and the feed is mostly being set by company and industry-specific updates. Overall tone is ${tone}.`;
-	}
-
-	return `${topTickerList} drive about ${Math.round(topTickerWeight)}% of the portfolio, so those holdings are setting the pace of the feed. The backdrop is not just ticker-specific: macro and market coverage is active enough to influence several names at once. Overall tone is ${tone}.`;
 }
 
 function buildMacroSummary(macroArticles) {
 	if (macroArticles.length === 0) {
-		return "Macro and market coverage is light right now, so the portfolio readout is being driven mainly by company-level and industry-level updates.";
+		return { chapters: [] };
 	}
 
-	const macroTickers = Array.from(
-		new Set(macroArticles.flatMap((article) => getArticleTickers(article))),
-	).slice(0, 4);
-	const macroTickerText =
-		macroTickers.length > 0
-			? `Shared macro flow touching ${joinTickers(macroTickers)} is the main backdrop.`
-			: "Shared macro flow is the main backdrop.";
-
-	return `${macroTickerText} ${macroArticles
-		.map((article) => summarizeArticle(article))
-		.filter(Boolean)
-		.join(" ")}`;
+	return {
+		chapters: buildChaptersFromArticles(macroArticles),
+	};
 }
 
 export function buildPortfolioNewsSummary({ rows, items }) {
@@ -358,14 +381,14 @@ export function buildPortfolioNewsSummary({ rows, items }) {
 
 	const sourceItems = Array.isArray(items) ? items : [];
 	const topTickers = heldRows
-		.slice(0, 5)
+		.slice(0, MAX_TOP_TICKERS)
 		.map((row) => buildTickerSummary(row, sourceItems));
 	const macroArticles = getMacroArticles(sourceItems);
+	const macros = buildMacroSummary(macroArticles);
 
 	return {
 		hasNews: sourceItems.length > 0,
-		overview: buildOverview(heldRows, sourceItems, macroArticles),
-		macros: buildMacroSummary(macroArticles),
+		macros: macros.chapters || [],
 		topTickers,
 	};
 }

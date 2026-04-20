@@ -180,6 +180,95 @@ class NewsArticle(NewsAnalysis):
     metadata: NewsMetadata | None = Field(default=None, description="Optional provider/debug metadata.")
 
 
+class PortfolioNewsChapter(BaseModel):
+    """[STRUCTURED OUTPUTS] One chapter in the portfolio news desk note."""
+
+    headline: str = Field(description="Headline-style chapter title for a short subparagraph. Avoid generic labels like Theme, Takeaway, Setup, Weight, Backdrop, or Cross-ticker.")
+    paragraph: str = Field(description="Compact desk-note paragraph synthesizing what happened and why it matters.")
+    tickers: list[Ticker] = Field(
+        default_factory=list,
+        description="Held tickers directly relevant to this chapter. Can be empty for broad market macro chapters.",
+    )
+
+
+class PortfolioTickerNewsChapters(BaseModel):
+    """[STRUCTURED OUTPUTS] Structured news chapters for one held ticker."""
+
+    ticker: Ticker
+    chapters: list[PortfolioNewsChapter] = Field(
+        default_factory=list,
+        description="One to three chapter blocks for this ticker.",
+    )
+
+
+class PortfolioNewsSummaryModel(BaseModel):
+    """[STRUCTURED OUTPUTS] LLM output for the portfolio-level news summary."""
+
+    macros: list[PortfolioNewsChapter] = Field(
+        default_factory=list,
+        description="Chapter blocks for genuine macro or broad market drivers.",
+    )
+    top_tickers: list[PortfolioTickerNewsChapters] = Field(
+        default_factory=list,
+        description="Ticker-level chapter groups ordered by portfolio importance.",
+    )
+
+
+class PortfolioNewsSummaryRequestRow(BaseModel):
+    """One held position row passed into the portfolio-summary endpoint."""
+
+    ticker: Ticker
+    quantity: float | None = Field(default=None, description="Held quantity.")
+    total: float | None = Field(default=None, description="Held market value.")
+    weight_pct: float | None = Field(default=None, description="Portfolio weight percentage.")
+
+
+class PortfolioNewsSummaryRequestArticle(BaseModel):
+    """One merged article summary passed into the portfolio-summary endpoint."""
+
+    title: str | None = Field(default=None, description="Headline")
+    summary: str = Field(default="", description="Detailed article summary.")
+    relevancy: Literal["high", "medium", "low"] = Field(default="low", description="Article relevancy.")
+    category: Literal[
+        "macro_economics",
+        "industry_news",
+        "market_news",
+        "company_news",
+        "earnings",
+        "analyst_rating",
+        "analysis",
+        "other",
+    ] = Field(default="other", description="News category.")
+    sentiment: Literal["bullish", "neutral", "bearish"] = Field(default="neutral", description="Market sentiment.")
+    source_tickers: list[Ticker] = Field(
+        default_factory=list,
+        description="Union of held tickers related to this merged article.",
+    )
+
+
+class PortfolioNewsSummaryRequest(BaseModel):
+    """Request payload for portfolio-level news summarization."""
+
+    rows: list[PortfolioNewsSummaryRequestRow] = Field(default_factory=list)
+    items: list[PortfolioNewsSummaryRequestArticle] = Field(default_factory=list)
+
+
+class PortfolioNewsSummaryResponseTicker(BaseModel):
+    """One ticker card returned by the portfolio-summary endpoint."""
+
+    ticker: Ticker
+    weight_pct: float = Field(default=0.0, description="Portfolio weight percentage.")
+    chapters: list[PortfolioNewsChapter] = Field(default_factory=list)
+
+
+class PortfolioNewsSummaryResponse(BaseModel):
+    """Response payload for the portfolio-level news summary."""
+
+    has_news: bool = Field(default=False, description="Whether the current feed has any items.")
+    macros: list[PortfolioNewsChapter] = Field(default_factory=list)
+    top_tickers: list[PortfolioNewsSummaryResponseTicker] = Field(default_factory=list)
+
+
 class Holding(BaseModel):
     """[STRUCTURED OUTPUTS] A single holding within an ETF."""
 

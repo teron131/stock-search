@@ -5,6 +5,7 @@ from __future__ import annotations
 PORTFOLIO = "/portfolio"
 PORTFOLIO_TICKER = "/portfolio/{ticker}"
 PORTFOLIO_IMPORT_IMAGE = "/portfolio/import-image"
+PORTFOLIO_NEWS_SUMMARY = "/portfolio/news-summary"
 
 STOCK_STATS = "/stock/{ticker}/stats"
 STOCK_EVALUATE = "/stock/{ticker}/evaluate"

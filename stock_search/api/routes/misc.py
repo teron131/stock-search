@@ -5,13 +5,23 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Response
 
 from stock_search.api.config import CONVEX_AUDIENCE, CONVEX_SYNC_ENABLED, CONVEX_URL
-from stock_search.api.route_paths import COLOR_STANDARDS, EVAL, INDUSTRIES, REALTIME_CONFIG, STOCK_EVALUATE, STOCK_NEWS, STOCKS
+from stock_search.api.route_paths import (
+    COLOR_STANDARDS,
+    EVAL,
+    INDUSTRIES,
+    PORTFOLIO_NEWS_SUMMARY,
+    REALTIME_CONFIG,
+    STOCK_EVALUATE,
+    STOCK_NEWS,
+    STOCKS,
+)
 from stock_search.api.data_store import load_eval_map, load_stocks
 from stock_search.data_sources.stockanalysis import get_industry_snapshot_async
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
 from stock_search.indicators import StockIndicator
+from stock_search.models.schemas import PortfolioNewsSummaryRequest
 from stock_search.models.convex.function_names import CONVEX_REALTIME_TOPICS
-from stock_search.news.orchestrator import get_news_async
+from stock_search.news.orchestrator import get_news_async, summarize_portfolio_news_async
 
 router = APIRouter()
 
@@ -121,6 +131,20 @@ async def news_api(ticker: str, response: Response) -> list[dict]:
     response.headers["Cache-Control"] = "no-store"
     news_items = await get_news_async(ticker)
     return [item.model_dump(exclude_none=True) for item in news_items]
+
+
+@router.post(PORTFOLIO_NEWS_SUMMARY)
+async def portfolio_news_summary_api(
+    payload: PortfolioNewsSummaryRequest,
+    response: Response,
+) -> dict:
+    """Return a structured portfolio-level summary from merged article summaries."""
+    response.headers["Cache-Control"] = "no-store"
+    summary = await summarize_portfolio_news_async(
+        rows=payload.rows,
+        items=payload.items,
+    )
+    return summary.model_dump(exclude_none=True)
 
 
 @router.get(STOCK_EVALUATE)

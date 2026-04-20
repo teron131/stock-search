@@ -191,3 +191,60 @@ export function normalizeDemoNewsPayload(payload) {
 		),
 	};
 }
+
+function normalizePortfolioSummaryChapter(chapter) {
+	if (!chapter || typeof chapter !== "object") {
+		return null;
+	}
+
+	const headline =
+		typeof chapter.headline === "string" && chapter.headline.trim()
+			? chapter.headline.trim()
+			: null;
+	const paragraph =
+		typeof chapter.paragraph === "string" && chapter.paragraph.trim()
+			? chapter.paragraph.trim()
+			: null;
+	if (!headline || !paragraph) {
+		return null;
+	}
+
+	const relatedTickers = Array.isArray(chapter.tickers)
+		? chapter.tickers.map(normalizeTicker).filter(Boolean)
+		: [];
+
+	return {
+		headline,
+		paragraph,
+		relatedTickers,
+	};
+}
+
+export function normalizePortfolioNewsSummaryPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	return {
+		hasNews: Boolean(payload.has_news),
+		macros: Array.isArray(payload.macros)
+			? payload.macros.map(normalizePortfolioSummaryChapter).filter(Boolean)
+			: [],
+		topTickers: Array.isArray(payload.top_tickers)
+			? payload.top_tickers
+					.filter((item) => item && typeof item === "object")
+					.map((item) => ({
+						ticker: normalizeTicker(item.ticker),
+						weightPct: Number.isFinite(Number(item.weight_pct))
+							? Number(item.weight_pct)
+							: 0,
+						chapters: Array.isArray(item.chapters)
+							? item.chapters
+									.map(normalizePortfolioSummaryChapter)
+									.filter(Boolean)
+							: [],
+					}))
+					.filter((item) => item.ticker)
+			: [],
+	};
+}
