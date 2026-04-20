@@ -2777,6 +2777,12 @@ tbody tr:hover td:first-child {
 	min-height: 0;
 }
 
+.news-summary-section {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
 .news-detail-tickers,
 .news-summary-meta {
 	display: flex;
@@ -2787,10 +2793,10 @@ tbody tr:hover td:first-child {
 
 .news-summary-title {
 	font-family: "IBM Plex Sans", sans-serif;
-	font-size: var(--text-hero);
+	font-size: var(--text-xl);
 	font-weight: 600;
 	letter-spacing: -0.04em;
-	line-height: 0.98;
+	line-height: 1.02;
 	color: var(--ink);
 }
 
@@ -2804,16 +2810,64 @@ tbody tr:hover td:first-child {
 
 .news-summary-copy {
 	font-family: "IBM Plex Sans", sans-serif;
-	font-size: var(--text-lg);
-	line-height: 1.65;
-	color: var(--ink-dim);
-	max-width: 54ch;
+	font-size: var(--text-base);
+	line-height: 1.62;
+	color: #fff;
+	max-width: none;
 }
 
 .news-summary-placeholder {
 	background:
 		linear-gradient(90deg, rgba(217, 255, 63, 0.04), transparent 40%),
 		transparent;
+}
+
+.news-ticker-briefs {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.news-ticker-brief {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.05);
+	background:
+		linear-gradient(90deg, rgba(217, 255, 63, 0.05), transparent 28%),
+		rgba(255, 255, 255, 0.015);
+}
+
+.news-ticker-brief-header {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.news-ticker-brief-ticker,
+.news-ticker-brief-weight {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: var(--text-xs);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.news-ticker-brief-ticker {
+	color: var(--ink);
+}
+
+.news-ticker-brief-weight {
+	color: var(--accent);
+}
+
+.news-ticker-brief-copy {
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: var(--text-base);
+	line-height: 1.62;
+	color: #fff;
 }
 
 .news-list {
@@ -2907,7 +2961,7 @@ tbody tr:hover td:first-child {
 	font-family: "IBM Plex Sans", sans-serif;
 	font-size: var(--text-base);
 	line-height: 1.55;
-	color: var(--ink-dim);
+	color: #fff;
 }
 
 .news-story-summary {
@@ -3012,7 +3066,7 @@ tbody tr:hover td:first-child {
 	}
 
 	.news-summary-title {
-		font-size: var(--text-title-lg);
+		font-size: var(--text-title);
 	}
 
 	.news-summary-copy {

@@ -12,6 +12,7 @@ import {
 	normalizeTickerNewsPayload,
 } from "./dataContract.js";
 import { normalizeTicker } from "./format.js";
+import { buildPortfolioNewsSummary } from "./newsSummary.js";
 
 const LOADING_MODE_IDLE = "idle";
 const LOADING_MODE_FOREGROUND = "foreground";
@@ -542,10 +543,15 @@ export function useNewsData({
 			),
 		[allItems, relevanceFilter, tickerFilter],
 	);
+	const portfolioSummary = useMemo(
+		() => buildPortfolioNewsSummary({ rows, items: allItems }),
+		[allItems, rows],
+	);
 
 	return {
 		items,
 		allItems,
+		portfolioSummary,
 		tickerFilter,
 		setTickerFilter,
 		relevanceFilter,

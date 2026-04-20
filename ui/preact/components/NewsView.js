@@ -93,6 +93,7 @@ function shouldShowSummaryToggle(summary) {
 
 export function NewsView({
 	items,
+	portfolioSummary,
 	tickerFilter,
 	setTickerFilter,
 	relevanceFilter,
@@ -188,16 +189,59 @@ export function NewsView({
 				<div class="news-summary-panel">
 					<div class="news-panel-header">
 						<div class="industry-section-label">Grand summary</div>
-						<div class="news-panel-title">Portfolio synthesis</div>
 					</div>
-					<div class="news-summary-body news-summary-placeholder">
-						<div class="news-summary-title">LLM portfolio briefing placeholder</div>
-						<div class="news-summary-copy">
-							This section will summarize the whole current feed into one
-							portfolio-level readout: the main themes, cross-ticker patterns,
-							and what matters most right now.
-						</div>
-					</div>
+					${
+						portfolioSummary?.hasNews
+							? html`
+								<div class="news-summary-body">
+									<div class="news-summary-section">
+										<div class="news-summary-title">Portfolio overview</div>
+										<div class="news-summary-copy">
+											${portfolioSummary.overview}
+										</div>
+									</div>
+
+									<div class="news-summary-section">
+										<div class="news-summary-title">Macros</div>
+										<div class="news-summary-copy">
+											${portfolioSummary.macros}
+										</div>
+									</div>
+
+									<div class="news-summary-section">
+										<div class="news-summary-title">Top tickers</div>
+										<div class="news-ticker-briefs">
+											${portfolioSummary.topTickers.map(
+												(summaryItem) => html`
+													<article class="news-ticker-brief">
+														<div class="news-ticker-brief-header">
+															<div class="news-ticker-brief-ticker">
+																${summaryItem.ticker}
+															</div>
+															<div class="news-ticker-brief-weight">
+																${summaryItem.weightLabel}
+															</div>
+														</div>
+														<div class="news-ticker-brief-copy">
+															${summaryItem.summary}
+														</div>
+													</article>
+												`,
+											)}
+										</div>
+									</div>
+								</div>
+							`
+							: html`
+								<div class="news-summary-body news-summary-placeholder">
+									<div class="news-summary-title">Portfolio overview</div>
+									<div class="news-summary-copy">
+										Add held positions and load the feed to generate a weight-aware
+										portfolio summary.
+									</div>
+								</div>
+							`
+					}
 				</div>
 
 				<div class="news-list-panel">
