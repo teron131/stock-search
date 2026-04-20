@@ -209,9 +209,12 @@ function normalizePortfolioSummaryChapter(chapter) {
 		return null;
 	}
 
-	const relatedTickers = Array.isArray(chapter.tickers)
-		? chapter.tickers.map(normalizeTicker).filter(Boolean)
-		: [];
+	const rawRelatedTickers = Array.isArray(chapter.tickers)
+		? chapter.tickers
+		: Array.isArray(chapter.relatedTickers)
+			? chapter.relatedTickers
+			: [];
+	const relatedTickers = rawRelatedTickers.map(normalizeTicker).filter(Boolean);
 
 	return {
 		headline,
@@ -225,26 +228,37 @@ export function normalizePortfolioNewsSummaryPayload(payload) {
 		return null;
 	}
 
+	const rawTopTickers = Array.isArray(payload.top_tickers)
+		? payload.top_tickers
+		: Array.isArray(payload.topTickers)
+			? payload.topTickers
+			: [];
+
 	return {
-		hasNews: Boolean(payload.has_news),
+		hasNews:
+			typeof payload.has_news === "boolean"
+				? payload.has_news
+				: Boolean(payload.hasNews),
 		macros: Array.isArray(payload.macros)
 			? payload.macros.map(normalizePortfolioSummaryChapter).filter(Boolean)
 			: [],
-		topTickers: Array.isArray(payload.top_tickers)
-			? payload.top_tickers
-					.filter((item) => item && typeof item === "object")
-					.map((item) => ({
-						ticker: normalizeTicker(item.ticker),
-						weightPct: Number.isFinite(Number(item.weight_pct))
-							? Number(item.weight_pct)
-							: 0,
-						chapters: Array.isArray(item.chapters)
-							? item.chapters
-									.map(normalizePortfolioSummaryChapter)
-									.filter(Boolean)
-							: [],
-					}))
-					.filter((item) => item.ticker)
-			: [],
+		topTickers: rawTopTickers
+			.filter((item) => item && typeof item === "object")
+			.map((item) => ({
+				ticker: normalizeTicker(item.ticker),
+				weightPct: Number.isFinite(Number(item.weight_pct))
+					? Number(item.weight_pct)
+					: Number.isFinite(Number(item.weightPct))
+						? Number(item.weightPct)
+						: 0,
+				weightLabel:
+					typeof item.weightLabel === "string" && item.weightLabel.trim()
+						? item.weightLabel.trim()
+						: null,
+				chapters: Array.isArray(item.chapters)
+					? item.chapters.map(normalizePortfolioSummaryChapter).filter(Boolean)
+					: [],
+			}))
+			.filter((item) => item.ticker),
 	};
 }
