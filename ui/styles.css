@@ -22,7 +22,12 @@
 	--row-height: 34px;
 	--table-visible-rows: 25;
 	--ticker-char-count: 6;
-	--ticker-column-width: calc((var(--ticker-char-count) * 1ch) + 64px);
+	--table-cell-inline-padding: 10px;
+	--table-first-column-gap: 10px;
+	--table-holdings-inline-padding: 6px;
+	--ticker-column-width: calc(
+		(var(--ticker-char-count) * 1ch) + 64px + var(--table-first-column-gap)
+	);
 
 	/* Border Radius */
 	--radius-sm: 0px;
@@ -809,7 +814,7 @@ th {
 	z-index: 80;
 	background: var(--bg-surface-high);
 	height: 48px;
-	padding: 0 var(--space-md);
+	padding: 0 var(--table-cell-inline-padding);
 	text-align: left;
 	font-family: var(--font-sans);
 	font-size: var(--text-sm);
@@ -831,13 +836,26 @@ th:not(:first-child) {
 	text-align: right;
 }
 
+#main-table th:nth-child(2),
+#main-table td:nth-child(2) {
+	padding-left: calc(
+		var(--table-cell-inline-padding) + var(--table-first-column-gap)
+	);
+}
+
+#main-table th.table-cluster-holdings-tail,
+#main-table td.table-cluster-holdings-tail {
+	padding-left: var(--table-holdings-inline-padding);
+	padding-right: var(--table-holdings-inline-padding);
+}
+
 .industry-ledger-table th:not(:first-child) {
 	text-align: right;
 }
 
 th:first-child,
 td:first-child {
-	padding-left: var(--space-md);
+	padding-left: var(--table-cell-inline-padding);
 	width: var(--sticky-column-width, var(--ticker-column-width));
 	min-width: var(--sticky-column-width, var(--ticker-column-width));
 	max-width: var(--sticky-column-width, var(--ticker-column-width));
@@ -856,7 +874,7 @@ th:first-child {
 }
 th:last-child,
 td:last-child {
-	padding-right: var(--space-md);
+	padding-right: var(--table-cell-inline-padding);
 }
 
 th:hover {
@@ -866,7 +884,7 @@ th:hover {
 
 td {
 	height: var(--row-height);
-	padding: 0 var(--space-md);
+	padding: 0 var(--table-cell-inline-padding);
 	border-bottom: 1px solid var(--border);
 	font-family: var(--font-sans);
 	font-size: var(--text-base);

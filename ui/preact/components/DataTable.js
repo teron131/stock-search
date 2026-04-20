@@ -1,17 +1,25 @@
 import { html } from "htm/preact";
 
 import { calculateScoreColorMetadata } from "../color.js";
-import { COLS, CONFIG } from "../config.js";
+import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
 import { fmt, normalizeTicker, parseMarketCap } from "../format.js";
 import {
-	getGroupedColumnCharCount,
-	getGroupedColumnWidthStyle,
+	getColumnCharCount,
+	getColumnWidthStyle,
 	renderConditionallyColoredValue,
 } from "../tableStyle.js";
 import { useQtyCellState } from "./useQtyCellState.js";
 
 function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
+}
+
+function getColumnClassName(key) {
+	return `table-col-${String(key || "").replaceAll("_", "-")}`;
+}
+
+function getColumnClusterClassName(cluster) {
+	return cluster ? `table-cluster-${cluster}` : "";
 }
 
 function compareNullable(a, b, dir) {
@@ -58,9 +66,10 @@ function getWidthGroupCharCounts(rows, cols) {
 			continue;
 		}
 
-		const charCount = getGroupedColumnCharCount(
+		const charCount = getColumnCharCount(
 			getColumnDisplayValues(rows, col),
 			col.label || "",
+			WIDTH_GROUP_OPTIONS[col.widthGroup],
 		);
 
 		widthGroupCharCounts[col.widthGroup] = Math.max(
@@ -256,7 +265,7 @@ export function DataTable({
 	animateRows = true,
 }) {
 	const cols = COLS[tab];
-	const tickerCharCount = getGroupedColumnCharCount(
+	const tickerCharCount = getColumnCharCount(
 		rows.map((row) => getTickerDisplayValue(row.ticker)),
 		"TICKER",
 	);
@@ -291,16 +300,17 @@ export function DataTable({
 				<table id="main-table" class="data-table">
 					<colgroup>
 						${cols.map((col) => {
-							const className =
-								col.key === "ticker"
-									? "table-col-ticker"
-									: col.key === "remove"
-										? "table-col-remove"
-										: "";
+							const className = [
+								getColumnClassName(col.key),
+								getColumnClusterClassName(col.cluster),
+							]
+								.filter(Boolean)
+								.join(" ");
 							return html`<col
 								class=${className}
-								style=${getGroupedColumnWidthStyle(
+								style=${getColumnWidthStyle(
 									widthGroupCharCounts[col.widthGroup],
+									WIDTH_GROUP_OPTIONS[col.widthGroup],
 								)}
 							/>`;
 						})}
@@ -308,12 +318,19 @@ export function DataTable({
 					<thead>
 						<tr>
 							${cols.map((c) => {
-								if (c.key === "remove") return html`<th></th>`;
+								const columnClassName = [
+									getColumnClassName(c.key),
+									getColumnClusterClassName(c.cluster),
+								]
+									.filter(Boolean)
+									.join(" ");
+								if (c.key === "remove")
+									return html`<th class=${columnClassName}></th>`;
 								const sortedClass =
 									sortCol === c.key ? `sorted ${sortDir}` : "";
 								return html`<th
 									data-sort=${c.key}
-									class=${sortedClass}
+									class=${`${columnClassName} ${sortedClass}`.trim()}
 									onClick=${() => onSort(c.key)}
 								>
 									${c.label}
@@ -339,7 +356,14 @@ export function DataTable({
 											>
 												${cols.map(
 													(col) =>
-														html`<td>
+														html`<td
+															class=${[
+																getColumnClassName(col.key),
+																getColumnClusterClassName(col.cluster),
+															]
+																.filter(Boolean)
+																.join(" ")}
+														>
 														${renderCell({
 															row,
 															col,

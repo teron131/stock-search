@@ -2,8 +2,8 @@ import { html } from "htm/preact";
 
 import { getScoreColor } from "./color.js";
 
-const GROUPED_COLUMN_PADDING_CHARS = 1;
-const GROUPED_COLUMN_EXTRA_PX = 18;
+const DEFAULT_COLUMN_PADDING_CHARS = 1;
+const DEFAULT_COLUMN_EXTRA_PX = 14;
 
 function getTextLength(value) {
 	return String(value ?? "").length;
@@ -12,7 +12,7 @@ function getTextLength(value) {
 export function getColumnCharCount(
 	values,
 	headerLabel,
-	{ paddingChars = 0 } = {},
+	{ paddingChars = DEFAULT_COLUMN_PADDING_CHARS } = {},
 ) {
 	const headerLength = getTextLength(headerLabel);
 	const contentLength = values.reduce(
@@ -21,12 +21,6 @@ export function getColumnCharCount(
 		0,
 	);
 	return Math.max(headerLength, contentLength);
-}
-
-export function getGroupedColumnCharCount(values, headerLabel) {
-	return getColumnCharCount(values, headerLabel, {
-		paddingChars: GROUPED_COLUMN_PADDING_CHARS,
-	});
 }
 
 export function getToneClass(value, baseClass = "") {
@@ -56,12 +50,15 @@ export function renderConditionallyColoredValue(
 	return html`<span style=${{ color: textColor }}>${content}</span>`;
 }
 
-export function getGroupedColumnWidthStyle(charCount) {
+export function getColumnWidthStyle(
+	charCount,
+	{ extraPx = DEFAULT_COLUMN_EXTRA_PX } = {},
+) {
 	if (!charCount) {
 		return null;
 	}
 
-	const width = `calc((${charCount} * 1ch) + ${GROUPED_COLUMN_EXTRA_PX}px)`;
+	const width = `calc((${charCount} * 1ch) + ${extraPx}px)`;
 	return {
 		width,
 		minWidth: width,
