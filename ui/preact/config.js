@@ -44,8 +44,8 @@ export const CONFIG = {
 	newsAutoRefreshIntervalMs: 60 * 60 * 1000,
 
 	portfolioScopes: {
-		initial: "all_cached",
-		live: "all",
+		initial: "priority",
+		live: "portfolio_live",
 	},
 
 	defaultStrategy: "Speculation",

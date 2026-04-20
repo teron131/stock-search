@@ -28,14 +28,9 @@ const LOADING_MODE_BACKGROUND = "background";
 const { initial: INITIAL_PORTFOLIO_SCOPE, live: LIVE_PORTFOLIO_SCOPE } =
 	CONFIG.portfolioScopes;
 
-function withCacheBuster(url) {
-	const cacheBuster = `_=${Date.now()}`;
-	return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
-}
-
 async function tryFetchJson(url) {
 	try {
-		const res = await fetch(withCacheBuster(url));
+		const res = await fetch(url);
 		if (!res.ok) return null;
 		return await res.json();
 	} catch {
@@ -47,7 +42,7 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		const res = await fetch(withCacheBuster(url), {
+		const res = await fetch(url, {
 			signal: controller.signal,
 		});
 		if (!res.ok) return null;
@@ -201,7 +196,7 @@ function getPortfolioUrl(scope) {
 		return CONFIG.demoEndpoints.portfolio;
 	}
 
-	if (scope === LIVE_PORTFOLIO_SCOPE) {
+	if (!scope || scope === "all") {
 		return CONFIG.endpoints.portfolio;
 	}
 
@@ -411,25 +406,11 @@ export function usePortfolioData() {
 				});
 			}
 
-			try {
-				return await readPayload({
-					portfolioUrl: getPortfolioUrl(scope),
-					standardsUrl: CONFIG.endpoints.colorStandards,
-					isDemoData: false,
-				});
-			} catch (error) {
-				const fallbackResult = await readPayload({
-					portfolioUrl: CONFIG.demoEndpoints.portfolio,
-					standardsUrl: CONFIG.demoEndpoints.colorStandards,
-					isDemoData: true,
-				}).catch(() => null);
-
-				if (fallbackResult) {
-					return fallbackResult;
-				}
-
-				throw error;
-			}
+			return readPayload({
+				portfolioUrl: getPortfolioUrl(scope),
+				standardsUrl: CONFIG.endpoints.colorStandards,
+				isDemoData: false,
+			});
 		},
 		[colorStandards],
 	);

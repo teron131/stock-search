@@ -62,7 +62,7 @@ async def industries_api(response: Response) -> dict:
 @router.get(COLOR_STANDARDS)
 def color_standards_api(response: Response) -> dict:
     """Return the dashboard color scale definitions."""
-    response.headers["Cache-Control"] = "no-store"
+    response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
     return {
         "standards": {
             "market_cap": {"min": MarketCapConfig.MIN, "max": MarketCapConfig.MAX},

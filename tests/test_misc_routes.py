@@ -89,7 +89,7 @@ def test_misc_data_endpoints_return_patched_payloads_and_disable_caching(monkeyp
     standards_payload = standards_response.json()
     assert "standards" in standards_payload
     assert "market_cap" in standards_payload["standards"]
-    assert_no_store(standards_response)
+    assert standards_response.headers["cache-control"] == "public, max-age=3600, stale-while-revalidate=86400"
 
 
 async def _fake_news_fetch(ticker: str) -> list[NewsArticle]:

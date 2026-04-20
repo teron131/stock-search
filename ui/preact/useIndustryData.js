@@ -13,16 +13,11 @@ import {
 	buildSectorOptions,
 } from "./industryViewModel.js";
 
-function withCacheBuster(url) {
-	const cacheBuster = `_=${Date.now()}`;
-	return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
-}
-
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		const response = await fetch(withCacheBuster(url), {
+		const response = await fetch(url, {
 			signal: controller.signal,
 		});
 		if (!response.ok) return null;
@@ -58,7 +53,7 @@ export function useIndustryData({ enabled = false } = {}) {
 		try {
 			const endpoints = CONFIG.isDemoMode
 				? [CONFIG.demoEndpoints.industries]
-				: [CONFIG.endpoints.industries, CONFIG.demoEndpoints.industries];
+				: [CONFIG.endpoints.industries];
 
 			let payload = null;
 			for (const endpoint of endpoints) {

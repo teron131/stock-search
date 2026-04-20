@@ -56,6 +56,13 @@ PORTFOLIO_DATA_SOURCE = {
 PORTFOLIO_CACHE_SCOPES = {"priority", "all_cached"}
 
 
+def _cache_control_for_scope(scope: str) -> str:
+    """Return the response cache policy for one portfolio scope."""
+    if scope in PORTFOLIO_CACHE_SCOPES:
+        return "private, max-age=30, stale-while-revalidate=300"
+    return "no-store"
+
+
 class PortfolioPositionPatch(BaseModel):
     """Capture patch fields for portfolio position."""
 
@@ -145,10 +152,10 @@ def _extract_holdings_from_image_bytes(
 @router.get(PORTFOLIO)
 async def portfolio_api(response: Response, scope: str = "all") -> dict:
     """Return the current portfolio payload for the requested scope."""
-    response.headers["Cache-Control"] = "no-store"
     started_at = perf_counter()
 
     resolved_scope = scope if scope in PORTFOLIO_SCOPE_CONFIG else "all"
+    response.headers["Cache-Control"] = _cache_control_for_scope(resolved_scope)
     scope_config = PORTFOLIO_SCOPE_CONFIG[resolved_scope]
     include_cached_universe = scope_config["include_cached_universe"]
     include_live_market = scope_config["include_live_market"]

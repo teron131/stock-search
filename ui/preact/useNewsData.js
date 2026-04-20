@@ -26,16 +26,11 @@ const RELEVANCE_SCORES = {
 	low: 0,
 };
 
-function withCacheBuster(url) {
-	const cacheBuster = `_=${Date.now()}`;
-	return url.includes("?") ? `${url}&${cacheBuster}` : `${url}?${cacheBuster}`;
-}
-
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 	try {
-		const response = await fetch(withCacheBuster(url), {
+		const response = await fetch(url, {
 			signal: controller.signal,
 		});
 		if (!response.ok) {
@@ -374,8 +369,11 @@ export function useNewsData({
 	const loadInFlightRef = useRef(false);
 	const summaryRequestRef = useRef(0);
 	const allItemsRef = useRef(allItems);
-	const heldTickers = useMemo(() => getHeldTickers(rows), [rows]);
-	const heldTickerKey = heldTickers.join("|");
+	const heldTickerKey = useMemo(() => getHeldTickers(rows).join("|"), [rows]);
+	const heldTickers = useMemo(
+		() => (heldTickerKey ? heldTickerKey.split("|") : []),
+		[heldTickerKey],
+	);
 
 	useEffect(() => {
 		allItemsRef.current = allItems;
