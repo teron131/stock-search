@@ -2,8 +2,8 @@
 
 from typing import Final, NamedTuple
 
-B: Final[float] = 1e9
-T: Final[float] = 1e12
+BILLION: Final[float] = 1e9
+TRILLION: Final[float] = 1e12
 MinMedMax = tuple[float, float, float]
 
 DEFAULT_SCORE: Final[float] = 5.0
@@ -33,9 +33,9 @@ class StrategyBucket(NamedTuple):
 class MarketCapConfig:
     """Configuration for mapping market capitalization values (Log-S-curve)."""
 
-    MIN: Final[float] = 10 * B
-    MEDIAN: Final[float] = 800 * B
-    MAX: Final[float] = 4.0 * T
+    MIN: Final[float] = 10 * BILLION
+    MEDIAN: Final[float] = 800 * BILLION
+    MAX: Final[float] = 4.0 * TRILLION
 
 
 class CalibrationConfig:
