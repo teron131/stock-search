@@ -188,6 +188,90 @@ class StatsResolverTestCase(unittest.TestCase):
         assert refresh_family.call_count == 1
         assert refresh_family.call_args.args[1] == "ratings"
 
+    def test_auto_refreshes_recent_family_when_cached_values_are_all_empty(self) -> None:
+        now = datetime.now(tz=UTC)
+        row = _build_row(now)
+        row.update(
+            {
+                "price": None,
+                "change": None,
+                "change_percent_1d": None,
+                FAMILY_TIMESTAMP_FIELD["market_data"]: now.isoformat(),
+            }
+        )
+        outcome = stats_resolver.RefreshOutcome(
+            family_rows={
+                "market_data": {
+                    "price": 101.0,
+                    "change": 2.0,
+                    "change_percent_1d": 2.02,
+                }
+            },
+            family_timestamps={"market_data": now},
+            extra_fields={},
+        )
+
+        with (
+            patch.object(stats_resolver, "_refresh_family", return_value=outcome) as refresh_family,
+            patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": row}),
+            patch.object(stats_resolver, "upsert_stats_row"),
+        ):
+            result = stats_resolver.resolve_ticker_stats("AAPL", mode="auto", persisted_row=row)
+
+        assert result.families["market_data"].decision == "inline_refresh"
+        assert result.row["price"] == 101.0
+        assert refresh_family.call_count == 1
+        assert refresh_family.call_args.args[1] == "market_data"
+
+    def test_auto_refreshes_recent_snapshot_when_only_placeholder_values_exist(self) -> None:
+        now = datetime.now(tz=UTC)
+        row = _build_row(now)
+        row.update(
+            {
+                "name": None,
+                "quote_type": "NONE",
+                "iv": None,
+                "rsi": None,
+                "change_percent_1m": None,
+                "change_percent_3m": None,
+                "change_percent_6m": None,
+                "change_percent_1y": None,
+                "change_percent_mtd": None,
+                "change_percent_ytd": None,
+                FAMILY_TIMESTAMP_FIELD["market_snapshot"]: now.isoformat(),
+            }
+        )
+        outcome = stats_resolver.RefreshOutcome(
+            family_rows={
+                "market_snapshot": {
+                    "name": "Example Corp.",
+                    "quote_type": "EQUITY",
+                    "iv": 22.0,
+                    "rsi": 55.0,
+                    "change_percent_1m": 1.0,
+                    "change_percent_3m": 2.0,
+                    "change_percent_6m": 3.0,
+                    "change_percent_1y": 4.0,
+                    "change_percent_mtd": 0.5,
+                    "change_percent_ytd": 5.0,
+                }
+            },
+            family_timestamps={"market_snapshot": now},
+            extra_fields={},
+        )
+
+        with (
+            patch.object(stats_resolver, "_refresh_family", return_value=outcome) as refresh_family,
+            patch.object(stats_resolver, "load_stats_map", return_value={"AAPL": row}),
+            patch.object(stats_resolver, "upsert_stats_row"),
+        ):
+            result = stats_resolver.resolve_ticker_stats("AAPL", mode="auto", persisted_row=row)
+
+        assert result.families["market_snapshot"].decision == "inline_refresh"
+        assert result.row["name"] == "Example Corp."
+        assert refresh_family.call_count == 1
+        assert refresh_family.call_args.args[1] == "market_snapshot"
+
     def test_cache_mode_never_fetches_or_queues(self) -> None:
         now = datetime.now(tz=UTC)
         row = _build_row(

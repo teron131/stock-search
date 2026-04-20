@@ -766,6 +766,7 @@ def _build_etf_tables(
 def _normalize_positions(
     portfolio_data: Any,
     stats_data: dict[str, Any],
+    eval_data: dict[str, Any],
     *,
     include_cached_universe: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
@@ -779,7 +780,7 @@ def _normalize_positions(
     for pos in positions_raw:
         if not isinstance(pos, dict):
             continue
-        ticker = str(pos.get("ticker") or "").upper().strip()
+        ticker = _ticker_key(pos.get("ticker", ""))
         if not ticker:
             continue
         seen_tickers.add(ticker)
@@ -794,11 +795,13 @@ def _normalize_positions(
         held_positions.append(normalized_position)
 
     if include_cached_universe:
-        for ticker in stats_data:
-            ticker_str = str(ticker).upper().strip()
-            if not ticker_str or ticker_str in seen_tickers:
-                continue
-            positions.append({"ticker": ticker_str, "quantity": 0.0, "_cached_only": True})
+        for ticker_source in (stats_data, eval_data):
+            for raw_ticker in ticker_source:
+                ticker = _ticker_key(raw_ticker)
+                if not ticker or ticker in seen_tickers:
+                    continue
+                seen_tickers.add(ticker)
+                positions.append({"ticker": ticker, "quantity": 0.0})
 
     return positions, held_positions, held_tickers
 
@@ -806,6 +809,7 @@ def _normalize_positions(
 def _live_tickers(
     positions: list[dict[str, Any]],
     *,
+    eval_tickers: set[str],
     include_live_market: bool,
 ) -> list[str]:
     """Return the tickers that require live market refreshes."""
@@ -817,9 +821,11 @@ def _live_tickers(
         ticker = _ticker_key(position.get("ticker", ""))
         if not ticker:
             continue
-        cached_only = bool(position.get("_cached_only"))
+        if ticker in eval_tickers:
+            tickers.append(ticker)
+            continue
         quantity = float(position.get("quantity") or 0)
-        if cached_only or quantity <= 0:
+        if quantity <= 0:
             continue
         tickers.append(ticker)
     return list(dict.fromkeys(tickers))
@@ -856,6 +862,7 @@ def _load_payload_inputs(
     positions, held_positions, held_tickers = _normalize_positions(
         portfolio_data,
         stats_data,
+        eval_data,
         include_cached_universe=include_cached_universe,
     )
     return PortfolioPayloadInputs(
@@ -1063,7 +1070,11 @@ def get_portfolio_payload(
         fetch_missing=include_live_market,
         stats_data=inputs.stats_data,
     )
-    live_tickers = _live_tickers(inputs.positions, include_live_market=include_live_market)
+    live_tickers = _live_tickers(
+        inputs.positions,
+        eval_tickers=set(inputs.eval_data),
+        include_live_market=include_live_market,
+    )
     live_results = resolve_ticker_stats_map(
         live_tickers,
         mode="auto",
@@ -1097,7 +1108,11 @@ async def get_portfolio_payload_async(
         fetch_missing=include_live_market,
         stats_data=inputs.stats_data,
     )
-    live_tickers = _live_tickers(inputs.positions, include_live_market=include_live_market)
+    live_tickers = _live_tickers(
+        inputs.positions,
+        eval_tickers=set(inputs.eval_data),
+        include_live_market=include_live_market,
+    )
     live_results = await resolve_ticker_stats_map_async(
         live_tickers,
         mode="auto",

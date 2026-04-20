@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from stock_search.portfolio import (
+    _live_tickers,
     _load_payload_inputs,
     _merge_live_results_into_stats_data,
     _portfolio_payload_data_source,
@@ -109,6 +110,41 @@ class PortfolioPayloadTestCase(unittest.TestCase):
             )
 
         load_stock_families.assert_called_once_with(tickers=None)
+
+    def test_load_payload_inputs_includes_eval_tickers_in_cached_universe(self) -> None:
+        stock_families = (
+            {"AAPL": {"price": 1.0}, "MSFT": {"price": 2.0}},
+            {"MSFT": {"overall_score": 9.0}, "NVDA": {"overall_score": 8.0}},
+        )
+
+        with (
+            patch("stock_search.portfolio.load_positions_store", return_value=[]),
+            patch("stock_search.portfolio.load_stock_families", return_value=stock_families),
+        ):
+            payload_inputs = _load_payload_inputs(
+                portfolio_path=None,
+                stats_path=None,
+                eval_path=None,
+                include_cached_universe=True,
+            )
+
+        assert [position["ticker"] for position in payload_inputs.positions] == ["AAPL", "MSFT", "NVDA"]
+
+    def test_live_tickers_include_eval_rows_but_not_generic_cached_rows(self) -> None:
+        positions = [
+            {"ticker": "AAPL", "quantity": 10.0},
+            {"ticker": "NVDA", "quantity": 0.0},
+            {"ticker": "MSFT", "quantity": 0.0},
+            {"ticker": "META", "quantity": 0.0},
+        ]
+
+        live_tickers = _live_tickers(
+            positions,
+            eval_tickers={"MSFT", "META"},
+            include_live_market=True,
+        )
+
+        assert live_tickers == ["AAPL", "MSFT", "META"]
 
 
 if __name__ == "__main__":

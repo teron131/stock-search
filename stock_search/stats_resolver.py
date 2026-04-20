@@ -167,9 +167,21 @@ def _family_timestamp(row: Mapping[str, Any], family: StatsFamily) -> datetime |
     return None
 
 
-def _has_family_payload(row: Mapping[str, Any], family: StatsFamily) -> bool:
-    """Return whether a row includes any stored payload for one family."""
-    return any(field in row for field in FAMILY_FIELDS[family])
+def _is_meaningful_family_value(value: Any) -> bool:
+    """Return whether one cached family value should count as real payload."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        normalized = value.strip().upper()
+        return bool(normalized and normalized != "NONE")
+    if isinstance(value, Mapping):
+        return bool(value)
+    return True
+
+
+def _has_meaningful_family_payload(row: Mapping[str, Any], family: StatsFamily) -> bool:
+    """Return whether a family row contains any meaningful cached value."""
+    return any(_is_meaningful_family_value(row.get(field)) for field in FAMILY_FIELDS[family] if field in row)
 
 
 def _full_family_row(row: Mapping[str, Any], family: StatsFamily) -> dict[str, Any]:
@@ -192,12 +204,17 @@ def _cached_snapshot(
     chosen_timestamp: datetime | None = None
     chosen_row: dict[str, Any] = {}
 
-    if l2_row:
+    if l2_row and _has_meaningful_family_payload(l2_row, family):
         chosen_tier = "l2"
         chosen_timestamp = l2_timestamp
         chosen_row = dict(l2_row)
 
-    if allow_l1 and (l1_entry := _FAMILY_CACHES[family].get_entry(ticker)) is not None and (chosen_timestamp is None or l1_entry.updated_at >= chosen_timestamp):
+    if (
+        allow_l1
+        and (l1_entry := _FAMILY_CACHES[family].get_entry(ticker)) is not None
+        and _has_meaningful_family_payload(l1_entry.value, family)
+        and (chosen_timestamp is None or l1_entry.updated_at >= chosen_timestamp)
+    ):
         chosen_tier = "l1"
         chosen_timestamp = l1_entry.updated_at
         chosen_row = dict(l1_entry.value)
