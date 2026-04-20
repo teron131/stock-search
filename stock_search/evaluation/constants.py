@@ -26,6 +26,7 @@ class StrategyBucket(NamedTuple):
 
     score_keys: tuple[str, ...]
     weights: tuple[float, ...]
+    invert_flags: tuple[bool, ...]
     edge_weight: float
 
 

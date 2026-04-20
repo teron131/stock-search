@@ -36,21 +36,25 @@ _STRATEGY_BUCKETS: dict[str, StrategyBucket] = {
     "core": StrategyBucket(
         score_keys=("moat_score", "quality_score", "valuation_score", "size_score"),
         weights=(CoreEngineWeights.MOAT, CoreEngineWeights.QUALITY, CoreEngineWeights.VALUATION, CoreEngineWeights.SIZE),
+        invert_flags=(False, False, False, False),
         edge_weight=CoreEngineWeights.EDGE,
     ),
     "satellite": StrategyBucket(
         score_keys=("moat_score", "quality_score", "valuation_score", "upside_score"),
         weights=(SatelliteWeights.MOAT, SatelliteWeights.QUALITY, SatelliteWeights.VALUATION, SatelliteWeights.UPSIDE),
+        invert_flags=(False, False, False, False),
         edge_weight=SatelliteWeights.EDGE,
     ),
     "speculative": StrategyBucket(
-        score_keys=("moat_score", "quality_score", "valuation_score", "upside_score"),
-        weights=(SpeculativeWeights.MOAT, SpeculativeWeights.QUALITY, SpeculativeWeights.VALUATION, SpeculativeWeights.UPSIDE),
+        score_keys=("upside_score", "quality_score", "moat_score", "valuation_score"),
+        weights=(SpeculativeWeights.UPSIDE, SpeculativeWeights.QUALITY, SpeculativeWeights.MOAT, SpeculativeWeights.VALUATION),
+        invert_flags=(False, True, True, True),
         edge_weight=0.0,
     ),
     "diversifier": StrategyBucket(
         score_keys=("quality_score", "valuation_score", "size_score", "upside_score"),
         weights=(DiversifierWeights.QUALITY, DiversifierWeights.VALUATION, DiversifierWeights.SIZE, DiversifierWeights.UPSIDE),
+        invert_flags=(False, False, False, True),
         edge_weight=0.0,
     ),
 }
@@ -300,7 +304,8 @@ def calculate_strategy_indices(
     for name, bucket in _STRATEGY_BUCKETS.items():
         bucket_scores = [scores[key] for key in bucket.score_keys]
         if all(score is not None for score in bucket_scores) and (bucket.edge_weight == 0 or edge_component is not None):
-            weighted_score = sum(score * weight for score, weight in zip(bucket_scores, bucket.weights, strict=False))
+            adjusted_scores = [(SCORE_SCALE - score) if invert else score for score, invert in zip(bucket_scores, bucket.invert_flags, strict=False)]
+            weighted_score = sum(score * weight for score, weight in zip(adjusted_scores, bucket.weights, strict=False))
             indices[name] = weighted_score + (bucket.edge_weight * (edge_component or 0))
         else:
             indices[name] = None
