@@ -2896,12 +2896,11 @@ tbody tr:hover td:first-child {
 
 .news-ticker-brief-header {
 	display: flex;
-	align-items: baseline;
+	align-items: flex-start;
 	justify-content: space-between;
 	gap: 12px;
 }
 
-.news-ticker-brief-ticker,
 .news-ticker-brief-weight {
 	font-family: "IBM Plex Sans", sans-serif;
 	font-size: var(--text-xs);
@@ -2910,7 +2909,22 @@ tbody tr:hover td:first-child {
 	text-transform: uppercase;
 }
 
+.news-ticker-brief-tag-shell {
+	display: flex;
+	align-items: center;
+	min-height: 30px;
+	min-width: 0;
+}
+
+.news-ticker-brief-tag {
+	display: block;
+	transform: scale(0.75);
+	transform-origin: left center;
+	--tv-color-platform-background: transparent;
+}
+
 .news-ticker-brief-ticker {
+	font-family: "IBM Plex Sans", sans-serif;
 	font-size: 24px;
 	font-weight: 700;
 	letter-spacing: -0.04em;
@@ -2921,6 +2935,8 @@ tbody tr:hover td:first-child {
 
 .news-ticker-brief-weight {
 	color: var(--accent);
+	flex-shrink: 0;
+	padding-top: 1px;
 }
 
 .news-ticker-brief-copy {
@@ -3161,8 +3177,8 @@ tbody tr:hover td:first-child {
 		line-height: 1.64;
 	}
 
-	.news-ticker-brief-ticker {
-		font-size: 22px;
+	.news-ticker-brief-tag {
+		transform: scale(0.88);
 	}
 
 	.news-ticker-briefs {

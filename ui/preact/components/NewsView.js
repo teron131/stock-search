@@ -1,6 +1,14 @@
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
+const TRADINGVIEW_SYMBOL_OVERRIDES = {
+	"BRK-A": "NYSE:BRK.A",
+	"BRK-B": "NYSE:BRK.B",
+	"BF-A": "NYSE:BF.A",
+	"BF-B": "NYSE:BF.B",
+	TSM: "NYSE:TSM",
+};
+
 function toTimestamp(article) {
 	const publishedAt =
 		article?.metadata?.published_at ||
@@ -164,6 +172,37 @@ function renderSummaryChapters(chapters) {
 	`;
 }
 
+function getTradingViewTickerTagSymbol(ticker) {
+	const normalizedTicker = String(ticker || "")
+		.trim()
+		.toUpperCase();
+	if (!normalizedTicker) {
+		return "";
+	}
+
+	return (
+		TRADINGVIEW_SYMBOL_OVERRIDES[normalizedTicker] ||
+		normalizedTicker.replace("-", ".")
+	);
+}
+
+function renderTradingViewTickerTag(ticker) {
+	const symbol = getTradingViewTickerTagSymbol(ticker);
+	if (!symbol) {
+		return html`<div class="news-ticker-brief-ticker">${ticker}</div>`;
+	}
+
+	return html`
+		<div class="news-ticker-brief-tag-shell">
+			<tv-ticker-tag
+				class="news-ticker-brief-tag"
+				symbol=${symbol}
+				theme="dark"
+			></tv-ticker-tag>
+		</div>
+	`;
+}
+
 export function NewsView({
 	items,
 	portfolioSummary,
@@ -286,9 +325,7 @@ export function NewsView({
 												(summaryItem) => html`
 													<article class="news-ticker-brief">
 														<div class="news-ticker-brief-header">
-															<div class="news-ticker-brief-ticker">
-																${summaryItem.ticker}
-															</div>
+															${renderTradingViewTickerTag(summaryItem.ticker)}
 															<div class="news-ticker-brief-weight">
 																${
 																	summaryItem.weightLabel ||
