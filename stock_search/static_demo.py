@@ -13,6 +13,7 @@ from typing import Any
 from stock_search.api.config import DATA_SQLITE_PATH, RAW_UI_DIR
 from stock_search.data_sources.stockanalysis import get_industry_snapshot_async
 from stock_search.evaluation.constants import CalibrationConfig, MarketCapConfig
+from stock_search.news.orchestrator import get_news_async
 from stock_search.sqlite_store import SQLiteStore
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,8 @@ DEMO_OUTPUT_DIR = RAW_UI_DIR / "public" / "demo"
 DEMO_RANDOM_SEED = 20260418
 DEMO_POSITION_COUNT_RANGE = (14, 20)
 DEMO_BUCKETS = ("Core", "Satellite", "Speculation", "Defense")
+DEMO_NEWS_MAX_RESULTS = 5
+DEMO_NEWS_CONCURRENCY = 3
 
 
 def _safe_float(value: Any) -> float | None:
@@ -181,6 +184,20 @@ def _build_demo_rows(
     }
 
 
+def _get_demo_news_tickers(portfolio_payload: dict[str, Any]) -> list[str]:
+    """Return held demo tickers in descending portfolio weight order."""
+    tickers: list[str] = []
+    for row in portfolio_payload.get("rows", []):
+        if not isinstance(row, dict):
+            continue
+        ticker = str(row.get("ticker") or "").strip().upper()
+        quantity = _safe_float(row.get("quantity"))
+        if not ticker or quantity is None or quantity <= 0:
+            continue
+        tickers.append(ticker)
+    return tickers
+
+
 def _build_color_standards_payload() -> dict[str, Any]:
     """Return the static color standards payload used by the UI."""
     return {
@@ -249,6 +266,69 @@ async def _build_industries_payload() -> dict[str, Any]:
     }
 
 
+async def _build_news_payload(
+    tickers: list[str],
+    *,
+    generated_at: str,
+) -> dict[str, Any]:
+    """Fetch real ticker news for the static demo portfolio."""
+    if not tickers:
+        return {
+            "meta": {"generated_at": generated_at},
+            "items_by_ticker": {},
+        }
+
+    semaphore = asyncio.Semaphore(DEMO_NEWS_CONCURRENCY)
+
+    async def fetch_ticker_news(ticker: str) -> tuple[str, list[dict[str, Any]]]:
+        async with semaphore:
+            try:
+                news_items = await get_news_async(
+                    ticker=ticker,
+                    max_results=DEMO_NEWS_MAX_RESULTS,
+                )
+            except Exception:
+                logger.exception(f"Failed to refresh static news snapshot for {ticker}.")
+                return ticker, []
+            return ticker, [news_item.model_dump(mode="json") for news_item in news_items]
+
+    items_by_ticker = dict(await asyncio.gather(*(fetch_ticker_news(ticker) for ticker in tickers)))
+    return {
+        "meta": {"generated_at": generated_at},
+        "items_by_ticker": items_by_ticker,
+    }
+
+
+async def _build_async_demo_payloads(
+    demo_news_tickers: list[str],
+    *,
+    generated_at: str,
+) -> dict[str, dict[str, Any]]:
+    """Fetch async-backed static demo payloads together."""
+    industries_task = asyncio.create_task(_build_industries_payload())
+    news_task = asyncio.create_task(
+        _build_news_payload(
+            demo_news_tickers,
+            generated_at=generated_at,
+        )
+    )
+    industries_payload, news_payload = await asyncio.gather(
+        industries_task,
+        news_task,
+        return_exceptions=True,
+    )
+    payloads: dict[str, dict[str, Any]] = {}
+    if not isinstance(industries_payload, Exception):
+        payloads["industries"] = industries_payload
+    else:
+        logger.exception("Failed to refresh static industry snapshot.", exc_info=industries_payload)
+    if not isinstance(news_payload, Exception):
+        payloads["news"] = news_payload
+    else:
+        logger.exception("Failed to refresh static news snapshot.", exc_info=news_payload)
+    return payloads
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Serialize one static demo payload to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -272,22 +352,26 @@ def write_static_demo_snapshot(
         seed=seed,
     )
     color_payload = _build_color_standards_payload()
+    demo_news_tickers = _get_demo_news_tickers(portfolio_payload)
 
     written_paths = {
         "portfolio": output_dir / "portfolio.json",
         "color_standards": output_dir / "color-standards.json",
         "industries": output_dir / "industries.json",
+        "news": output_dir / "news.json",
     }
 
     _write_json(written_paths["portfolio"], portfolio_payload)
     _write_json(written_paths["color_standards"], color_payload)
 
-    try:
-        industries_payload = asyncio.run(_build_industries_payload())
-    except Exception:
-        logger.exception("Failed to refresh static industry snapshot.")
-    else:
-        _write_json(written_paths["industries"], industries_payload)
+    async_payloads = asyncio.run(
+        _build_async_demo_payloads(
+            demo_news_tickers,
+            generated_at=resolved_generated_at,
+        )
+    )
+    for payload_name, payload in async_payloads.items():
+        _write_json(written_paths[payload_name], payload)
 
     return written_paths
 
