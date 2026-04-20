@@ -2827,7 +2827,7 @@ tbody tr:hover td:first-child {
 	letter-spacing: 0.01em;
 	color: #fff;
 	max-width: 88ch;
-	text-wrap: pretty;
+	overflow-wrap: break-word;
 }
 
 .news-summary-section.is-macros .news-summary-copy {
@@ -2868,7 +2868,7 @@ tbody tr:hover td:first-child {
 	line-height: 1.68;
 	letter-spacing: 0.01em;
 	color: #fff;
-	text-wrap: pretty;
+	overflow-wrap: break-word;
 }
 
 .news-summary-placeholder {
@@ -2945,7 +2945,7 @@ tbody tr:hover td:first-child {
 	line-height: 1.72;
 	letter-spacing: 0.01em;
 	color: #fff;
-	text-wrap: pretty;
+	overflow-wrap: break-word;
 }
 
 .news-inline-ticker {
@@ -3046,7 +3046,7 @@ tbody tr:hover td:first-child {
 	line-height: 1.68;
 	letter-spacing: 0.01em;
 	color: #fff;
-	text-wrap: pretty;
+	overflow-wrap: break-word;
 }
 
 .news-story-summary {

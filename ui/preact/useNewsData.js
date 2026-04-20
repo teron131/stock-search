@@ -286,10 +286,30 @@ function writeTickerNewsCache(ticker, items, fetchedAt) {
 	}
 }
 
+function getLocalDateKey(value) {
+	const timestamp = Date.parse(value || "");
+	if (!Number.isFinite(timestamp)) {
+		return null;
+	}
+
+	const date = new Date(timestamp);
+	return [
+		date.getFullYear(),
+		String(date.getMonth() + 1).padStart(2, "0"),
+		String(date.getDate()).padStart(2, "0"),
+	].join("-");
+}
+
 function isCacheFresh(fetchedAt) {
 	const fetchedTimestamp = Date.parse(fetchedAt || "");
 	if (!Number.isFinite(fetchedTimestamp)) {
 		return false;
+	}
+
+	const todayKey = getLocalDateKey(new Date().toISOString());
+	const fetchedDayKey = getLocalDateKey(fetchedAt);
+	if (todayKey && fetchedDayKey) {
+		return todayKey === fetchedDayKey;
 	}
 
 	return Date.now() - fetchedTimestamp < CONFIG.newsCacheTtlMs;
