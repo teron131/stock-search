@@ -40,8 +40,9 @@ export const CONFIG = {
 	},
 
 	newsConcurrency: 4,
-	newsCacheTtlMs: 24 * 60 * 60 * 1000,
-	newsAutoRefreshIntervalMs: 24 * 60 * 60 * 1000,
+	stockNewsCacheTtlMs: 4 * 60 * 60 * 1000,
+	newsAutoRefreshIntervalMs: 4 * 60 * 60 * 1000,
+	portfolioNewsCacheTtlMs: 24 * 60 * 60 * 1000,
 
 	portfolioScopes: {
 		initial: "priority",

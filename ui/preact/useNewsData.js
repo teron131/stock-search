@@ -18,7 +18,8 @@ import { buildPortfolioNewsSummary } from "./newsSummary.js";
 const LOADING_MODE_IDLE = "idle";
 const LOADING_MODE_FOREGROUND = "foreground";
 const LOADING_MODE_BACKGROUND = "background";
-const NEWS_CACHE_PREFIX = "stock-search:news-cache";
+const STOCK_NEWS_CACHE_PREFIX = "stock-search:stock-news-cache";
+const PORTFOLIO_NEWS_CACHE_PREFIX = "stock-search:portfolio-news-cache";
 
 const RELEVANCE_SCORES = {
 	high: 2,
@@ -235,7 +236,11 @@ function filterNewsItems(items, { tickerFilter, relevanceFilter }) {
 }
 
 function getNewsCacheKey(ticker) {
-	return `${NEWS_CACHE_PREFIX}:${ticker}`;
+	return `${STOCK_NEWS_CACHE_PREFIX}:${ticker}`;
+}
+
+function getNewsSummaryCacheKey(heldTickerKey) {
+	return `${PORTFOLIO_NEWS_CACHE_PREFIX}:${heldTickerKey || "none"}`;
 }
 
 function readTickerNewsCache(ticker) {
@@ -300,19 +305,79 @@ function getLocalDateKey(value) {
 	].join("-");
 }
 
+function isSameLocalDay(value, now = new Date().toISOString()) {
+	const nowDayKey = getLocalDateKey(now);
+	const valueDayKey = getLocalDateKey(value);
+	return Boolean(nowDayKey && valueDayKey && nowDayKey === valueDayKey);
+}
+
 function isCacheFresh(fetchedAt) {
 	const fetchedTimestamp = Date.parse(fetchedAt || "");
 	if (!Number.isFinite(fetchedTimestamp)) {
 		return false;
 	}
 
-	const todayKey = getLocalDateKey(new Date().toISOString());
-	const fetchedDayKey = getLocalDateKey(fetchedAt);
-	if (todayKey && fetchedDayKey) {
-		return todayKey === fetchedDayKey;
+	return Date.now() - fetchedTimestamp < CONFIG.stockNewsCacheTtlMs;
+}
+
+function readPortfolioSummaryCache(heldTickerKey) {
+	if (typeof window === "undefined" || !window.localStorage) {
+		return null;
 	}
 
-	return Date.now() - fetchedTimestamp < CONFIG.newsCacheTtlMs;
+	try {
+		const rawValue = window.localStorage.getItem(
+			getNewsSummaryCacheKey(heldTickerKey),
+		);
+		if (!rawValue) {
+			return null;
+		}
+
+		const parsedValue = JSON.parse(rawValue);
+		const fetchedAt =
+			typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
+				? parsedValue.fetched_at
+				: null;
+		const summary = normalizePortfolioNewsSummaryPayload(parsedValue?.summary);
+		if (!fetchedAt || !summary) {
+			return null;
+		}
+
+		return { fetchedAt, summary };
+	} catch {
+		return null;
+	}
+}
+
+function writePortfolioSummaryCache(heldTickerKey, summary, fetchedAt) {
+	if (typeof window === "undefined" || !window.localStorage) {
+		return;
+	}
+
+	try {
+		window.localStorage.setItem(
+			getNewsSummaryCacheKey(heldTickerKey),
+			JSON.stringify({
+				fetched_at: fetchedAt,
+				summary,
+			}),
+		);
+	} catch {
+		// Ignore storage failures and continue with in-memory state.
+	}
+}
+
+function isPortfolioSummaryFresh(fetchedAt) {
+	const fetchedTimestamp = Date.parse(fetchedAt || "");
+	if (!Number.isFinite(fetchedTimestamp)) {
+		return false;
+	}
+
+	if (isSameLocalDay(fetchedAt)) {
+		return true;
+	}
+
+	return Date.now() - fetchedTimestamp < CONFIG.portfolioNewsCacheTtlMs;
 }
 
 function buildCacheSnapshot(heldTickers) {
@@ -642,6 +707,12 @@ export function useNewsData({
 			return;
 		}
 
+		const cachedSummary = readPortfolioSummaryCache(heldTickerKey);
+		if (cachedSummary && isPortfolioSummaryFresh(cachedSummary.fetchedAt)) {
+			setPortfolioSummaryResult(cachedSummary.summary);
+			return;
+		}
+
 		setPortfolioSummaryResult(fallbackPortfolioSummary);
 		const payload = buildPortfolioSummaryRequestPayload(rows, allItems);
 
@@ -655,10 +726,15 @@ export function useNewsData({
 				if (summaryRequestRef.current !== requestId) {
 					return;
 				}
-				setPortfolioSummaryResult(
+				const normalizedSummary =
 					normalizePortfolioNewsSummaryPayload(response) ||
-						fallbackPortfolioSummary,
+					fallbackPortfolioSummary;
+				writePortfolioSummaryCache(
+					heldTickerKey,
+					normalizedSummary,
+					new Date().toISOString(),
 				);
+				setPortfolioSummaryResult(normalizedSummary);
 			} catch {
 				if (summaryRequestRef.current !== requestId) {
 					return;
