@@ -192,7 +192,7 @@ export function normalizeDemoNewsPayload(payload) {
 	};
 }
 
-function normalizePortfolioSummaryChapter(chapter) {
+function normalizePortfolioNewsSummaryChapter(chapter) {
 	if (!chapter || typeof chapter !== "object") {
 		return null;
 	}
@@ -240,7 +240,7 @@ export function normalizePortfolioNewsSummaryPayload(payload) {
 				? payload.has_news
 				: Boolean(payload.hasNews),
 		macros: Array.isArray(payload.macros)
-			? payload.macros.map(normalizePortfolioSummaryChapter).filter(Boolean)
+			? payload.macros.map(normalizePortfolioNewsSummaryChapter).filter(Boolean)
 			: [],
 		topTickers: rawTopTickers
 			.filter((item) => item && typeof item === "object")
@@ -256,7 +256,9 @@ export function normalizePortfolioNewsSummaryPayload(payload) {
 						? item.weightLabel.trim()
 						: null,
 				chapters: Array.isArray(item.chapters)
-					? item.chapters.map(normalizePortfolioSummaryChapter).filter(Boolean)
+					? item.chapters
+							.map(normalizePortfolioNewsSummaryChapter)
+							.filter(Boolean)
 					: [],
 			}))
 			.filter((item) => item.ticker),

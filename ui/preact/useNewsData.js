@@ -19,7 +19,8 @@ const LOADING_MODE_IDLE = "idle";
 const LOADING_MODE_FOREGROUND = "foreground";
 const LOADING_MODE_BACKGROUND = "background";
 const STOCK_NEWS_CACHE_PREFIX = "stock-search:stock-news-cache";
-const PORTFOLIO_NEWS_CACHE_PREFIX = "stock-search:portfolio-news-cache";
+const PORTFOLIO_NEWS_SUMMARY_CACHE_PREFIX =
+	"stock-search:portfolio-news-summary-cache";
 
 const RELEVANCE_SCORES = {
 	high: 2,
@@ -282,8 +283,8 @@ function getNewsCacheKey(ticker) {
 	return `${STOCK_NEWS_CACHE_PREFIX}:${ticker}`;
 }
 
-function getNewsSummaryCacheKey(heldTickerKey) {
-	return `${PORTFOLIO_NEWS_CACHE_PREFIX}:${heldTickerKey || "none"}`;
+function getPortfolioNewsSummaryCacheKey(heldTickerKey) {
+	return `${PORTFOLIO_NEWS_SUMMARY_CACHE_PREFIX}:${heldTickerKey || "none"}`;
 }
 
 function readTickerNewsCache(ticker) {
@@ -366,14 +367,14 @@ function isCacheFresh(fetchedAt) {
 	return Date.now() - fetchedTimestamp < CONFIG.stockNewsCacheTtlMs;
 }
 
-function readPortfolioSummaryCache(heldTickerKey) {
+function readPortfolioNewsSummaryCache(heldTickerKey) {
 	if (typeof window === "undefined" || !window.localStorage) {
 		return null;
 	}
 
 	try {
 		const rawValue = window.localStorage.getItem(
-			getNewsSummaryCacheKey(heldTickerKey),
+			getPortfolioNewsSummaryCacheKey(heldTickerKey),
 		);
 		if (!rawValue) {
 			return null;
@@ -384,28 +385,34 @@ function readPortfolioSummaryCache(heldTickerKey) {
 			typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
 				? parsedValue.fetched_at
 				: null;
-		const summary = normalizePortfolioNewsSummaryPayload(parsedValue?.summary);
-		if (!fetchedAt || !summary) {
+		const portfolioNewsSummary = normalizePortfolioNewsSummaryPayload(
+			parsedValue?.summary,
+		);
+		if (!fetchedAt || !portfolioNewsSummary) {
 			return null;
 		}
 
-		return { fetchedAt, summary };
+		return { fetchedAt, portfolioNewsSummary };
 	} catch {
 		return null;
 	}
 }
 
-function writePortfolioSummaryCache(heldTickerKey, summary, fetchedAt) {
+function writePortfolioNewsSummaryCache(
+	heldTickerKey,
+	portfolioNewsSummary,
+	fetchedAt,
+) {
 	if (typeof window === "undefined" || !window.localStorage) {
 		return;
 	}
 
 	try {
 		window.localStorage.setItem(
-			getNewsSummaryCacheKey(heldTickerKey),
+			getPortfolioNewsSummaryCacheKey(heldTickerKey),
 			JSON.stringify({
 				fetched_at: fetchedAt,
-				summary,
+				summary: portfolioNewsSummary,
 			}),
 		);
 	} catch {
@@ -413,7 +420,7 @@ function writePortfolioSummaryCache(heldTickerKey, summary, fetchedAt) {
 	}
 }
 
-function isPortfolioSummaryFresh(fetchedAt) {
+function isPortfolioNewsSummaryFresh(fetchedAt) {
 	const fetchedTimestamp = Date.parse(fetchedAt || "");
 	if (!Number.isFinite(fetchedTimestamp)) {
 		return false;
@@ -448,7 +455,7 @@ function buildCacheSnapshot(heldTickers) {
 	};
 }
 
-function normalizeSummaryRequestRow(row) {
+function normalizePortfolioNewsSummaryRequestRow(row) {
 	return {
 		ticker: normalizeTicker(row?.ticker),
 		quantity: Number(row?.quantity),
@@ -457,7 +464,7 @@ function normalizeSummaryRequestRow(row) {
 	};
 }
 
-function normalizeSummaryRequestItem(item) {
+function normalizePortfolioNewsSummaryRequestItem(item) {
 	return {
 		title: item.title || null,
 		summary: item.summary || "",
@@ -470,14 +477,60 @@ function normalizeSummaryRequestItem(item) {
 	};
 }
 
-function buildPortfolioSummaryRequestPayload(rows, items) {
+function buildPortfolioNewsSummaryRequestPayload(rows, items) {
 	return {
-		rows: rows.map((row) => normalizeSummaryRequestRow(row)),
-		items: items.map((item) => normalizeSummaryRequestItem(item)),
+		rows: rows.map((row) => normalizePortfolioNewsSummaryRequestRow(row)),
+		items: items.map((item) => normalizePortfolioNewsSummaryRequestItem(item)),
 	};
 }
 
-function shouldUseFallbackPortfolioSummary({ allItems, preferDemoData }) {
+function mergePortfolioNewsSummaryWithFallback(
+	portfolioNewsSummary,
+	fallbackPortfolioNewsSummary,
+) {
+	if (!portfolioNewsSummary) {
+		return fallbackPortfolioNewsSummary;
+	}
+	if (!fallbackPortfolioNewsSummary) {
+		return portfolioNewsSummary;
+	}
+
+	return {
+		...portfolioNewsSummary,
+		hasNews:
+			portfolioNewsSummary.hasNews || fallbackPortfolioNewsSummary.hasNews,
+		macros:
+			portfolioNewsSummary.macros.length > 0
+				? portfolioNewsSummary.macros
+				: fallbackPortfolioNewsSummary.macros,
+		topTickers:
+			portfolioNewsSummary.topTickers.length > 0
+				? portfolioNewsSummary.topTickers
+				: fallbackPortfolioNewsSummary.topTickers,
+	};
+}
+
+function preserveVisiblePortfolioNewsSummary(
+	portfolioNewsSummary,
+	previousPortfolioNewsSummary,
+) {
+	if (!portfolioNewsSummary) {
+		return previousPortfolioNewsSummary;
+	}
+	if (!previousPortfolioNewsSummary) {
+		return portfolioNewsSummary;
+	}
+
+	return {
+		...portfolioNewsSummary,
+		macros:
+			portfolioNewsSummary.macros.length > 0
+				? portfolioNewsSummary.macros
+				: previousPortfolioNewsSummary.macros,
+	};
+}
+
+function shouldUseFallbackPortfolioNewsSummary({ allItems, preferDemoData }) {
 	return allItems.length === 0 || CONFIG.isDemoMode || preferDemoData;
 }
 
@@ -499,7 +552,7 @@ export function useNewsData({
 		useState(null);
 
 	const loadInFlightRef = useRef(false);
-	const summaryRequestRef = useRef(0);
+	const portfolioNewsSummaryRequestRef = useRef(0);
 	const allItemsRef = useRef(allItems);
 	const heldTickerKey = useMemo(() => getHeldTickers(rows).join("|"), [rows]);
 	const heldTickers = useMemo(
@@ -732,14 +785,14 @@ export function useNewsData({
 			),
 		[allItems, relevanceFilter, tickerFilter],
 	);
-	const fallbackPortfolioSummary = useMemo(
+	const fallbackPortfolioNewsSummary = useMemo(
 		() => buildPortfolioNewsSummary({ rows, items: allItems }),
 		[allItems, rows],
 	);
 
 	useEffect(() => {
-		const requestId = summaryRequestRef.current + 1;
-		summaryRequestRef.current = requestId;
+		const requestId = portfolioNewsSummaryRequestRef.current + 1;
+		portfolioNewsSummaryRequestRef.current = requestId;
 
 		if (!enabled || heldTickers.length === 0) {
 			setPortfolioNewsSummaryResult(null);
@@ -747,23 +800,41 @@ export function useNewsData({
 		}
 
 		if (
-			shouldUseFallbackPortfolioSummary({
+			shouldUseFallbackPortfolioNewsSummary({
 				allItems,
 				preferDemoData,
 			})
 		) {
-			setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
+			setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
+				preserveVisiblePortfolioNewsSummary(
+					fallbackPortfolioNewsSummary,
+					currentPortfolioNewsSummary,
+				),
+			);
 			return;
 		}
 
-		const cachedSummary = readPortfolioSummaryCache(heldTickerKey);
-		if (cachedSummary && isPortfolioSummaryFresh(cachedSummary.fetchedAt)) {
-			setPortfolioNewsSummaryResult(cachedSummary.summary);
+		const cachedSummary = readPortfolioNewsSummaryCache(heldTickerKey);
+		if (cachedSummary && isPortfolioNewsSummaryFresh(cachedSummary.fetchedAt)) {
+			setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
+				preserveVisiblePortfolioNewsSummary(
+					mergePortfolioNewsSummaryWithFallback(
+						cachedSummary.portfolioNewsSummary,
+						fallbackPortfolioNewsSummary,
+					),
+					currentPortfolioNewsSummary,
+				),
+			);
 			return;
 		}
 
-		setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
-		const payload = buildPortfolioSummaryRequestPayload(rows, allItems);
+		setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
+			preserveVisiblePortfolioNewsSummary(
+				fallbackPortfolioNewsSummary,
+				currentPortfolioNewsSummary,
+			),
+		);
+		const payload = buildPortfolioNewsSummaryRequestPayload(rows, allItems);
 
 		(async () => {
 			try {
@@ -772,29 +843,41 @@ export function useNewsData({
 					payload,
 					CONFIG.requestTimeoutMs.news,
 				);
-				if (summaryRequestRef.current !== requestId) {
+				if (portfolioNewsSummaryRequestRef.current !== requestId) {
 					return;
 				}
-				const normalizedSummary =
-					normalizePortfolioNewsSummaryPayload(response) ||
-					fallbackPortfolioSummary;
-				writePortfolioSummaryCache(
+				const normalizedPortfolioNewsSummary =
+					mergePortfolioNewsSummaryWithFallback(
+						normalizePortfolioNewsSummaryPayload(response),
+						fallbackPortfolioNewsSummary,
+					);
+				writePortfolioNewsSummaryCache(
 					heldTickerKey,
-					normalizedSummary,
+					normalizedPortfolioNewsSummary,
 					new Date().toISOString(),
 				);
-				setPortfolioNewsSummaryResult(normalizedSummary);
+				setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
+					preserveVisiblePortfolioNewsSummary(
+						normalizedPortfolioNewsSummary,
+						currentPortfolioNewsSummary,
+					),
+				);
 			} catch {
-				if (summaryRequestRef.current !== requestId) {
+				if (portfolioNewsSummaryRequestRef.current !== requestId) {
 					return;
 				}
-				setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
+				setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
+					preserveVisiblePortfolioNewsSummary(
+						fallbackPortfolioNewsSummary,
+						currentPortfolioNewsSummary,
+					),
+				);
 			}
 		})();
 	}, [
 		allItems,
 		enabled,
-		fallbackPortfolioSummary,
+		fallbackPortfolioNewsSummary,
 		heldTickerKey,
 		heldTickers.length,
 		preferDemoData,
@@ -802,7 +885,7 @@ export function useNewsData({
 	]);
 
 	const portfolioNewsSummary =
-		portfolioNewsSummaryResult || fallbackPortfolioSummary;
+		portfolioNewsSummaryResult || fallbackPortfolioNewsSummary;
 
 	return {
 		items,

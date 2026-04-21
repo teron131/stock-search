@@ -2,7 +2,14 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from stock_search.cache import TieredCache
-from stock_search.models.schemas import NewsAnalysis, NewsArticle, NewsMetadata
+from stock_search.models.schemas import (
+    NewsAnalysis,
+    NewsArticle,
+    NewsMetadata,
+    PortfolioNewsSummaryModel,
+    PortfolioNewsSummaryRequestArticle,
+    PortfolioNewsSummaryRequestRow,
+)
 import stock_search.news.orchestrator as news_orchestrator
 
 
@@ -228,6 +235,47 @@ def test_analyze_news_reuses_cached_url_analysis(monkeypatch) -> None:
     assert second_result[0].summary == "Cached summary"
     assert webloader_calls == [["https://example.com/a?utm_source=alpha"]]
     assert len(invoke_calls) == 1
+
+
+def test_summarize_portfolio_news_async_falls_back_to_macro_chapters(
+    monkeypatch,
+) -> None:
+    class FakeModel:
+        def with_structured_output(self, _schema):
+            return self
+
+        def invoke(self, _prompt: str) -> PortfolioNewsSummaryModel:
+            return PortfolioNewsSummaryModel(macros=[], top_tickers=[])
+
+    monkeypatch.setattr(news_orchestrator, "ChatOpenAI", lambda **kwargs: FakeModel())
+
+    result = asyncio.run(
+        news_orchestrator.summarize_portfolio_news_async(
+            rows=[
+                PortfolioNewsSummaryRequestRow(
+                    ticker="NVDA",
+                    quantity=10,
+                    total=1000,
+                    weight_pct=100,
+                )
+            ],
+            items=[
+                PortfolioNewsSummaryRequestArticle(
+                    title="Oil spikes as market digests Middle East risk",
+                    summary="Oil moved higher as investors absorbed fresh Middle East supply risk across the broader tape.",
+                    relevancy="high",
+                    category="macro_economics",
+                    sentiment="neutral",
+                    source_tickers=["NVDA"],
+                )
+            ],
+        )
+    )
+
+    assert result.has_news is True
+    assert len(result.macros) == 1
+    assert result.macros[0].paragraph == ("Oil moved higher as investors absorbed fresh Middle East supply risk across the broader tape.")
+    assert result.macros[0].tickers == ["NVDA"]
 
 
 def test_get_news_async_skips_exa_when_primary_providers_have_enough_results(monkeypatch) -> None:

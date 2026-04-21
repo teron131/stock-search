@@ -51,10 +51,15 @@ MAX_ANALYSIS_WORKERS = 10
 MAX_PORTFOLIO_SUMMARY_TICKERS = 5
 MAX_PORTFOLIO_SUMMARY_ITEMS = 3
 MAX_PORTFOLIO_SUMMARY_ARTICLES = 18
+MAX_PORTFOLIO_SUMMARY_MACRO_ITEMS = 2
 MAX_NEWS_FETCH_RETENTION_DAYS = 3
 MAX_NEWS_PUBLISHED_RETENTION_DAYS = 3
 THIN_COVERAGE_HEADLINE = "Coverage remains thin"
 THIN_COVERAGE_PARAGRAPH = "Current feed does not surface a clear ticker-specific development yet."
+MACRO_FALLBACK_CATEGORY_SCORES = {
+    "macro_economics": 2,
+    "market_news": 1,
+}
 SUMMARY_HEADLINE_BLACKLIST = {
     "theme",
     "takeaway",
@@ -427,7 +432,7 @@ def _analyze_news(
     return _merge_analysis_results(results, readable_items, responses)
 
 
-def _normalize_portfolio_summary_rows(
+def _normalize_portfolio_news_summary_rows(
     rows: list[PortfolioNewsSummaryRequestRow],
 ) -> list[dict[str, float | str]]:
     """Return held rows with normalized tickers and derived weights."""
@@ -458,7 +463,7 @@ def _normalize_portfolio_summary_rows(
     return normalized_rows
 
 
-def _normalize_portfolio_summary_items(
+def _normalize_portfolio_news_summary_items(
     items: list[PortfolioNewsSummaryRequestArticle],
     held_tickers: set[str],
 ) -> list[dict[str, object]]:
@@ -492,7 +497,7 @@ def _normalize_portfolio_summary_items(
     return normalized_items[:MAX_PORTFOLIO_SUMMARY_ARTICLES]
 
 
-def _clean_portfolio_summary_chapters(
+def _clean_portfolio_news_summary_chapters(
     chapters: list[PortfolioNewsChapter],
     *,
     allowed_tickers: set[str],
@@ -539,6 +544,28 @@ def _fallback_chapter_from_summary(
     )
 
 
+def _title_case_summary_headline(text: str) -> str:
+    """Convert a short summary fragment into a compact headline."""
+    words = [word for word in text.split() if word]
+    return " ".join(word.upper() if len(word) <= 3 else f"{word[0].upper()}{word[1:]}" for word in words)
+
+
+def _fallback_summary_headline(title: str | None) -> str:
+    """Build a stable fallback chapter headline from one article title."""
+    if not title:
+        return "Market thread"
+
+    base_title = " ".join(str(title).split())
+    base_title = base_title.split("|", 1)[0]
+    for separator in (":", ";", "-"):
+        base_title = base_title.split(separator, 1)[0]
+    base_title = " ".join(base_title.split()).strip()
+    if not base_title:
+        return "Market thread"
+
+    return _title_case_summary_headline(" ".join(base_title.split()[:6])) or "Market thread"
+
+
 def _normalize_summary_tickers(
     tickers: list[str],
     *,
@@ -569,13 +596,13 @@ def _build_prompt_top_positions(
     ]
 
 
-def _build_portfolio_summary_prompt(
+def _build_portfolio_news_summary_prompt(
     *,
     held_tickers: set[str],
     top_rows: list[dict[str, float | str]],
     normalized_items: list[dict[str, object]],
 ) -> str:
-    """Render the portfolio summary prompt payload."""
+    """Render the portfolio news summary prompt payload."""
     prompt_template = PromptTemplate(
         template=PORTFOLIO_NEWS_SUMMARY_PROMPT,
         input_variables=["held_tickers_json", "top_positions_json", "news_items_json"],
@@ -611,6 +638,61 @@ def _fallback_ticker_chapters(
     ]
 
 
+def _fallback_macro_chapters(
+    *,
+    normalized_items: list[dict[str, object]],
+    held_tickers: set[str],
+) -> list[PortfolioNewsChapter]:
+    """Return deterministic macro chapters when the model omits them."""
+    macro_candidates: list[dict[str, object]] = []
+    seen_summaries: set[str] = set()
+    for idx, item in enumerate(normalized_items):
+        category = str(item.get("category") or "")
+        category_score = MACRO_FALLBACK_CATEGORY_SCORES.get(category)
+        if category_score is None:
+            continue
+
+        paragraph = " ".join(str(item.get("summary") or "").split())
+        if not paragraph or paragraph in seen_summaries:
+            continue
+        seen_summaries.add(paragraph)
+
+        headline = _fallback_summary_headline(item.get("title"))
+        source_tickers = [ticker for ticker in item.get("source_tickers", []) if ticker in held_tickers]
+        macro_candidates.append(
+            {
+                "category_score": category_score,
+                "relevance_score": -RELEVANCY_ORDER.get(
+                    str(item.get("relevancy") or "low"),
+                    2,
+                ),
+                "breadth_score": len(source_tickers),
+                "position_score": -idx,
+                "headline": headline,
+                "paragraph": paragraph,
+                "source_tickers": source_tickers,
+            }
+        )
+
+    macro_candidates.sort(
+        key=lambda candidate: (
+            int(candidate["category_score"]),
+            int(candidate["relevance_score"]),
+            int(candidate["breadth_score"]),
+            int(candidate["position_score"]),
+        ),
+        reverse=True,
+    )
+    return [
+        _fallback_chapter_from_summary(
+            headline=str(candidate["headline"]),
+            paragraph=str(candidate["paragraph"]),
+            tickers=list(candidate["source_tickers"]),
+        )
+        for candidate in macro_candidates[:MAX_PORTFOLIO_SUMMARY_MACRO_ITEMS]
+    ]
+
+
 def _build_top_ticker_summary(
     *,
     row: dict[str, float | str],
@@ -621,7 +703,7 @@ def _build_top_ticker_summary(
     """Build one cleaned ticker summary with deterministic fallback."""
     ticker = str(row["ticker"])
     summary_entry = summary_by_ticker.get(ticker)
-    chapters = _clean_portfolio_summary_chapters(
+    chapters = _clean_portfolio_news_summary_chapters(
         summary_entry.chapters if summary_entry is not None else [],
         allowed_tickers=held_tickers,
         fallback_tickers=[ticker],
@@ -643,17 +725,17 @@ async def summarize_portfolio_news_async(
     items: list[PortfolioNewsSummaryRequestArticle],
 ) -> PortfolioNewsSummaryResponse:
     """Generate chaptered portfolio news from merged article summaries."""
-    normalized_rows = _normalize_portfolio_summary_rows(rows)
+    normalized_rows = _normalize_portfolio_news_summary_rows(rows)
     if not normalized_rows:
         return PortfolioNewsSummaryResponse(has_news=False)
 
     top_rows = normalized_rows[:MAX_PORTFOLIO_SUMMARY_TICKERS]
     held_tickers = {str(row["ticker"]) for row in normalized_rows}
-    normalized_items = _normalize_portfolio_summary_items(items, held_tickers)
+    normalized_items = _normalize_portfolio_news_summary_items(items, held_tickers)
     if not normalized_items:
         return PortfolioNewsSummaryResponse(has_news=False)
 
-    prompt = _build_portfolio_summary_prompt(
+    prompt = _build_portfolio_news_summary_prompt(
         held_tickers=held_tickers,
         top_rows=top_rows,
         normalized_items=normalized_items,
@@ -665,10 +747,15 @@ async def summarize_portfolio_news_async(
     ).with_structured_output(PortfolioNewsSummaryModel)
 
     summary = await asyncio.to_thread(model.invoke, prompt)
-    macros = _clean_portfolio_summary_chapters(
+    macros = _clean_portfolio_news_summary_chapters(
         summary.macros,
         allowed_tickers=held_tickers,
     )
+    if not macros:
+        macros = _fallback_macro_chapters(
+            normalized_items=normalized_items,
+            held_tickers=held_tickers,
+        )
 
     summary_by_ticker = {entry.ticker.upper(): entry for entry in summary.top_tickers}
     top_tickers = [

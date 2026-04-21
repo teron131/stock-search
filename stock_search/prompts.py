@@ -13,7 +13,7 @@ Category: company_news, earnings, analyst_rating, industry_news, market_news, ma
 {title}
 {content}"""
 
-PORTFOLIO_NEWS_SUMMARY_PROMPT = """You are writing a chaptered portfolio news desk note from already-detailed article summaries.
+PORTFOLIO_NEWS_SUMMARY_PROMPT = """Write a chaptered portfolio news summary from already-detailed article summaries.
 
 Return structured fields only.
 
@@ -27,14 +27,14 @@ Output shape:
 - top_tickers: one entry for each ticker in TOP_POSITIONS, in the same priority order.
 - each chapter:
   - headline: a headline-style segment title, not a taxonomy label.
-  - paragraph: one compact desk-note paragraph.
+  - paragraph: one compact summary paragraph.
   - tickers: subset of HELD_TICKERS directly relevant to that chapter, or [] for broad market macro chapters.
 - each top_tickers entry:
   - ticker
   - chapters: 1 to 3 chapter blocks for that ticker.
 
 Writing rules:
-- Write like a short desk note, not bullet digest and not full article recap.
+- Write like a short portfolio news summary, not a bullet digest and not a full article recap.
 - Chapter headlines are just subparagraph headings, like segments in a spoken market recap.
 - No timestamps.
 - Prefer implications and what mattered yesterday over chronology.

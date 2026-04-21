@@ -181,10 +181,10 @@ class NewsArticle(NewsAnalysis):
 
 
 class PortfolioNewsChapter(BaseModel):
-    """[STRUCTURED OUTPUTS] One chapter in the portfolio news desk note."""
+    """[STRUCTURED OUTPUTS] One chapter in the portfolio news summary."""
 
     headline: str = Field(description="Headline-style chapter title for a short subparagraph. Avoid generic labels like Theme, Takeaway, Setup, Weight, Backdrop, or Cross-ticker.")
-    paragraph: str = Field(description="Compact desk-note paragraph synthesizing what happened and why it matters.")
+    paragraph: str = Field(description="Compact portfolio news summary paragraph synthesizing what happened and why it matters.")
     tickers: list[Ticker] = Field(
         default_factory=list,
         description="Held tickers directly relevant to this chapter. Can be empty for broad market macro chapters.",
@@ -215,7 +215,7 @@ class PortfolioNewsSummaryModel(BaseModel):
 
 
 class PortfolioNewsSummaryRequestRow(BaseModel):
-    """One held position row passed into the portfolio-summary endpoint."""
+    """One held position row passed into the portfolio news summary endpoint."""
 
     ticker: Ticker
     quantity: float | None = Field(default=None, description="Held quantity.")
@@ -224,7 +224,7 @@ class PortfolioNewsSummaryRequestRow(BaseModel):
 
 
 class PortfolioNewsSummaryRequestArticle(BaseModel):
-    """One merged article summary passed into the portfolio-summary endpoint."""
+    """One merged article summary passed into the portfolio news summary endpoint."""
 
     title: str | None = Field(default=None, description="Headline")
     summary: str = Field(default="", description="Detailed article summary.")
@@ -254,7 +254,7 @@ class PortfolioNewsSummaryRequest(BaseModel):
 
 
 class PortfolioNewsSummaryResponseTicker(BaseModel):
-    """One ticker card returned by the portfolio-summary endpoint."""
+    """One ticker card returned by the portfolio news summary endpoint."""
 
     ticker: Ticker
     weight_pct: float = Field(default=0.0, description="Portfolio weight percentage.")

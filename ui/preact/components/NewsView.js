@@ -223,10 +223,22 @@ export function NewsView({
 	const hasItems = items.length > 0;
 	const hasHoldings = heldTickers.length > 0;
 	const hasMacroItems = (portfolioNewsSummary?.macros || []).length > 0;
+	const showFeedLoadingState =
+		!isWaitingOnPortfolio && hasHoldings && !hasItems && isLoading;
 	const coverageText =
 		isLoading && !hasItems
-			? "Refreshing portfolio wire..."
+			? "Refreshing portfolio news..."
 			: `${items.length} stories across ${heldTickers.length} held tickers`;
+	const summaryPlaceholderTitle = !hasHoldings
+		? "Summary unavailable"
+		: isLoading
+			? "Summary pending"
+			: "Summary unavailable";
+	const summaryPlaceholderCopy = !hasHoldings
+		? "Add held positions to generate the portfolio news summary."
+		: isLoading
+			? "Refreshing the held-position feed to generate the latest portfolio news summary."
+			: "Load the feed or sync again to generate the portfolio news summary.";
 
 	const toggleExpanded = (articleKey) => {
 		setExpandedArticleKeys((currentKeys) => {
@@ -244,7 +256,7 @@ export function NewsView({
 		<div class="news-view">
 			<section class="news-toolbar">
 				<div class="news-toolbar-copy">
-					<div class="industry-section-label">Portfolio wire</div>
+					<div class="industry-section-label">Portfolio News</div>
 					<div class="news-toolbar-heading">
 						<h2 class="news-toolbar-title">Held Positions</h2>
 						<div class="news-toolbar-status">
@@ -301,8 +313,7 @@ export function NewsView({
 			<section class="news-workspace-shell">
 				<div class="news-summary-panel">
 					<div class="news-panel-header">
-						<div class="industry-section-label">Grand Summary</div>
-						<div class="news-panel-title">Portfolio News Summary</div>
+						<div class="industry-section-label">Portfolio News Summary</div>
 					</div>
 					${
 						portfolioNewsSummary?.hasNews
@@ -344,9 +355,9 @@ export function NewsView({
 							`
 							: html`
 								<div class="news-summary-body news-summary-placeholder">
-									<div class="news-summary-title">Macros</div>
+									<div class="news-summary-title">${summaryPlaceholderTitle}</div>
 									<div class="news-summary-copy">
-										Add held positions and load the feed to generate the portfolio news summary.
+										${summaryPlaceholderCopy}
 									</div>
 								</div>
 							`
@@ -355,8 +366,8 @@ export function NewsView({
 
 				<div class="news-list-panel">
 					<div class="news-panel-header">
-						<div class="industry-section-label">Merged feed</div>
-						<div class="news-panel-title">Latest coverage</div>
+						<div class="industry-section-label">Portfolio News Feed</div>
+						<div class="news-panel-title">Latest Coverage</div>
 					</div>
 
 					${
@@ -365,7 +376,20 @@ export function NewsView({
 								<div class="news-empty-state">
 									<div class="news-empty-title">Loading portfolio scope</div>
 									<div class="news-empty-copy">
-										Preparing the held-position set before the portfolio news wire comes online.
+										Preparing the held-position set before the portfolio news feed comes online.
+									</div>
+								</div>
+							`
+							: null
+					}
+
+					${
+						showFeedLoadingState
+							? html`
+								<div class="news-empty-state">
+									<div class="news-empty-title">Loading latest coverage</div>
+									<div class="news-empty-copy">
+										Refreshing the portfolio news feed for the held-position set.
 									</div>
 								</div>
 							`
@@ -378,7 +402,7 @@ export function NewsView({
 								<div class="news-empty-state">
 									<div class="news-empty-title">No held positions in scope</div>
 									<div class="news-empty-copy">
-										Add a portfolio position to populate the portfolio-wide news wire.
+										Add a portfolio position to populate the portfolio news feed.
 									</div>
 								</div>
 							`
@@ -386,7 +410,11 @@ export function NewsView({
 					}
 
 					${
-						!isWaitingOnPortfolio && hasHoldings && !hasItems && !isLoading
+						!showFeedLoadingState &&
+						!isWaitingOnPortfolio &&
+						hasHoldings &&
+						!hasItems &&
+						!isLoading
 							? html`
 								<div class="news-empty-state">
 									<div class="news-empty-title">

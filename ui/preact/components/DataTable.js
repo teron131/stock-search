@@ -10,6 +10,17 @@ import {
 } from "../tableStyle.js";
 import { useQtyCellState } from "./useQtyCellState.js";
 
+const EVALUATION_METRIC_COLUMN_KEYS = [
+	"rank",
+	"overall_score",
+	"quality_score",
+	"valuation_score",
+	"moat_score",
+	"upside_score",
+	"bull_probability",
+	"bear_probability",
+];
+
 function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
 }
@@ -79,6 +90,41 @@ function getWidthGroupCharCounts(rows, cols) {
 	}
 
 	return widthGroupCharCounts;
+}
+
+function getColumnWidthValue(rows, col, widthGroupCharCounts) {
+	if (col.key === "ticker") {
+		return "var(--ticker-column-width)";
+	}
+	if (col.key === "remove") {
+		return "52px";
+	}
+
+	const charCount = col.widthGroup
+		? widthGroupCharCounts[col.widthGroup]
+		: getColumnCharCount(getColumnDisplayValues(rows, col), col.label || "");
+	return getColumnWidthStyle(charCount, WIDTH_GROUP_OPTIONS[col.widthGroup])
+		?.width;
+}
+
+function getEvaluationTableStyle(rows, cols, widthGroupCharCounts) {
+	const evaluationMetricColumns = cols.filter((col) =>
+		EVALUATION_METRIC_COLUMN_KEYS.includes(col.key),
+	);
+	if (evaluationMetricColumns.length === 0) {
+		return {};
+	}
+
+	const minimumWidthTerms = cols
+		.map((col) => getColumnWidthValue(rows, col, widthGroupCharCounts))
+		.filter(Boolean);
+
+	return {
+		"--table-flex-column-count": String(evaluationMetricColumns.length),
+		"--table-min-width": `calc(${minimumWidthTerms.join(" + ")})`,
+		"--table-evaluation-flex-column-width":
+			"calc((100% - var(--table-min-width)) / var(--table-flex-column-count))",
+	};
 }
 
 function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
@@ -289,15 +335,30 @@ export function DataTable({
 		colorBandFraction: CONFIG.colorBandFraction,
 		keyStandards: colorStandards,
 	});
+	const tableWrapperStyle = {
+		"--ticker-char-count": tickerCharCount,
+		...(tab === "evaluations"
+			? getEvaluationTableStyle(sorted, cols, widthGroupCharCounts)
+			: {}),
+	};
+	const tableWrapperClassName = [
+		"table-wrapper data-table-scroll",
+		tab === "evaluations" ? "table-wrapper-evaluations" : "",
+	]
+		.filter(Boolean)
+		.join(" ");
+	const tableClassName = [
+		"data-table",
+		tab === "evaluations" ? "data-table-evaluations" : "",
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	return html`
 		<div class="table-shell">
 			<div class="table-scroll-hint">Swipe sideways for full factor view</div>
-			<div
-				class="table-wrapper data-table-scroll"
-				style=${{ "--ticker-char-count": tickerCharCount }}
-			>
-				<table id="main-table" class="data-table">
+			<div class=${tableWrapperClassName} style=${tableWrapperStyle}>
+				<table id="main-table" class=${tableClassName}>
 					<colgroup>
 						${cols.map((col) => {
 							const className = [
@@ -308,10 +369,14 @@ export function DataTable({
 								.join(" ");
 							return html`<col
 								class=${className}
-								style=${getColumnWidthStyle(
-									widthGroupCharCounts[col.widthGroup],
-									WIDTH_GROUP_OPTIONS[col.widthGroup],
-								)}
+								style=${
+									tab === "evaluations"
+										? null
+										: getColumnWidthStyle(
+												widthGroupCharCounts[col.widthGroup],
+												WIDTH_GROUP_OPTIONS[col.widthGroup],
+											)
+								}
 							/>`;
 						})}
 					</colgroup>
