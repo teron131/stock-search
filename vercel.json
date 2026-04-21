@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "fastapi",
-  "installCommand": "npm ci",
-  "buildCommand": "npm run ui:build && python scripts/prepare_vercel_public.py",
+  "buildCommand": "npm ci && npm run ui:build && python scripts/prepare_vercel_public.py",
   "outputDirectory": "public"
 }
