@@ -205,7 +205,7 @@ function renderTradingViewTickerTag(ticker) {
 
 export function NewsView({
 	items,
-	portfolioSummary,
+	portfolioNewsSummary,
 	tickerFilter,
 	setTickerFilter,
 	relevanceFilter,
@@ -222,7 +222,7 @@ export function NewsView({
 	);
 	const hasItems = items.length > 0;
 	const hasHoldings = heldTickers.length > 0;
-	const hasMacroItems = (portfolioSummary?.macros || []).length > 0;
+	const hasMacroItems = (portfolioNewsSummary?.macros || []).length > 0;
 	const coverageText =
 		isLoading && !hasItems
 			? "Refreshing portfolio wire..."
@@ -301,10 +301,11 @@ export function NewsView({
 			<section class="news-workspace-shell">
 				<div class="news-summary-panel">
 					<div class="news-panel-header">
-						<div class="industry-section-label">Grand summary</div>
+						<div class="industry-section-label">Grand Summary</div>
+						<div class="news-panel-title">Portfolio News Summary</div>
 					</div>
 					${
-						portfolioSummary?.hasNews
+						portfolioNewsSummary?.hasNews
 							? html`
 								<div class="news-summary-body">
 									${
@@ -312,7 +313,7 @@ export function NewsView({
 											? html`
 												<div class="news-summary-section is-macros">
 													<div class="news-summary-title">Macros</div>
-													${renderSummaryChapters(portfolioSummary.macros)}
+													${renderSummaryChapters(portfolioNewsSummary.macros)}
 												</div>
 											`
 											: null
@@ -321,7 +322,7 @@ export function NewsView({
 									<div class="news-summary-section is-top-tickers">
 										<div class="news-summary-title">Top tickers</div>
 										<div class="news-ticker-briefs">
-											${portfolioSummary.topTickers.map(
+											${portfolioNewsSummary.topTickers.map(
 												(summaryItem) => html`
 													<article class="news-ticker-brief">
 														<div class="news-ticker-brief-header">
@@ -345,7 +346,7 @@ export function NewsView({
 								<div class="news-summary-body news-summary-placeholder">
 									<div class="news-summary-title">Macros</div>
 									<div class="news-summary-copy">
-										Add held positions and load the feed to generate the chaptered desk note.
+										Add held positions and load the feed to generate the portfolio news summary.
 									</div>
 								</div>
 							`

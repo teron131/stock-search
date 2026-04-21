@@ -495,7 +495,8 @@ export function useNewsData({
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
 	const [lastError, setLastError] = useState(null);
 	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
-	const [portfolioSummaryResult, setPortfolioSummaryResult] = useState(null);
+	const [portfolioNewsSummaryResult, setPortfolioNewsSummaryResult] =
+		useState(null);
 
 	const loadInFlightRef = useRef(false);
 	const summaryRequestRef = useRef(0);
@@ -741,7 +742,7 @@ export function useNewsData({
 		summaryRequestRef.current = requestId;
 
 		if (!enabled || heldTickers.length === 0) {
-			setPortfolioSummaryResult(null);
+			setPortfolioNewsSummaryResult(null);
 			return;
 		}
 
@@ -751,17 +752,17 @@ export function useNewsData({
 				preferDemoData,
 			})
 		) {
-			setPortfolioSummaryResult(fallbackPortfolioSummary);
+			setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
 			return;
 		}
 
 		const cachedSummary = readPortfolioSummaryCache(heldTickerKey);
 		if (cachedSummary && isPortfolioSummaryFresh(cachedSummary.fetchedAt)) {
-			setPortfolioSummaryResult(cachedSummary.summary);
+			setPortfolioNewsSummaryResult(cachedSummary.summary);
 			return;
 		}
 
-		setPortfolioSummaryResult(fallbackPortfolioSummary);
+		setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
 		const payload = buildPortfolioSummaryRequestPayload(rows, allItems);
 
 		(async () => {
@@ -782,12 +783,12 @@ export function useNewsData({
 					normalizedSummary,
 					new Date().toISOString(),
 				);
-				setPortfolioSummaryResult(normalizedSummary);
+				setPortfolioNewsSummaryResult(normalizedSummary);
 			} catch {
 				if (summaryRequestRef.current !== requestId) {
 					return;
 				}
-				setPortfolioSummaryResult(fallbackPortfolioSummary);
+				setPortfolioNewsSummaryResult(fallbackPortfolioSummary);
 			}
 		})();
 	}, [
@@ -800,12 +801,13 @@ export function useNewsData({
 		rows,
 	]);
 
-	const portfolioSummary = portfolioSummaryResult || fallbackPortfolioSummary;
+	const portfolioNewsSummary =
+		portfolioNewsSummaryResult || fallbackPortfolioSummary;
 
 	return {
 		items,
 		allItems,
-		portfolioSummary,
+		portfolioNewsSummary,
 		tickerFilter,
 		setTickerFilter,
 		relevanceFilter,

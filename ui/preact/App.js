@@ -252,7 +252,7 @@ function renderNewsScreen(newsData) {
 	return html`
 		<${NewsView}
 			items=${newsData.items}
-			portfolioSummary=${newsData.portfolioSummary}
+			portfolioNewsSummary=${newsData.portfolioNewsSummary}
 			tickerFilter=${newsData.tickerFilter}
 			setTickerFilter=${newsData.setTickerFilter}
 			relevanceFilter=${newsData.relevanceFilter}
