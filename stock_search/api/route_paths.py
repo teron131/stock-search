@@ -2,6 +2,25 @@
 
 from __future__ import annotations
 
+ROOT = "/"
+DASHBOARD = "/dashboard"
+INDUSTRY = "/industry"
+MARKETMAP = "/marketmap"
+CALENDAR = "/calendar"
+
+DASHBOARD_PAGE_PATHS = (
+    ROOT,
+    DASHBOARD,
+    INDUSTRY,
+    MARKETMAP,
+    CALENDAR,
+)
+
+AUTH_LOGIN = "/auth/login"
+AUTH_CALLBACK = "/auth/callback"
+AUTH_LOGOUT = "/auth/logout"
+AUTH_SESSION = "/auth/session"
+
 PORTFOLIO = "/portfolio"
 PORTFOLIO_TICKER = "/portfolio/{ticker}"
 PORTFOLIO_IMPORT_IMAGE = "/portfolio/import-image"

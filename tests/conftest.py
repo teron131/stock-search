@@ -37,3 +37,12 @@ def force_test_llm_model(monkeypatch) -> None:
 def disable_paid_api_credentials(monkeypatch) -> None:
     for key in PAID_API_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def default_auth_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("AUTH_ENABLED", "false")
+    monkeypatch.delenv("AUTH_SECRET", raising=False)
+    monkeypatch.delenv("AUTH_GOOGLE_ID", raising=False)
+    monkeypatch.delenv("AUTH_GOOGLE_SECRET", raising=False)
+    monkeypatch.delenv("ALLOWED_EMAIL", raising=False)

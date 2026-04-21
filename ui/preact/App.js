@@ -78,6 +78,33 @@ function showActionError(reason) {
 	if (reason === "server") showToast("UPDATE FAILED");
 }
 
+async function fetchAuthSession() {
+	try {
+		const response = await fetch(CONFIG.endpoints.authSession);
+		if (!response.ok) return null;
+		return await response.json();
+	} catch {
+		return null;
+	}
+}
+
+function syncLogoutButton(authSession) {
+	const logoutBtn = document.getElementById("logout-btn");
+	if (!logoutBtn) return;
+
+	const shouldShow =
+		!CONFIG.isDemoMode &&
+		Boolean(authSession?.enabled) &&
+		Boolean(authSession?.authenticated);
+
+	logoutBtn.hidden = !shouldShow;
+	if (shouldShow && authSession?.email) {
+		logoutBtn.title = `Logout (${authSession.email})`;
+	} else {
+		logoutBtn.title = "Logout";
+	}
+}
+
 async function importImageFile(file, importImageRef) {
 	if (!file) return;
 	setText("import-status", "IMPORTING...");
@@ -540,6 +567,7 @@ export function App() {
 		const refreshBtn = document.getElementById("refresh-btn");
 		const importBtn = document.getElementById("import-image-btn");
 		const importInput = document.getElementById("import-image-input");
+		const logoutBtn = document.getElementById("logout-btn");
 
 		const onRefresh = () => {
 			if (viewRef.current === INDUSTRY_VIEW) {
@@ -553,6 +581,9 @@ export function App() {
 			syncRef.current?.({ scope: CONFIG.portfolioScopes.live });
 		};
 		const onImportClick = () => importInput?.click();
+		const onLogout = () => {
+			window.location.assign(CONFIG.endpoints.authLogout);
+		};
 		const onImportChange = async (event) => {
 			const file = event?.target?.files?.[0];
 			if (!file) return;
@@ -587,6 +618,13 @@ export function App() {
 			await importImageFile(file, importImageRef);
 		};
 
+		void fetchAuthSession().then((authSession) => {
+			syncLogoutButton(authSession);
+		});
+
+		if (logoutBtn) {
+			logoutBtn.addEventListener("click", onLogout);
+		}
 		if (refreshBtn) {
 			refreshBtn.addEventListener("click", onRefresh);
 		}
@@ -604,6 +642,9 @@ export function App() {
 		return () => {
 			cleanupSidebar?.();
 			cleanupHeatmapTabs?.();
+			if (logoutBtn) {
+				logoutBtn.removeEventListener("click", onLogout);
+			}
 			if (refreshBtn) {
 				refreshBtn.removeEventListener("click", onRefresh);
 			}

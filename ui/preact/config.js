@@ -10,6 +10,8 @@ export const CONFIG = {
 	isDemoMode,
 
 	endpoints: {
+		authLogout: "/auth/logout",
+		authSession: "/auth/session",
 		portfolio: "/portfolio",
 		portfolioImportImage: "/portfolio/import-image",
 		portfolioNewsSummary: "/portfolio/news-summary",

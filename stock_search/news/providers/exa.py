@@ -16,6 +16,7 @@ from ...utils import extract_domain, format_date, format_iso_z, get_days_ago, pa
 
 DEFAULT_TIMEOUT_SEC = 60
 EXA_MAX_RESULTS = 25
+EXA_MAX_RESULTS_PER_CALL = EXA_MAX_RESULTS
 
 
 async def get_news_exa_async(
