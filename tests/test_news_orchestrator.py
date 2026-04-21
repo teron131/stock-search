@@ -1,5 +1,5 @@
 import asyncio
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from stock_search.cache import TieredCache
 from stock_search.models.schemas import NewsAnalysis, NewsArticle, NewsMetadata
@@ -16,36 +16,117 @@ def _make_news(*, title: str, url: str, days_ago: int) -> NewsArticle:
     )
 
 
+def _with_analysis(
+    news: NewsArticle,
+    *,
+    summary: str,
+    category: str = "company_news",
+    sentiment: str = "neutral",
+    metadata: NewsMetadata | dict | None = None,
+) -> NewsArticle:
+    update = NewsAnalysis(
+        summary=summary,
+        relevancy="high",
+        category=category,
+        sentiment=sentiment,
+    ).model_dump()
+    if metadata is not None:
+        update["metadata"] = metadata.model_dump(exclude_none=True) if isinstance(metadata, NewsMetadata) else metadata
+    return news.model_copy(update=update)
+
+
 def test_finalize_news_feed_filters_non_english_unicode_articles() -> None:
-    english_news = _make_news(
-        title="TSMC plans sub-1nm pilot production in 2029",
-        url="https://example.com/english",
-        days_ago=0,
-    ).model_copy(
-        update=NewsAnalysis(
-            summary="TSMC is preparing an early pilot line for sub-1nm production.",
-            relevancy="high",
-            category="industry_news",
-            sentiment="neutral",
-        ).model_dump()
+    english_news = _with_analysis(
+        _make_news(
+            title="TSMC plans sub-1nm pilot production in 2029",
+            url="https://example.com/english",
+            days_ago=0,
+        ),
+        summary="TSMC is preparing an early pilot line for sub-1nm production.",
+        category="industry_news",
     )
-    accented_non_english_news = _make_news(
-        title="TSMC du kien san xuat thu nghiem chip duoi 1nm vao nam 2029",
-        url="https://example.com/accented-non-english",
-        days_ago=0,
-    ).model_copy(
-        update=NewsAnalysis(
-            summary="TSMC dự kiến sản xuất thử nghiệm chip dưới 1nm bắt đầu vào năm 2029.",
-            relevancy="high",
-            category="industry_news",
-            sentiment="neutral",
-        ).model_dump()
+    accented_non_english_news = _with_analysis(
+        _make_news(
+            title="TSMC du kien san xuat thu nghiem chip duoi 1nm vao nam 2029",
+            url="https://example.com/accented-non-english",
+            days_ago=0,
+        ),
+        summary="TSMC dự kiến sản xuất thử nghiệm chip dưới 1nm bắt đầu vào năm 2029.",
+        category="industry_news",
     )
 
     result = news_orchestrator._finalize_news_feed([english_news, accented_non_english_news])
 
     assert [item.url for item in result] == [
         "https://example.com/english",
+    ]
+
+
+def test_finalize_news_feed_drops_articles_older_than_three_days() -> None:
+    retained_news = _with_analysis(
+        _make_news(
+            title="Retained within window",
+            url="https://example.com/within-window",
+            days_ago=3,
+        ),
+        summary="Still current enough for the feed.",
+    )
+    expired_news = _with_analysis(
+        _make_news(
+            title="Expired outside window",
+            url="https://example.com/outside-window",
+            days_ago=4,
+        ),
+        summary="Too old for the live feed.",
+    )
+
+    result = news_orchestrator._finalize_news_feed([retained_news, expired_news])
+
+    assert [item.url for item in result] == [
+        "https://example.com/within-window",
+    ]
+
+
+def test_finalize_news_feed_drops_articles_fetched_outside_retention_window() -> None:
+    current_time = datetime(2026, 4, 21, tzinfo=UTC)
+    retained_news = _with_analysis(
+        _make_news(
+            title="Freshly fetched",
+            url="https://example.com/fresh-fetch",
+            days_ago=1,
+        ),
+        summary="Kept because both windows are inside the threshold.",
+        metadata=NewsMetadata(
+            provider="test",
+            fetched_at=(current_time - timedelta(days=2)).isoformat(),
+            published_at=(current_time - timedelta(days=1)).isoformat(),
+        ),
+    )
+    expired_news = _with_analysis(
+        _make_news(
+            title="Stale fetch",
+            url="https://example.com/stale-fetch",
+            days_ago=1,
+        ),
+        summary="Dropped because fetched time is too old.",
+        metadata=NewsMetadata(
+            provider="test",
+            fetched_at=(current_time - timedelta(days=4)).isoformat(),
+            published_at=(current_time - timedelta(days=1)).isoformat(),
+        ),
+    )
+
+    result = [
+        item
+        for item in [retained_news, expired_news]
+        if news_orchestrator._is_news_item_within_retention(
+            item,
+            now=current_time,
+        )
+    ]
+
+    assert [item.url for item in result] == [
+        "https://example.com/fresh-fetch",
     ]
 
 

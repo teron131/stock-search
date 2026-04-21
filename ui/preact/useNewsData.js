@@ -26,6 +26,7 @@ const RELEVANCE_SCORES = {
 	medium: 1,
 	low: 0,
 };
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
@@ -62,6 +63,11 @@ async function postJsonWithTimeout(url, payload, timeoutMs) {
 	} finally {
 		clearTimeout(timeoutId);
 	}
+}
+
+function parseTimestamp(value) {
+	const timestamp = Date.parse(value || "");
+	return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function normalizeDomain(rawDomain) {
@@ -107,12 +113,49 @@ function getPublishedTimestamp(article) {
 		article?.metadata?.published_at ||
 		article?.date ||
 		article?.metadata?.fetched_at;
-	if (!publishedAt) {
-		return 0;
+	return parseTimestamp(publishedAt);
+}
+
+function getFetchedTimestamp(article) {
+	return parseTimestamp(article?.metadata?.fetched_at);
+}
+
+function isExpiredTimestamp(timestamp, maxAgeMs, now) {
+	return timestamp > 0 && now - timestamp > maxAgeMs;
+}
+
+function isRetainedNewsItem(article) {
+	const now = Date.now();
+	const fetchedTimestamp = getFetchedTimestamp(article);
+	const publishedTimestamp = getPublishedTimestamp(article);
+	const daysAgo = Number(article?.days_ago);
+	const hasDaysAgo = Number.isFinite(daysAgo);
+
+	if (
+		isExpiredTimestamp(fetchedTimestamp, CONFIG.newsFetchedRetentionMs, now)
+	) {
+		return false;
 	}
 
-	const timestamp = Date.parse(publishedAt);
-	return Number.isFinite(timestamp) ? timestamp : 0;
+	if (
+		isExpiredTimestamp(publishedTimestamp, CONFIG.newsPublishedRetentionMs, now)
+	) {
+		return false;
+	}
+
+	if (
+		publishedTimestamp === 0 &&
+		hasDaysAgo &&
+		daysAgo * DAY_IN_MS > CONFIG.newsPublishedRetentionMs
+	) {
+		return false;
+	}
+
+	return fetchedTimestamp > 0 || publishedTimestamp > 0 || hasDaysAgo;
+}
+
+function pruneRetainedNewsItems(items) {
+	return (Array.isArray(items) ? items : []).filter(isRetainedNewsItem);
 }
 
 function sortNewsItems(items) {
@@ -266,7 +309,9 @@ function readTickerNewsCache(ticker) {
 		return {
 			ticker,
 			fetchedAt,
-			items: normalizeTickerNewsPayload(parsedValue.items, ticker),
+			items: pruneRetainedNewsItems(
+				normalizeTickerNewsPayload(parsedValue.items, ticker),
+			),
 		};
 	} catch {
 		return null;
@@ -279,11 +324,12 @@ function writeTickerNewsCache(ticker, items, fetchedAt) {
 	}
 
 	try {
+		const retainedItems = pruneRetainedNewsItems(items);
 		window.localStorage.setItem(
 			getNewsCacheKey(ticker),
 			JSON.stringify({
 				fetched_at: fetchedAt,
-				items,
+				items: retainedItems,
 			}),
 		);
 	} catch {
@@ -519,7 +565,9 @@ export function useNewsData({
 							CONFIG.endpoints.stockNews(ticker),
 							CONFIG.requestTimeoutMs.news,
 						);
-						const items = normalizeTickerNewsPayload(payload, ticker);
+						const items = pruneRetainedNewsItems(
+							normalizeTickerNewsPayload(payload, ticker),
+						);
 						writeTickerNewsCache(ticker, items, fetchedAt);
 						return { ticker, ok: true, items, fetchedAt };
 					} catch (error) {

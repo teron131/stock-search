@@ -51,6 +51,8 @@ MAX_ANALYSIS_WORKERS = 10
 MAX_PORTFOLIO_SUMMARY_TICKERS = 5
 MAX_PORTFOLIO_SUMMARY_ITEMS = 3
 MAX_PORTFOLIO_SUMMARY_ARTICLES = 18
+MAX_NEWS_FETCH_RETENTION_DAYS = 3
+MAX_NEWS_PUBLISHED_RETENTION_DAYS = 3
 THIN_COVERAGE_HEADLINE = "Coverage remains thin"
 THIN_COVERAGE_PARAGRAPH = "Current feed does not surface a clear ticker-specific development yet."
 SUMMARY_HEADLINE_BLACKLIST = {
@@ -219,6 +221,57 @@ def _is_english_news_item(news: NewsArticle) -> bool:
     return (non_ascii_latin_letters / letter_count) <= MAX_NON_ASCII_LATIN_RATIO
 
 
+def _normalize_news_metadata(metadata: object) -> dict[str, str]:
+    """Return news metadata as a plain string-keyed mapping."""
+    if isinstance(metadata, dict):
+        return {str(key): value for key, value in metadata.items() if isinstance(key, str) and isinstance(value, str)}
+    if metadata is None:
+        return {}
+
+    dumped_metadata = metadata.model_dump(exclude_none=True)
+    return {str(key): value for key, value in dumped_metadata.items() if isinstance(key, str) and isinstance(value, str)}
+
+
+def _parse_retention_datetime(value: str | None) -> datetime | None:
+    """Parse one retention timestamp and normalize it to UTC."""
+    if not value:
+        return None
+
+    try:
+        parsed_dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+    if parsed_dt.tzinfo is None:
+        return parsed_dt.replace(tzinfo=UTC)
+    return parsed_dt
+
+
+def _is_news_item_within_retention(news: NewsArticle, *, now: datetime | None = None) -> bool:
+    """Return True when the article is inside fetched/published retention windows."""
+    current_time = now or datetime.now(tz=UTC)
+    max_fetch_age = timedelta(days=MAX_NEWS_FETCH_RETENTION_DAYS)
+    max_published_age = timedelta(days=MAX_NEWS_PUBLISHED_RETENTION_DAYS)
+    metadata = _normalize_news_metadata(news.metadata)
+
+    fetched_dt = _parse_retention_datetime(metadata.get("fetched_at"))
+    if fetched_dt is not None and current_time - fetched_dt > max_fetch_age:
+        return False
+
+    if news.days_ago is not None:
+        return news.days_ago <= MAX_NEWS_PUBLISHED_RETENTION_DAYS
+
+    published_dt = _parse_retention_datetime(metadata.get("published_at"))
+    if published_dt is not None:
+        return current_time - published_dt <= max_published_age
+
+    published_date_dt = _parse_retention_datetime(news.date)
+    if published_date_dt is not None:
+        return current_time - published_date_dt <= max_published_age
+
+    return fetched_dt is not None
+
+
 def _split_cached_analysis(
     news_list: list[NewsArticle],
 ) -> tuple[list[NewsAnalysis], int, list[tuple[int, str, NewsArticle]]]:
@@ -323,7 +376,11 @@ async def _fetch_provider_batch(
 
 def _finalize_news_feed(news_list: list[NewsArticle]) -> list[NewsArticle]:
     """Apply final feed filtering and stable ranking."""
-    filtered_news_list = [news for news in news_list if not news.summary.startswith(FALLBACK_SUMMARIES) and news.relevancy != "low" and _is_english_news_item(news)]
+    filtered_news_list = [
+        news
+        for news in news_list
+        if not news.summary.startswith(FALLBACK_SUMMARIES) and news.relevancy != "low" and _is_english_news_item(news) and _is_news_item_within_retention(news)
+    ]
     return sorted(
         filtered_news_list,
         key=lambda item: (

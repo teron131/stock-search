@@ -2,6 +2,126 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 type GenericRow = Record<string, unknown>;
+type StoredNewsRow = {
+	key: string;
+	ticker: string;
+	row: GenericRow;
+	updatedAt: number;
+};
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const NEWS_FETCH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+const NEWS_PUBLISHED_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+const NEWS_ARRAY_KEYS = ["items", "articles", "news"] as const;
+
+function isRecord(value: unknown): value is GenericRow {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseNewsTimestamp(value: unknown): number | null {
+	if (typeof value !== "string" || !value.trim()) {
+		return null;
+	}
+
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isExpiredTimestamp(
+	timestamp: number | null,
+	maxAgeMs: number,
+	now: number,
+): boolean {
+	return timestamp != null && now - timestamp > maxAgeMs;
+}
+
+function isRetainedNewsItem(value: unknown, now: number): boolean {
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	const metadata = isRecord(value.metadata) ? value.metadata : null;
+	const fetchedTimestamp =
+		parseNewsTimestamp(metadata?.fetched_at) ??
+		parseNewsTimestamp(value.fetched_at);
+	const publishedTimestamp =
+		parseNewsTimestamp(metadata?.published_at) ??
+		parseNewsTimestamp(value.published_at) ??
+		parseNewsTimestamp(value.date);
+	const daysAgo = Number(value.days_ago);
+	const hasDaysAgo = Number.isFinite(daysAgo);
+
+	if (isExpiredTimestamp(fetchedTimestamp, NEWS_FETCH_RETENTION_MS, now)) {
+		return false;
+	}
+
+	if (
+		isExpiredTimestamp(
+			publishedTimestamp,
+			NEWS_PUBLISHED_RETENTION_MS,
+			now,
+		)
+	) {
+		return false;
+	}
+
+	if (
+		publishedTimestamp == null &&
+		hasDaysAgo &&
+		daysAgo * DAY_IN_MS > NEWS_PUBLISHED_RETENTION_MS
+	) {
+		return false;
+	}
+
+	return fetchedTimestamp != null || publishedTimestamp != null || hasDaysAgo;
+}
+
+function pruneArrayItems(values: unknown[], now: number): unknown[] {
+	return values
+		.map((item) => pruneNewsPayload(item, now))
+		.filter((item) => item != null);
+}
+
+function pruneNewsPayload(value: unknown, now: number): unknown | null {
+	if (Array.isArray(value)) {
+		return pruneArrayItems(value, now);
+	}
+	if (!isRecord(value)) {
+		return value;
+	}
+
+	const looksLikeArticle =
+		"url" in value ||
+		"title" in value ||
+		"summary" in value ||
+		"days_ago" in value ||
+		"published_at" in value ||
+		"metadata" in value;
+	if (looksLikeArticle) {
+		return isRetainedNewsItem(value, now) ? value : null;
+	}
+
+	const nextValue: GenericRow = { ...value };
+	let prunedArrayCount = 0;
+	let nonEmptyArrayCount = 0;
+
+	for (const key of NEWS_ARRAY_KEYS) {
+		if (!Array.isArray(nextValue[key])) {
+			continue;
+		}
+		prunedArrayCount += 1;
+		const prunedItems = pruneArrayItems(nextValue[key], now);
+		nextValue[key] = prunedItems;
+		if (prunedItems.length > 0) {
+			nonEmptyArrayCount += 1;
+		}
+	}
+
+	if (prunedArrayCount > 0 && nonEmptyArrayCount === 0) {
+		return null;
+	}
+
+	return nextValue;
+}
 
 function normalizeNewsEntries(rows: unknown, key: string): Array<{
 	ticker: string;
@@ -40,20 +160,25 @@ export const list = query({
 	args: { key: v.string() },
 	handler: async (ctx, args) => {
 		const key = args.key.trim() || "default";
+		const now = Date.now();
 		const rows = await ctx.db
 			.query("news")
 			.withIndex("by_key", (q) => q.eq("key", key))
 			.collect();
 		return rows
-			.map((row) => ({
-				key: row.key,
-				ticker: row.ticker,
-				row:
-					typeof row.row === "object" && row.row !== null
-						? (row.row as GenericRow)
-						: {},
-				updatedAt: row.updatedAt,
-			}))
+			.map((row) => {
+				const prunedRow = pruneNewsPayload(row.row, now);
+				if (!isRecord(prunedRow)) {
+					return null;
+				}
+				return {
+					key: row.key,
+					ticker: row.ticker,
+					row: prunedRow,
+					updatedAt: row.updatedAt,
+				};
+			})
+			.filter((row): row is StoredNewsRow => row !== null)
 			.sort((a, b) => a.ticker.localeCompare(b.ticker));
 	},
 });
@@ -72,12 +197,16 @@ export const replaceAll = mutation({
 		const nextTickers = new Set<string>();
 
 		for (const entry of normalizedEntries) {
+			const prunedRow = pruneNewsPayload(entry.row, now);
+			if (!isRecord(prunedRow)) {
+				continue;
+			}
 			nextTickers.add(entry.ticker);
 			const existingRow = existingByTicker.get(entry.ticker);
 			if (existingRow) {
-				if (JSON.stringify(existingRow.row) !== JSON.stringify(entry.row)) {
+				if (JSON.stringify(existingRow.row) !== JSON.stringify(prunedRow)) {
 					await ctx.db.patch(existingRow._id, {
-						row: entry.row,
+						row: prunedRow,
 						updatedAt: now,
 					});
 				}
@@ -87,7 +216,7 @@ export const replaceAll = mutation({
 			await ctx.db.insert("news", {
 				key,
 				ticker: entry.ticker,
-				row: entry.row,
+				row: prunedRow,
 				updatedAt: now,
 			});
 		}

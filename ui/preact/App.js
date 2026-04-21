@@ -268,7 +268,6 @@ function renderNewsScreen(newsData) {
 }
 
 function renderDashboardScreen({
-	stats,
 	tab,
 	rows,
 	sortCol,
