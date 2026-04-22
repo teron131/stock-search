@@ -1,6 +1,7 @@
 /** Shared news provider parsing helpers. */
 
 export const DAY_IN_MS = 24 * 60 * 60 * 1000;
+export const NEWS_PROVIDER_MAX_RESULTS = 10;
 const DEFAULT_USER_AGENT = "Mozilla/5.0";
 
 type JsonResponseLike = {

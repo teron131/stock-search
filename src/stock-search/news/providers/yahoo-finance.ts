@@ -7,12 +7,14 @@ import {
 	daysAgo,
 	fetchJson,
 	formatDate,
+	NEWS_PROVIDER_MAX_RESULTS,
 	normalizeDomain,
 	parseDate,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
-export const YFINANCE_MAX_RESULTS = 25;
+const YFINANCE_PROVIDER_MAX_RESULTS = 25;
+export const YFINANCE_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
 export async function getNewsYahooFinance({
 	ticker,
@@ -21,7 +23,11 @@ export async function getNewsYahooFinance({
 	ticker: string;
 	maxResults?: number;
 }): Promise<NewsArticle[]> {
-	const boundedMaxResults = Math.min(maxResults, YFINANCE_MAX_RESULTS);
+	const boundedMaxResults = Math.min(
+		maxResults,
+		YFINANCE_MAX_RESULTS,
+		YFINANCE_PROVIDER_MAX_RESULTS,
+	);
 	const url = new URL("https://query1.finance.yahoo.com/v1/finance/search");
 	url.searchParams.set("q", ticker);
 	url.searchParams.set("quotesCount", "0");

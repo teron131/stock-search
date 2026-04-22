@@ -10,13 +10,15 @@ import {
 	fetchJson,
 	formatDate,
 	normalizeDomain,
+	NEWS_PROVIDER_MAX_RESULTS,
 	parseDateString,
 	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
-export const EXA_MAX_RESULTS = 25;
+const EXA_PROVIDER_MAX_RESULTS = 25;
+export const EXA_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 export const EXA_MAX_RESULTS_PER_CALL = EXA_MAX_RESULTS;
 
 export async function getNewsExaAsync({
@@ -36,7 +38,11 @@ export async function getNewsExaAsync({
 		}) => Promise<{ json(): Promise<unknown> | unknown; ok?: boolean; raise_for_status?: () => void }>;
 	};
 }): Promise<NewsArticle[]> {
-	const boundedMaxResults = Math.min(maxResults, EXA_MAX_RESULTS_PER_CALL);
+	const boundedMaxResults = Math.min(
+		maxResults,
+		EXA_MAX_RESULTS_PER_CALL,
+		EXA_PROVIDER_MAX_RESULTS,
+	);
 	const payloadBody = {
 		query,
 		category: "news",

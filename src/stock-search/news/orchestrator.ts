@@ -33,6 +33,8 @@ const MAX_PORTFOLIO_SUMMARY_TICKERS = 5;
 const MAX_PORTFOLIO_SUMMARY_ITEMS = 3;
 const MAX_PORTFOLIO_SUMMARY_ARTICLES = 18;
 const MAX_PORTFOLIO_SUMMARY_MACRO_ITEMS = 2;
+const MAX_PROVIDER_SUMMARY_CHARS = 1_200;
+const MIN_PROVIDER_SUMMARY_CHARS = 140;
 const MAX_NEWS_FETCH_RETENTION_DAYS = 3;
 const MAX_NEWS_PUBLISHED_RETENTION_DAYS = 3;
 const THIN_COVERAGE_HEADLINE = "Coverage remains thin";
@@ -398,6 +400,48 @@ function _splitCachedAnalysis(
 	};
 }
 
+function _normalizeAnalysisText(text: string): string {
+	return text.trim().replace(/\s+/g, " ");
+}
+
+function _trimAnalysisText(text: string, maxChars: number): string {
+	if (text.length <= maxChars) {
+		return text;
+	}
+	return `${text.slice(0, maxChars).trimEnd()}...`;
+}
+
+function _providerSummaryContent(news: NewsArticle): string | null {
+	const summary = _normalizeAnalysisText(news.summary ?? "");
+	if (
+		!summary ||
+		FALLBACK_SUMMARIES.some((prefix) => summary.startsWith(prefix))
+	) {
+		return null;
+	}
+	return _trimAnalysisText(summary, MAX_PROVIDER_SUMMARY_CHARS);
+}
+
+function _directProviderAnalysis(news: NewsArticle): NewsAnalysis | null {
+	const summary = _providerSummaryContent(news);
+	if (!summary) {
+		return null;
+	}
+	if (
+		news.relevancy === "low" &&
+		news.category === "other" &&
+		news.sentiment === "neutral"
+	) {
+		return null;
+	}
+	return newsAnalysisSchema.parse({
+		summary,
+		relevancy: news.relevancy,
+		category: news.category,
+		sentiment: news.sentiment,
+	});
+}
+
 async function _buildAnalysisBatch(
 	ticker: string,
 	uncachedItems: ProviderBatchItem[],
@@ -405,14 +449,36 @@ async function _buildAnalysisBatch(
 	readableItems: ReadableAnalysisItem[];
 	prompts: string[];
 }> {
-	const contentList = await newsPipelineDeps.webloader(
-		uncachedItems.map((item) => item.news.url),
-	);
+	const summaryContentByIndex = new Map<number, string>();
+	const webContentItems: ProviderBatchItem[] = [];
+	for (const item of uncachedItems) {
+		const summaryContent = _providerSummaryContent(item.news);
+		if (summaryContent && summaryContent.length >= MIN_PROVIDER_SUMMARY_CHARS) {
+			summaryContentByIndex.set(item.index, summaryContent);
+			continue;
+		}
+		webContentItems.push(item);
+	}
+
+	const webContentByIndex = new Map<number, string>();
+	if (webContentItems.length > 0) {
+		const contentList = await newsPipelineDeps.webloader(
+			webContentItems.map((item) => item.news.url),
+		);
+		webContentItems.forEach((item, index) => {
+			const content = contentList[index];
+			if (typeof content === "string" && content.trim()) {
+				webContentByIndex.set(item.index, content);
+			}
+		});
+	}
 
 	const readableItems = uncachedItems
-		.map((item, index) => ({
+		.map((item) => ({
 			...item,
-			content: contentList[index],
+			content:
+				summaryContentByIndex.get(item.index) ??
+				webContentByIndex.get(item.index),
 		}))
 		.filter(
 			(item): item is ReadableAnalysisItem =>
@@ -587,6 +653,20 @@ export async function _analyzeNews(
 		return results;
 	}
 
+	const pendingItems: ProviderBatchItem[] = [];
+	for (const item of uncachedItems) {
+		const directAnalysis = _directProviderAnalysis(item.news);
+		if (!directAnalysis) {
+			pendingItems.push(item);
+			continue;
+		}
+		results[item.index] = directAnalysis;
+		ANALYSIS_CACHE.set(item.cacheKey, directAnalysis);
+	}
+	if (pendingItems.length === 0) {
+		return results;
+	}
+
 	const model = newsPipelineDeps
 		.chatOpenAI({
 			model: FAST_LLM ?? "",
@@ -596,7 +676,7 @@ export async function _analyzeNews(
 		.withStructuredOutput(newsAnalysisSchema);
 	const { readableItems, prompts } = await _buildAnalysisBatch(
 		ticker,
-		uncachedItems,
+		pendingItems,
 	);
 	if (readableItems.length === 0) {
 		return results;
@@ -1052,6 +1132,12 @@ export async function getNewsAsync(
 	if (!ticker) {
 		return [];
 	}
+	const boundedMaxResults = Number.isFinite(maxResults)
+		? Math.max(0, Math.floor(maxResults))
+		: 10;
+	if (boundedMaxResults === 0) {
+		return [];
+	}
 
 	const client = createHttpClient();
 	const primaryProviderSpecs: readonly ProviderSpec[] = [
@@ -1060,6 +1146,7 @@ export async function getNewsAsync(
 			() =>
 				newsProviders.getNewsNewsDataAsync({
 					query: ticker,
+					maxResults: boundedMaxResults,
 					client,
 				}),
 		],
@@ -1069,7 +1156,7 @@ export async function getNewsAsync(
 				newsProviders.getNewsMassiveAsync({
 					ticker,
 					nDays,
-					maxResults,
+					maxResults: boundedMaxResults,
 					client,
 				}),
 		],
@@ -1079,7 +1166,7 @@ export async function getNewsAsync(
 				newsProviders.getNewsNewsApiAsync({
 					query: ticker,
 					nDays,
-					maxResults,
+					maxResults: boundedMaxResults,
 					client,
 				}),
 		],
@@ -1088,30 +1175,36 @@ export async function getNewsAsync(
 			() =>
 				newsProviders.getNewsYahooFinance({
 					ticker,
-					maxResults,
+					maxResults: boundedMaxResults,
 				}),
 		],
 	];
 
 	const primaryBatch = await _fetchProviderBatch(ticker, primaryProviderSpecs);
-	let rawNewsList = _dedupeNews(primaryBatch.rawNewsList);
+	let rawNewsList = _dedupeNews(primaryBatch.rawNewsList).slice(
+		0,
+		boundedMaxResults,
+	);
 	const providerCounts = { ...primaryBatch.providerCounts };
 
-	if (rawNewsList.length < maxResults) {
+	if (rawNewsList.length < boundedMaxResults) {
 		const exaBatch = await _fetchProviderBatch(ticker, [
 			[
 				"exa",
 				() =>
-					newsProviders.getNewsExaAsync({
+				newsProviders.getNewsExaAsync({
 						query: ticker,
 						nDays,
-						maxResults,
+						maxResults: boundedMaxResults,
 						client,
 					}),
 			],
 		]);
 		Object.assign(providerCounts, exaBatch.providerCounts);
-		rawNewsList = _dedupeNews([...rawNewsList, ...exaBatch.rawNewsList]);
+		rawNewsList = _dedupeNews([
+			...rawNewsList,
+			...exaBatch.rawNewsList,
+		]).slice(0, boundedMaxResults);
 	} else {
 		providerCounts.exa = 0;
 	}
@@ -1131,7 +1224,10 @@ export async function getNewsAsync(
 		}),
 	);
 
-	return _finalizeNewsFeed(_balanceDomains(newsList));
+	return _finalizeNewsFeed(_balanceDomains(newsList)).slice(
+		0,
+		boundedMaxResults,
+	);
 }
 
 export function getNews(

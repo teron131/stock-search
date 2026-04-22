@@ -11,13 +11,15 @@ import {
 	fetchJson,
 	formatDate,
 	normalizeDomain,
+	NEWS_PROVIDER_MAX_RESULTS,
 	parseDateString,
 	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
-export const NEWSAPI_MAX_RESULTS = 100;
+const NEWSAPI_PROVIDER_MAX_RESULTS = 100;
+export const NEWSAPI_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
 export async function getNewsNewsApiAsync({
 	query,
@@ -36,7 +38,11 @@ export async function getNewsNewsApiAsync({
 	};
 }): Promise<NewsArticle[]> {
 	const now = new Date();
-	const boundedMaxResults = Math.min(maxResults, NEWSAPI_MAX_RESULTS);
+	const boundedMaxResults = Math.min(
+		maxResults,
+		NEWSAPI_MAX_RESULTS,
+		NEWSAPI_PROVIDER_MAX_RESULTS,
+	);
 	const fromDate = new Date(now.getTime() - nDays * DAY_IN_MS)
 		.toISOString()
 		.slice(0, 10);

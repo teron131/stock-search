@@ -10,6 +10,7 @@ import {
 	fetchJson,
 	formatDate,
 	normalizeDomain,
+	NEWS_PROVIDER_MAX_RESULTS,
 	parseDate,
 	readJsonResponse,
 	DAY_IN_MS,
@@ -22,7 +23,8 @@ const SENTIMENT_MAP: Record<string, NewsArticle["sentiment"]> = {
 	negative: "bearish",
 };
 
-export const MASSIVE_MAX_RESULTS = 1000;
+const MASSIVE_PROVIDER_MAX_RESULTS = 1000;
+export const MASSIVE_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
 export async function getNewsMassiveAsync({
 	ticker,
@@ -40,7 +42,11 @@ export async function getNewsMassiveAsync({
 		}) => Promise<{ json(): Promise<unknown> | unknown; raise_for_status?: () => void }>;
 	};
 }): Promise<NewsArticle[]> {
-	const boundedMaxResults = Math.min(maxResults, MASSIVE_MAX_RESULTS);
+	const boundedMaxResults = Math.min(
+		maxResults,
+		MASSIVE_MAX_RESULTS,
+		MASSIVE_PROVIDER_MAX_RESULTS,
+	);
 	const params = {
 		apiKey: process.env.MASSIVE_API_KEY ?? "",
 		ticker,

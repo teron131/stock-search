@@ -11,17 +11,22 @@ import {
 	daysAgo,
 	fetchJson,
 	formatDate,
+	NEWS_PROVIDER_MAX_RESULTS,
 	normalizeDomain,
 	parseDateString,
 	readJsonResponse,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
+export const NEWSDATA_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
+
 export async function getNewsNewsDataAsync({
 	query,
+	maxResults = NEWSDATA_MAX_RESULTS,
 	client,
 }: {
 	query: string;
+	maxResults?: number;
 	client?: {
 		get: (input: {
 			url: string;
@@ -30,6 +35,7 @@ export async function getNewsNewsDataAsync({
 	};
 }): Promise<NewsArticle[]> {
 	const url = new URL("https://newsdata.io/api/1/latest");
+	const boundedMaxResults = Math.min(maxResults, NEWSDATA_MAX_RESULTS);
 	const params = {
 		apikey: process.env.NEWSDATA_API_KEY ?? "",
 		q: query,
@@ -55,6 +61,7 @@ export async function getNewsNewsDataAsync({
 	const fetchedAt = new Date().toISOString();
 	return (payload?.results ?? [])
 		.filter((row) => typeof row?.link === "string")
+		.slice(0, boundedMaxResults)
 		.map((row) => {
 			const publishedAt = parseDateString(String(row.pubDate ?? ""));
 			const rawUrl = String(row.link);
