@@ -147,11 +147,6 @@ Current Convex function namespaces are intentionally singular to match the one-p
 
 - Local fallback and non-Convex mode now use `data/stock_search.db`.
 
-## Legacy Python
-
-- The Python backend has been retired.
-- The remaining Python surface is the correlation tooling in `stock_search/correlation.py`, which is kept because there is no TypeScript counterpart yet.
-
 ## FastMCP
 
 A FastMCP server is available for the TypeScript backend. It exposes the same app surface as MCP tools without duplicating business logic.
