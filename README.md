@@ -6,6 +6,21 @@ The GitHub Pages demo is bundled from `ui/public/demo/` and uses a seeded random
 
 A single-user stock analysis app that prioritizes free data, resilient fallbacks, and simple storage.
 
+## Runtime
+
+Run the full app with:
+
+```bash
+npm ci
+npm run dev
+```
+
+Run the backend only with:
+
+```bash
+npm run server:start
+```
+
 ## Core Methodology
 
 - **Separation of concerns**: Portfolio management, ticker-level stat resolution, and evaluation logic are isolated so each layer can evolve independently.
@@ -135,12 +150,12 @@ Current Convex function namespaces are intentionally singular to match the one-p
 
 ## FastMCP
 
-A minimal FastMCP proxy server is available for the existing FastAPI backend. It converts the main backend endpoints into MCP tools without duplicating business logic.
+A FastMCP server is available for the TypeScript backend. It exposes the same app surface as MCP tools without duplicating business logic.
 
 Run it with:
 
 ```bash
-uv run python -m stock_search.mcp
+npm run mcp:start
 ```
 
 The MCP server currently exposes tools for:
@@ -157,10 +172,10 @@ The same MCP-backed tool set is also available as a local CLI.
 Run it with:
 
 ```bash
-uv run stock-search list-tools
-uv run stock-search get-portfolio --scope priority
-uv run stock-search get-stock-stats NVDA --source cache
-uv run stock-search evaluate-stock NVDA
+npm run cli -- list-tools
+npm run cli -- get-portfolio --scope priority
+npm run cli -- get-stock-stats NVDA --source cache
+npm run cli -- evaluate-stock NVDA
 ```
 
 The CLI discovers the MCP tools at runtime and maps them to kebab-case subcommands, so it stays aligned with the MCP surface.

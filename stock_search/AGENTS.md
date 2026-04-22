@@ -4,19 +4,22 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 
 ## Scope
 
+- Python source-parity reference modules for the TypeScript runtime.
 - Package-level orchestration across API, portfolio assembly, indicators, and providers.
 - Data flow between Convex cloud tables and the local SQLite store.
 - How to change modules safely without breaking UI/API contracts.
 
 ## High-signal locations
 
-- `stock_search/api/app.py` -> FastAPI entrypoint/bootstrap and router registration.
+- `src/stock-search/api/app.ts` -> canonical TypeScript app backend entrypoint.
+- `src/node.ts` -> local TypeScript server entrypoint.
+- `stock_search/api/app.py` -> Python reference implementation kept for parity checks.
 - `stock_search/api/data_store.py` -> unified storage boundary (`convex|sqlite`) for positions/stats/evals.
 - `stock_search/models/convex/client.py` -> Convex HTTP transport wrapper.
 - `stock_search/api/routes/portfolio.py` -> portfolio scope route behavior and portfolio write APIs.
 - `stock_search/api/routes/standalone_ticker.py` -> ticker-standalone route handlers.
 - `stock_search/api/ticker_standalone.py` -> standalone ticker fallback resolver.
-- `stock_search/mcp/server.py` -> FastMCP proxy surface generated from the existing FastAPI app.
+- `stock_search/mcp/server.py` -> Python reference MCP surface generated from the former FastAPI app.
 - `stock_search/portfolio.py` -> portfolio payload orchestration and row assembly.
 - `stock_search/indicators.py` -> source precedence wrapper (`StockIndicator`).
 - `stock_search/data_sources/yahoofinance.py` -> Yahoo provider adapter.
@@ -70,7 +73,7 @@ This guide is for changes inside `stock_search/` and maps how modules connect.
 ## Validation commands
 
 - Server smoke run:
-  - `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
+  - `npm run server:start`
 - Formatter/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`
 

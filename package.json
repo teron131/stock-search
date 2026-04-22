@@ -2,18 +2,46 @@
 	"name": "stock-search-convex",
 	"private": true,
 	"version": "0.0.0",
+	"type": "module",
 	"scripts": {
 		"dev": "bash ./start.sh",
+		"prepare:vercel-public": "node ./scripts/prepare-vercel-public.mjs",
+		"server:dev": "tsx watch src/node.ts",
+		"server:start": "tsx src/node.ts",
+		"mcp:start": "tsx src/stock-search/mcp/main.ts",
+		"cli": "tsx src/stock-search/cli.ts",
+		"server:typecheck": "tsc --noEmit",
+		"server:test": "vitest run --root . server/test",
 		"ui:dev": "vite",
 		"ui:build": "vite build",
-		"ui:preview": "vite preview --host localhost"
+		"ui:preview": "vite preview --host localhost",
+		"build": "npm run ui:build && npm run server:typecheck"
 	},
 	"dependencies": {
+		"@google/genai": "^1.50.1",
+		"@hono/node-server": "^1.19.6",
+		"@langchain/google-genai": "^2.1.27",
+		"@langchain/langgraph": "^1.2.9",
+		"@langchain/openai": "^1.4.3",
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@types/turndown": "^5.0.6",
+		"dotenv": "^17.2.3",
+		"exa-js": "^2.11.0",
+		"fastmcp": "^4.0.0",
+		"hono": "^4.10.1",
 		"htm": "^3.1.1",
-		"preact": "^10.29.1"
+		"langchain": "^1.3.3",
+		"opencc-js": "^1.0.5",
+		"preact": "^10.29.1",
+		"turndown": "^7.2.4",
+		"zod": "^4.1.12"
 	},
 	"devDependencies": {
+		"@types/node": "^24.9.1",
 		"convex": "^1.32.0",
-		"vite": "^8.0.8"
+		"tsx": "^4.20.6",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.8",
+		"vitest": "^4.0.7"
 	}
 }

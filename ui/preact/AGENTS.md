@@ -41,6 +41,6 @@ Primary files:
 ## Validation
 
 - Manual run through API:
-  - `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
+  - `npm run server:start`
 - Format/lint:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`

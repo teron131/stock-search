@@ -5,8 +5,8 @@ This file guides agentic coding assistants working in this repo.
 ## Repo Snapshot
 
 - **Package Manager**: `uv` (required for all operations).
-- **App**: FastAPI server in `stock_search/api/app.py`.
-- **UI**: Static files in `ui/` served by FastAPI.
+- **App**: TypeScript backend in `src/stock-search/api/app.ts`, served locally via `src/node.ts`.
+- **UI**: Vite frontend in `ui/`, served by the TypeScript backend in production/dev-app mode.
 - **Data**: JSON-based flat-file storage in `data/`.
 
 ---
@@ -141,7 +141,7 @@ This ensures the dashboard always shows the freshest data available, while remai
 
 ### Run API + UI
 
-- `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
+- `npm run dev`
 
 ### Tests / Scripts
 

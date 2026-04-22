@@ -70,15 +70,15 @@ npm run ui:build >/dev/null
 if is_port_open "${BACKEND_HOST}" "${BACKEND_PORT}"; then
 	if http_is_healthy "http://${BACKEND_HOST}:${BACKEND_PORT}/"; then
 		echo "Backend already running on http://${BACKEND_HOST}:${BACKEND_PORT}"
-	elif kill_listener_if_matches "${BACKEND_PORT}" "uvicorn stock_search.api:app"; then
-		uv run python -m uvicorn stock_search.api:app --reload --host "${BACKEND_HOST}" --port "${BACKEND_PORT}" &
+	elif kill_listener_if_matches "${BACKEND_PORT}" "tsx watch src/node.ts"; then
+		PORT="${BACKEND_PORT}" npm run server:dev &
 		backend_pid=$!
 	else
 		echo "Port ${BACKEND_PORT} is in use by another process and the backend is not healthy."
 		echo "Run with BACKEND_PORT=<port> npm run dev to use a different backend port."
 	fi
 else
-	uv run python -m uvicorn stock_search.api:app --reload --host "${BACKEND_HOST}" --port "${BACKEND_PORT}" &
+	PORT="${BACKEND_PORT}" npm run server:dev &
 	backend_pid=$!
 fi
 

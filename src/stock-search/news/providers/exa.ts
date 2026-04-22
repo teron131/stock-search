@@ -1,0 +1,104 @@
+/** Exa
+Playground: https://dashboard.exa.ai/playground/search
+Documentation: https://docs.exa.ai/reference/search
+- $5 per 1000 results when max results is up to 25
+- Other LLM analysis costs apply, so disabled here
+*/
+
+import {
+	daysAgo,
+	formatDate,
+	normalizeDomain,
+	parseDateString,
+	DAY_IN_MS,
+} from "./shared.js";
+import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
+
+export const EXA_MAX_RESULTS = 25;
+export const EXA_MAX_RESULTS_PER_CALL = EXA_MAX_RESULTS;
+
+export async function getNewsExaAsync({
+	query,
+	nDays = 3,
+	maxResults = EXA_MAX_RESULTS,
+	client,
+}: {
+	query: string;
+	nDays?: number;
+	maxResults?: number;
+	client?: {
+		post: (input: {
+			url: string;
+			json: Record<string, unknown>;
+			headers: Record<string, string>;
+		}) => Promise<{ json(): Promise<unknown> | unknown; ok?: boolean; raise_for_status?: () => void }>;
+	};
+}): Promise<NewsArticle[]> {
+	const boundedMaxResults = Math.min(maxResults, EXA_MAX_RESULTS_PER_CALL);
+	const payloadBody = {
+		query,
+		category: "news",
+		num_results: boundedMaxResults,
+		start_published_date: new Date(Date.now() - nDays * DAY_IN_MS).toISOString(),
+		end_published_date: new Date().toISOString(),
+		type: "auto",
+		user_location: "US",
+	};
+	const headers = {
+		Authorization: `Bearer ${process.env.EXA_API_KEY ?? ""}`,
+		"Content-Type": "application/json",
+	};
+	const payload = client
+		? ((await client.post({
+				url: "https://api.exa.ai/search",
+				json: payloadBody,
+				headers,
+			}).then(async (response) => {
+				response.raise_for_status?.();
+				return response.json();
+			})) as
+				| {
+						results?: Array<Record<string, unknown>>;
+				  }
+				| null)
+		: ((await fetch("https://api.exa.ai/search", {
+				method: "POST",
+				headers: {
+					authorization: headers.Authorization,
+					"content-type": headers["Content-Type"],
+				},
+				body: JSON.stringify(payloadBody),
+			}).then(async (response) => {
+				if (!response.ok) {
+					throw new Error(`Exa HTTP ${response.status}`);
+				}
+				return response.json();
+			})) as
+		| {
+				results?: Array<Record<string, unknown>>;
+		  }
+		| null);
+	const fetchedAt = new Date().toISOString();
+	return (payload?.results ?? [])
+		.filter((row) => typeof row?.url === "string")
+		.map((row) => {
+			const publishedAt = parseDateString(String(row.publishedDate ?? ""));
+			const rawUrl = String(row.url);
+			return newsArticleSchema.parse({
+				url: rawUrl,
+				title: String(row.title ?? rawUrl),
+				date: formatDate(publishedAt),
+				days_ago: daysAgo(publishedAt),
+				summary: "[FAILED TO FETCH]",
+				relevancy: "low",
+				category: "other",
+				sentiment: "neutral",
+				metadata: {
+					provider: "exa",
+					source_domain: normalizeDomain(rawUrl),
+					published_at: publishedAt?.toISOString() ?? null,
+					fetched_at: fetchedAt,
+				},
+			});
+		});
+}

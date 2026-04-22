@@ -4,13 +4,14 @@ This guide is for changes inside `stock_search/api/`.
 
 ## Scope
 
-- FastAPI entrypoint, route contracts, and static mounts.
+- Python API reference implementation for the TypeScript backend migration.
 - API-layer orchestration only (no heavy market/eval logic in handlers).
 - Data-store orchestration via `stock_search/api/data_store.py` (Convex primary, SQLite local mode).
 
 ## High-signal locations
 
-- `stock_search/api/app.py` -> FastAPI app bootstrap, router registration, static mounts.
+- `src/stock-search/api/app.ts` -> canonical TypeScript app bootstrap, router registration, and static serving.
+- `stock_search/api/app.py` -> Python reference app bootstrap kept for parity checks.
 - `stock_search/api/data_store.py` -> backend-agnostic data access (`convex|sqlite`) for positions/stats/evals.
 - `stock_search/models/convex/client.py` -> Convex HTTP adapter (`query`, `mutation`, `action`).
 - `stock_search/api/routes/portfolio.py` -> portfolio list/read-write routes and scope policy.
@@ -71,6 +72,6 @@ This guide is for changes inside `stock_search/api/`.
 ## Validation commands
 
 - Run API locally:
-  - `uv run python -m uvicorn stock_search.api:app --reload --host localhost`
+  - `npm run server:start`
 - Formatting/lint hook:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`
