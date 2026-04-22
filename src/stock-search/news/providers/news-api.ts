@@ -12,6 +12,7 @@ import {
 	formatDate,
 	normalizeDomain,
 	parseDateString,
+	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
@@ -51,18 +52,15 @@ export async function getNewsNewsApiAsync({
 		pageSize: String(boundedMaxResults),
 	};
 	const payload = client
-		? ((await client.get({
-				url: url.toString(),
-				params,
-			}).then(async (response) => {
-				response.raise_for_status?.();
-				return response.json();
-			})) as { articles?: Array<Record<string, unknown>> } | null)
-		: ((await fetchJson(
+		? await readJsonResponse<{ articles?: Array<Record<string, unknown>> } | null>(
+				await client.get({
+					url: url.toString(),
+					params,
+				}),
+			)
+		: await fetchJson<{ articles?: Array<Record<string, unknown>> }>(
 				`${url.toString()}?${new URLSearchParams(params).toString()}`,
-			)) as
-		| { articles?: Array<Record<string, unknown>> }
-		| null);
+			);
 	const fetchedAt = new Date().toISOString();
 	return (payload?.articles ?? [])
 		.filter((row) => typeof row?.url === "string")

@@ -13,6 +13,7 @@ import {
 	formatDate,
 	normalizeDomain,
 	parseDateString,
+	readJsonResponse,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
@@ -42,18 +43,15 @@ export async function getNewsNewsDataAsync({
 	};
 
 	const payload = client
-		? ((await client.get({
-				url: url.toString(),
-				params,
-			}).then(async (response) => {
-				response.raise_for_status?.();
-				return response.json();
-			})) as { results?: Array<Record<string, unknown>> } | null)
-		: ((await fetchJson(
+		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
+				await client.get({
+					url: url.toString(),
+					params,
+				}),
+			)
+		: await fetchJson<{ results?: Array<Record<string, unknown>> }>(
 				`${url.toString()}?${new URLSearchParams(params).toString()}`,
-			)) as
-		| { results?: Array<Record<string, unknown>> }
-		| null);
+			);
 	const fetchedAt = new Date().toISOString();
 	return (payload?.results ?? [])
 		.filter((row) => typeof row?.link === "string")

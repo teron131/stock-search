@@ -3,7 +3,13 @@ Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Sear
 - Free
 */
 
-import { daysAgo, formatDate, normalizeDomain, parseDate } from "./shared.js";
+import {
+	daysAgo,
+	fetchJson,
+	formatDate,
+	normalizeDomain,
+	parseDate,
+} from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 export const YFINANCE_MAX_RESULTS = 25;
@@ -25,14 +31,9 @@ export async function getNewsYahooFinance({
 	url.searchParams.set("enableResearchReports", "false");
 	url.searchParams.set("enableCulturalAssets", "false");
 
-	const payload = (await fetch(url.toString())
-		.then(async (response) => {
-			if (!response.ok) {
-				return null;
-			}
-			return response.json();
-		})
-		.catch(() => null)) as { news?: Array<Record<string, unknown>> } | null;
+	const payload = await fetchJson<{ news?: Array<Record<string, unknown>> }>(
+		url.toString(),
+	);
 	if (!payload?.news?.length) {
 		return [];
 	}

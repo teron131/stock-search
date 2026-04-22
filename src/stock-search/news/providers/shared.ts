@@ -1,6 +1,14 @@
 /** Shared news provider parsing helpers. */
 
 export const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_USER_AGENT = "Mozilla/5.0";
+
+type JsonResponseLike = {
+	json(): Promise<unknown> | unknown;
+	ok?: boolean;
+	status?: number;
+	raise_for_status?: () => void;
+};
 
 export function normalizeDomain(rawUrl: string): string | null {
 	try {
@@ -40,17 +48,37 @@ export function daysAgo(date: Date | null): number | null {
 	return Math.max(0, Math.floor((Date.now() - date.getTime()) / DAY_IN_MS));
 }
 
-export async function fetchJson(url: string): Promise<unknown | null> {
+function withDefaultHeaders(init: RequestInit = {}): RequestInit {
+	const headers = new Headers(init.headers);
+	if (!headers.has("user-agent")) {
+		headers.set("user-agent", DEFAULT_USER_AGENT);
+	}
+	return {
+		...init,
+		headers,
+	};
+}
+
+export async function readJsonResponse<T>(
+	response: JsonResponseLike,
+): Promise<T> {
+	response.raise_for_status?.();
+	if (response.ok === false) {
+		throw new Error(`HTTP ${response.status ?? "request_failed"}`);
+	}
+	return (await response.json()) as T;
+}
+
+export async function fetchJson<T>(
+	url: string,
+	init?: RequestInit,
+): Promise<T | null> {
 	try {
-		const response = await fetch(url, {
-			headers: {
-				"user-agent": "Mozilla/5.0",
-			},
-		});
+		const response = await fetch(url, withDefaultHeaders(init));
 		if (!response.ok) {
 			return null;
 		}
-		return await response.json();
+		return (await response.json()) as T;
 	} catch {
 		return null;
 	}

@@ -7,9 +7,11 @@ Documentation: https://docs.exa.ai/reference/search
 
 import {
 	daysAgo,
+	fetchJson,
 	formatDate,
 	normalizeDomain,
 	parseDateString,
+	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
@@ -49,35 +51,24 @@ export async function getNewsExaAsync({
 		"Content-Type": "application/json",
 	};
 	const payload = client
-		? ((await client.post({
-				url: "https://api.exa.ai/search",
-				json: payloadBody,
-				headers,
-			}).then(async (response) => {
-				response.raise_for_status?.();
-				return response.json();
-			})) as
-				| {
-						results?: Array<Record<string, unknown>>;
-				  }
-				| null)
-		: ((await fetch("https://api.exa.ai/search", {
-				method: "POST",
-				headers: {
-					authorization: headers.Authorization,
-					"content-type": headers["Content-Type"],
+		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
+				await client.post({
+					url: "https://api.exa.ai/search",
+					json: payloadBody,
+					headers,
+				}),
+			)
+		: await fetchJson<{ results?: Array<Record<string, unknown>> }>(
+				"https://api.exa.ai/search",
+				{
+					method: "POST",
+					headers: {
+						authorization: headers.Authorization,
+						"content-type": headers["Content-Type"],
+					},
+					body: JSON.stringify(payloadBody),
 				},
-				body: JSON.stringify(payloadBody),
-			}).then(async (response) => {
-				if (!response.ok) {
-					throw new Error(`Exa HTTP ${response.status}`);
-				}
-				return response.json();
-			})) as
-		| {
-				results?: Array<Record<string, unknown>>;
-		  }
-		| null);
+			);
 	const fetchedAt = new Date().toISOString();
 	return (payload?.results ?? [])
 		.filter((row) => typeof row?.url === "string")

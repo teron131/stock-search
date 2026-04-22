@@ -1,5 +1,6 @@
 /** Miscellaneous API route module. */
 
+import { z } from "zod";
 import { Hono } from "hono";
 
 import { appConfig } from "../config.js";
@@ -8,8 +9,8 @@ import type { BackendStore } from "../data-store.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
 import { getIndustrySnapshot } from "../../data-sources/stockanalysis/index.js";
 import {
-	type PortfolioNewsSummaryRequestArticle,
-	type PortfolioNewsSummaryRequestRow,
+	portfolioNewsSummaryRequestArticleSchema,
+	portfolioNewsSummaryRequestRowSchema,
 } from "../../models/schemas.js";
 import * as newsOrchestrator from "../../news/orchestrator.js";
 import {
@@ -23,73 +24,118 @@ import {
 } from "../route-paths.js";
 import { convexRealtimeTopics } from "../data-store.js";
 
+const ARTICLE_CATEGORIES = new Set([
+	"macro_economics",
+	"industry_news",
+	"market_news",
+	"company_news",
+	"earnings",
+	"analyst_rating",
+	"analysis",
+	"other",
+]);
+const ARTICLE_RELEVANCIES = new Set(["high", "medium", "low"]);
+const ARTICLE_SENTIMENTS = new Set(["bullish", "neutral", "bearish"]);
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return typeof value === "object" && value !== null
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+function toNullableFiniteNumber(value: unknown): number | null {
+	const number = Number(value ?? Number.NaN);
+	return Number.isFinite(number) ? number : null;
+}
+
+function normalizeSourceTickers(record: Record<string, unknown>): string[] {
+	const sourceTickers =
+		record.source_tickers ??
+		record.sourceTickers ??
+		(typeof record.sourceTicker === "string" ? [record.sourceTicker] : []);
+
+	return Array.isArray(sourceTickers)
+		? sourceTickers.map((value) => String(value))
+		: [];
+}
+
+function normalizePortfolioNewsSummaryRow(value: unknown): unknown {
+	const record = asRecord(value);
+	if (!record) {
+		return value;
+	}
+	return {
+		ticker: String(record.ticker ?? ""),
+		quantity: toNullableFiniteNumber(record.quantity),
+		total: toNullableFiniteNumber(record.total),
+		weight_pct: toNullableFiniteNumber(record.weight_pct),
+	};
+}
+
+function normalizePortfolioNewsSummaryArticle(value: unknown): unknown {
+	const record = asRecord(value);
+	if (!record) {
+		return value;
+	}
+
+	const relevancy =
+		typeof record.relevancy === "string" &&
+		ARTICLE_RELEVANCIES.has(record.relevancy)
+			? record.relevancy
+			: "low";
+	const category =
+		typeof record.category === "string" &&
+		ARTICLE_CATEGORIES.has(record.category)
+			? record.category
+			: "other";
+	const sentiment =
+		typeof record.sentiment === "string" &&
+		ARTICLE_SENTIMENTS.has(record.sentiment)
+			? record.sentiment
+			: "neutral";
+
+	return {
+		title: typeof record.title === "string" ? record.title : null,
+		summary: String(record.summary ?? ""),
+		relevancy,
+		category,
+		sentiment,
+		source_tickers: normalizeSourceTickers(record),
+	};
+}
+
+const portfolioNewsSummaryPayloadSchema = z
+	.object({
+		rows: z
+			.array(
+				z.preprocess(
+					normalizePortfolioNewsSummaryRow,
+					portfolioNewsSummaryRequestRowSchema,
+				),
+			)
+			.default([]),
+		items: z
+			.array(
+				z.preprocess(
+					normalizePortfolioNewsSummaryArticle,
+					portfolioNewsSummaryRequestArticleSchema,
+				),
+			)
+			.default([]),
+	})
+	.catch({
+		rows: [],
+		items: [],
+	});
+
 export function createMiscRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
 	router.post(PORTFOLIO_NEWS_SUMMARY, async (c) => {
 		c.header("Cache-Control", "no-store");
-		const payload = (await c.req.json().catch(() => null)) as
-			| {
-					rows?: Array<Record<string, unknown>>;
-					items?: Array<Record<string, unknown>>;
-			  }
-			| null;
-		const rows: PortfolioNewsSummaryRequestRow[] = Array.isArray(payload?.rows)
-			? payload.rows
-					.filter((row) => typeof row === "object" && row !== null)
-					.map((row) => {
-						const record = row as Record<string, unknown>;
-						const quantity = Number(record.quantity ?? NaN);
-						const total = Number(record.total ?? NaN);
-						const weightPct = Number(record.weight_pct ?? NaN);
-						return {
-							ticker: String(record.ticker ?? ""),
-							quantity: Number.isFinite(quantity) ? quantity : null,
-							total: Number.isFinite(total) ? total : null,
-							weight_pct: Number.isFinite(weightPct) ? weightPct : null,
-						};
-					})
-			: [];
-		const items: PortfolioNewsSummaryRequestArticle[] = Array.isArray(payload?.items)
-			? payload.items
-					.filter((item) => typeof item === "object" && item !== null)
-					.map((item) => ({
-						title:
-							typeof (item as Record<string, unknown>).title === "string"
-								? String((item as Record<string, unknown>).title)
-								: null,
-						summary: String((item as Record<string, unknown>).summary ?? ""),
-						relevancy:
-							(item as Record<string, unknown>).relevancy === "high" ||
-							(item as Record<string, unknown>).relevancy === "medium"
-								? ((item as Record<string, unknown>).relevancy as
-										| "high"
-										| "medium")
-								: ("low" as const),
-						category:
-							typeof (item as Record<string, unknown>).category === "string"
-								? ((item as Record<string, unknown>).category as PortfolioNewsSummaryRequestArticle["category"])
-								: "other",
-						sentiment:
-							(item as Record<string, unknown>).sentiment === "bullish" ||
-							(item as Record<string, unknown>).sentiment === "bearish"
-								? ((item as Record<string, unknown>).sentiment as
-										| "bullish"
-										| "bearish")
-								: ("neutral" as const),
-						source_tickers: Array.isArray(
-							(item as Record<string, unknown>).source_tickers,
-						)
-							? ((item as Record<string, unknown>).source_tickers as unknown[])
-									.map((value) => String(value))
-							: Array.isArray((item as Record<string, unknown>).sourceTickers)
-								? ((item as Record<string, unknown>).sourceTickers as unknown[])
-										.map((value) => String(value))
-								: typeof (item as Record<string, unknown>).sourceTicker === "string"
-									? [String((item as Record<string, unknown>).sourceTicker)]
-									: [],
-					}))
-			: [];
+		const { rows, items } = portfolioNewsSummaryPayloadSchema.parse(
+			await c.req.json().catch(() => null),
+		);
 		return c.json(await newsOrchestrator.buildPortfolioNewsSummary(rows, items));
 	});
 

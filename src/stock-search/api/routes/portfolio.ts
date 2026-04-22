@@ -18,19 +18,31 @@ const portfolioPositionPatchSchema = z.object({
 	quantity: z.number().optional(),
 	strategy: z.string().nullable().optional(),
 });
+const portfolioScopeSchema = z
+	.enum(["priority", "all_cached", "portfolio_live", "all"])
+	.catch("all");
+
+function parseBooleanFormValue(value: FormDataEntryValue | null): boolean {
+	const normalized =
+		typeof value === "string" ? value.trim().toLowerCase() : "";
+	return (
+		normalized === "" ||
+		normalized === "true" ||
+		normalized === "1" ||
+		normalized === "yes" ||
+		normalized === "on"
+	);
+}
+
+function parseOptionalFormText(value: FormDataEntryValue | null): string | null {
+	return typeof value === "string" ? value.trim() || null : null;
+}
 
 export function createPortfolioRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
 	router.get(PORTFOLIO, async (c) => {
-		const requestedScope = c.req.query("scope");
-		const scope =
-			requestedScope === "priority" ||
-			requestedScope === "all_cached" ||
-			requestedScope === "portfolio_live" ||
-			requestedScope === "all"
-				? requestedScope
-				: "all";
+		const scope = portfolioScopeSchema.parse(c.req.query("scope"));
 		c.header("Cache-Control", cacheControlForScope(scope));
 		return c.json(await buildPortfolioPayload(store, scope));
 	});
@@ -59,46 +71,33 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 		return c.json(await removePortfolioPosition(store, c.req.param("ticker")));
 	});
 
-	router.post(PORTFOLIO_IMPORT_IMAGE, (c) =>
-		c.req.raw
-			.formData()
-			.then(async (formData) => {
-				c.header("Cache-Control", "no-store");
-				const file = formData.get("file");
-				if (!(file instanceof File)) {
-					return c.json({ detail: "Image file is required." }, 400);
-				}
-				try {
-					const replaceValue = String(formData.get("replace") ?? "true")
-						.trim()
-						.toLowerCase();
-					return c.json(
-						await importPortfolioImage(store, {
-							file,
-							replace:
-								replaceValue === "" ||
-								replaceValue === "true" ||
-								replaceValue === "1" ||
-								replaceValue === "yes" ||
-								replaceValue === "on",
-							strategy:
-								typeof formData.get("strategy") === "string"
-									? String(formData.get("strategy")).trim() || null
-									: null,
-							model:
-								typeof formData.get("model") === "string"
-									? String(formData.get("model")).trim() || null
-									: null,
-						}),
-					);
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : "Portfolio image import failed.";
-					return c.json({ detail: message }, 400);
-				}
-			})
-			.catch(() => c.json({ detail: "Invalid upload payload." }, 400)),
-	);
+	router.post(PORTFOLIO_IMPORT_IMAGE, async (c) => {
+		c.header("Cache-Control", "no-store");
+		const formData = await c.req.raw.formData().catch(() => null);
+		if (!formData) {
+			return c.json({ detail: "Invalid upload payload." }, 400);
+		}
+
+		const file = formData.get("file");
+		if (!(file instanceof File)) {
+			return c.json({ detail: "Image file is required." }, 400);
+		}
+
+		try {
+			return c.json(
+				await importPortfolioImage(store, {
+					file,
+					replace: parseBooleanFormValue(formData.get("replace")),
+					strategy: parseOptionalFormText(formData.get("strategy")),
+					model: parseOptionalFormText(formData.get("model")),
+				}),
+			);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Portfolio image import failed.";
+			return c.json({ detail: message }, 400);
+		}
+	});
 
 	return router;
 }

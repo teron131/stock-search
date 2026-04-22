@@ -7,9 +7,11 @@ Documentation: https://massive.com/docs/rest/stocks/news
 
 import {
 	daysAgo,
+	fetchJson,
 	formatDate,
 	normalizeDomain,
 	parseDate,
+	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
 import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
@@ -49,18 +51,12 @@ export async function getNewsMassiveAsync({
 	};
 	const url = "https://api.massive.com/v2/reference/news";
 	const payload = client
-		? ((await client.get({ url, params }).then(async (response) => {
-				response.raise_for_status?.();
-				return response.json();
-			})) as { results?: Array<Record<string, unknown>> } | null)
-		: ((await fetch(`${url}?${new URLSearchParams(params).toString()}`)
-				.then(async (response) => {
-					if (!response.ok) {
-						throw new Error(`Massive HTTP ${response.status}`);
-					}
-					return response.json();
-				})
-				.catch(() => null)) as { results?: Array<Record<string, unknown>> } | null);
+		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
+				await client.get({ url, params }),
+			)
+		: await fetchJson<{ results?: Array<Record<string, unknown>> }>(
+				`${url}?${new URLSearchParams(params).toString()}`,
+			);
 
 	const fetchedAt = new Date().toISOString();
 	return (payload?.results ?? []).map((row) => {
