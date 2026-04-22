@@ -107,7 +107,7 @@ export class StockAnalysisSource {
 	private indicatorsSnapshot: StockAnalysisIndicatorsSnapshot | null = null;
 
 	/** Initialize the StockAnalysis adapter for one ticker. */
-	constructor(private readonly ticker: string) {
+	constructor(ticker: string) {
 		this.tickerUpper = ticker.toUpperCase().trim();
 		this.tickerLower = this.tickerUpper.toLowerCase();
 	}

@@ -18,7 +18,7 @@ import {
 } from "./constants.js";
 import { clampScore, zScoreMap } from "./math-utils.js";
 import type { FutureOutlook } from "../models/schemas.js";
-import { asRecord, asNumber } from "../utils.js";
+import { asNumber } from "../utils.js";
 
 type WeightedFactorConfig = [number | null, [number, number, number], number, boolean];
 type IndicatorLike = Record<string, unknown>;
@@ -229,7 +229,11 @@ export function calculateRatingScore(
 	const ratingValues = ratings
 		.map((ratingRow) => {
 			const grade =
-				ratingRow.toGrade ?? ratingRow.rating ?? ratingRow.grade;
+				ratingRow.to_grade ??
+				ratingRow.toGrade ??
+				ratingRow.ToGrade ??
+				ratingRow.rating ??
+				ratingRow.grade;
 			return typeof grade === "string" ? parseRatingGrade(grade) : null;
 		})
 		.filter((value): value is number => value != null);

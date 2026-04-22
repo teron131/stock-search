@@ -717,7 +717,12 @@ function buildSectorDistribution(
 
 function calculatePortfolioStats(
 	rows: Array<Record<string, unknown>>,
-	sectorTable: Array<Record<string, unknown>>,
+	sectorDistribution: Array<{
+		sector: string;
+		portfolio_weight: number;
+		stock_weight: number;
+		etf_lookthrough_weight: number;
+	}>,
 ): Record<string, unknown> {
 	const heldRows = rows.filter((row) => Number(row.quantity ?? 0) > 0);
 	const total = heldRows.reduce((sum, row) => sum + Number(row.total ?? 0), 0);
@@ -739,12 +744,7 @@ function calculatePortfolioStats(
 		change_percent: denominator > 0 ? (changeValue / denominator) * 100 : 0,
 		weighted_beta: weightedAverage(heldRows, "beta"),
 		weighted_iv: weightedAverage(heldRows, "iv"),
-		sector_distribution: sectorTable.map((row) => ({
-			sector: String(row.sector ?? ""),
-			portfolio_weight: Number(safeFloat(row.portfolio_weight) ?? 0),
-			stock_weight: Number(safeFloat(row.stock_weight) ?? 0),
-			etf_lookthrough_weight: Number(safeFloat(row.etf_lookthrough_weight) ?? 0),
-		})),
+		sector_distribution: sectorDistribution,
 	};
 }
 
@@ -928,6 +928,7 @@ export async function buildPortfolioPayload(
 	const heldTickers = portfolio.positions
 		.map((position) => normalizeTicker(position.ticker))
 		.filter(Boolean);
+	const sectorDistribution = buildSectorDistribution(rows, etfResolution);
 	const { tickerTable, sectorTable, meta: tableMeta } = await buildEtfTables(
 		rows,
 		etfResolution,
@@ -953,7 +954,7 @@ export async function buildPortfolioPayload(
 			ticker_exposure: tickerTable,
 			sector_exposure: sectorTable,
 		},
-		portfolio_stats: calculatePortfolioStats(rows, sectorTable),
+		portfolio_stats: calculatePortfolioStats(rows, sectorDistribution),
 		meta: {
 			...tableMeta,
 			etf_count: etfResolution.etfPositions.length,

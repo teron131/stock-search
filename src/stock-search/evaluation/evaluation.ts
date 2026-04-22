@@ -26,7 +26,6 @@ import {
 } from "./scores.js";
 import type {
 	Evaluation,
-	FutureOutlook,
 	ResearchEvaluation,
 	ScoredReason,
 } from "../models/schemas.js";

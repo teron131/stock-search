@@ -1,7 +1,6 @@
 /** Read and write JSON files for repo data stores. */
 
 import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 
 /** Load JSON data from disk with a fallback default. */

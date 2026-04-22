@@ -87,23 +87,21 @@ type YahooQuoteSummaryResponse = {
 	};
 };
 
-type YahooInsightsResponse = {
-	finance?: {
-		result?: {
-			instrumentInfo?: {
-				recommendation?: {
-					targetPrice?: number;
-					provider?: string;
-					rating?: string;
-				};
-			};
-		};
-	};
-};
-
 type DatedClose = {
 	date: Date;
 	close: number;
+};
+
+type NormalizedYahooRatingRow = Record<string, unknown> & {
+	date: string | null;
+	epoch_grade_date: number | null;
+	firm: string | null;
+	to_grade: string | null;
+	from_grade: string | null;
+	action: string | null;
+	price_target_action: string | null;
+	current_price_target: number | null;
+	prior_price_target: number | null;
 };
 
 const YAHOO_CHART_URL =
@@ -112,8 +110,6 @@ const YAHOO_INTRADAY_URL =
 	"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1d&interval=5m&includePrePost=true";
 const YAHOO_SEARCH_URL =
 	"https://query2.finance.yahoo.com/v1/finance/search?q={ticker}";
-const YAHOO_INSIGHTS_URL =
-	"https://query1.finance.yahoo.com/ws/insights/v1/finance/insights?symbol={ticker}";
 const YAHOO_COOKIE_URL = "https://fc.yahoo.com";
 const YAHOO_CRUMB_URL = "https://query1.finance.yahoo.com/v1/test/getcrumb";
 const YAHOO_BENCHMARK_TICKER = "^GSPC";
@@ -554,8 +550,13 @@ function buildRatingsSnapshot(
 			ratings: null,
 		};
 	}
+	const sortedHistory = [...recentHistory].sort((left, right) => {
+		const leftEpoch = toFiniteNumber(left.epochGradeDate) ?? 0;
+		const rightEpoch = toFiniteNumber(right.epochGradeDate) ?? 0;
+		return rightEpoch - leftEpoch;
+	});
 
-	const upsidePercents = recentHistory
+	const upsidePercents = sortedHistory
 		.map((entry) => {
 			const target = toFiniteNumber(entry.currentPriceTarget);
 			return target != null ? ((target - currentPrice) / currentPrice) * 100 : null;
@@ -573,15 +574,63 @@ function buildRatingsSnapshot(
 
 	return {
 		medianUpside: roundOptional(medianUpside),
-		ratings: recentHistory.map((entry) => ({
-			Firm: entry.firm ?? null,
-			ToGrade: entry.toGrade ?? null,
-			FromGrade: entry.fromGrade ?? null,
-			Action: entry.action ?? null,
-			priceTargetAction: entry.priceTargetAction ?? null,
-			currentPriceTarget: toFiniteNumber(entry.currentPriceTarget),
-			priorPriceTarget: toFiniteNumber(entry.priorPriceTarget),
-		})),
+		ratings: sortedHistory
+			.map((entry) => {
+				const epochGradeDate = toFiniteNumber(entry.epochGradeDate);
+				const firm =
+					typeof entry.firm === "string" && entry.firm.trim()
+						? entry.firm.trim()
+						: null;
+				const toGrade =
+					typeof entry.toGrade === "string" && entry.toGrade.trim()
+						? entry.toGrade.trim()
+						: null;
+				const fromGrade =
+					typeof entry.fromGrade === "string" && entry.fromGrade.trim()
+						? entry.fromGrade.trim()
+						: null;
+				const action =
+					typeof entry.action === "string" && entry.action.trim()
+						? entry.action.trim()
+						: null;
+				const priceTargetAction =
+					typeof entry.priceTargetAction === "string" &&
+					entry.priceTargetAction.trim()
+						? entry.priceTargetAction.trim()
+						: null;
+				const currentPriceTarget = toFiniteNumber(entry.currentPriceTarget);
+				const priorPriceTarget = toFiniteNumber(entry.priorPriceTarget);
+
+				if (
+					firm == null &&
+					toGrade == null &&
+					fromGrade == null &&
+					action == null &&
+					priceTargetAction == null &&
+					currentPriceTarget == null &&
+					priorPriceTarget == null
+				) {
+					return null;
+				}
+
+				return {
+					date:
+						epochGradeDate != null
+							? new Date(epochGradeDate * 1000).toISOString()
+							: null,
+					epoch_grade_date: epochGradeDate,
+					firm,
+					to_grade: toGrade,
+					from_grade: fromGrade,
+					action,
+					price_target_action: priceTargetAction,
+					current_price_target: currentPriceTarget,
+					prior_price_target: priorPriceTarget,
+				} satisfies NormalizedYahooRatingRow;
+			})
+			.filter(
+				(entry): entry is NormalizedYahooRatingRow => entry != null,
+			),
 	};
 }
 
@@ -828,41 +877,6 @@ function buildFundamentalsSnapshot(
 	};
 }
 
-function buildRatingsPayload(
-	recommendation:
-		| {
-				targetPrice?: number;
-				provider?: string;
-				rating?: string;
-		  }
-		| undefined,
-): Array<Record<string, unknown>> | null {
-	if (!recommendation) {
-		return null;
-	}
-	const targetPrice = toFiniteNumber(recommendation.targetPrice);
-	const provider =
-		typeof recommendation.provider === "string" &&
-		recommendation.provider.trim()
-			? recommendation.provider.trim()
-			: null;
-	const rating =
-		typeof recommendation.rating === "string" && recommendation.rating.trim()
-			? recommendation.rating.trim()
-			: null;
-	if (targetPrice == null && provider == null && rating == null) {
-		return null;
-	}
-	return [
-		{
-			firm: provider,
-			to_grade: rating,
-			action: "main",
-			price_target: targetPrice,
-		},
-	];
-}
-
 export function normalizeYahooTicker(ticker: string): string {
 	return normalizeTicker(ticker).replace(/ /g, "-").replace(/\./g, "-");
 }
@@ -877,7 +891,6 @@ export class YahooFinanceSource {
 		const [
 			payload,
 			intradayPayload,
-			insightsPayload,
 			fundamentalsPayload,
 			quoteSummaryPayload,
 			benchmarkPayload,
@@ -887,9 +900,6 @@ export class YahooFinanceSource {
 			),
 			fetchJson<YahooChartResponse>(
 				YAHOO_INTRADAY_URL.replace("{ticker}", encodeURIComponent(ticker)),
-			),
-			fetchJson<YahooInsightsResponse>(
-				YAHOO_INSIGHTS_URL.replace("{ticker}", encodeURIComponent(ticker)),
 			),
 			fetchJson<YahooFundamentalsResponse>(buildYahooFundamentalsUrl(ticker)),
 			fetchYahooQuoteSummary(ticker),
