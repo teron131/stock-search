@@ -3,6 +3,7 @@ uv.lock
 *.json
 !package.json
 !package-lock.json
+!tsconfig.json
 !ui/public/demo/
 !ui/public/demo/*.json
 data/
@@ -14,6 +15,8 @@ data/
 !tests/
 !tests/*.py
 !tests/**/*.py
+!server/test/
+!server/test/*.ts
 *.png
 *.jpg
 .playwright-cli/
