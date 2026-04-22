@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 
 import { z } from "zod";
 
-import { ChatOpenAI } from "../../../../llm-harness-js/src/clients/openai.js";
-import { MediaMessage } from "../../../../llm-harness-js/src/clients/multimodal.js";
+import { ChatOpenAI, MediaMessage } from "llm-harness-js/clients";
 import type { BackendStore, PositionRow } from "./data-store.js";
 import { normalizeTicker } from "../utils.js";
 

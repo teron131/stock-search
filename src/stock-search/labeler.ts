@@ -6,9 +6,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
+import { ExaAgent } from "llm-harness-js/agents";
+import { ChatOpenAI } from "llm-harness-js/clients";
 import { z } from "zod";
 
-import { ChatOpenAI, ExaAgent } from "../../llm-harness-js/src/clients/index.js";
 import { normalizeTickerSymbol } from "./common-utils.js";
 import { ModelConfig } from "./config.js";
 import {

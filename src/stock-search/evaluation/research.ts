@@ -5,12 +5,13 @@ import { writeFile } from "node:fs/promises";
 import { HumanMessage } from "@langchain/core/messages";
 import { type ToolRuntime, tool } from "@langchain/core/tools";
 import { Annotation, END, InMemoryStore, START, StateGraph } from "@langchain/langgraph";
+import { WebLoaderAgent } from "llm-harness-js/agents";
+import { ChatOpenAI } from "llm-harness-js/clients";
 import { createAgent, todoListMiddleware } from "langchain";
 import { z, type ZodType } from "zod";
 
-import { ChatOpenAI, WebLoaderAgent } from "../../../llm-harness-js/src/clients/index.js";
-import { ThresholdConfig } from "./constants.js";
 import { extractDomain } from "../utils.js";
+import { ThresholdConfig } from "./constants.js";
 
 const DEFAULT_ALLOWED_DOMAINS = ["example.com", "placeholder.org"] as const;
 const RESEARCH_AGENT_PROMPT = `Research with web search to find reliable, recent sources.

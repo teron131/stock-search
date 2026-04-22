@@ -1,10 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm ci && npm run ui:build && npm run prepare:vercel-public",
-  "outputDirectory": "public",
-  "functions": {
-    "api/index.ts": {
-      "runtime": "nodejs22.x"
-    }
-  }
+  "buildCommand": "npm ci && npm run build && npm run prepare:vercel-public",
+  "outputDirectory": "public"
 }

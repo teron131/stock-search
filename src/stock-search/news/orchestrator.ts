@@ -1,4 +1,4 @@
-import * as openAiClients from "../../../../llm-harness-js/src/clients/openai.js";
+import { ChatOpenAI } from "llm-harness-js/clients";
 
 import { TieredCache } from "../cache.js";
 import {
@@ -69,7 +69,7 @@ export const ANALYSIS_CACHE = new TieredCache<NewsAnalysis>({
 });
 
 export const newsPipelineDeps = {
-	chatOpenAI: openAiClients.ChatOpenAI,
+	chatOpenAI: ChatOpenAI,
 	webloader: webloaderModule.webloader,
 };
 
