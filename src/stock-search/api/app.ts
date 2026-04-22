@@ -6,7 +6,7 @@ import { Hono } from "hono";
 
 import { appConfig } from "./config.js";
 import { authGuard } from "./auth.js";
-import { getStore, type BackendStore } from "./data-store.js";
+import { createLazyStore, type BackendStore } from "./data-store.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createMiscRouter } from "./routes/misc.js";
 import { createPortfolioRouter } from "./routes/portfolio.js";
@@ -37,7 +37,7 @@ async function serveIndex(indexFile: string): Promise<Response> {
 
 export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	const deps: AppDependencies = {
-		store: overrides.store ?? getStore(),
+		store: overrides.store ?? createLazyStore(),
 		indexFile: overrides.indexFile ?? appConfig.indexFile,
 		clock: overrides.clock ?? (() => new Date()),
 	};

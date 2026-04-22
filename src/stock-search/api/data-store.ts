@@ -54,6 +54,47 @@ let cachedStore: BackendStore | null = null;
 
 export { convexRealtimeTopics };
 
+function createLazyStore(): BackendStore {
+	return {
+		get backendName() {
+			return getStore().backendName;
+		},
+		loadPortfolio(key) {
+			return getStore().loadPortfolio(key);
+		},
+		savePortfolio(input) {
+			return getStore().savePortfolio(input);
+		},
+		loadPositions() {
+			return getStore().loadPositions();
+		},
+		savePositions(positions) {
+			return getStore().savePositions(positions);
+		},
+		loadStocks() {
+			return getStore().loadStocks();
+		},
+		loadStock(ticker) {
+			return getStore().loadStock(ticker);
+		},
+		upsertStocks(rows) {
+			return getStore().upsertStocks(rows);
+		},
+		loadNews(key) {
+			return getStore().loadNews(key);
+		},
+		saveNews(rows, key) {
+			return getStore().saveNews(rows, key);
+		},
+		getMetaValue(key) {
+			return getStore().getMetaValue(key);
+		},
+		setMetaValue(key, value) {
+			return getStore().setMetaValue(key, value);
+		},
+	};
+}
+
 class FallbackConvexStore implements BackendStore {
 	readonly backendName = "convex" as const;
 
@@ -156,6 +197,9 @@ class FallbackConvexStore implements BackendStore {
 
 export function createStore(): BackendStore {
 	if (appConfig.dataStoreBackend === "convex") {
+		if (appConfig.isVercelRuntime) {
+			return new ConvexStore(appConfig.convexUrl, appConfig.convexDeployKey);
+		}
 		return new FallbackConvexStore(
 			new ConvexStore(appConfig.convexUrl, appConfig.convexDeployKey),
 			new SQLiteStore(appConfig.dataSqlitePath),
@@ -168,6 +212,8 @@ export function getStore(): BackendStore {
 	cachedStore ??= createStore();
 	return cachedStore;
 }
+
+export { createLazyStore };
 
 export async function loadEvalMap() {
 	const stocks = await getStore().loadStocks();
