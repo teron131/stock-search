@@ -164,26 +164,6 @@ const SECTOR_DISPLAY_LABELS = {
 	utilities: "UTILITIES",
 };
 
-const ICON_SYMBOLS = {
-	grid: "G",
-	news: "N",
-	factory: "I",
-	heatmap: "H",
-	calendar: "C",
-	chip: "T",
-	cross: "H",
-	heart: "H",
-	bank: "F",
-	bolt: "E",
-	bag: "D",
-	basket: "S",
-	antenna: "C",
-	building: "R",
-	gem: "M",
-	plug: "U",
-	dot: "I",
-};
-
 function normalizeSectorKey(sector) {
 	return String(sector || "")
 		.trim()
@@ -206,10 +186,6 @@ export function getNavIconName(viewName) {
 
 export function getSectorIconName(sector) {
 	return SECTOR_ICON_NAMES[normalizeSectorKey(sector)] || "dot";
-}
-
-export function getSectorIconSymbol(sector) {
-	return ICON_SYMBOLS[getSectorIconName(sector)] || "I";
 }
 
 export function getSectorDisplayLabel(sector) {

@@ -1074,15 +1074,3 @@ export async function loadStocksMap(
 ): Promise<Record<string, StockEntry>> {
 	return store.loadStocks();
 }
-
-/** Return held tickers ordered as portfolio-news inputs. */
-export async function buildTopTickersFromNewsSummaryInput(
-	store: BackendStore,
-): Promise<string[]> {
-	const positions = await store.loadPositions();
-	return uniqueTickers(
-		positions
-			.filter((position) => positionQuantity(position) > 0)
-			.map((position) => position.ticker),
-	);
-}

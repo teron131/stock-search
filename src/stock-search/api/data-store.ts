@@ -169,22 +169,6 @@ export function getStore(): BackendStore {
 	return cachedStore;
 }
 
-export async function backendName(): Promise<BackendName> {
-	return getStore().backendName;
-}
-
-export async function loadPositions() {
-	return getStore().loadPositions();
-}
-
-export async function savePositions(positions: PositionRow[]) {
-	return getStore().savePositions(positions);
-}
-
-export async function loadStocks() {
-	return getStore().loadStocks();
-}
-
 export async function loadEvalMap() {
 	const stocks = await getStore().loadStocks();
 	return Object.fromEntries(
