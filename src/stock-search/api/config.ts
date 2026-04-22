@@ -48,8 +48,7 @@ export const appConfig = {
 	convexAudience: (process.env.CONVEX_AUDIENCE ?? "").trim(),
 	convexSyncEnabled: truthy(process.env.CONVEX_SYNC_ENABLED, true),
 	authEnabled: truthy(process.env.AUTH_ENABLED, false),
-	authSecret:
-		(process.env.AUTH_SECRET ?? "").trim() || "stock-search-auth-disabled",
+	authSecret: (process.env.AUTH_SECRET ?? "").trim(),
 	authGoogleId: (process.env.AUTH_GOOGLE_ID ?? "").trim(),
 	authGoogleSecret: (process.env.AUTH_GOOGLE_SECRET ?? "").trim(),
 	allowedEmail: (process.env.ALLOWED_EMAIL ?? "").trim().toLowerCase(),

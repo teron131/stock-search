@@ -19,11 +19,15 @@ type SessionUser = {
 	email: string;
 	name?: string | null;
 	sub?: string | null;
+	iat: number;
+	exp: number;
 };
 
 const SESSION_COOKIE = "stock_search_session";
 const STATE_COOKIE = "stock_search_auth_state";
 const NEXT_COOKIE = "stock_search_auth_next";
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const CLOCK_SKEW_SECONDS = 5 * 60;
 const PUBLIC_STATIC_EXTENSIONS = new Set([
 	".avif",
 	".bmp",
@@ -57,8 +61,21 @@ function signPayload(value: string): string {
 	return createHmac("sha256", appConfig.authSecret).update(value).digest("base64url");
 }
 
-function encodeSession(user: SessionUser): string {
-	const payload = Buffer.from(JSON.stringify(user)).toString("base64url");
+function nowUnixSeconds(): number {
+	return Math.floor(Date.now() / 1000);
+}
+
+function encodeSession(
+	user: Omit<SessionUser, "iat" | "exp">,
+	currentUnixSeconds = nowUnixSeconds(),
+): string {
+	const payload = Buffer.from(
+		JSON.stringify({
+			...user,
+			iat: currentUnixSeconds,
+			exp: currentUnixSeconds + SESSION_MAX_AGE_SECONDS,
+		} satisfies SessionUser),
+	).toString("base64url");
 	return `${payload}.${signPayload(payload)}`;
 }
 
@@ -75,13 +92,26 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 			Buffer.from(payload, "base64url").toString("utf8"),
 		) as SessionUser;
 		const email = String(decoded.email ?? "").trim().toLowerCase();
-		if (!email || email !== appConfig.allowedEmail) {
+		const issuedAt = Number(decoded.iat);
+		const expiresAt = Number(decoded.exp);
+		const currentUnixSeconds = nowUnixSeconds();
+		if (
+			!email ||
+			email !== appConfig.allowedEmail ||
+			!Number.isFinite(issuedAt) ||
+			!Number.isFinite(expiresAt) ||
+			expiresAt <= currentUnixSeconds ||
+			issuedAt > currentUnixSeconds + CLOCK_SKEW_SECONDS ||
+			expiresAt <= issuedAt
+		) {
 			return null;
 		}
 		return {
 			email,
 			name: decoded.name ?? null,
 			sub: decoded.sub ?? null,
+			iat: issuedAt,
+			exp: expiresAt,
 		};
 	} catch {
 		return null;
@@ -98,13 +128,16 @@ export function clearAuthCookies(c: Context): void {
 	deleteCookie(c, NEXT_COOKIE, { path: "/" });
 }
 
-function setSessionCookie(c: Context, user: SessionUser): void {
+function setSessionCookie(
+	c: Context,
+	user: Omit<SessionUser, "iat" | "exp">,
+): void {
 	setCookie(c, SESSION_COOKIE, encodeSession(user), {
 		httpOnly: true,
 		path: "/",
 		sameSite: "Lax",
 		secure: appConfig.authEnabled,
-		maxAge: 7 * 24 * 60 * 60,
+		maxAge: SESSION_MAX_AGE_SECONDS,
 	});
 }
 
