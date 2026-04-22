@@ -23,6 +23,17 @@ type SessionUser = {
 	exp: number;
 };
 
+type GoogleTokenResponse = {
+	access_token?: string;
+};
+
+type GoogleUserInfo = {
+	email?: string;
+	email_verified?: boolean;
+	name?: string;
+	sub?: string;
+};
+
 const SESSION_COOKIE = "stock_search_session";
 const STATE_COOKIE = "stock_search_auth_state";
 const NEXT_COOKIE = "stock_search_auth_next";
@@ -55,6 +66,15 @@ function isConfigured(): boolean {
 			appConfig.authGoogleSecret &&
 			appConfig.allowedEmail,
 	);
+}
+
+function authErrorResponse(
+	c: Context,
+	message: string,
+	status: 400 | 403 | 502,
+): Response {
+	clearAuthCookies(c);
+	return c.text(message, status);
 }
 
 function signPayload(value: string): string {
@@ -183,17 +203,86 @@ export async function authGuard(c: Context, next: Next): Promise<void | Response
 }
 
 function buildGoogleAuthorizeUrl(requestUrl: string, state: string): string {
-	const currentUrl = new URL(requestUrl);
-	const redirectUri = `${currentUrl.origin}${AUTH_CALLBACK}`;
 	const params = new URLSearchParams({
 		client_id: appConfig.authGoogleId,
-		redirect_uri: redirectUri,
+		redirect_uri: buildGoogleRedirectUri(requestUrl),
 		response_type: "code",
 		scope: "openid email profile",
 		state,
 		prompt: "select_account",
 	});
 	return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+function buildGoogleRedirectUri(requestUrl: string): string {
+	return `${new URL(requestUrl).origin}${AUTH_CALLBACK}`;
+}
+
+function setTemporaryAuthCookie(
+	c: Context,
+	name: string,
+	value: string,
+): void {
+	setCookie(c, name, value, {
+		httpOnly: true,
+		path: "/",
+		sameSite: "Lax",
+		secure: appConfig.authEnabled,
+		maxAge: 10 * 60,
+	});
+}
+
+async function exchangeGoogleCodeForAccessToken(
+	code: string,
+	redirectUri: string,
+): Promise<string | null> {
+	const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({
+			code,
+			client_id: appConfig.authGoogleId,
+			client_secret: appConfig.authGoogleSecret,
+			redirect_uri: redirectUri,
+			grant_type: "authorization_code",
+		}),
+	});
+	if (!tokenResponse.ok) {
+		return null;
+	}
+	const tokenPayload = (await tokenResponse.json()) as GoogleTokenResponse;
+	return tokenPayload.access_token ?? null;
+}
+
+async function fetchGoogleUserInfo(
+	accessToken: string,
+): Promise<GoogleUserInfo | null> {
+	const userInfoResponse = await fetch(
+		"https://openidconnect.googleapis.com/v1/userinfo",
+		{
+			headers: {
+				authorization: `Bearer ${accessToken}`,
+			},
+		},
+	);
+	if (!userInfoResponse.ok) {
+		return null;
+	}
+	return (await userInfoResponse.json()) as GoogleUserInfo;
+}
+
+function normalizeAllowedGoogleUser(
+	userInfo: GoogleUserInfo,
+): Omit<SessionUser, "iat" | "exp"> | null {
+	const email = String(userInfo.email ?? "").trim().toLowerCase();
+	if (!email || !userInfo.email_verified || email !== appConfig.allowedEmail) {
+		return null;
+	}
+	return {
+		email,
+		name: userInfo.name ?? null,
+		sub: userInfo.sub ?? null,
+	};
 }
 
 export async function handleLogin(c: Context): Promise<Response> {
@@ -205,20 +294,8 @@ export async function handleLogin(c: Context): Promise<Response> {
 		return c.text("Authentication is not fully configured.", 503);
 	}
 	const state = randomBytes(16).toString("hex");
-	setCookie(c, STATE_COOKIE, state, {
-		httpOnly: true,
-		path: "/",
-		sameSite: "Lax",
-		secure: appConfig.authEnabled,
-		maxAge: 10 * 60,
-	});
-	setCookie(c, NEXT_COOKIE, nextPath, {
-		httpOnly: true,
-		path: "/",
-		sameSite: "Lax",
-		secure: appConfig.authEnabled,
-		maxAge: 10 * 60,
-	});
+	setTemporaryAuthCookie(c, STATE_COOKIE, state);
+	setTemporaryAuthCookie(c, NEXT_COOKIE, nextPath);
 	return c.redirect(buildGoogleAuthorizeUrl(c.req.url, state), 307);
 }
 
@@ -234,89 +311,46 @@ export async function handleCallback(c: Context): Promise<Response> {
 	const state = c.req.query("state");
 	const error = c.req.query("error");
 	if (error) {
-		clearAuthCookies(c);
-		return c.text(`Google sign-in failed: ${error}`, 400);
+		return authErrorResponse(c, `Google sign-in failed: ${error}`, 400);
 	}
 	if (!code || !state) {
-		clearAuthCookies(c);
-		return c.text("Missing Google OAuth callback parameters.", 400);
+		return authErrorResponse(c, "Missing Google OAuth callback parameters.", 400);
 	}
 
 	const expectedState = getCookie(c, STATE_COOKIE);
 	const nextPath = sanitizeNextPath(getCookie(c, NEXT_COOKIE));
 	if (!expectedState || state !== expectedState) {
-		clearAuthCookies(c);
-		return c.text("Invalid OAuth state.", 400);
+		return authErrorResponse(c, "Invalid OAuth state.", 400);
 	}
 
-	const currentUrl = new URL(c.req.url);
-	const redirectUri = `${currentUrl.origin}${AUTH_CALLBACK}`;
+	const redirectUri = buildGoogleRedirectUri(c.req.url);
 
 	try {
-		const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-			method: "POST",
-			headers: { "content-type": "application/x-www-form-urlencoded" },
-			body: new URLSearchParams({
-				code,
-				client_id: appConfig.authGoogleId,
-				client_secret: appConfig.authGoogleSecret,
-				redirect_uri: redirectUri,
-				grant_type: "authorization_code",
-			}),
-		});
-		if (!tokenResponse.ok) {
-			clearAuthCookies(c);
-			return c.text("Failed to verify Google account.", 502);
+		const accessToken = await exchangeGoogleCodeForAccessToken(code, redirectUri);
+		if (!accessToken) {
+			return authErrorResponse(c, "Failed to verify Google account.", 502);
 		}
-		const tokenPayload = (await tokenResponse.json()) as {
-			access_token?: string;
-		};
-		if (!tokenPayload.access_token) {
-			clearAuthCookies(c);
-			return c.text("Missing Google access token.", 502);
+		const userInfo = await fetchGoogleUserInfo(accessToken);
+		if (!userInfo) {
+			return authErrorResponse(c, "Failed to verify Google account.", 502);
 		}
-		const userInfoResponse = await fetch(
-			"https://openidconnect.googleapis.com/v1/userinfo",
-			{
-				headers: {
-					authorization: `Bearer ${tokenPayload.access_token}`,
-				},
-			},
-		);
-		if (!userInfoResponse.ok) {
-			clearAuthCookies(c);
-			return c.text("Failed to verify Google account.", 502);
+		const sessionUser = normalizeAllowedGoogleUser(userInfo);
+		if (!sessionUser) {
+			const email = String(userInfo.email ?? "").trim().toLowerCase();
+			if (!email) {
+				return authErrorResponse(c, "Google account is missing an email.", 403);
+			}
+			if (!userInfo.email_verified) {
+				return authErrorResponse(c, "Google email is not verified.", 403);
+			}
+			return authErrorResponse(c, "Google account is not allowed.", 403);
 		}
-		const userInfo = (await userInfoResponse.json()) as {
-			email?: string;
-			email_verified?: boolean;
-			name?: string;
-			sub?: string;
-		};
-		const email = String(userInfo.email ?? "").trim().toLowerCase();
-		if (!email) {
-			clearAuthCookies(c);
-			return c.text("Google account is missing an email.", 403);
-		}
-		if (!userInfo.email_verified) {
-			clearAuthCookies(c);
-			return c.text("Google email is not verified.", 403);
-		}
-		if (email !== appConfig.allowedEmail) {
-			clearAuthCookies(c);
-			return c.text("Google account is not allowed.", 403);
-		}
-		setSessionCookie(c, {
-			email,
-			name: userInfo.name ?? null,
-			sub: userInfo.sub ?? null,
-		});
+		setSessionCookie(c, sessionUser);
 		deleteCookie(c, STATE_COOKIE, { path: "/" });
 		deleteCookie(c, NEXT_COOKIE, { path: "/" });
 		return c.redirect(nextPath, 307);
 	} catch {
-		clearAuthCookies(c);
-		return c.text("Failed to verify Google account.", 502);
+		return authErrorResponse(c, "Failed to verify Google account.", 502);
 	}
 }
 

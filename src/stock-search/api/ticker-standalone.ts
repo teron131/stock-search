@@ -6,18 +6,54 @@ import { normalizeTicker, nowIso } from "../utils.js";
 import { mergePortfolioRow } from "../portfolio.js";
 import { resolveTickerStats } from "../stats-resolver.js";
 
+type StandaloneTickerSource = "auto" | "live" | "cache";
+type StandaloneTickerPayload = {
+	row: Record<string, unknown>;
+	meta: {
+		generated_at: string;
+		data_source: string;
+		backend_store: string;
+		sync_mode: string;
+	};
+};
+
 function makePosition(ticker: string): PositionRow {
-	return { ticker, quantity: 0, strategy: null }
+	return { ticker, quantity: 0, strategy: null };
 }
 
 function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
-	return (
-		stockEntry ?? {
-			indicators: {},
-			evaluation: {},
-			labels: [],
-		}
-	)
+	return stockEntry ?? {
+		indicators: {},
+		evaluation: {},
+		labels: [],
+	};
+}
+
+function buildStandaloneMeta(
+	store: BackendStore,
+	dataSource: string,
+): StandaloneTickerPayload["meta"] {
+	return {
+		generated_at: nowIso(),
+		data_source: dataSource,
+		backend_store: store.backendName,
+		sync_mode: "realtime_subscription",
+	};
+}
+
+function buildStandalonePayload(
+	store: BackendStore,
+	row: Record<string, unknown>,
+	dataSource: string,
+): StandaloneTickerPayload {
+	return {
+		row,
+		meta: buildStandaloneMeta(store, dataSource),
+	};
+}
+
+function hasCachedTicker(row: Record<string, unknown>): boolean {
+	return Boolean(row.ticker);
 }
 
 async function loadTickerContext(
@@ -28,15 +64,15 @@ async function loadTickerContext(
 	position: PositionRow;
 	stockEntry: StockEntry;
 }> {
-	const tickerSymbol = normalizeTicker(ticker)
+	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
-		throw new Error("Invalid ticker")
+		throw new Error("Invalid ticker");
 	}
 
 	const [positions, stockEntry] = await Promise.all([
 		store.loadPositions(),
 		store.loadStock(tickerSymbol),
-	])
+	]);
 
 	return {
 		ticker: tickerSymbol,
@@ -44,72 +80,43 @@ async function loadTickerContext(
 			positions.find((row) => normalizeTicker(row.ticker) === tickerSymbol) ??
 			makePosition(tickerSymbol),
 		stockEntry: makeStockEntry(stockEntry),
-	}
+	};
 }
 
 /** Build the public standalone stats payload for one ticker. */
 export async function buildStandaloneTickerPayload(
 	store: BackendStore,
 	ticker: string,
-	source: "auto" | "live" | "cache",
-): Promise<{
-	row: Record<string, unknown>;
-	meta: {
-		generated_at: string;
-		data_source: string;
-		backend_store: string;
-		sync_mode: string;
-	};
-}> {
-	const context = await loadTickerContext(store, ticker)
-	const cachedRow = mergePortfolioRow(context.position, context.stockEntry)
+	source: StandaloneTickerSource,
+): Promise<StandaloneTickerPayload> {
+	const context = await loadTickerContext(store, ticker);
+	const cachedRow = mergePortfolioRow(context.position, context.stockEntry);
 
 	if (source === "cache") {
-		if (!cachedRow.ticker) {
-			throw new Error("Ticker not found")
+		if (!hasCachedTicker(cachedRow)) {
+			throw new Error("Ticker not found");
 		}
-		return {
-			row: cachedRow,
-			meta: {
-				generated_at: nowIso(),
-				data_source: "cache",
-				backend_store: store.backendName,
-				sync_mode: "realtime_subscription",
-			},
-		}
+		return buildStandalonePayload(store, cachedRow, "cache");
 	}
 
 	try {
-		const resolved = await resolveTickerStats(store, context.ticker, source)
-		const indicators = resolved.row
-		return {
-			row: mergePortfolioRow(context.position, {
+		const resolved = await resolveTickerStats(store, context.ticker, source);
+		return buildStandalonePayload(
+			store,
+			mergePortfolioRow(context.position, {
 				...context.stockEntry,
-				indicators,
+				indicators: resolved.row,
 			}),
-			meta: {
-				generated_at: nowIso(),
-				data_source: resolved.dataSource,
-				backend_store: store.backendName,
-				sync_mode: "realtime_subscription",
-			},
-		}
+			resolved.dataSource,
+		);
 	} catch (error) {
 		if (source === "live") {
-			throw error
+			throw error;
 		}
-		if (!cachedRow.ticker) {
-			throw new Error("Ticker not found")
+		if (!hasCachedTicker(cachedRow)) {
+			throw new Error("Ticker not found");
 		}
-		return {
-			row: cachedRow,
-			meta: {
-				generated_at: nowIso(),
-				data_source: "cache",
-				backend_store: store.backendName,
-				sync_mode: "realtime_subscription",
-			},
-		}
+		return buildStandalonePayload(store, cachedRow, "cache");
 	}
 }
 
@@ -118,8 +125,8 @@ export async function buildEvaluateTickerPayload(
 	store: BackendStore,
 	ticker: string,
 ): Promise<Record<string, unknown>> {
-	const context = await loadTickerContext(store, ticker)
-	const indicators = await fetchYahooIndicators(context.ticker)
+	const context = await loadTickerContext(store, ticker);
+	const indicators = await fetchYahooIndicators(context.ticker);
 	return {
 		ticker: context.ticker,
 		rank: 1,
@@ -138,5 +145,5 @@ export async function buildEvaluateTickerPayload(
 				? indicators.change_percent_1d
 				: null,
 		rsi: typeof indicators.rsi === "number" ? indicators.rsi : null,
-	}
+	};
 }
