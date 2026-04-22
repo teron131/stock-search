@@ -39,6 +39,7 @@ export const appConfig = {
 	distUiDir,
 	uiDir: getUiDir(rawUiDir),
 	indexFile: getIndexFile(rawUiDir),
+	isVercelRuntime: truthy(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV),
 	dataSqlitePath: path.resolve(
 		process.env.DATA_SQLITE_PATH ?? path.join(dataDir, "stock_search.db"),
 	),
