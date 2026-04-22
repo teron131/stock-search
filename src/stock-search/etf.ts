@@ -159,102 +159,159 @@ export async function classifyAndResolveEtfs(
 	const stockPositions: PositionRow[] = [];
 	const etfPositions: PositionRow[] = [];
 	const snapshotByTicker: Record<string, EtfSnapshotResult> = {};
-	const changedTickers = new Set<string>();
-	let etfRefreshedCount = 0;
-	let cacheChanged = false;
 	const now = Date.now();
 
-	for (const position of positions) {
-		const ticker = normalizeTicker(position.ticker);
-		if (!ticker || Number(position.quantity ?? 0) <= 0) {
+	const resolvedPositions = await Promise.all(
+		positions.map(async (position) => {
+			const ticker = normalizeTicker(position.ticker);
+			if (!ticker || Number(position.quantity ?? 0) <= 0) {
+				return null;
+			}
+
+			const stockEntry = stockMap[ticker] ?? null;
+			const indicators = stockEntry?.indicators ?? {};
+			const cachedSnapshot = loadEtfCache(indicators, now, true);
+			const staleSnapshot = loadEtfCache(indicators, now, false);
+			const etfLike =
+				String(indicators.quote_type ?? "").trim().toUpperCase() === ETF_QUOTE_TYPE ||
+				(cachedSnapshot != null && cachedSnapshot.holdings.length > 0) ||
+				(allowLiveFetch && (await isEtfTicker(ticker, stockEntry)));
+
+			if (!etfLike) {
+				return {
+					kind: "stock" as const,
+					position,
+					ticker,
+					stockEntry,
+					indicators,
+				};
+			}
+
+			if (cachedSnapshot) {
+				return {
+					kind: "etf" as const,
+					position,
+					ticker,
+					stockEntry,
+					indicators,
+					snapshot: {
+						holdings: cachedSnapshot.holdings,
+						sectors: cachedSnapshot.sectors,
+						error: null,
+					},
+					didRefresh: false,
+				};
+			}
+
+			if (!allowLiveFetch && staleSnapshot) {
+				return {
+					kind: "etf" as const,
+					position,
+					ticker,
+					stockEntry,
+					indicators,
+					snapshot: {
+						holdings: staleSnapshot.holdings,
+						sectors: staleSnapshot.sectors,
+						error: null,
+					},
+					didRefresh: false,
+				};
+			}
+
+			const snapshot = await getEtfSnapshot(ticker);
+			if (!snapshot.error) {
+				return {
+					kind: "etf" as const,
+					position,
+					ticker,
+					stockEntry,
+					indicators,
+					snapshot: {
+						holdings: snapshot.holdings,
+						sectors: snapshot.sectors,
+						error: null,
+					},
+					didRefresh: true,
+				};
+			}
+
+			return {
+				kind: "etf" as const,
+				position,
+				ticker,
+				stockEntry,
+				indicators,
+				snapshot: staleSnapshot
+					? {
+							holdings: staleSnapshot.holdings,
+							sectors: staleSnapshot.sectors,
+							error: snapshot.error,
+						}
+					: {
+							holdings: [],
+							sectors: [],
+							error: snapshot.error,
+						},
+				didRefresh: false,
+			};
+		}),
+	);
+
+	const upserts: Array<{
+		ticker: string;
+		indicators?: Record<string, unknown>;
+		evaluation?: Record<string, unknown>;
+		labels?: string[];
+	}> = [];
+	const changedTickers = new Set<string>();
+	let etfRefreshedCount = 0;
+
+	for (const resolved of resolvedPositions) {
+		if (!resolved) {
 			continue;
 		}
 
-		const stockEntry = stockMap[ticker] ?? null;
-		const indicators = stockEntry?.indicators ?? {};
-		const cachedSnapshot = loadEtfCache(indicators, now, true);
-		const staleSnapshot = loadEtfCache(indicators, now, false);
-		const etfLike =
-			String(indicators.quote_type ?? "").trim().toUpperCase() === ETF_QUOTE_TYPE ||
-			(cachedSnapshot != null && cachedSnapshot.holdings.length > 0) ||
-			(allowLiveFetch && (await isEtfTicker(ticker, stockEntry)));
-
-		if (!etfLike) {
-			stockPositions.push(position);
+		if (resolved.kind === "stock") {
+			stockPositions.push(resolved.position);
 			if (
-				String(indicators.quote_type ?? "").trim().toUpperCase() !== "EQUITY" &&
+				String(resolved.indicators.quote_type ?? "").trim().toUpperCase() !== "EQUITY" &&
 				allowLiveFetch
 			) {
-				await store.upsertStocks([
-					{
-						ticker,
-						indicators: { ...indicators, quote_type: "EQUITY" },
-						evaluation: stockEntry?.evaluation ?? {},
-						labels: stockEntry?.labels ?? [],
-					},
-				]);
+				upserts.push({
+					ticker: resolved.ticker,
+					indicators: { ...resolved.indicators, quote_type: "EQUITY" },
+					evaluation: resolved.stockEntry?.evaluation ?? {},
+					labels: resolved.stockEntry?.labels ?? [],
+				});
 			}
 			continue;
 		}
 
-		etfPositions.push(position);
-		if (cachedSnapshot) {
-			snapshotByTicker[ticker] = {
-				holdings: cachedSnapshot.holdings,
-				sectors: cachedSnapshot.sectors,
-				error: null,
-			};
-			continue;
-		}
-		if (!allowLiveFetch && staleSnapshot) {
-			snapshotByTicker[ticker] = {
-				holdings: staleSnapshot.holdings,
-				sectors: staleSnapshot.sectors,
-				error: null,
-			};
+		etfPositions.push(resolved.position);
+		snapshotByTicker[resolved.ticker] = resolved.snapshot;
+
+		if (!resolved.didRefresh) {
 			continue;
 		}
 
-		const snapshot = await getEtfSnapshot(ticker);
-		if (!snapshot.error) {
-			etfRefreshedCount += 1;
-			const nextIndicators = storeEtfCache(
-				{ ...indicators, quote_type: ETF_QUOTE_TYPE },
-				snapshot.holdings,
-				snapshot.sectors,
+		etfRefreshedCount += 1;
+		changedTickers.add(resolved.ticker);
+		upserts.push({
+			ticker: resolved.ticker,
+			indicators: storeEtfCache(
+				{ ...resolved.indicators, quote_type: ETF_QUOTE_TYPE },
+				resolved.snapshot.holdings,
+				resolved.snapshot.sectors,
 				now,
-			);
-			await store.upsertStocks([
-				{
-					ticker,
-					indicators: nextIndicators,
-					evaluation: stockEntry?.evaluation ?? {},
-					labels: stockEntry?.labels ?? [],
-				},
-			]);
-			cacheChanged = true;
-			changedTickers.add(ticker);
-			snapshotByTicker[ticker] = {
-				holdings: snapshot.holdings,
-				sectors: snapshot.sectors,
-				error: null,
-			};
-			continue;
-		}
+			),
+			evaluation: resolved.stockEntry?.evaluation ?? {},
+			labels: resolved.stockEntry?.labels ?? [],
+		});
+	}
 
-		if (staleSnapshot) {
-			snapshotByTicker[ticker] = {
-				holdings: staleSnapshot.holdings,
-				sectors: staleSnapshot.sectors,
-				error: snapshot.error,
-			};
-		} else {
-			snapshotByTicker[ticker] = {
-				holdings: [],
-				sectors: [],
-				error: snapshot.error,
-			};
-		}
+	if (upserts.length > 0) {
+		await store.upsertStocks(upserts);
 	}
 
 	return {
@@ -262,7 +319,7 @@ export async function classifyAndResolveEtfs(
 		etfPositions,
 		snapshotByTicker,
 		etfRefreshedCount,
-		cacheChanged,
+		cacheChanged: upserts.length > 0,
 		changedTickers: [...changedTickers],
 	};
 }

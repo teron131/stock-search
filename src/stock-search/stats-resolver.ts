@@ -333,6 +333,7 @@ function classifyDataSource(
 }
 
 async function resolveFamily(
+	bundle: ProviderBundle,
 	store: BackendStore,
 	ticker: string,
 	family: StatsFamily,
@@ -386,7 +387,6 @@ async function resolveFamily(
 		};
 	}
 
-	const bundle = new ProviderBundle(ticker);
 	const refreshedAt = Date.now();
 	try {
 		const refreshedRow = await refreshFamilyRow(bundle, family);
@@ -456,9 +456,11 @@ export async function resolveTickerStats(
 	const stockEntry = await store.loadStock(ticker);
 	const persistedRow = { ...(stockEntry?.indicators ?? {}) };
 	const families = {} as Record<StatsFamily, FamilyResolution>;
+	const bundle = new ProviderBundle(ticker);
 
 	for (const family of STAT_FAMILIES) {
 		families[family] = await resolveFamily(
+			bundle,
 			store,
 			ticker,
 			family,

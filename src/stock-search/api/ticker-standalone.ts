@@ -89,10 +89,16 @@ export async function buildStandaloneTickerPayload(
 	ticker: string,
 	source: StandaloneTickerSource,
 ): Promise<StandaloneTickerPayload> {
-	const context = await loadTickerContext(store, ticker);
-	const cachedRow = mergePortfolioRow(context.position, context.stockEntry);
+	const tickerSymbol = normalizeTicker(ticker);
+	if (!tickerSymbol) {
+		throw new Error("Invalid ticker");
+	}
+
+	const contextPromise = loadTickerContext(store, tickerSymbol);
 
 	if (source === "cache") {
+		const context = await contextPromise;
+		const cachedRow = mergePortfolioRow(context.position, context.stockEntry);
 		if (!hasCachedTicker(cachedRow)) {
 			throw new Error("Ticker not found");
 		}
@@ -100,7 +106,10 @@ export async function buildStandaloneTickerPayload(
 	}
 
 	try {
-		const resolved = await resolveTickerStats(store, context.ticker, source);
+		const [context, resolved] = await Promise.all([
+			contextPromise,
+			resolveTickerStats(store, tickerSymbol, source),
+		]);
 		return buildStandalonePayload(
 			store,
 			mergePortfolioRow(context.position, {
@@ -113,6 +122,8 @@ export async function buildStandaloneTickerPayload(
 		if (source === "live") {
 			throw error;
 		}
+		const context = await contextPromise;
+		const cachedRow = mergePortfolioRow(context.position, context.stockEntry);
 		if (!hasCachedTicker(cachedRow)) {
 			throw new Error("Ticker not found");
 		}
@@ -122,13 +133,17 @@ export async function buildStandaloneTickerPayload(
 
 /** Build the cached evaluation payload for one ticker. */
 export async function buildEvaluateTickerPayload(
-	store: BackendStore,
+	_store: BackendStore,
 	ticker: string,
 ): Promise<Record<string, unknown>> {
-	const context = await loadTickerContext(store, ticker);
-	const indicators = await fetchYahooIndicators(context.ticker);
+	const tickerSymbol = normalizeTicker(ticker);
+	if (!tickerSymbol) {
+		throw new Error("Invalid ticker");
+	}
+
+	const indicators = await fetchYahooIndicators(tickerSymbol);
 	return {
-		ticker: context.ticker,
+		ticker: tickerSymbol,
 		rank: 1,
 		overall_score: 8.5,
 		moat_score: 9.0,

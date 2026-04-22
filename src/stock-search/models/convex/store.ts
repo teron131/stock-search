@@ -157,9 +157,9 @@ export class ConvexStore implements BackendStore {
 			}
 		}
 
-		for (const row of rows) {
-			await this.client.mutation(CONVEX_STOCK_UPSERT, row);
-		}
+		await Promise.all(
+			rows.map((row) => this.client.mutation(CONVEX_STOCK_UPSERT, row)),
+		);
 	}
 
 	async loadNews(key = "default"): Promise<CachedNewsRow[]> {

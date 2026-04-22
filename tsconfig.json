@@ -4,6 +4,13 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"lib": ["ES2022", "DOM"],
+		"paths": {
+			"llm-harness-js": ["./llm-harness-js/src/index.ts"],
+			"llm-harness-js/agents": ["./llm-harness-js/src/agents/index.ts"],
+			"llm-harness-js/clients": ["./llm-harness-js/src/clients/index.ts"],
+			"llm-harness-js/tools": ["./llm-harness-js/src/tools/index.ts"],
+			"llm-harness-js/tools/web": ["./llm-harness-js/src/tools/web/index.ts"]
+		},
 		"strict": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true,

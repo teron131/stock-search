@@ -868,8 +868,10 @@ export async function buildPortfolioPayload(
 		sync_mode: string;
 	};
 }> {
-	const portfolio = await store.loadPortfolio();
-	const stocksMap = await store.loadStocks();
+	const [portfolio, stocksMap] = await Promise.all([
+		store.loadPortfolio(),
+		store.loadStocks(),
+	]);
 	const scopedPositions = buildRowsForScope(portfolio.positions, stocksMap, scope);
 	const labelsByTicker = await resolvePortfolioLabels(
 		store,
@@ -929,11 +931,13 @@ export async function buildPortfolioPayload(
 		.map((position) => normalizeTicker(position.ticker))
 		.filter(Boolean);
 	const sectorDistribution = buildSectorDistribution(rows, etfResolution);
-	const { tickerTable, sectorTable, meta: tableMeta } = await buildEtfTables(
-		rows,
-		etfResolution,
-		heldTickers,
-	);
+	const [{ tickerTable, sectorTable, meta: tableMeta }, generatedAt] =
+		await Promise.all([
+			buildEtfTables(rows, etfResolution, heldTickers),
+			LIVE_SCOPES.has(scope)
+				? Promise.resolve(generatedAtIso())
+				: store.getMetaValue("stats_generated_at"),
+		]);
 	let dataSource = LIVE_SCOPES.has(scope)
 		? aggregateTickerDataSource(liveResults, "auto")
 		: "cache";
@@ -959,9 +963,7 @@ export async function buildPortfolioPayload(
 			...tableMeta,
 			etf_count: etfResolution.etfPositions.length,
 			etf_refreshed_count: etfResolution.etfRefreshedCount,
-			generated_at: LIVE_SCOPES.has(scope)
-				? generatedAtIso()
-				: (await store.getMetaValue("stats_generated_at")),
+			generated_at: generatedAt,
 			data_source: dataSource,
 			backend_store: store.backendName,
 			sync_mode: syncModeForScope(scope),

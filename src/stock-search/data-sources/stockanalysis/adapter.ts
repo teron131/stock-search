@@ -219,14 +219,14 @@ export class StockAnalysisSource {
 			return this.etfSnapshot;
 		}
 
-		let holdings = await scrapeEtfHoldingsSnapshot(this.tickerLower);
-		if (holdings.length === 0) {
-			holdings = await this.searchEtfHoldings();
-		}
-		let sectors = await scrapeEtfSectorsSnapshot(this.tickerLower);
-		if (sectors.length === 0) {
-			sectors = await this.searchEtfSectors();
-		}
+		const [scrapedHoldings, scrapedSectors] = await Promise.all([
+			scrapeEtfHoldingsSnapshot(this.tickerLower),
+			scrapeEtfSectorsSnapshot(this.tickerLower),
+		]);
+		const [holdings, sectors] = await Promise.all([
+			scrapedHoldings.length > 0 ? scrapedHoldings : this.searchEtfHoldings(),
+			scrapedSectors.length > 0 ? scrapedSectors : this.searchEtfSectors(),
+		]);
 		this.etfSnapshot = {
 			holdings,
 			sectors,
@@ -244,11 +244,11 @@ export class StockAnalysisSource {
 			return this.indicatorsSnapshot;
 		}
 
-		const [statistics, financials] = await Promise.all([
+		const [statistics, financials, quoteFields] = await Promise.all([
 			this.getStatisticsSnapshot(),
 			this.getFinancialsSnapshot(),
+			scrapeQuoteFields(this.tickerLower),
 		]);
-		const quoteFields = await scrapeQuoteFields(this.tickerLower);
 		this.indicatorsSnapshot = {
 			...quoteFields,
 			...statistics,

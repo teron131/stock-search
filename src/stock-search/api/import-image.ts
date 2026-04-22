@@ -91,8 +91,13 @@ export async function importPortfolioImage(
 		throw new Error("Uploaded image is empty.")
 	}
 
-	const extraction = await extractPortfolioImage(file, model)
-	const positions = replace ? [] : await store.loadPositions()
+	const positionsPromise: Promise<PositionRow[]> = replace
+		? Promise.resolve([])
+		: store.loadPositions()
+	const [extraction, positions] = await Promise.all([
+		extractPortfolioImage(file, model),
+		positionsPromise,
+	])
 	const positionIndex = new Map<string, number>()
 	for (const [index, position] of positions.entries()) {
 		const ticker = normalizeTicker(position.ticker)

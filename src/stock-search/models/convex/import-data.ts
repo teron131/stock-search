@@ -28,31 +28,35 @@ export async function runImportFromLocalStore({
 		process.env.CONVEX_DEPLOY_KEY ?? "",
 	);
 	const store = new SQLiteStore(dbPath);
-	const positions = normalizePortfolioPositions(await store.loadPositions());
-	const mergedStockMap = await store.loadStocks();
+	const [positions, mergedStockMap] = await Promise.all([
+		store.loadPositions().then(normalizePortfolioPositions),
+		store.loadStocks(),
+	]);
 
-	await client.mutation(CONVEX_PORTFOLIO_SET, {
-		key: "default",
-		positions,
-	});
-	await client.mutation(CONVEX_STOCK_REPLACE_ALL, {
-		rows: stockMapToRows(
-			Object.fromEntries(
-				Object.entries(mergedStockMap).map(([ticker, row]) => [
-					ticker,
-					{
-						indicators: row.indicators,
-						evaluation: row.evaluation,
-						labels: row.labels,
-					},
-				]),
+	await Promise.all([
+		client.mutation(CONVEX_PORTFOLIO_SET, {
+			key: "default",
+			positions,
+		}),
+		client.mutation(CONVEX_STOCK_REPLACE_ALL, {
+			rows: stockMapToRows(
+				Object.fromEntries(
+					Object.entries(mergedStockMap).map(([ticker, row]) => [
+						ticker,
+						{
+							indicators: row.indicators,
+							evaluation: row.evaluation,
+							labels: row.labels,
+						},
+					]),
+				),
 			),
-		),
-	});
-	await client.mutation(CONVEX_META_SET, {
-		key: STATS_GENERATED_AT_KEY,
-		value: new Date().toISOString(),
-	});
+		}),
+		client.mutation(CONVEX_META_SET, {
+			key: STATS_GENERATED_AT_KEY,
+			value: new Date().toISOString(),
+		}),
+	]);
 
 	return {
 		positions: positions.length,

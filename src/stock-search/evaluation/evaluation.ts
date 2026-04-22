@@ -119,18 +119,22 @@ function blendedQuality(
 /** Fetch metrics and run LLM evaluations to build the Evaluation input model. */
 export async function buildInputs(ticker: string): Promise<Evaluation> {
 	const normalizedTicker = normalizeTicker(ticker);
-	const indicator = await fetchLiveIndicators(normalizedTicker);
-
-	const outlook = await runLlmEvaluation(
-		ticker,
-		FUTURE_OUTLOOK_DEFINITION,
-		(await import("../models/schemas.js")).futureOutlookSchema,
-	);
-	const research = await runLlmEvaluation(
-		ticker,
-		RESEARCH_DEFINITION,
-		(await import("../models/schemas.js")).researchEvaluationSchema,
-	);
+	const [indicator, schemas] = await Promise.all([
+		fetchLiveIndicators(normalizedTicker),
+		import("../models/schemas.js"),
+	]);
+	const [outlook, research] = await Promise.all([
+		runLlmEvaluation(
+			ticker,
+			FUTURE_OUTLOOK_DEFINITION,
+			schemas.futureOutlookSchema,
+		),
+		runLlmEvaluation(
+			ticker,
+			RESEARCH_DEFINITION,
+			schemas.researchEvaluationSchema,
+		),
+	]);
 
 	const marketCapValue = marketCapScore({
 		marketCap: indicator.market_cap,

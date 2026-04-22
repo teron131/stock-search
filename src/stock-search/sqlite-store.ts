@@ -57,7 +57,11 @@ export class SQLiteStore implements BackendStore {
 		await this.savePositions(positions);
 		if (portfolioStats) {
 			await this.setMetaValue("portfolio_stats", jsonStringify(portfolioStats));
+			return;
 		}
+		this.database
+			.prepare("DELETE FROM meta WHERE key = ?")
+			.run("portfolio_stats");
 	}
 
 	async loadPositions(): Promise<PositionRow[]> {
