@@ -7,8 +7,12 @@
       "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
+      "src": "/(auth(?:/.*)?|portfolio(?:/.*)?|stock/[^/]+/(?:stats|evaluate|news)|stocks|eval|industries|color-standards|realtime-config)",
       "dest": "/api/index"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }

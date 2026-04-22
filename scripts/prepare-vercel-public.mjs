@@ -10,9 +10,6 @@ async function main() {
 	await mkdir(publicDir, { recursive: true });
 
 	for (const child of await readdir(distDir, { withFileTypes: true })) {
-		if (child.name === "index.html") {
-			continue;
-		}
 		const sourcePath = path.join(distDir, child.name);
 		const targetPath = path.join(publicDir, child.name);
 		await cp(sourcePath, targetPath, { recursive: true });
