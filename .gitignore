@@ -15,8 +15,6 @@ data/
 !tests/
 !tests/*.py
 !tests/**/*.py
-!server/test/
-!server/test/*.ts
 *.png
 *.jpg
 .playwright-cli/

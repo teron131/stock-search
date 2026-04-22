@@ -10,7 +10,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
 		"allowSyntheticDefaultImports": true,
-		"types": ["node", "vitest/globals"]
+		"types": ["node"]
 	},
-	"include": ["src/**/*.ts", "server/**/*.ts", "api/**/*.ts"]
+	"include": ["src/**/*.ts", "api/**/*.ts"]
 }
