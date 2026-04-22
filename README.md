@@ -93,27 +93,27 @@ flowchart TD
 
 ## Module Overview
 
-- **`stock_search/data_sources/`**
+- **`src/stock-search/data-sources/`**
   - Provider-specific fetchers and parsers.
   - Keeps external API/scraping variability out of business logic.
 
-- **`stock_search/indicators.py`**
+- **`src/stock-search/indicators.ts`**
   - Unified indicator resolver across sources.
   - Centralizes field-level precedence and cache fallback so callers stay source-agnostic.
 
-- **`stock_search/evaluation/`**
+- **`src/stock-search/evaluation/`**
   - Scoring, normalization, and ranking logic.
   - Keeps decision logic deterministic and independent from raw fetching.
 
-- **`stock_search/api/`**
+- **`src/stock-search/api/`**
   - HTTP routes for portfolio flows, standalone ticker reads, and utility endpoints.
   - Clean boundary between UI contract and internal data orchestration.
 
-- **`stock_search/models/`**
+- **`src/stock-search/models/`**
   - Shared schemas, labels/constants, and storage interfaces.
   - One canonical model layer for API, evaluation, and persistence code.
 
-- **`stock_search/models/convex/`**
+- **`src/stock-search/models/convex/`**
   - Convex adapter, store facade, and import tooling.
   - Encapsulates cloud persistence details behind typed, app-level operations.
 
@@ -146,7 +146,11 @@ Current Convex function namespaces are intentionally singular to match the one-p
 ## Local SQLite
 
 - Local fallback and non-Convex mode now use `data/stock_search.db`.
-- `generate_static_data.py` writes sample data to `data/sample_stock_search.db` by default and can refresh the main SQLite store with `--prod`.
+
+## Legacy Python
+
+- The Python backend has been retired.
+- The remaining Python surface is the correlation tooling in `stock_search/correlation.py`, which is kept because there is no TypeScript counterpart yet.
 
 ## FastMCP
 

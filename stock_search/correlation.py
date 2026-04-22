@@ -14,20 +14,23 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
+import json
 from pathlib import Path
+import sqlite3
 from typing import Any
 
 import numpy as np
 import pandas as pd
-
-from .api.portfolio_store import load_positions
-from .common_utils import normalize_ticker_symbol
-from .data_sources.yahoofinance import YahooFinanceSource
+import yfinance as yf
 
 HISTORY_PERIOD = "5y"
 DEFAULT_TICKERS: list[str] = []
+DATA_DIR = Path("data")
+PORTFOLIO_JSON_PATH = DATA_DIR / "portfolio.json"
+DATA_SQLITE_PATH = DATA_DIR / "stock_search.db"
 TRADING_DAYS_PER_YEAR = 252
 MIN_OBSERVATIONS_FOR_FISHER = 4
 MIN_RESIDUAL_OBSERVATIONS = 30
@@ -58,6 +61,68 @@ PERCENT_STATS_COLUMNS: tuple[str, ...] = (
 # "ITA": {"markers": ["sleeve:defense"]},
 # "SHLD": {"markers": ["sleeve:defense"]},
 TICKER_METADATA_PLACEHOLDER: dict[str, dict[str, list[str]]] = {}
+
+
+def normalize_ticker_symbol(value: str) -> str:
+    """Normalize ticker symbols for internal storage and lookups."""
+    return str(value).upper().strip()
+
+
+def _normalize_yahoo_ticker(ticker: str) -> str:
+    """Normalize ticker symbols for Yahoo Finance endpoints."""
+    return normalize_ticker_symbol(ticker).replace(" ", "-").replace(".", "-")
+
+
+def _load_positions_from_json(path: Path = PORTFOLIO_JSON_PATH) -> list[dict[str, Any]]:
+    """Load portfolio positions from the local JSON file when present."""
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [row for row in payload if isinstance(row, dict)] if isinstance(payload, list) else []
+
+
+def _load_positions_from_sqlite(path: Path = DATA_SQLITE_PATH) -> list[dict[str, Any]]:
+    """Load portfolio positions from the local SQLite store when present."""
+    if not path.exists():
+        return []
+
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(path, timeout=30.0)
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT payload_json
+            FROM positions
+            ORDER BY sort_index ASC, ticker ASC
+            """
+        ).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        with suppress(AttributeError):
+            connection.close()
+
+    positions: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict):
+            positions.append(payload)
+    return positions
+
+
+def load_positions() -> list[dict[str, Any]]:
+    """Load positions from the remaining local portfolio stores."""
+    positions = _load_positions_from_json()
+    if positions:
+        return positions
+    return _load_positions_from_sqlite()
 
 
 @dataclass(frozen=True)
@@ -163,21 +228,27 @@ def _resolve_tickers() -> list[str]:
 
 def _fetch_single_ticker_history(ticker: str) -> tuple[str, pd.Series, str]:
     """Fetch one ticker's close-history series and display name."""
-    source = YahooFinanceSource(ticker)
-    snapshot = source.get_history_snapshot(period=HISTORY_PERIOD, interval="1d")
-    history = snapshot.history.copy()
+    ticker_symbol = normalize_ticker_symbol(ticker)
+    yahoo_ticker = yf.Ticker(_normalize_yahoo_ticker(ticker_symbol))
+    try:
+        history = yahoo_ticker.history(period=HISTORY_PERIOD, interval="1d").copy()
+    except Exception:
+        return ticker_symbol, pd.Series(dtype="float64"), ticker_symbol
     price_column = "Adj Close" if "Adj Close" in history else "Close"
     if history.empty or price_column not in history:
-        return ticker, pd.Series(dtype="float64"), ticker
+        return ticker_symbol, pd.Series(dtype="float64"), ticker_symbol
 
     close_series = pd.to_numeric(history[price_column], errors="coerce").dropna()
     close_series.index = pd.to_datetime(close_series.index, utc=True)
     close_series = close_series[~close_series.index.duplicated(keep="last")]
-    close_series.name = ticker
+    close_series.name = ticker_symbol
 
-    info = source.get_info_snapshot().raw_info
-    short_name = str(info.get("shortName") or info.get("longName") or ticker)
-    return ticker, close_series, short_name
+    try:
+        info = yahoo_ticker.info or {}
+    except Exception:
+        info = {}
+    short_name = str(info.get("shortName") or info.get("longName") or ticker_symbol)
+    return ticker_symbol, close_series, short_name
 
 
 def _build_close_matrix_and_names(tickers: list[str]) -> tuple[pd.DataFrame, dict[str, str]]:

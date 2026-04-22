@@ -1,37 +1,14 @@
 [project]
 name = "stock-search"
 version = "0.1.0"
-description = "Add your description here"
+description = "Correlation tooling kept from the original Python implementation."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "exa-py>=2.4.0",
-    "fastapi>=0.116.1",
-    "fastmcp>=3.2.4",
-    "google-genai>=1.25.0",
-    "httpx>=0.28.1",
-    "ib-async>=2.0.1",
-    "iprogress>=0.4",
-    "itsdangerous>=2.2.0",
-    "langchain>=1.2.0",
-    "langchain-openai>=1.1.6",
-    "langgraph>=0.2.0",
-    "llm-harness",
     "pandas>=2.2.3",
-    "pillow>=12.2.0",
-    "python-dotenv>=1.1.1",
-    "python-multipart>=0.0.22",
-    "rich>=14.0.0",
-    "selectolax>=0.4.7",
-    "shapely>=2.1.2",
-    "tiktoken>=0.12.0",
-    "tqdm>=4.67.1",
-    "uvicorn>=0.40.0",
+    "numpy>=2.2.0",
     "yfinance>=0.2.65",
 ]
-
-[project.scripts]
-stock-search = "stock_search.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -92,9 +69,6 @@ docstring-code-format = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.uv.sources]
-llm-harness = { git = "https://github.com/teron131/llm-harness", branch = "main" }
 
 [dependency-groups]
 dev = [
