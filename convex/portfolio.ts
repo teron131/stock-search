@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
 	type PortfolioPosition,
-	portfolioPositionValidator,
+	PortfolioPositionSchema,
 } from "./schema";
 
 type GenericRow = Record<string, unknown>;
@@ -87,7 +87,7 @@ export const getPositions = query({
 export const set = mutation({
 	args: {
 		key: v.string(),
-		positions: v.array(portfolioPositionValidator),
+		positions: v.array(PortfolioPositionSchema),
 		portfolioStats: v.optional(v.any()),
 	},
 	handler: async (ctx, args) => {
@@ -125,7 +125,7 @@ export const set = mutation({
 export const setPositions = mutation({
 	args: {
 		key: v.optional(v.string()),
-		positions: v.array(portfolioPositionValidator),
+		positions: v.array(PortfolioPositionSchema),
 	},
 	handler: async (ctx, args) => {
 		const key = (args.key ?? "").trim() || "default";

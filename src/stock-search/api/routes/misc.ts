@@ -10,8 +10,8 @@ import { normalizeTicker } from "../../utils.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
 import { getIndustrySnapshot } from "../../data-sources/stockanalysis/index.js";
 import {
-	portfolioNewsSummaryRequestArticleSchema,
-	portfolioNewsSummaryRequestRowSchema,
+	PortfolioNewsSummaryRequestArticleSchema,
+	PortfolioNewsSummaryRequestRowSchema,
 } from "../../models/schemas.js";
 import * as newsOrchestrator from "../../news/orchestrator.js";
 import {
@@ -119,13 +119,13 @@ function parseTickersQuery(rawValue: string | undefined): string[] | undefined {
 	return tickers.length > 0 ? tickers : undefined;
 }
 
-const portfolioNewsSummaryPayloadSchema = z
+const PortfolioNewsSummaryPayloadSchema = z
 	.object({
 		rows: z
 			.array(
 				z.preprocess(
 					normalizePortfolioNewsSummaryRow,
-					portfolioNewsSummaryRequestRowSchema,
+					PortfolioNewsSummaryRequestRowSchema,
 				),
 			)
 			.default([]),
@@ -133,7 +133,7 @@ const portfolioNewsSummaryPayloadSchema = z
 			.array(
 				z.preprocess(
 					normalizePortfolioNewsSummaryArticle,
-					portfolioNewsSummaryRequestArticleSchema,
+					PortfolioNewsSummaryRequestArticleSchema,
 				),
 			)
 			.default([]),
@@ -148,7 +148,7 @@ export function createMiscRouter(store: BackendStore): Hono {
 
 	router.post(PORTFOLIO_NEWS_SUMMARY, async (c) => {
 		c.header("Cache-Control", "no-store");
-		const { rows, items } = portfolioNewsSummaryPayloadSchema.parse(
+		const { rows, items } = PortfolioNewsSummaryPayloadSchema.parse(
 			await c.req.json().catch(() => null),
 		);
 		return c.json(await newsOrchestrator.buildPortfolioNewsSummary(rows, items));

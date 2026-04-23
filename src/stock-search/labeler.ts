@@ -16,12 +16,12 @@ import {
 	INDUSTRY_LABELS,
 	INDUSTRY_LABELS_BY_SECTOR,
 } from "./models/labels.js";
-import { tickerLabelsSchema, type TickerLabels } from "./models/schemas.js";
+import { TickerLabelsSchema, type TickerLabels } from "./models/schemas.js";
 
 const INDUSTRY_LABEL_SET = new Set(INDUSTRY_LABELS);
 const MAX_LABELS = 5;
 
-const pillarSchema = z.object({
+const PillarSchema = z.object({
 	pillar: z.string().describe("Business pillar name."),
 	portion: z
 		.number()
@@ -37,16 +37,16 @@ const pillarSchema = z.object({
 		.describe("Brief one-sentence description of what this pillar does."),
 });
 
-const pillarsSchema = z.object({
+const PillarsSchema = z.object({
 	pillars: z
-		.array(pillarSchema)
+		.array(PillarSchema)
 		.min(1)
 		.max(5)
 		.default([])
 		.describe("Top business pillars ranked by strategic importance."),
 });
 
-const outlookSchema = z.object({
+const OutlookSchema = z.object({
 	outlook: z
 		.string()
 		.describe(
@@ -59,8 +59,8 @@ const outlookSchema = z.object({
 
 const labelGraphState = Annotation.Root({
 	ticker: Annotation<string>,
-	pillars: Annotation<z.infer<typeof pillarsSchema> | null>,
-	outlook: Annotation<z.infer<typeof outlookSchema> | null>,
+	pillars: Annotation<z.infer<typeof PillarsSchema> | null>,
+	outlook: Annotation<z.infer<typeof OutlookSchema> | null>,
 	labels: Annotation<TickerLabels | null>,
 });
 
@@ -165,13 +165,13 @@ function buildLabelSystemPrompt(): string {
 }
 
 async function pillarNode(state: LabelGraphState) {
-	const pillarsAgent = new ExaAgent(PILLARS_SYSTEM_PROMPT, pillarsSchema);
+	const pillarsAgent = new ExaAgent(PILLARS_SYSTEM_PROMPT, PillarsSchema);
 	const pillars = await pillarsAgent.invoke(state.ticker);
 	return { pillars };
 }
 
 async function outlookNode(state: LabelGraphState) {
-	const outlookAgent = new ExaAgent(OUTLOOK_SYSTEM_PROMPT, outlookSchema);
+	const outlookAgent = new ExaAgent(OUTLOOK_SYSTEM_PROMPT, OutlookSchema);
 	const outlook = await outlookAgent.invoke(
 		fillPrompt(OUTLOOK_QUERY, {
 			ticker: state.ticker,
@@ -186,7 +186,7 @@ async function labelNode(state: LabelGraphState) {
 		model: ModelConfig.qualityOrFast(),
 		temperature: 0.1,
 		reasoningEffort: "medium",
-	}).withStructuredOutput(tickerLabelsSchema);
+	}).withStructuredOutput(TickerLabelsSchema);
 	const rawResult = await labelModel.invoke(
 		`${buildLabelSystemPrompt()}\n\n${fillPrompt(LABEL_QUERY, {
 			ticker: state.ticker,
@@ -204,7 +204,7 @@ async function labelNode(state: LabelGraphState) {
 	}
 
 	return {
-		labels: tickerLabelsSchema.parse({
+		labels: TickerLabelsSchema.parse({
 			labels: normalized,
 		}),
 	};

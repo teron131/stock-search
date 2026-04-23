@@ -13,7 +13,7 @@ import {
 	buildStandaloneTickerPayload,
 } from "../api/ticker-standalone.js";
 import { getIndustrySnapshot } from "../data-sources/stockanalysis/index.js";
-import { portfolioNewsSummaryRequestSchema } from "../models/schemas.js";
+import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
 import {
 	buildPortfolioPayload,
@@ -50,14 +50,14 @@ export type StockSearchTool = {
 	execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const portfolioScopeSchema = z
+const PortfolioScopeSchema = z
 	.enum(["priority", "all_cached", "portfolio_live", "all"])
 	.optional();
-const tickerSourceSchema = z.enum(["auto", "live", "cache"]).optional();
-const noArgsSchema = z.object({});
+const TickerSourceSchema = z.enum(["auto", "live", "cache"]).optional();
+const NoArgsSchema = z.object({});
 
 export function toolHasParameters(parameters?: ZodType): parameters is ZodType {
-	return Boolean(parameters && parameters !== noArgsSchema);
+	return Boolean(parameters && parameters !== NoArgsSchema);
 }
 
 function asJsonValue(value: unknown): JsonValue {
@@ -86,55 +86,55 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	{
 		name: "serve_dashboard_calendar_get",
 		description: "Serve client-side dashboard routes.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => loadDashboardHtml(),
 	},
 	{
 		name: "serve_dashboard_marketmap_get",
 		description: "Serve client-side dashboard routes.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => loadDashboardHtml(),
 	},
 	{
 		name: "serve_dashboard_industry_get",
 		description: "Serve client-side dashboard routes.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => loadDashboardHtml(),
 	},
 	{
 		name: "serve_dashboard_dashboard_get",
 		description: "Serve client-side dashboard routes.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => loadDashboardHtml(),
 	},
 	{
 		name: "auth_login_auth_login_get",
 		description: "Start the Google OAuth flow when auth is enabled.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => redirectToolError(),
 	},
 	{
 		name: "auth_callback_auth_callback_get",
 		description: "Complete the Google OAuth flow and create the session.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => redirectToolError(),
 	},
 	{
 		name: "auth_logout_auth_logout_post",
 		description: "Clear the authenticated session.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => redirectToolError(),
 	},
 	{
 		name: "auth_logout_auth_logout_post_2",
 		description: "Clear the authenticated session.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => redirectToolError(),
 	},
 	{
 		name: "auth_session_auth_session_get",
 		description: "Return the current auth/session status for the UI.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => ({
 			enabled: appConfig.authEnabled,
 			authenticated: false,
@@ -145,7 +145,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		name: "get_portfolio",
 		description: "Return the current portfolio payload.",
 		parameters: z.object({
-			scope: portfolioScopeSchema,
+			scope: PortfolioScopeSchema,
 		}),
 		execute: async ({ scope }) =>
 			buildPortfolioPayload(
@@ -188,7 +188,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		description: "Return standalone stats for one ticker.",
 		parameters: z.object({
 			ticker: z.string(),
-			source: tickerSourceSchema,
+			source: TickerSourceSchema,
 		}),
 		execute: async ({ ticker, source }) =>
 			buildStandaloneTickerPayload(
@@ -221,19 +221,19 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	{
 		name: "industries_api_industries_get",
 		description: "Return the current StockAnalysis industry snapshot.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => getIndustrySnapshot(),
 	},
 	{
 		name: "get_color_standards",
 		description: "Return the dashboard color scale definitions.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => buildColorStandardsPayload(),
 	},
 	{
 		name: "get_realtime_config",
 		description: "Return the realtime polling configuration.",
-		parameters: noArgsSchema,
+		parameters: NoArgsSchema,
 		execute: async () => realtimeConfigPayload(),
 	},
 	{
@@ -249,7 +249,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		name: "portfolio_news_summary_api_portfolio_news_summary_post",
 		description:
 			"Return a structured portfolio-level summary from merged article summaries.",
-		parameters: portfolioNewsSummaryRequestSchema,
+		parameters: PortfolioNewsSummaryRequestSchema,
 		execute: async ({ rows, items }) =>
 			newsOrchestrator.buildPortfolioNewsSummary(
 				Array.isArray(rows) ? rows : [],

@@ -18,11 +18,11 @@ import {
 	PORTFOLIO_TICKER_ROUTE,
 } from "../route-paths.js";
 
-const portfolioPositionPatchSchema = z.object({
+const PortfolioPositionPatchSchema = z.object({
 	quantity: z.number().optional(),
 	strategy: z.string().nullable().optional(),
 });
-const portfolioScopeSchema = z
+const PortfolioScopeSchema = z
 	.enum(["priority", "all_cached", "portfolio_live", "all"])
 	.catch("all");
 
@@ -46,14 +46,14 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
 	router.get(PORTFOLIO, async (c) => {
-		const scope = portfolioScopeSchema.parse(c.req.query("scope"));
+		const scope = PortfolioScopeSchema.parse(c.req.query("scope"));
 		c.header("Cache-Control", cacheControlForScope(scope));
 		return c.json(await buildPortfolioPayload(store, scope));
 	});
 
 	router.patch(PORTFOLIO_TICKER_ROUTE, async (c) => {
 		const payload = await c.req.json();
-		const parsed = portfolioPositionPatchSchema.safeParse(payload);
+		const parsed = PortfolioPositionPatchSchema.safeParse(payload);
 		if (!parsed.success) {
 			return c.json({ detail: "Invalid patch payload." }, 400);
 		}

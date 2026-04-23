@@ -34,7 +34,7 @@ import type {
 	StockAnalysisStatistics,
 } from "./schemas.js";
 
-const stockAnalysisStatisticsSchema = z.object({
+const StockAnalysisStatisticsSchema = z.object({
 	market_cap: z.number().nullable().optional(),
 	beta: z.number().nullable().optional(),
 	fifty_two_week_price_change: z.number().nullable().optional(),
@@ -52,14 +52,14 @@ const stockAnalysisStatisticsSchema = z.object({
 	debt_to_ebitda: z.number().nullable().optional(),
 	free_cash_flow: z.number().nullable().optional(),
 });
-const stockAnalysisFinancialsSchema = z.object({
+const StockAnalysisFinancialsSchema = z.object({
 	revenue_growth: z.number().nullable().optional(),
 	eps_diluted: z.number().nullable().optional(),
 	eps_growth: z.number().nullable().optional(),
 	gross_margin: z.number().nullable().optional(),
 	operating_margin: z.number().nullable().optional(),
 });
-const etfHoldingsSchema = z.object({
+const ETFHoldingsSchema = z.object({
 	holdings: z
 		.array(
 			z.object({
@@ -70,7 +70,7 @@ const etfHoldingsSchema = z.object({
 		)
 		.default([]),
 });
-const etfSectorsSchema = z.object({
+const ETFSectorsSchema = z.object({
 	sectors: z
 		.array(
 			z.object({
@@ -159,7 +159,7 @@ export class StockAnalysisSource {
 			this.tickerLower,
 		);
 		return invokeStockanalysisSearch({
-			outputSchema: stockAnalysisStatisticsSchema,
+			outputSchema: StockAnalysisStatisticsSchema,
 			systemPromptTemplate: STATISTICS_SYSTEM_PROMPT,
 			query: `${statisticsUrl} ${this.tickerUpper} statistics key ratios valuation market cap`,
 			promptValues: {
@@ -175,7 +175,7 @@ export class StockAnalysisSource {
 			this.tickerLower,
 		);
 		return invokeStockanalysisSearch({
-			outputSchema: stockAnalysisFinancialsSchema,
+			outputSchema: StockAnalysisFinancialsSchema,
 			systemPromptTemplate: FINANCIALS_SYSTEM_PROMPT,
 			query: `${financialsUrl} ${this.tickerUpper} financials revenue growth eps growth gross margin`,
 			promptValues: {
@@ -189,7 +189,7 @@ export class StockAnalysisSource {
 		Array<{ ticker: string; name: string | null; weight: number }>
 	> {
 		const payload = await invokeStockanalysisSearchOrDefault({
-			outputSchema: etfHoldingsSchema,
+			outputSchema: ETFHoldingsSchema,
 			systemPromptTemplate: ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
 			query: `${this.tickerUpper} ETF holdings weights stock analysis`,
 			promptValues: { ticker: this.tickerLower },
@@ -204,7 +204,7 @@ export class StockAnalysisSource {
 
 	private async searchEtfSectors(): Promise<Array<{ name: string; weight: number }>> {
 		const payload = await invokeStockanalysisSearchOrDefault({
-			outputSchema: etfSectorsSchema,
+			outputSchema: ETFSectorsSchema,
 			systemPromptTemplate: ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
 			query: `${this.tickerUpper} ETF sector allocation weights stock analysis schwab`,
 			promptValues: { ticker: this.tickerLower },

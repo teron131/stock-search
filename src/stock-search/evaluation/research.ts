@@ -28,7 +28,7 @@ Flag statements that lack evidence or conflict with sources. Return a short chec
 const MAX_VALIDATION_RETRIES = 2;
 const RESEARCH_STORE = new InMemoryStore();
 
-const validationResultSchema = z.object({
+const ValidationResultSchema = z.object({
 	is_valid: z.boolean(),
 	reasons: z.array(z.string()).default([]),
 });
@@ -37,7 +37,7 @@ const researchGraphState = Annotation.Root({
 	ticker: Annotation<string>,
 	researchNotes: Annotation<string | null>,
 	loadedNotes: Annotation<string | null>,
-	validation: Annotation<z.infer<typeof validationResultSchema> | null>,
+	validation: Annotation<z.infer<typeof ValidationResultSchema> | null>,
 	attempts: Annotation<number>,
 	plan: Annotation<string | null>,
 	structuredResponse: Annotation<unknown | null>,
@@ -247,7 +247,7 @@ function createResearchAgents(
 		}),
 		tools: [],
 		systemPrompt: VALIDATOR_AGENT_PROMPT,
-		responseFormat: validationResultSchema,
+		responseFormat: ValidationResultSchema,
 		store: RESEARCH_STORE,
 	});
 
@@ -328,7 +328,7 @@ function buildResearchGraph(systemPrompt: string, responseFormat: ZodType) {
 			messages: [new HumanMessage(prompt)],
 		});
 		return {
-			validation: structuredResponseValue<z.infer<typeof validationResultSchema>>(response),
+			validation: structuredResponseValue<z.infer<typeof ValidationResultSchema>>(response),
 			attempts: state.attempts + 1,
 		};
 	}

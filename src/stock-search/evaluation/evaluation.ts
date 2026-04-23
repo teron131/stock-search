@@ -127,12 +127,12 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 		runLlmEvaluation(
 			ticker,
 			FUTURE_OUTLOOK_DEFINITION,
-			schemas.futureOutlookSchema,
+			schemas.FutureOutlookSchema,
 		),
 		runLlmEvaluation(
 			ticker,
 			RESEARCH_DEFINITION,
-			schemas.researchEvaluationSchema,
+			schemas.ResearchEvaluationSchema,
 		),
 	]);
 

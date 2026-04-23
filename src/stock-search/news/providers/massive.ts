@@ -15,7 +15,7 @@ import {
 	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
-import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
+import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const SENTIMENT_MAP: Record<string, NewsArticle["sentiment"]> = {
 	positive: "bullish",
@@ -72,7 +72,7 @@ export async function getNewsMassiveAsync({
 			SENTIMENT_MAP[String((insights[0] as Record<string, unknown>).sentiment ?? "")] ??
 			"neutral";
 		const rawUrl = String(row.article_url ?? "");
-		return newsArticleSchema.parse({
+		return NewsArticleSchema.parse({
 			url: rawUrl,
 			title: String(row.title ?? rawUrl),
 			date: formatDate(publishedAt),

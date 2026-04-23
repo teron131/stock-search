@@ -15,7 +15,7 @@ import {
 	readJsonResponse,
 	DAY_IN_MS,
 } from "./shared.js";
-import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
+import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const EXA_PROVIDER_MAX_RESULTS = 25;
 export const EXA_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
@@ -81,7 +81,7 @@ export async function getNewsExaAsync({
 		.map((row) => {
 			const publishedAt = parseDateString(String(row.publishedDate ?? ""));
 			const rawUrl = String(row.url);
-			return newsArticleSchema.parse({
+			return NewsArticleSchema.parse({
 				url: rawUrl,
 				title: String(row.title ?? rawUrl),
 				date: formatDate(publishedAt),

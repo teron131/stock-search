@@ -11,7 +11,7 @@ import {
 	normalizeDomain,
 	parseDate,
 } from "./shared.js";
-import { newsArticleSchema, type NewsArticle } from "../../models/schemas.js";
+import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const YFINANCE_PROVIDER_MAX_RESULTS = 25;
 export const YFINANCE_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
@@ -48,7 +48,7 @@ export async function getNewsYahooFinance({
 	return payload.news.map((row) => {
 		const publishedAt = parseDate(row.providerPublishTime);
 		const rawUrl = String(row.link ?? "");
-		return newsArticleSchema.parse({
+		return NewsArticleSchema.parse({
 			url: rawUrl,
 			title: String(row.title ?? rawUrl),
 			date: formatDate(publishedAt),

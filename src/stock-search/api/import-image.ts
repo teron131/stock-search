@@ -9,7 +9,7 @@ import type { BackendStore, PositionRow } from "./data-store.js";
 import { normalizeTicker } from "../utils.js";
 import { savePortfolioPositionsAndForgetRemoved } from "../portfolio.js";
 
-const portfolioImageExtractionSchema = z.object({
+const PortfolioImageExtractionSchema = z.object({
 	holdings: z
 		.array(
 			z.object({
@@ -23,7 +23,7 @@ const portfolioImageExtractionSchema = z.object({
 async function extractPortfolioImage(
 	file: File,
 	modelOverride: string | null,
-): Promise<z.infer<typeof portfolioImageExtractionSchema>> {
+): Promise<z.infer<typeof PortfolioImageExtractionSchema>> {
 	const model = modelOverride || process.env.QUALITY_LLM || process.env.FAST_LLM
 	if (!model) {
 		throw new Error("No model configured for image extraction.")
@@ -48,14 +48,14 @@ async function extractPortfolioImage(
 			temperature: 0,
 			reasoningEffort: "low",
 		})
-			.withStructuredOutput(portfolioImageExtractionSchema)
+			.withStructuredOutput(PortfolioImageExtractionSchema)
 			.invoke([
 				{
 					role: "user",
 					content: mediaMessage.content as never,
 				},
 			])
-		return portfolioImageExtractionSchema.parse(response)
+		return PortfolioImageExtractionSchema.parse(response)
 	} catch {
 		throw new Error("Failed to extract holdings from image.")
 	} finally {

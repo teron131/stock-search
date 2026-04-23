@@ -2,13 +2,13 @@ import { ChatOpenAI } from "llm-harness-js/clients";
 
 import { TieredCache } from "../cache.js";
 import {
-	newsAnalysisSchema,
-	newsArticleSchema,
-	portfolioNewsChapterSchema,
-	portfolioNewsSummaryModelSchema,
-	portfolioNewsSummaryRequestArticleSchema,
-	portfolioNewsSummaryRequestRowSchema,
-	portfolioNewsSummaryResponseSchema,
+	NewsAnalysisSchema,
+	NewsArticleSchema,
+	PortfolioNewsChapterSchema,
+	PortfolioNewsSummaryModelSchema,
+	PortfolioNewsSummaryRequestArticleSchema,
+	PortfolioNewsSummaryRequestRowSchema,
+	PortfolioNewsSummaryResponseSchema,
 	type NewsAnalysis,
 	type NewsArticle,
 	type PortfolioNewsChapter,
@@ -376,7 +376,7 @@ function _splitCachedAnalysis(
 	cacheHits: number;
 	uncachedItems: ProviderBatchItem[];
 } {
-	const failed = newsAnalysisSchema.parse({
+	const failed = NewsAnalysisSchema.parse({
 		summary: FALLBACK_SUMMARIES[1],
 	});
 	const results = newsList.map(() => ({ ...failed }));
@@ -435,7 +435,7 @@ function _directProviderAnalysis(news: NewsArticle): NewsAnalysis | null {
 	) {
 		return null;
 	}
-	return newsAnalysisSchema.parse({
+	return NewsAnalysisSchema.parse({
 		summary,
 		relevancy: news.relevancy,
 		category: news.category,
@@ -636,7 +636,7 @@ export function _finalizeNewsFeed(newsList: NewsArticle[]): NewsArticle[] {
 
 function _fallbackAnalysisFromProviders(newsList: NewsArticle[]): NewsAnalysis[] {
 	return newsList.map((news) =>
-		newsAnalysisSchema.parse({
+		NewsAnalysisSchema.parse({
 			summary: news.summary ?? "",
 			relevancy: news.relevancy,
 			category: news.category,
@@ -674,7 +674,7 @@ export async function _analyzeNews(
 			temperature: 0,
 			reasoningEffort: "low",
 		})
-		.withStructuredOutput(newsAnalysisSchema);
+		.withStructuredOutput(NewsAnalysisSchema);
 	const { readableItems, prompts } = await _buildAnalysisBatch(
 		ticker,
 		pendingItems,
@@ -686,7 +686,7 @@ export async function _analyzeNews(
 	const responses = await invokeStructuredBatch(
 		model,
 		prompts,
-		(value) => newsAnalysisSchema.parse(value),
+		(value) => NewsAnalysisSchema.parse(value),
 	);
 	return _mergeAnalysisResults(results, readableItems, responses);
 }
@@ -698,7 +698,7 @@ function _normalizePortfolioNewsSummaryRows(
 	const seenTickers = new Set<string>();
 
 	const totalValue = rows.reduce((sum, row) => {
-		const parsedRow = portfolioNewsSummaryRequestRowSchema.parse(row);
+		const parsedRow = PortfolioNewsSummaryRequestRowSchema.parse(row);
 		const quantity = Number(parsedRow.quantity ?? 0);
 		const total = Number(parsedRow.total ?? 0);
 		if (!parsedRow.ticker || quantity <= 0 || total <= 0) {
@@ -708,7 +708,7 @@ function _normalizePortfolioNewsSummaryRows(
 	}, 0);
 
 	for (const row of rows) {
-		const parsedRow = portfolioNewsSummaryRequestRowSchema.parse(row);
+		const parsedRow = PortfolioNewsSummaryRequestRowSchema.parse(row);
 		const ticker = normalizeTicker(parsedRow.ticker);
 		const quantity = Number(parsedRow.quantity ?? 0);
 		if (!ticker || quantity <= 0 || seenTickers.has(ticker)) {
@@ -751,7 +751,7 @@ function _normalizePortfolioNewsSummaryItems(
 	}> = [];
 
 	for (const item of items) {
-		const parsedItem = portfolioNewsSummaryRequestArticleSchema.parse(item);
+		const parsedItem = PortfolioNewsSummaryRequestArticleSchema.parse(item);
 		const summary = parsedItem.summary.trim().replace(/\s+/g, " ");
 		if (!summary) {
 			continue;
@@ -818,7 +818,7 @@ function _cleanPortfolioNewsSummaryChapters(
 ): PortfolioNewsChapter[] {
 	const cleanedChapters: PortfolioNewsChapter[] = [];
 	for (const chapter of chapters) {
-		const parsedChapter = portfolioNewsChapterSchema.parse(chapter);
+		const parsedChapter = PortfolioNewsChapterSchema.parse(chapter);
 		const headline = parsedChapter.headline.trim().replace(/\s+/g, " ");
 		const paragraph = parsedChapter.paragraph.trim().replace(/\s+/g, " ");
 		if (!headline || !paragraph) {
@@ -1065,7 +1065,7 @@ export async function summarizePortfolioNewsAsync(
 ): Promise<PortfolioNewsSummaryResponse> {
 	const normalizedRows = _normalizePortfolioNewsSummaryRows(rows);
 	if (normalizedRows.length === 0) {
-		return portfolioNewsSummaryResponseSchema.parse({
+		return PortfolioNewsSummaryResponseSchema.parse({
 			has_news: false,
 		});
 	}
@@ -1074,7 +1074,7 @@ export async function summarizePortfolioNewsAsync(
 	const heldTickers = new Set(normalizedRows.map((row) => row.ticker));
 	const normalizedItems = _normalizePortfolioNewsSummaryItems(items, heldTickers);
 	if (normalizedItems.length === 0) {
-		return portfolioNewsSummaryResponseSchema.parse({
+		return PortfolioNewsSummaryResponseSchema.parse({
 			has_news: false,
 		});
 	}
@@ -1090,8 +1090,8 @@ export async function summarizePortfolioNewsAsync(
 			temperature: 0,
 			reasoningEffort: "low",
 		})
-		.withStructuredOutput(portfolioNewsSummaryModelSchema);
-	const summary = portfolioNewsSummaryModelSchema.parse(await model.invoke(prompt));
+		.withStructuredOutput(PortfolioNewsSummaryModelSchema);
+	const summary = PortfolioNewsSummaryModelSchema.parse(await model.invoke(prompt));
 
 	let macros = _cleanPortfolioNewsSummaryChapters(summary.macros, {
 		allowedTickers: heldTickers,
@@ -1115,7 +1115,7 @@ export async function summarizePortfolioNewsAsync(
 		}),
 	);
 
-	return portfolioNewsSummaryResponseSchema.parse({
+	return PortfolioNewsSummaryResponseSchema.parse({
 		has_news: true,
 		macros,
 		top_tickers: topTickers,
@@ -1219,7 +1219,7 @@ export async function getNewsAsync(
 		newsAnalysisList = _fallbackAnalysisFromProviders(rawNewsList);
 	}
 	const newsList = rawNewsList.map((news, index) =>
-		newsArticleSchema.parse({
+		NewsArticleSchema.parse({
 			...news,
 			...newsAnalysisList[index],
 		}),

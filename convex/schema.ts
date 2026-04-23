@@ -1,12 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { type Infer, v } from "convex/values";
 
-export const portfolioPositionValidator = v.object({
+export const PortfolioPositionSchema = v.object({
 	ticker: v.string(),
 	quantity: v.number(),
 	strategy: v.optional(v.string()),
 });
-export type PortfolioPosition = Infer<typeof portfolioPositionValidator>;
+export type PortfolioPosition = Infer<typeof PortfolioPositionSchema>;
 
 export default defineSchema({
 	stocks: defineTable({
@@ -20,7 +20,7 @@ export default defineSchema({
 		.index("by_updated_at", ["updatedAt"]),
 	portfolios: defineTable({
 		key: v.string(),
-		positions: v.array(portfolioPositionValidator),
+		positions: v.array(PortfolioPositionSchema),
 		portfolioStats: v.optional(v.any()),
 		updatedAt: v.number(),
 	})
