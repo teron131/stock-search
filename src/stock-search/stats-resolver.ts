@@ -447,13 +447,14 @@ export async function resolveTickerStats(
 	store: BackendStore,
 	tickerInput: string,
 	mode: StatsResolutionMode,
+	stockEntryOverride?: StockEntry | null,
 ): Promise<StatsResolutionResult> {
 	const ticker = normalizeTicker(tickerInput);
 	if (!ticker) {
 		throw new Error("Invalid ticker");
 	}
 
-	const stockEntry = await store.loadStock(ticker);
+	const stockEntry = stockEntryOverride ?? (await store.loadStock(ticker));
 	const persistedRow = { ...(stockEntry?.indicators ?? {}) };
 	const families = {} as Record<StatsFamily, FamilyResolution>;
 	const bundle = new ProviderBundle(ticker);
@@ -493,10 +494,19 @@ export async function resolveTickerStatsMap(
 	store: BackendStore,
 	tickers: string[],
 	mode: StatsResolutionMode,
+	stockEntries?: Record<string, StockEntry>,
 ): Promise<Record<string, StatsResolutionResult>> {
 	const unique = [...new Set(tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean))];
+	const prefetchedStocks =
+		stockEntries ?? (await store.loadStocksByTickers(unique));
 	const results = await Promise.all(
-		unique.map(async (ticker) => [ticker, await resolveTickerStats(store, ticker, mode)] as const),
+		unique.map(
+			async (ticker) =>
+				[
+					ticker,
+					await resolveTickerStats(store, ticker, mode, prefetchedStocks[ticker] ?? null),
+				] as const,
+		),
 	);
 	return Object.fromEntries(results);
 }

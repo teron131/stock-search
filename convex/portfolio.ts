@@ -37,9 +37,9 @@ function normalizePortfolioStats(value: unknown): GenericRow | null {
 }
 
 export const get = query({
-	args: { key: v.string() },
+	args: { key: v.optional(v.string()) },
 	handler: async (ctx, args) => {
-		const key = args.key.trim() || "default";
+		const key = (args.key ?? "").trim() || "default";
 		const row = await ctx.db
 			.query("portfolios")
 			.withIndex("by_key", (q) => q.eq("key", key))
@@ -56,6 +56,18 @@ export const get = query({
 					: null,
 			updatedAt: row.updatedAt,
 		};
+	},
+});
+
+export const getPositions = query({
+	args: { key: v.optional(v.string()) },
+	handler: async (ctx, args) => {
+		const key = (args.key ?? "").trim() || "default";
+		const row = await ctx.db
+			.query("portfolios")
+			.withIndex("by_key", (q) => q.eq("key", key))
+			.unique();
+		return row ? normalizePositions(row.positions) : [];
 	},
 });
 
@@ -99,5 +111,48 @@ export const set = mutation({
 		}
 		await ctx.db.insert("portfolios", payload);
 		return { ok: true, updated: false };
+	},
+});
+
+export const setPositions = mutation({
+	args: {
+		key: v.optional(v.string()),
+		positions: v.array(
+			v.object({
+				ticker: v.string(),
+				quantity: v.number(),
+			}),
+		),
+	},
+	handler: async (ctx, args) => {
+		const key = (args.key ?? "").trim() || "default";
+		const now = Date.now();
+		const normalizedPositions = normalizePositions(args.positions);
+		const existing = await ctx.db
+			.query("portfolios")
+			.withIndex("by_key", (q) => q.eq("key", key))
+			.unique();
+
+		if (!existing) {
+			await ctx.db.insert("portfolios", {
+				key,
+				positions: normalizedPositions,
+				updatedAt: now,
+			});
+			return { ok: true, updated: false };
+		}
+
+		if (
+			JSON.stringify(normalizePositions(existing.positions)) ===
+			JSON.stringify(normalizedPositions)
+		) {
+			return { ok: true, updated: true };
+		}
+
+		await ctx.db.patch(existing._id, {
+			positions: normalizedPositions,
+			updatedAt: now,
+		});
+		return { ok: true, updated: true };
 	},
 });

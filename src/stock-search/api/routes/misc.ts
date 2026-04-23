@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { appConfig } from "../config.js";
 import { buildColorStandardsPayload } from "../color-standards.js";
 import type { BackendStore } from "../data-store.js";
+import { normalizeTicker } from "../../utils.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
 import { getIndustrySnapshot } from "../../data-sources/stockanalysis/index.js";
 import {
@@ -104,6 +105,20 @@ function normalizePortfolioNewsSummaryArticle(value: unknown): unknown {
 	};
 }
 
+function parseTickersQuery(rawValue: string | undefined): string[] | undefined {
+	if (typeof rawValue !== "string" || !rawValue.trim()) {
+		return undefined;
+	}
+
+	const tickers = [...new Set(
+		rawValue
+			.split(",")
+			.map((ticker) => normalizeTicker(ticker))
+			.filter(Boolean),
+	)];
+	return tickers.length > 0 ? tickers : undefined;
+}
+
 const portfolioNewsSummaryPayloadSchema = z
 	.object({
 		rows: z
@@ -141,12 +156,12 @@ export function createMiscRouter(store: BackendStore): Hono {
 
 	router.get(STOCKS, async (c) => {
 		c.header("Cache-Control", "no-store");
-		return c.json(await loadStocksMap(store));
+		return c.json(await loadStocksMap(store, parseTickersQuery(c.req.query("tickers"))));
 	});
 
 	router.get(EVAL, async (c) => {
 		c.header("Cache-Control", "no-store");
-		return c.json(await loadEvalMap(store));
+		return c.json(await loadEvalMap(store, parseTickersQuery(c.req.query("tickers"))));
 	});
 
 	router.get(INDUSTRIES, async (c) => {

@@ -65,6 +65,32 @@ function portfolioTickers(positions: PositionRow[]): string[] {
 	return uniqueTickers(positions.map((position) => position.ticker));
 }
 
+async function forgetRemovedPortfolioTickers(
+	store: BackendStore,
+	previousTickers: string[],
+	nextPositions: PositionRow[],
+): Promise<void> {
+	const nextTickers = new Set(portfolioTickers(nextPositions));
+	const removedTickers = previousTickers.filter((ticker) => !nextTickers.has(ticker));
+	if (removedTickers.length === 0) {
+		return;
+	}
+
+	await Promise.all([
+		store.deleteStocksByTickers(removedTickers),
+		store.deleteNewsByTickers(removedTickers),
+	]);
+}
+
+export async function savePortfolioPositionsAndForgetRemoved(
+	store: BackendStore,
+	positions: PositionRow[],
+	previousTickers: string[],
+): Promise<void> {
+	await store.savePositions(positions);
+	await forgetRemovedPortfolioTickers(store, previousTickers, positions);
+}
+
 function computeMissingLabels(
 	tickers: string[],
 	stocksMap: Record<string, StockEntry>,
@@ -868,10 +894,10 @@ export async function buildPortfolioPayload(
 		sync_mode: string;
 	};
 }> {
-	const [portfolio, stocksMap] = await Promise.all([
-		store.loadPortfolio(),
-		store.loadStocks(),
-	]);
+	const portfolio = await store.loadPortfolio();
+	const stocksMap = ALL_UNIVERSE_SCOPES.has(scope)
+		? await store.loadStocks()
+		: await store.loadStocksByTickers(portfolioTickers(portfolio.positions));
 	const scopedPositions = buildRowsForScope(portfolio.positions, stocksMap, scope);
 	const labelsByTicker = await resolvePortfolioLabels(
 		store,
@@ -888,7 +914,7 @@ export async function buildPortfolioPayload(
 	const liveTickers = liveTickersForScope(scopedPositions, evalTickers, scope);
 	const liveResults =
 		liveTickers.length > 0
-			? await resolveTickerStatsMap(store, liveTickers, "auto")
+			? await resolveTickerStatsMap(store, liveTickers, "auto", stocksMap)
 			: {};
 	const mergedStocks = mergeLiveResultsIntoStocks(stocksMap, liveResults);
 
@@ -993,6 +1019,7 @@ export async function patchPortfolioPosition(
 	}
 
 	const positions = await store.loadPositions();
+	const previousTickers = portfolioTickers(positions);
 	const index = findPositionIndex(positions, tickerSymbol);
 	if (index < 0 && patch.quantity === undefined && patch.strategy === undefined) {
 		throw new Error("Patch payload is empty.");
@@ -1019,7 +1046,7 @@ export async function patchPortfolioPosition(
 	} else {
 		positions.push(current);
 	}
-	await store.savePositions(positions);
+	await savePortfolioPositionsAndForgetRemoved(store, positions, previousTickers);
 	return {
 		status: "ok",
 		ticker: tickerSymbol,
@@ -1033,10 +1060,16 @@ export async function removePortfolioPosition(
 	ticker: string,
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
-	const nextPositions = (await store.loadPositions()).filter(
+	const positions = await store.loadPositions();
+	const previousTickers = portfolioTickers(positions);
+	const nextPositions = positions.filter(
 		(position) => normalizeTicker(position.ticker) !== tickerSymbol,
 	);
-	await store.savePositions(nextPositions);
+	await savePortfolioPositionsAndForgetRemoved(
+		store,
+		nextPositions,
+		previousTickers,
+	);
 	return { status: "ok", ticker: tickerSymbol };
 }
 
@@ -1063,8 +1096,12 @@ export async function getTickerRowFromCache(
 /** Load the evaluation map keyed by ticker. */
 export async function loadEvalMap(
 	store: BackendStore,
+	tickers?: string[],
 ): Promise<Record<string, Record<string, unknown>>> {
-	const stocks = await store.loadStocks();
+	const stocks =
+		tickers && tickers.length > 0
+			? await store.loadStocksByTickers(tickers)
+			: await store.loadStocks();
 	return Object.fromEntries(
 		Object.entries(stocks).map(([ticker, stock]) => [ticker, stock.evaluation]),
 	);
@@ -1073,6 +1110,9 @@ export async function loadEvalMap(
 /** Load the indicator map keyed by ticker. */
 export async function loadStocksMap(
 	store: BackendStore,
+	tickers?: string[],
 ): Promise<Record<string, StockEntry>> {
-	return store.loadStocks();
+	return tickers && tickers.length > 0
+		? store.loadStocksByTickers(tickers)
+		: store.loadStocks();
 }

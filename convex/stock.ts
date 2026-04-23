@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 
 type GenericRow = Record<string, unknown>;
 type StockDocument = Doc<"stocks">;
@@ -117,6 +117,28 @@ function buildStockWrite(
 
 function buildExistingStocksByTicker(rows: StockDocument[]) {
 	return new Map(rows.map((row) => [row.ticker, row]));
+}
+
+async function loadExistingStocksByTicker(
+	ctx: MutationCtx,
+	tickers: string[],
+): Promise<Map<string, StockDocument>> {
+	if (tickers.length === 0) {
+		return new Map();
+	}
+
+	const rows = await Promise.all(
+		tickers.map((ticker) =>
+			ctx.db
+				.query("stocks")
+				.withIndex("by_ticker", (q) => q.eq("ticker", ticker))
+				.unique(),
+		),
+	);
+
+	return buildExistingStocksByTicker(
+		rows.filter((row): row is StockDocument => row !== null),
+	);
 }
 
 function normalizeStockEntries(rows: unknown): NormalizedStockEntry[] {
@@ -261,8 +283,10 @@ export const upsertMany = mutation({
 			return { ok: true, count: 0 };
 		}
 
-		const existingRows = await ctx.db.query("stocks").collect();
-		const existingByTicker = buildExistingStocksByTicker(existingRows);
+		const existingByTicker = await loadExistingStocksByTicker(
+			ctx,
+			normalizedEntries.map((entry) => entry.ticker),
+		);
 
 		for (const entry of normalizedEntries) {
 			const ticker = normalizeTicker(entry.ticker);
@@ -279,6 +303,26 @@ export const upsertMany = mutation({
 		}
 
 		return { ok: true, count: normalizedEntries.length };
+	},
+});
+
+export const deleteByTickers = mutation({
+	args: { tickers: v.array(v.string()) },
+	handler: async (ctx, args) => {
+		const tickers = normalizeTickers(args.tickers);
+		if (tickers.length === 0) {
+			return { ok: true, count: 0 };
+		}
+
+		const rows = await loadExistingStocksByTicker(ctx, tickers);
+		for (const ticker of tickers) {
+			const row = rows.get(ticker);
+			if (row) {
+				await ctx.db.delete(row._id);
+			}
+		}
+
+		return { ok: true, count: tickers.length };
 	},
 });
 

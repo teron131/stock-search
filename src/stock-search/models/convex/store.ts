@@ -3,13 +3,19 @@ import { ConvexApiError, ConvexHttpClient } from "./client.js";
 import {
 	CONVEX_META_GET,
 	CONVEX_META_SET,
+	CONVEX_NEWS_DELETE_BY_TICKERS,
 	CONVEX_NEWS_LIST,
 	CONVEX_NEWS_REPLACE_ALL,
 	CONVEX_PORTFOLIO_GET,
+	CONVEX_PORTFOLIO_GET_POSITIONS,
 	CONVEX_PORTFOLIO_SET,
+	CONVEX_PORTFOLIO_SET_POSITIONS,
+	CONVEX_STOCK_DELETE_BY_TICKERS,
+	CONVEX_STOCK_GET_MANY,
 	CONVEX_REALTIME_TOPICS,
 	CONVEX_STOCK_GET,
 	CONVEX_STOCK_LIST,
+	CONVEX_STOCK_REPLACE_ALL,
 	CONVEX_STOCK_UPSERT,
 	CONVEX_STOCK_UPSERT_MANY,
 } from "./function-names.js";
@@ -77,6 +83,13 @@ export class ConvexStore implements BackendStore {
 		this.client = new ConvexHttpClient(baseUrl, deployKey);
 	}
 
+	private isMissingFunctionError(error: unknown): boolean {
+		return (
+			error instanceof ConvexApiError &&
+			String(error.message).includes("Could not find function")
+		);
+	}
+
 	async loadPortfolio(key = "default"): Promise<PortfolioRecord> {
 		const payload = await this.client.query<Record<string, unknown> | null>(
 			CONVEX_PORTFOLIO_GET,
@@ -110,11 +123,39 @@ export class ConvexStore implements BackendStore {
 	}
 
 	async loadPositions(): Promise<PositionRow[]> {
+		try {
+			const payload = await this.client.query<unknown[]>(
+				CONVEX_PORTFOLIO_GET_POSITIONS,
+				{ key: "default" },
+			);
+			return Array.isArray(payload)
+				? (payload.filter(
+						(row) => typeof row === "object" && row !== null,
+				  ) as PositionRow[])
+				: [];
+		} catch (error) {
+			if (!this.isMissingFunctionError(error)) {
+				throw error;
+			}
+		}
+
 		const portfolio = await this.loadPortfolio();
 		return portfolio.positions;
 	}
 
 	async savePositions(positions: PositionRow[]): Promise<void> {
+		try {
+			await this.client.mutation(CONVEX_PORTFOLIO_SET_POSITIONS, {
+				key: "default",
+				positions,
+			});
+			return;
+		} catch (error) {
+			if (!this.isMissingFunctionError(error)) {
+				throw error;
+			}
+		}
+
 		const existing = await this.loadPortfolio();
 		await this.savePortfolio({
 			positions,
@@ -124,6 +165,12 @@ export class ConvexStore implements BackendStore {
 
 	async loadStocks(): Promise<Record<string, StockEntry>> {
 		return payloadToStockMap(await this.client.query(CONVEX_STOCK_LIST));
+	}
+
+	async loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>> {
+		return payloadToStockMap(
+			await this.client.query(CONVEX_STOCK_GET_MANY, { tickers }),
+		);
 	}
 
 	async loadStock(ticker: string): Promise<StockEntry | null> {
@@ -149,10 +196,7 @@ export class ConvexStore implements BackendStore {
 			await this.client.mutation(CONVEX_STOCK_UPSERT_MANY, { rows });
 			return;
 		} catch (error) {
-			if (
-				!(error instanceof ConvexApiError) ||
-				!String(error.message).includes("Could not find function")
-			) {
+			if (!this.isMissingFunctionError(error)) {
 				throw error;
 			}
 		}
@@ -160,6 +204,28 @@ export class ConvexStore implements BackendStore {
 		await Promise.all(
 			rows.map((row) => this.client.mutation(CONVEX_STOCK_UPSERT, row)),
 		);
+	}
+
+	async deleteStocksByTickers(tickers: string[]): Promise<void> {
+		if (tickers.length === 0) {
+			return;
+		}
+		try {
+			await this.client.mutation(CONVEX_STOCK_DELETE_BY_TICKERS, { tickers });
+			return;
+		} catch (error) {
+			if (!this.isMissingFunctionError(error)) {
+				throw error;
+			}
+		}
+
+		const rows = await this.client.query<Record<string, unknown>[]>(
+			CONVEX_STOCK_LIST,
+		);
+		const removed = new Set(tickers.map(normalizeTicker).filter(Boolean));
+		await this.client.mutation(CONVEX_STOCK_REPLACE_ALL, {
+			rows: rows.filter((row) => !removed.has(normalizeTicker(row?.ticker))),
+		});
 	}
 
 	async loadNews(key = "default"): Promise<CachedNewsRow[]> {
@@ -186,6 +252,30 @@ export class ConvexStore implements BackendStore {
 			key,
 			rows,
 		});
+	}
+
+	async deleteNewsByTickers(tickers: string[], key = "default"): Promise<void> {
+		if (tickers.length === 0) {
+			return;
+		}
+		try {
+			await this.client.mutation(CONVEX_NEWS_DELETE_BY_TICKERS, {
+				key,
+				tickers,
+			});
+			return;
+		} catch (error) {
+			if (!this.isMissingFunctionError(error)) {
+				throw error;
+			}
+		}
+
+		const rows = await this.loadNews(key);
+		const removed = new Set(tickers.map(normalizeTicker).filter(Boolean));
+		await this.saveNews(
+			rows.filter((row) => !removed.has(normalizeTicker(row.ticker))),
+			key,
+		);
 	}
 
 	async getMetaValue(key: string): Promise<string | null> {

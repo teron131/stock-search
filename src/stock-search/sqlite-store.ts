@@ -128,6 +128,44 @@ export class SQLiteStore implements BackendStore {
 		return stocks;
 	}
 
+	async loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>> {
+		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+		if (normalizedTickers.length === 0) {
+			return {};
+		}
+
+		const placeholders = normalizedTickers.map(() => "?").join(", ");
+		const rows = this.database
+			.prepare(
+				`
+				SELECT ticker, indicators_json, evaluation_json, labels_json
+				FROM stocks
+				WHERE ticker IN (${placeholders})
+				ORDER BY ticker ASC
+				`,
+			)
+			.all(...normalizedTickers) as Array<{
+				ticker: string;
+				indicators_json: string;
+				evaluation_json: string;
+				labels_json: string;
+			}>;
+
+		const stocks: Record<string, StockEntry> = {};
+		for (const row of rows) {
+			const ticker = normalizeTicker(row.ticker);
+			if (!ticker) {
+				continue;
+			}
+			stocks[ticker] = {
+				indicators: jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+				evaluation: jsonParse<Record<string, unknown>>(row.evaluation_json, {}),
+				labels: jsonParse<string[]>(row.labels_json, []).filter(Boolean),
+			};
+		}
+		return stocks;
+	}
+
 	async loadStock(ticker: string): Promise<StockEntry | null> {
 		const tickerSymbol = normalizeTicker(ticker);
 		if (!tickerSymbol) {
@@ -219,6 +257,18 @@ export class SQLiteStore implements BackendStore {
 		}
 	}
 
+	async deleteStocksByTickers(tickers: string[]): Promise<void> {
+		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+		if (normalizedTickers.length === 0) {
+			return;
+		}
+
+		const placeholders = normalizedTickers.map(() => "?").join(", ");
+		this.database
+			.prepare(`DELETE FROM stocks WHERE ticker IN (${placeholders})`)
+			.run(...normalizedTickers);
+	}
+
 	async loadNews(key = "default"): Promise<CachedNewsRow[]> {
 		const rows = this.database
 			.prepare(
@@ -265,6 +315,18 @@ export class SQLiteStore implements BackendStore {
 				row.updatedAt || Date.now(),
 			);
 		}
+	}
+
+	async deleteNewsByTickers(tickers: string[], key = "default"): Promise<void> {
+		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+		if (normalizedTickers.length === 0) {
+			return;
+		}
+
+		const placeholders = normalizedTickers.map(() => "?").join(", ");
+		this.database
+			.prepare(`DELETE FROM news WHERE key = ? AND ticker IN (${placeholders})`)
+			.run(key, ...normalizedTickers);
 	}
 
 	async getMetaValue(key: string): Promise<string | null> {

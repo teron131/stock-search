@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ChatOpenAI, MediaMessage } from "llm-harness-js/clients";
 import type { BackendStore, PositionRow } from "./data-store.js";
 import { normalizeTicker } from "../utils.js";
+import { savePortfolioPositionsAndForgetRemoved } from "../portfolio.js";
 
 const portfolioImageExtractionSchema = z.object({
 	holdings: z
@@ -91,13 +92,18 @@ export async function importPortfolioImage(
 		throw new Error("Uploaded image is empty.")
 	}
 
+	const previousPositionsPromise = store.loadPositions()
 	const positionsPromise: Promise<PositionRow[]> = replace
 		? Promise.resolve([])
-		: store.loadPositions()
-	const [extraction, positions] = await Promise.all([
+		: previousPositionsPromise
+	const [extraction, positions, previousPositions] = await Promise.all([
 		extractPortfolioImage(file, model),
 		positionsPromise,
+		previousPositionsPromise,
 	])
+	const previousTickers = previousPositions
+		.map((position) => normalizeTicker(position.ticker))
+		.filter(Boolean)
 	const positionIndex = new Map<string, number>()
 	for (const [index, position] of positions.entries()) {
 		const ticker = normalizeTicker(position.ticker)
@@ -135,7 +141,7 @@ export async function importPortfolioImage(
 		applied.push({ ticker, quantity })
 	}
 
-	await store.savePositions(positions)
+	await savePortfolioPositionsAndForgetRemoved(store, positions, previousTickers)
 	return {
 		status: "ok",
 		applied_count: applied.length,

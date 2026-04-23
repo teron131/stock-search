@@ -52,6 +52,35 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
 	}
 }
 
+function normalizeRealtimeTopics(value) {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((topic) => {
+			if (typeof topic === "string" && topic.trim().length > 0) {
+				return { name: topic, args: {} };
+			}
+			if (
+				typeof topic === "object" &&
+				topic !== null &&
+				typeof topic.name === "string" &&
+				topic.name.trim().length > 0
+			) {
+				return {
+					name: topic.name,
+					args:
+						typeof topic.args === "object" && topic.args !== null
+							? topic.args
+							: {},
+				};
+			}
+			return null;
+		})
+		.filter((topic) => topic != null);
+}
+
 function ensureEvalEntries(evalData) {
 	if (evalData && typeof evalData === "object") {
 		return Object.entries(evalData).map(([ticker, data]) => ({
@@ -322,15 +351,11 @@ export function usePortfolioData() {
 	const startRealtimeSync = useCallback(async () => {
 		if (CONFIG.isDemoMode || realtimeEnabledRef.current) return false;
 		const realtimeConfig = await tryFetchJson(CONFIG.endpoints.realtimeConfig);
-		const topicList = Array.isArray(realtimeConfig?.topics)
-			? realtimeConfig.topics.filter(
-					(topic) => typeof topic === "string" && topic.trim().length > 0,
-				)
-			: [];
+		const topics = normalizeRealtimeTopics(realtimeConfig?.topics);
 		if (
 			!realtimeConfig?.enabled ||
 			!realtimeConfig?.convex_url ||
-			topicList.length === 0
+			topics.length === 0
 		) {
 			return false;
 		}
@@ -359,8 +384,8 @@ export function usePortfolioData() {
 		};
 
 		const client = new BaseConvexClient(realtimeConfig.convex_url, triggerSync);
-		const subscriptions = topicList.map((queryName) =>
-			client.subscribe(queryName, {}),
+		const subscriptions = topics.map(({ name, args }) =>
+			client.subscribe(name, args),
 		);
 		realtimeUnsubscribersRef.current = subscriptions.map(
 			({ unsubscribe }) => unsubscribe,

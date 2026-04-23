@@ -156,6 +156,22 @@ function normalizeNewsEntries(rows: unknown, key: string): Array<{
 	}));
 }
 
+function normalizeTickers(tickers: unknown): string[] {
+	if (!Array.isArray(tickers)) {
+		return [];
+	}
+
+	return Array.from(
+		new Set(
+			tickers
+				.map((ticker) =>
+					typeof ticker === "string" ? ticker.toUpperCase().trim() : "",
+				)
+				.filter(Boolean),
+		),
+	);
+}
+
 export const list = query({
 	args: { key: v.string() },
 	handler: async (ctx, args) => {
@@ -227,5 +243,30 @@ export const replaceAll = mutation({
 			}
 		}
 		return { ok: true, count: normalizedEntries.length };
+	},
+});
+
+export const deleteByTickers = mutation({
+	args: { tickers: v.array(v.string()), key: v.optional(v.string()) },
+	handler: async (ctx, args) => {
+		const key = (args.key ?? "").trim() || "default";
+		const tickers = normalizeTickers(args.tickers);
+		if (tickers.length === 0) {
+			return { ok: true, count: 0 };
+		}
+
+		for (const ticker of tickers) {
+			const rows = await ctx.db
+				.query("news")
+				.withIndex("by_ticker", (q) => q.eq("ticker", ticker))
+				.collect();
+			for (const row of rows) {
+				if (row.key === key) {
+					await ctx.db.delete(row._id);
+				}
+			}
+		}
+
+		return { ok: true, count: tickers.length };
 	},
 });

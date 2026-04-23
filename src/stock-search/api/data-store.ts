@@ -35,6 +35,7 @@ export interface BackendStore {
 	loadPositions(): Promise<PositionRow[]>;
 	savePositions(positions: PositionRow[]): Promise<void>;
 	loadStocks(): Promise<Record<string, StockEntry>>;
+	loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>>;
 	loadStock(ticker: string): Promise<StockEntry | null>;
 	upsertStocks(
 		rows: Array<{
@@ -44,8 +45,10 @@ export interface BackendStore {
 			labels?: string[];
 		}>,
 	): Promise<void>;
+	deleteStocksByTickers(tickers: string[]): Promise<void>;
 	loadNews(key?: string): Promise<CachedNewsRow[]>;
 	saveNews(rows: CachedNewsRow[], key?: string): Promise<void>;
+	deleteNewsByTickers(tickers: string[], key?: string): Promise<void>;
 	getMetaValue(key: string): Promise<string | null>;
 	setMetaValue(key: string, value: string): Promise<void>;
 }
@@ -74,17 +77,26 @@ function createLazyStore(): BackendStore {
 		loadStocks() {
 			return getStore().loadStocks();
 		},
+		loadStocksByTickers(tickers) {
+			return getStore().loadStocksByTickers(tickers);
+		},
 		loadStock(ticker) {
 			return getStore().loadStock(ticker);
 		},
 		upsertStocks(rows) {
 			return getStore().upsertStocks(rows);
 		},
+		deleteStocksByTickers(tickers) {
+			return getStore().deleteStocksByTickers(tickers);
+		},
 		loadNews(key) {
 			return getStore().loadNews(key);
 		},
 		saveNews(rows, key) {
 			return getStore().saveNews(rows, key);
+		},
+		deleteNewsByTickers(tickers, key) {
+			return getStore().deleteNewsByTickers(tickers, key);
 		},
 		getMetaValue(key) {
 			return getStore().getMetaValue(key);
@@ -151,6 +163,14 @@ class FallbackConvexStore implements BackendStore {
 		);
 	}
 
+	loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>> {
+		return this.readOrFallback(
+			"stocks",
+			() => this.convexStore.loadStocksByTickers(tickers),
+			() => this.sqliteStore.loadStocksByTickers(tickers),
+		);
+	}
+
 	loadStock(ticker: string): Promise<StockEntry | null> {
 		return this.readOrFallback(
 			"stock",
@@ -170,6 +190,10 @@ class FallbackConvexStore implements BackendStore {
 		return this.convexStore.upsertStocks(rows);
 	}
 
+	deleteStocksByTickers(tickers: string[]): Promise<void> {
+		return this.convexStore.deleteStocksByTickers(tickers);
+	}
+
 	loadNews(key?: string): Promise<CachedNewsRow[]> {
 		return this.readOrFallback(
 			"news",
@@ -180,6 +204,10 @@ class FallbackConvexStore implements BackendStore {
 
 	saveNews(rows: CachedNewsRow[], key?: string): Promise<void> {
 		return this.convexStore.saveNews(rows, key);
+	}
+
+	deleteNewsByTickers(tickers: string[], key?: string): Promise<void> {
+		return this.convexStore.deleteNewsByTickers(tickers, key);
 	}
 
 	getMetaValue(key: string): Promise<string | null> {
@@ -215,8 +243,11 @@ export function getStore(): BackendStore {
 
 export { createLazyStore };
 
-export async function loadEvalMap() {
-	const stocks = await getStore().loadStocks();
+export async function loadEvalMap(tickers?: string[]) {
+	const stocks =
+		tickers && tickers.length > 0
+			? await getStore().loadStocksByTickers(tickers)
+			: await getStore().loadStocks();
 	return Object.fromEntries(
 		Object.entries(stocks).map(([ticker, stock]) => [ticker, stock.evaluation]),
 	);

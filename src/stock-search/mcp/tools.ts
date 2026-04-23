@@ -203,14 +203,20 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	{
 		name: "get_eval_map",
 		description: "Return the stored evaluation map.",
-		parameters: noArgsSchema,
-		execute: async () => loadEvalMap(getStore()),
+		parameters: z.object({
+			tickers: z.array(z.string()).optional(),
+		}),
+		execute: async ({ tickers }) =>
+			loadEvalMap(getStore(), Array.isArray(tickers) ? tickers : undefined),
 	},
 	{
 		name: "get_stock_map",
 		description: "Return the stored stock indicator map.",
-		parameters: noArgsSchema,
-		execute: async () => loadStocksMap(getStore()),
+		parameters: z.object({
+			tickers: z.array(z.string()).optional(),
+		}),
+		execute: async ({ tickers }) =>
+			loadStocksMap(getStore(), Array.isArray(tickers) ? tickers : undefined),
 	},
 	{
 		name: "industries_api_industries_get",

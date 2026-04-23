@@ -108,7 +108,9 @@ export async function buildStandaloneTickerPayload(
 	try {
 		const [context, resolved] = await Promise.all([
 			contextPromise,
-			resolveTickerStats(store, tickerSymbol, source),
+			contextPromise.then((context) =>
+				resolveTickerStats(store, tickerSymbol, source, context.stockEntry),
+			),
 		]);
 		return buildStandalonePayload(
 			store,
