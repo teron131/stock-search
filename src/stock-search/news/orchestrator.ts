@@ -28,6 +28,7 @@ import { DAY_IN_MS, parseDateString } from "./providers/shared.js";
 import * as webloaderModule from "./webloader.js";
 
 const FAST_LLM = process.env.FAST_LLM;
+const QUALITY_LLM = process.env.QUALITY_LLM;
 const MAX_ANALYSIS_WORKERS = 10;
 const MAX_PORTFOLIO_SUMMARY_TICKERS = 5;
 const MAX_PORTFOLIO_SUMMARY_ITEMS = 3;
@@ -669,7 +670,7 @@ export async function _analyzeNews(
 
 	const model = newsPipelineDeps
 		.chatOpenAI({
-			model: FAST_LLM ?? "",
+			model: QUALITY_LLM || FAST_LLM || "",
 			temperature: 0,
 			reasoningEffort: "low",
 		})

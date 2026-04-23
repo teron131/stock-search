@@ -24,7 +24,7 @@ async function extractPortfolioImage(
 	file: File,
 	modelOverride: string | null,
 ): Promise<z.infer<typeof portfolioImageExtractionSchema>> {
-	const model = modelOverride || process.env.FAST_LLM || process.env.QUALITY_LLM
+	const model = modelOverride || process.env.QUALITY_LLM || process.env.FAST_LLM
 	if (!model) {
 		throw new Error("No model configured for image extraction.")
 	}
