@@ -17,6 +17,7 @@ export default defineSchema({
 			v.object({
 				ticker: v.string(),
 				quantity: v.number(),
+				strategy: v.optional(v.string()),
 			}),
 		),
 		portfolioStats: v.optional(v.any()),
