@@ -5,11 +5,11 @@ type GenericRow = Record<string, unknown>;
 
 function normalizePositions(
 	positions: unknown,
-): Array<{ ticker: string; quantity: number }> {
+): Array<{ ticker: string; quantity: number; strategy?: string }> {
 	if (!Array.isArray(positions)) {
 		return [];
 	}
-	const normalized: Array<{ ticker: string; quantity: number }> = [];
+	const normalized: Array<{ ticker: string; quantity: number; strategy?: string }> = [];
 	for (const item of positions) {
 		if (!item || typeof item !== "object") {
 			continue;
@@ -21,10 +21,23 @@ function normalizePositions(
 			continue;
 		}
 		const quantityRaw = Number((item as GenericRow).quantity);
-		normalized.push({
+		const strategyRaw = (item as GenericRow).strategy;
+		const strategy =
+			typeof strategyRaw === "string" && strategyRaw.trim()
+				? strategyRaw.trim()
+				: undefined;
+		const nextPosition: {
+			ticker: string;
+			quantity: number;
+			strategy?: string;
+		} = {
 			ticker,
 			quantity: Number.isFinite(quantityRaw) ? quantityRaw : 0,
-		});
+		};
+		if (strategy) {
+			nextPosition.strategy = strategy;
+		}
+		normalized.push(nextPosition);
 	}
 	return normalized;
 }
@@ -78,6 +91,7 @@ export const set = mutation({
 			v.object({
 				ticker: v.string(),
 				quantity: v.number(),
+				strategy: v.optional(v.string()),
 			}),
 		),
 		portfolioStats: v.optional(v.any()),
@@ -121,6 +135,7 @@ export const setPositions = mutation({
 			v.object({
 				ticker: v.string(),
 				quantity: v.number(),
+				strategy: v.optional(v.string()),
 			}),
 		),
 	},
