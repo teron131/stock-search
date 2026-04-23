@@ -1,15 +1,19 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import {
+	type PortfolioPosition,
+	portfolioPositionValidator,
+} from "./schema";
 
 type GenericRow = Record<string, unknown>;
 
 function normalizePositions(
 	positions: unknown,
-): Array<{ ticker: string; quantity: number; strategy?: string }> {
+): PortfolioPosition[] {
 	if (!Array.isArray(positions)) {
 		return [];
 	}
-	const normalized: Array<{ ticker: string; quantity: number; strategy?: string }> = [];
+	const normalized: PortfolioPosition[] = [];
 	for (const item of positions) {
 		if (!item || typeof item !== "object") {
 			continue;
@@ -26,11 +30,7 @@ function normalizePositions(
 			typeof strategyRaw === "string" && strategyRaw.trim()
 				? strategyRaw.trim()
 				: undefined;
-		const nextPosition: {
-			ticker: string;
-			quantity: number;
-			strategy?: string;
-		} = {
+		const nextPosition: PortfolioPosition = {
 			ticker,
 			quantity: Number.isFinite(quantityRaw) ? quantityRaw : 0,
 		};
@@ -87,13 +87,7 @@ export const getPositions = query({
 export const set = mutation({
 	args: {
 		key: v.string(),
-		positions: v.array(
-			v.object({
-				ticker: v.string(),
-				quantity: v.number(),
-				strategy: v.optional(v.string()),
-			}),
-		),
+		positions: v.array(portfolioPositionValidator),
 		portfolioStats: v.optional(v.any()),
 	},
 	handler: async (ctx, args) => {
@@ -131,13 +125,7 @@ export const set = mutation({
 export const setPositions = mutation({
 	args: {
 		key: v.optional(v.string()),
-		positions: v.array(
-			v.object({
-				ticker: v.string(),
-				quantity: v.number(),
-				strategy: v.optional(v.string()),
-			}),
-		),
+		positions: v.array(portfolioPositionValidator),
 	},
 	handler: async (ctx, args) => {
 		const key = (args.key ?? "").trim() || "default";

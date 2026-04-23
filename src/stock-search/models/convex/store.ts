@@ -86,7 +86,7 @@ export class ConvexStore implements BackendStore {
 	private isMissingFunctionError(error: unknown): boolean {
 		return (
 			error instanceof ConvexApiError &&
-			String(error.message).includes("Could not find function")
+			/Could not find(?: public)? function/.test(String(error.message))
 		);
 	}
 
