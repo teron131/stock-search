@@ -9,6 +9,11 @@
 	"scripts": {
 		"dev": "bash ./start.sh",
 		"prepare:vercel-public": "node ./scripts/prepare-vercel-public.mjs",
+		"convex:deploy": "npx convex deploy -y --typecheck disable",
+		"deploy": "bash ./scripts/deploy.sh",
+		"deploy:preview": "bash ./scripts/deploy.sh --preview",
+		"deploy:prod": "bash ./scripts/deploy.sh --prod",
+		"deploy:prod:mauve": "bash ./scripts/deploy.sh --prod --alias stock-search-mauve.vercel.app",
 		"llm-harness:build": "npm run build --workspace llm-harness-js",
 		"preserver:dev": "npm run llm-harness:build",
 		"server:dev": "tsx watch src/node.ts",
