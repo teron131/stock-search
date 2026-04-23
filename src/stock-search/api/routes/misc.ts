@@ -20,7 +20,7 @@ import {
 	INDUSTRIES,
 	PORTFOLIO_NEWS_SUMMARY,
 	REALTIME_CONFIG,
-	STOCK_NEWS,
+	STOCK_NEWS_ROUTE,
 	STOCKS,
 } from "../route-paths.js";
 import { convexRealtimeTopics } from "../data-store.js";
@@ -185,7 +185,7 @@ export function createMiscRouter(store: BackendStore): Hono {
 		});
 	});
 
-	router.get(STOCK_NEWS, async (c) => {
+	router.get(STOCK_NEWS_ROUTE, async (c) => {
 		c.header("Cache-Control", "no-store");
 		return c.json(await newsOrchestrator.getNewsAsync(c.req.param("ticker")));
 	});

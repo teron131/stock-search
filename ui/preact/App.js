@@ -72,10 +72,15 @@ function showToast(message) {
 	}, 3000);
 }
 
-function showActionError(reason) {
+function showActionError(reason, detail = null) {
 	if (reason === "demo") showToast("Demo Mode: Changes not saved.");
 	if (reason === "invalid") showToast("INVALID_QTY");
-	if (reason === "server") showToast("UPDATE FAILED");
+	if (reason === "server") showToast(detail || "UPDATE FAILED");
+}
+
+function buildAuthLoginUrl() {
+	const nextPath = `${window.location.pathname}${window.location.search}`;
+	return `${CONFIG.endpoints.authLogin}?next=${encodeURIComponent(nextPath)}`;
 }
 
 async function fetchAuthSession() {
@@ -114,7 +119,7 @@ async function importImageFile(file, importImageRef) {
 		strategy: CONFIG.defaultStrategy,
 	});
 	if (!res?.ok) {
-		showActionError(res?.reason);
+		showActionError(res?.reason, res?.detail);
 		setText("import-status", "IMPORT FAILED");
 		return;
 	}
@@ -559,10 +564,6 @@ export function App() {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
 		const cleanupHeatmapTabs = initHeatmapTabs();
 		createCalendarWidget();
-		actions.sync({
-			scope: CONFIG.portfolioScopes.live,
-			preferCached: true,
-		});
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const importBtn = document.getElementById("import-image-btn");
@@ -618,9 +619,22 @@ export function App() {
 			await importImageFile(file, importImageRef);
 		};
 
-		void fetchAuthSession().then((authSession) => {
+		void (async () => {
+			const authSession = await fetchAuthSession();
 			syncLogoutButton(authSession);
-		});
+			if (
+				!CONFIG.isDemoMode &&
+				authSession?.enabled &&
+				!authSession?.authenticated
+			) {
+				window.location.assign(buildAuthLoginUrl());
+				return;
+			}
+			actions.sync({
+				scope: CONFIG.portfolioScopes.live,
+				preferCached: true,
+			});
+		})();
 
 		if (logoutBtn) {
 			logoutBtn.addEventListener("click", onLogout);

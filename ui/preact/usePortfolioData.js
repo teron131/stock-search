@@ -675,7 +675,17 @@ export function usePortfolioData() {
 				method: "POST",
 				body: formData,
 			});
-			if (!res.ok) return { ok: false, reason: "server" };
+			if (!res.ok) {
+				const payload = await res.json().catch(() => null);
+				return {
+					ok: false,
+					reason: "server",
+					detail:
+						payload && typeof payload.detail === "string"
+							? payload.detail
+							: null,
+				};
+			}
 
 			const payload = await res.json();
 			await sync({ scope: LIVE_PORTFOLIO_SCOPE });

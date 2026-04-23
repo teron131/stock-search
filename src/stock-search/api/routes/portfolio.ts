@@ -12,7 +12,11 @@ import {
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "../../portfolio.js";
-import { PORTFOLIO, PORTFOLIO_IMPORT_IMAGE, PORTFOLIO_TICKER } from "../route-paths.js";
+import {
+	PORTFOLIO,
+	PORTFOLIO_IMPORT_IMAGE,
+	PORTFOLIO_TICKER_ROUTE,
+} from "../route-paths.js";
 
 const portfolioPositionPatchSchema = z.object({
 	quantity: z.number().optional(),
@@ -47,7 +51,7 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 		return c.json(await buildPortfolioPayload(store, scope));
 	});
 
-	router.patch(PORTFOLIO_TICKER, async (c) => {
+	router.patch(PORTFOLIO_TICKER_ROUTE, async (c) => {
 		const payload = await c.req.json();
 		const parsed = portfolioPositionPatchSchema.safeParse(payload);
 		if (!parsed.success) {
@@ -67,7 +71,7 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 		}
 	});
 
-	router.delete(PORTFOLIO_TICKER, async (c) => {
+	router.delete(PORTFOLIO_TICKER_ROUTE, async (c) => {
 		return c.json(await removePortfolioPosition(store, c.req.param("ticker")));
 	});
 

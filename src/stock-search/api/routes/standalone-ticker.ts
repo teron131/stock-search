@@ -8,12 +8,15 @@ import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
 } from "../ticker-standalone.js";
-import { STOCK_EVALUATE, STOCK_STATS } from "../route-paths.js";
+import {
+	STOCK_EVALUATE_ROUTE,
+	STOCK_STATS_ROUTE,
+} from "../route-paths.js";
 
 export function createStandaloneTickerRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
-	router.get(STOCK_EVALUATE, async (c) => {
+	router.get(STOCK_EVALUATE_ROUTE, async (c) => {
 		const ticker = c.req.param("ticker");
 		try {
 			return c.json(await buildEvaluateTickerPayload(store, ticker));
@@ -25,7 +28,7 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 		}
 	});
 
-	router.get(STOCK_STATS, async (c) => {
+	router.get(STOCK_STATS_ROUTE, async (c) => {
 		c.header("Cache-Control", "no-store");
 		const source = c.req.query("source");
 		const resolvedSource =

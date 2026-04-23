@@ -8,6 +8,7 @@ import {
 	AUTH_LOGIN,
 	AUTH_LOGOUT,
 	AUTH_SESSION,
+	COLOR_STANDARDS,
 	DASHBOARD_PAGE_PATHS,
 	PUBLIC_STATIC_PREFIXES,
 	ROOT,
@@ -167,6 +168,7 @@ export function isPublicRequestPath(pathname: string): boolean {
 		pathname === AUTH_CALLBACK ||
 		pathname === AUTH_LOGOUT ||
 		pathname === AUTH_SESSION ||
+		pathname === COLOR_STANDARDS ||
 		pathname === "/favicon.ico"
 	) {
 		return true;
