@@ -1009,7 +1009,7 @@ export async function patchPortfolioPosition(
 	store: BackendStore,
 	ticker: string,
 	patch: {
-		quantity?: number;
+		quantity?: number | null;
 		strategy?: string | null;
 	},
 ): Promise<Record<string, unknown>> {
@@ -1031,7 +1031,7 @@ export async function patchPortfolioPosition(
 	}
 
 	if (patch.quantity !== undefined) {
-		current.quantity = patch.quantity;
+		current.quantity = patch.quantity ?? 0;
 	}
 	if (patch.strategy !== undefined) {
 		if (patch.strategy === null || patch.strategy === "") {

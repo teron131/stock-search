@@ -243,6 +243,14 @@ function getLoadingMode(background) {
 	return background ? LOADING_MODE_BACKGROUND : LOADING_MODE_FOREGROUND;
 }
 
+function normalizeQuantityInput(quantity) {
+	if (quantity == null || String(quantity).trim() === "") {
+		return 0;
+	}
+	const normalizedQuantity = Number(quantity);
+	return Number.isFinite(normalizedQuantity) ? normalizedQuantity : null;
+}
+
 function isAbortError(error) {
 	return error?.name === "AbortError";
 }
@@ -636,8 +644,8 @@ export function usePortfolioData() {
 			silent = false,
 		}) => {
 			const normalizedTicker = normalizeTicker(ticker);
-			const normalizedQuantity = Number(quantity);
-			if (!normalizedTicker || Number.isNaN(normalizedQuantity)) {
+			const normalizedQuantity = normalizeQuantityInput(quantity);
+			if (!normalizedTicker || normalizedQuantity == null) {
 				return { ok: false, reason: "invalid" };
 			}
 
@@ -682,8 +690,8 @@ export function usePortfolioData() {
 			if (isUsingDemoData) return { ok: false, reason: "demo" };
 
 			const t = normalizeTicker(ticker);
-			const q = Number(quantity);
-			if (!t || Number.isNaN(q)) return { ok: false, reason: "invalid" };
+			const q = normalizeQuantityInput(quantity);
+			if (!t || q == null) return { ok: false, reason: "invalid" };
 
 			if (existingQuantity != null) {
 				const confirmed = window.confirm(

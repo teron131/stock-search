@@ -19,7 +19,7 @@ import {
 } from "../route-paths.js";
 
 const PortfolioPositionPatchSchema = z.object({
-	quantity: z.number().optional(),
+	quantity: z.number().nullable().optional(),
 	strategy: z.string().nullable().optional(),
 });
 const PortfolioScopeSchema = z

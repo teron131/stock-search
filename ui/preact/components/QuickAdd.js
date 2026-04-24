@@ -23,7 +23,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 		try {
 			await onSubmit({
 				ticker,
-				quantity: qty,
+				quantity: qty.trim() === "" ? null : qty,
 				existingQuantity: existingQty,
 			});
 			setTicker("");
@@ -52,9 +52,8 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
         type="number"
         id="input-qty"
         aria-label="Position quantity"
-        placeholder="QTY"
+        placeholder="QTY / 0"
         step="any"
-        required
         value=${qty}
         onInput=${(e) => setQty(e.target.value)}
         disabled=${isSubmitting}
