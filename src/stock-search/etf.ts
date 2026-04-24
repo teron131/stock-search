@@ -35,6 +35,12 @@ export type EtfResolutionResult = {
 	changedTickers: string[];
 };
 
+export type EtfSnapshotCacheResult = {
+	snapshot: EtfSnapshotResult;
+	refreshedIndicators: Record<string, unknown> | null;
+	didRefresh: boolean;
+};
+
 const ETF_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 function parseTimestamp(value: unknown): number | null {
 	if (typeof value !== "string" || !value.trim()) {
@@ -89,19 +95,43 @@ function loadEtfCache(
 		}))
 		.filter((holding) => holding.ticker && Number.isFinite(holding.weight));
 	const sectors = Array.isArray(indicators.etf_sectors)
-		? indicators.etf_sectors
-				.filter((sector) => typeof sector === "object" && sector !== null)
-				.map((sector) => sector as Record<string, unknown>)
-				.map((sector) => ({
-					name: normalizeSectorName(
-						typeof sector.name === "string" ? sector.name : null,
-					),
-					weight: Number(sector.weight),
-				}))
-				.filter((sector) => Number.isFinite(sector.weight))
+		? normalizeEtfSectors(
+				indicators.etf_sectors
+					.filter((sector) => typeof sector === "object" && sector !== null)
+					.map((sector) => sector as Record<string, unknown>)
+					.map((sector) => ({
+						name: typeof sector.name === "string" ? sector.name : null,
+						weight: Number(sector.weight),
+					})),
+			)
 		: [];
 
 	return { holdings, sectors };
+}
+
+function emptyEtfSnapshot(error: string | null = null): EtfSnapshotResult {
+	return {
+		holdings: [],
+		sectors: [],
+		error,
+	};
+}
+
+function normalizeEtfSectors(
+	sectors: Array<{ name: string | null | undefined; weight: number }>,
+): EtfSector[] {
+	const weightsBySector = new Map<string, number>();
+	for (const sector of sectors) {
+		if (!Number.isFinite(sector.weight)) {
+			continue;
+		}
+		const name = normalizeSectorName(sector.name);
+		weightsBySector.set(name, (weightsBySector.get(name) ?? 0) + sector.weight);
+	}
+	return [...weightsBySector.entries()].map(([name, weight]) => ({
+		name,
+		weight: Number(weight.toFixed(4)),
+	}));
 }
 
 function storeEtfCache(
@@ -118,6 +148,70 @@ function storeEtfCache(
 	};
 }
 
+/** Resolve one ETF snapshot with cache-first semantics and optional live refresh. */
+export async function resolveEtfSnapshotCache(
+	tickerInput: string,
+	stockEntry: StockEntry | null,
+	allowLiveFetch: boolean,
+	now = Date.now(),
+): Promise<EtfSnapshotCacheResult> {
+	const ticker = normalizeTicker(tickerInput);
+	const indicators = stockEntry?.indicators ?? {};
+	const cachedSnapshot = loadEtfCache(indicators, now, true);
+	if (cachedSnapshot) {
+		return {
+			snapshot: {
+				holdings: cachedSnapshot.holdings,
+				sectors: cachedSnapshot.sectors,
+				error: null,
+			},
+			refreshedIndicators: null,
+			didRefresh: false,
+		};
+	}
+
+	const staleSnapshot = loadEtfCache(indicators, now, false);
+	if (!allowLiveFetch) {
+		return {
+			snapshot: staleSnapshot
+				? {
+						holdings: staleSnapshot.holdings,
+						sectors: staleSnapshot.sectors,
+						error: null,
+					}
+				: emptyEtfSnapshot(),
+			refreshedIndicators: null,
+			didRefresh: false,
+		};
+	}
+
+	const snapshot = await getEtfSnapshot(ticker);
+	if (!snapshot.error) {
+		return {
+			snapshot,
+			refreshedIndicators: storeEtfCache(
+				{ ...indicators, quote_type: ETF_QUOTE_TYPE },
+				snapshot.holdings,
+				snapshot.sectors,
+				now,
+			),
+			didRefresh: true,
+		};
+	}
+
+	return {
+		snapshot: staleSnapshot
+			? {
+					holdings: staleSnapshot.holdings,
+					sectors: staleSnapshot.sectors,
+					error: snapshot.error,
+				}
+			: emptyEtfSnapshot(snapshot.error),
+		refreshedIndicators: null,
+		didRefresh: false,
+	};
+}
+
 /** Fetch one ETF holdings snapshot from StockAnalysis. */
 export async function getEtfSnapshot(
 	tickerInput: string,
@@ -127,10 +221,7 @@ export async function getEtfSnapshot(
 		await new StockAnalysisSource(ticker).getEtfHoldingsSnapshot();
 	return {
 		holdings: snapshot.holdings,
-		sectors: snapshot.sectors.map((sector) => ({
-			name: normalizeSectorName(sector.name),
-			weight: sector.weight,
-		})),
+		sectors: normalizeEtfSectors(snapshot.sectors),
 		error: snapshot.error,
 	};
 }
@@ -170,11 +261,9 @@ export async function classifyAndResolveEtfs(
 
 			const stockEntry = stockMap[ticker] ?? null;
 			const indicators = stockEntry?.indicators ?? {};
-			const cachedSnapshot = loadEtfCache(indicators, now, true);
-			const staleSnapshot = loadEtfCache(indicators, now, false);
 			const etfLike =
 				String(indicators.quote_type ?? "").trim().toUpperCase() === ETF_QUOTE_TYPE ||
-				(cachedSnapshot != null && cachedSnapshot.holdings.length > 0) ||
+				(loadEtfCache(indicators, now, false)?.holdings.length ?? 0) > 0 ||
 				(allowLiveFetch && (await isEtfTicker(ticker, stockEntry)));
 
 			if (!etfLike) {
@@ -187,54 +276,12 @@ export async function classifyAndResolveEtfs(
 				};
 			}
 
-			if (cachedSnapshot) {
-				return {
-					kind: "etf" as const,
-					position,
-					ticker,
-					stockEntry,
-					indicators,
-					snapshot: {
-						holdings: cachedSnapshot.holdings,
-						sectors: cachedSnapshot.sectors,
-						error: null,
-					},
-					didRefresh: false,
-				};
-			}
-
-			if (!allowLiveFetch && staleSnapshot) {
-				return {
-					kind: "etf" as const,
-					position,
-					ticker,
-					stockEntry,
-					indicators,
-					snapshot: {
-						holdings: staleSnapshot.holdings,
-						sectors: staleSnapshot.sectors,
-						error: null,
-					},
-					didRefresh: false,
-				};
-			}
-
-			const snapshot = await getEtfSnapshot(ticker);
-			if (!snapshot.error) {
-				return {
-					kind: "etf" as const,
-					position,
-					ticker,
-					stockEntry,
-					indicators,
-					snapshot: {
-						holdings: snapshot.holdings,
-						sectors: snapshot.sectors,
-						error: null,
-					},
-					didRefresh: true,
-				};
-			}
+			const snapshotCache = await resolveEtfSnapshotCache(
+				ticker,
+				stockEntry,
+				allowLiveFetch,
+				now,
+			);
 
 			return {
 				kind: "etf" as const,
@@ -242,18 +289,9 @@ export async function classifyAndResolveEtfs(
 				ticker,
 				stockEntry,
 				indicators,
-				snapshot: staleSnapshot
-					? {
-							holdings: staleSnapshot.holdings,
-							sectors: staleSnapshot.sectors,
-							error: snapshot.error,
-						}
-					: {
-							holdings: [],
-							sectors: [],
-							error: snapshot.error,
-						},
-				didRefresh: false,
+				snapshot: snapshotCache.snapshot,
+				refreshedIndicators: snapshotCache.refreshedIndicators,
+				didRefresh: snapshotCache.didRefresh,
 			};
 		}),
 	);
@@ -291,7 +329,7 @@ export async function classifyAndResolveEtfs(
 		etfPositions.push(resolved.position);
 		snapshotByTicker[resolved.ticker] = resolved.snapshot;
 
-		if (!resolved.didRefresh) {
+		if (!resolved.didRefresh || !resolved.refreshedIndicators) {
 			continue;
 		}
 
@@ -299,12 +337,7 @@ export async function classifyAndResolveEtfs(
 		changedTickers.add(resolved.ticker);
 		upserts.push({
 			ticker: resolved.ticker,
-			indicators: storeEtfCache(
-				{ ...resolved.indicators, quote_type: ETF_QUOTE_TYPE },
-				resolved.snapshot.holdings,
-				resolved.snapshot.sectors,
-				now,
-			),
+			indicators: resolved.refreshedIndicators,
 			evaluation: resolved.stockEntry?.evaluation ?? {},
 			labels: resolved.stockEntry?.labels ?? [],
 		});

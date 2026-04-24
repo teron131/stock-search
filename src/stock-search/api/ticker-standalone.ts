@@ -5,6 +5,7 @@ import { fetchYahooIndicators } from "../indicators.js";
 import { normalizeTicker, nowIso } from "../utils.js";
 import { mergePortfolioRow } from "../portfolio.js";
 import { resolveTickerStats } from "../stats-resolver.js";
+import { resolveEtfSnapshotCache } from "../etf.js";
 
 type StandaloneTickerSource = "auto" | "live" | "cache";
 type StandaloneTickerPayload = {
@@ -54,6 +55,55 @@ function buildStandalonePayload(
 
 function hasCachedTicker(row: Record<string, unknown>): boolean {
 	return Boolean(row.ticker);
+}
+
+function hasEtfSnapshotSignal(indicators: Record<string, unknown>): boolean {
+	const cachedHoldings = indicators.etf_holdings;
+	return (
+		String(indicators.quote_type ?? "").trim().toUpperCase() === "ETF" ||
+		(Array.isArray(cachedHoldings) && cachedHoldings.length > 0)
+	);
+}
+
+async function enrichStandaloneEtfEntry(
+	store: BackendStore,
+	ticker: string,
+	stockEntry: StockEntry,
+): Promise<StockEntry> {
+	if (!hasEtfSnapshotSignal(stockEntry.indicators)) {
+		return stockEntry;
+	}
+
+	const snapshotCache = await resolveEtfSnapshotCache(ticker, stockEntry, true);
+	const snapshotHasData =
+		snapshotCache.snapshot.holdings.length > 0 ||
+		snapshotCache.snapshot.sectors.length > 0;
+	const indicators =
+		snapshotCache.refreshedIndicators ??
+		(snapshotHasData
+			? {
+					...stockEntry.indicators,
+					quote_type: "ETF",
+					etf_holdings: snapshotCache.snapshot.holdings,
+					etf_sectors: snapshotCache.snapshot.sectors,
+				}
+			: { ...stockEntry.indicators, quote_type: "ETF" });
+
+	if (snapshotCache.refreshedIndicators) {
+		await store.upsertStocks([
+			{
+				ticker,
+				indicators,
+				evaluation: stockEntry.evaluation,
+				labels: stockEntry.labels,
+			},
+		]);
+	}
+
+	return {
+		...stockEntry,
+		indicators,
+	};
 }
 
 async function loadTickerContext(
@@ -112,12 +162,13 @@ export async function buildStandaloneTickerPayload(
 				resolveTickerStats(store, tickerSymbol, source, context.stockEntry),
 			),
 		]);
+		const stockEntry = await enrichStandaloneEtfEntry(store, tickerSymbol, {
+			...context.stockEntry,
+			indicators: resolved.row,
+		});
 		return buildStandalonePayload(
 			store,
-			mergePortfolioRow(context.position, {
-				...context.stockEntry,
-				indicators: resolved.row,
-			}),
+			mergePortfolioRow(context.position, stockEntry),
 			resolved.dataSource,
 		);
 	} catch (error) {
