@@ -16,6 +16,7 @@ data/
 !tests/*.py
 !tests/**/*.py
 *.png
+!ui/logo.png
 *.jpg
 .playwright-cli/
 
