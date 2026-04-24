@@ -1963,132 +1963,16 @@ body {
 
 .data-table-evaluations {
 	width: 100%;
-	min-width: var(--evaluation-min-table-width);
-	table-layout: fixed;
+	min-width: max-content;
+	table-layout: auto;
 }
 
 .data-table-evaluations col.table-col-ticker {
 	width: var(--ticker-column-width);
 }
 
-.data-table-evaluations col.table-col-strategy {
-	width: var(--evaluation-col-min-strategy);
-}
-
 .data-table-evaluations col.table-col-remove {
-	width: var(--evaluation-col-min-remove);
-}
-
-.data-table-evaluations col.table-col-rank {
-	width: max(
-		var(--evaluation-col-min-rank),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-overall-score {
-	width: max(
-		var(--evaluation-col-min-overall-score),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-quality-score {
-	width: max(
-		var(--evaluation-col-min-quality-score),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-valuation-score {
-	width: max(
-		var(--evaluation-col-min-valuation-score),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-moat-score {
-	width: max(
-		var(--evaluation-col-min-moat-score),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-upside-score {
-	width: max(
-		var(--evaluation-col-min-upside-score),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-bull-probability {
-	width: max(
-		var(--evaluation-col-min-bull-probability),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
-}
-
-.data-table-evaluations col.table-col-bear-probability {
-	width: max(
-		var(--evaluation-col-min-bear-probability),
-		calc(
-			(
-					100% -
-					var(--ticker-column-width) -
-					var(--evaluation-col-min-strategy) -
-					var(--evaluation-col-min-remove)
-				) / var(--evaluation-metric-column-count)
-		)
-	);
+	width: 52px;
 }
 
 .table-wrapper::after {
