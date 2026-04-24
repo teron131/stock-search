@@ -93,6 +93,17 @@ async function fetchAuthSession() {
 	}
 }
 
+async function fetchRuntimeConfig() {
+	if (CONFIG.isDemoMode) return null;
+	try {
+		const response = await fetch(CONFIG.endpoints.realtimeConfig);
+		if (!response.ok) return null;
+		return await response.json();
+	} catch {
+		return null;
+	}
+}
+
 function syncLogoutButton(authSession) {
 	const logoutBtn = document.getElementById("logout-btn");
 	if (!logoutBtn) return;
@@ -205,7 +216,7 @@ function syncNavItems(viewName) {
 	});
 }
 
-function syncViewLayout(view) {
+function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
 
 	const isDashboard = view === DASHBOARD_VIEW;
@@ -219,7 +230,10 @@ function syncViewLayout(view) {
 
 	setDisplay("heatmap-section", view === MARKETMAP_VIEW ? "block" : "none");
 	setDisplay("calendar-section", view === CALENDAR_VIEW ? "block" : "none");
-	setDisplay("stats-strip", isDashboard ? "flex" : "none");
+	setDisplay(
+		"stats-strip",
+		isDashboard && showPortfolioStats ? "flex" : "none",
+	);
 	setDisplay("import-image-btn", isDashboard ? "inline-flex" : "none");
 	setDisplay("import-status", isDashboard ? "inline" : "none");
 
@@ -524,6 +538,7 @@ export function App() {
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
+	const [showPortfolioStats, setShowPortfolioStats] = useState(false);
 
 	const {
 		rows,
@@ -727,6 +742,19 @@ export function App() {
 	}, []);
 
 	useEffect(() => {
+		let isActive = true;
+		void (async () => {
+			const runtimeConfig = await fetchRuntimeConfig();
+			if (isActive) {
+				setShowPortfolioStats(Boolean(runtimeConfig?.show_portfolio_stats));
+			}
+		})();
+		return () => {
+			isActive = false;
+		};
+	}, []);
+
+	useEffect(() => {
 		if (CONFIG.isDemoMode) return;
 
 		const intervalId = setInterval(() => {
@@ -755,8 +783,8 @@ export function App() {
 	}, []);
 
 	useEffect(() => {
-		syncViewLayout(view);
-	}, [view]);
+		syncViewLayout(view, { showPortfolioStats });
+	}, [showPortfolioStats, view]);
 
 	useEffect(() => {
 		syncRefreshButtonState({
