@@ -1,6 +1,6 @@
 /** Generic Exa-backed fallback helpers for StockAnalysis pages. */
 
-import { ExaAgent } from "llm-harness-js/agents";
+import { ExaAnswerAgent } from "llm-harness-js/agents";
 import type { z, ZodType } from "zod";
 
 /** Run a structured Exa search using a StockAnalysis-oriented prompt. */
@@ -15,7 +15,7 @@ export async function invokeStockanalysisSearch<T extends ZodType>({
 	query: string;
 	promptValues: Record<string, string>;
 }): Promise<z.output<T>> {
-	const agent = new ExaAgent(
+	const agent = new ExaAnswerAgent(
 		systemPromptTemplate.replace(
 			/\{([^}]+)\}/g,
 			(_match, key: string) => promptValues[key] ?? "",

@@ -46,11 +46,11 @@ export async function getNewsExaAsync({
 	const payloadBody = {
 		query,
 		category: "news",
-		num_results: boundedMaxResults,
-		start_published_date: new Date(Date.now() - nDays * DAY_IN_MS).toISOString(),
-		end_published_date: new Date().toISOString(),
+		numResults: boundedMaxResults,
+		startPublishedDate: new Date(Date.now() - nDays * DAY_IN_MS).toISOString(),
+		endPublishedDate: new Date().toISOString(),
 		type: "auto",
-		user_location: "US",
+		userLocation: "US",
 	};
 	const headers = {
 		Authorization: `Bearer ${process.env.EXA_API_KEY ?? ""}`,

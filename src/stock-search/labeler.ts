@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
-import { ExaAgent } from "llm-harness-js/agents";
+import { ExaAnswerAgent } from "llm-harness-js/agents";
 import { ChatOpenAI } from "llm-harness-js/clients";
 import { z } from "zod";
 
@@ -165,13 +165,13 @@ function buildLabelSystemPrompt(): string {
 }
 
 async function pillarNode(state: LabelGraphState) {
-	const pillarsAgent = new ExaAgent(PILLARS_SYSTEM_PROMPT, PillarsSchema);
+	const pillarsAgent = new ExaAnswerAgent(PILLARS_SYSTEM_PROMPT, PillarsSchema);
 	const pillars = await pillarsAgent.invoke(state.ticker);
 	return { pillars };
 }
 
 async function outlookNode(state: LabelGraphState) {
-	const outlookAgent = new ExaAgent(OUTLOOK_SYSTEM_PROMPT, OutlookSchema);
+	const outlookAgent = new ExaAnswerAgent(OUTLOOK_SYSTEM_PROMPT, OutlookSchema);
 	const outlook = await outlookAgent.invoke(
 		fillPrompt(OUTLOOK_QUERY, {
 			ticker: state.ticker,
