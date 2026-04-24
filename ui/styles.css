@@ -431,6 +431,18 @@ body::after {
 	text-align: right;
 }
 
+.sync-status {
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	color: var(--accent);
+	letter-spacing: 0.06em;
+	text-align: right;
+}
+
+.sync-status:empty {
+	display: none;
+}
+
 .import-status:empty {
 	display: none;
 }
@@ -1103,6 +1115,17 @@ td:first-child {
 	transform: translateY(1px) scale(0.98);
 }
 
+.btn-icon-top.is-syncing {
+	background: transparent;
+	color: var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.btn-icon-top.is-syncing:hover {
+	background: var(--accent);
+	color: var(--accent-text);
+}
+
 .btn-image-import-top.drag-over {
 	filter: brightness(1.12);
 	box-shadow: 0 0 0 2px rgba(213, 255, 59, 0.3);
@@ -1709,10 +1732,15 @@ body {
 }
 
 .last-update,
+.sync-status,
 .import-status {
 	font-size: var(--text-xs);
 	color: var(--ink-ghost);
 	letter-spacing: 0.06em;
+}
+
+.sync-status {
+	color: var(--accent);
 }
 
 .action-icon-group {
@@ -2199,6 +2227,10 @@ tbody tr:hover td:first-child {
 		max-width: none;
 		width: 100%;
 		text-align: right;
+	}
+
+	.sync-status {
+		order: 2;
 	}
 
 	.btn-icon-top {

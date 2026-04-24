@@ -238,6 +238,41 @@ function syncViewLayout(view) {
 	tapeView.style.height = "0";
 }
 
+function syncRefreshButtonState({
+	view,
+	isPortfolioSyncing,
+	isIndustryLoading,
+	isNewsLoading,
+}) {
+	const refreshBtn = document.getElementById("refresh-btn");
+	const syncStatus = document.getElementById("sync-status");
+	const isDashboardSyncing = view === DASHBOARD_VIEW && isPortfolioSyncing;
+	const isViewLoading =
+		isDashboardSyncing ||
+		(view === INDUSTRY_VIEW && isIndustryLoading) ||
+		(view === NEWS_VIEW && isNewsLoading);
+
+	if (syncStatus) {
+		syncStatus.textContent = isViewLoading ? "SYNCING..." : "";
+	}
+	if (!refreshBtn) return;
+
+	refreshBtn.textContent = isDashboardSyncing ? "■" : "SYNC";
+	refreshBtn.classList.toggle("is-syncing", isDashboardSyncing);
+	refreshBtn.setAttribute(
+		"aria-label",
+		isDashboardSyncing ? "Stop syncing" : "Sync",
+	);
+	refreshBtn.setAttribute(
+		"title",
+		isDashboardSyncing ? "Stop syncing" : "Sync",
+	);
+	refreshBtn.setAttribute(
+		"aria-pressed",
+		isDashboardSyncing ? "true" : "false",
+	);
+}
+
 function updatePortfolioSummary(stats) {
 	setText("total-positions", stats.positions ? String(stats.positions) : "--");
 	setText(
@@ -496,6 +531,7 @@ export function App() {
 		colorStandards,
 		isLoading,
 		isBackgroundLoading,
+		isSyncing,
 		isUsingDemoData,
 		lastError,
 		stats,
@@ -512,6 +548,8 @@ export function App() {
 	});
 
 	const syncRef = useRef(actions.sync);
+	const cancelSyncRef = useRef(actions.cancelSync);
+	const portfolioSyncingRef = useRef(isSyncing);
 	const importImageRef = useRef(actions.importFromImage);
 	const industryRefreshRef = useRef(industryData.refresh);
 	const newsRefreshRef = useRef(newsData.refresh);
@@ -520,6 +558,14 @@ export function App() {
 	useEffect(() => {
 		syncRef.current = actions.sync;
 	}, [actions.sync]);
+
+	useEffect(() => {
+		cancelSyncRef.current = actions.cancelSync;
+	}, [actions.cancelSync]);
+
+	useEffect(() => {
+		portfolioSyncingRef.current = isSyncing;
+	}, [isSyncing]);
 
 	useEffect(() => {
 		importImageRef.current = actions.importFromImage;
@@ -577,6 +623,10 @@ export function App() {
 			}
 			if (viewRef.current === NEWS_VIEW) {
 				newsRefreshRef.current?.({ force: true });
+				return;
+			}
+			if (portfolioSyncingRef.current) {
+				cancelSyncRef.current?.();
 				return;
 			}
 			syncRef.current?.({ scope: CONFIG.portfolioScopes.live });
@@ -707,6 +757,15 @@ export function App() {
 	useEffect(() => {
 		syncViewLayout(view);
 	}, [view]);
+
+	useEffect(() => {
+		syncRefreshButtonState({
+			view,
+			isPortfolioSyncing: isSyncing,
+			isIndustryLoading: industryData.isLoading,
+			isNewsLoading: newsData.isLoading,
+		});
+	}, [industryData.isLoading, isSyncing, newsData.isLoading, view]);
 
 	const activeTimestamp =
 		view === INDUSTRY_VIEW

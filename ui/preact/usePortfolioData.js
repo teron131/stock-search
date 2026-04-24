@@ -38,9 +38,15 @@ async function tryFetchJson(url) {
 	}
 }
 
-async function fetchJsonWithTimeout(url, timeoutMs) {
+async function fetchJsonWithTimeout(url, timeoutMs, signal) {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	const abortFromParent = () => controller.abort();
+	if (signal?.aborted) {
+		controller.abort();
+	} else {
+		signal?.addEventListener("abort", abortFromParent, { once: true });
+	}
 	try {
 		const res = await fetch(url, {
 			signal: controller.signal,
@@ -48,6 +54,7 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
 		if (!res.ok) return null;
 		return await res.json();
 	} finally {
+		signal?.removeEventListener("abort", abortFromParent);
 		clearTimeout(timeoutId);
 	}
 }
@@ -236,6 +243,10 @@ function getLoadingMode(background) {
 	return background ? LOADING_MODE_BACKGROUND : LOADING_MODE_FOREGROUND;
 }
 
+function isAbortError(error) {
+	return error?.name === "AbortError";
+}
+
 function getNormalizedPortfolioStats(dashData) {
 	return dashData?.portfolio_stats &&
 		typeof dashData.portfolio_stats === "object"
@@ -255,10 +266,12 @@ export function usePortfolioData() {
 	const [colorStandards, setColorStandards] = useState(null);
 	const [generatedAt, setGeneratedAt] = useState(null);
 	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
+	const [syncInFlight, setSyncInFlight] = useState(false);
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
 	const [lastError, setLastError] = useState(null);
 
 	const syncInFlightRef = useRef(false);
+	const syncAbortControllerRef = useRef(null);
 	const syncActionRef = useRef(null);
 	const realtimeClientRef = useRef(null);
 	const realtimeUnsubscribersRef = useRef([]);
@@ -321,6 +334,33 @@ export function usePortfolioData() {
 		setValueIfChanged(setRows, nextRows, isJsonEqual);
 		setValueIfChanged(setPortfolioStats, nextPortfolioStats, isJsonEqual);
 		setValueIfChanged(setGeneratedAt, nextGeneratedAt);
+	}, []);
+
+	const beginSync = useCallback(() => {
+		if (syncInFlightRef.current) {
+			return null;
+		}
+		const controller = new AbortController();
+		syncInFlightRef.current = true;
+		syncAbortControllerRef.current = controller;
+		setSyncInFlight(true);
+		return controller;
+	}, []);
+
+	const finishSync = useCallback((controller) => {
+		if (syncAbortControllerRef.current !== controller) return;
+		syncAbortControllerRef.current = null;
+		syncInFlightRef.current = false;
+		setSyncInFlight(false);
+	}, []);
+
+	const cancelSync = useCallback(() => {
+		const controller = syncAbortControllerRef.current;
+		if (!controller || controller.signal.aborted) {
+			return false;
+		}
+		controller.abort();
+		return true;
 	}, []);
 
 	const stopRealtimeSync = useCallback(async () => {
@@ -396,7 +436,11 @@ export function usePortfolioData() {
 	}, []);
 
 	const loadFromApi = useCallback(
-		async ({ background = false, scope = LIVE_PORTFOLIO_SCOPE } = {}) => {
+		async ({
+			background = false,
+			scope = LIVE_PORTFOLIO_SCOPE,
+			signal,
+		} = {}) => {
 			const shouldFetchMetadata = !background;
 			const timeoutMs = background
 				? CONFIG.requestTimeoutMs.portfolioBackground
@@ -405,9 +449,13 @@ export function usePortfolioData() {
 			async function readPayload({ portfolioUrl, standardsUrl, isDemoData }) {
 				const standardsPromise =
 					shouldFetchMetadata && !colorStandards
-						? tryFetchJson(standardsUrl)
+						? fetchJsonWithTimeout(standardsUrl, timeoutMs, signal)
 						: Promise.resolve(null);
-				const rawPayload = await fetchJsonWithTimeout(portfolioUrl, timeoutMs);
+				const rawPayload = await fetchJsonWithTimeout(
+					portfolioUrl,
+					timeoutMs,
+					signal,
+				);
 				const dashData = normalizeApiDashboardPayload(rawPayload);
 				if (!dashData) {
 					throw new Error("API Failure");
@@ -460,22 +508,26 @@ export function usePortfolioData() {
 	}, []);
 
 	const loadCachedSnapshot = useCallback(async () => {
-		if (syncInFlightRef.current) return false;
+		const abortController = beginSync();
+		if (!abortController) return false;
 
-		syncInFlightRef.current = true;
 		try {
 			const apiResult = await loadFromApi({
 				background: false,
 				scope: INITIAL_PORTFOLIO_SCOPE,
+				signal: abortController.signal,
 			});
 			applyApiResult(apiResult);
 			return true;
-		} catch {
+		} catch (error) {
+			if (isAbortError(error)) {
+				return "cancelled";
+			}
 			return false;
 		} finally {
-			syncInFlightRef.current = false;
+			finishSync(abortController);
 		}
-	}, [applyApiResult, loadFromApi]);
+	}, [applyApiResult, beginSync, finishSync, loadFromApi]);
 
 	const load = useCallback(
 		async ({
@@ -483,10 +535,10 @@ export function usePortfolioData() {
 			silent = false,
 			scope = LIVE_PORTFOLIO_SCOPE,
 		} = {}) => {
-			if (syncInFlightRef.current) return;
 			if (!silent && loadingMode !== LOADING_MODE_IDLE) return;
+			const abortController = beginSync();
+			if (!abortController) return { ok: false, reason: "busy" };
 
-			syncInFlightRef.current = true;
 			if (!silent) {
 				setLoadingMode(getLoadingMode(background));
 			}
@@ -495,10 +547,16 @@ export function usePortfolioData() {
 				const apiResult = await loadFromApi({
 					background,
 					scope,
+					signal: abortController.signal,
 				});
 				applyApiResult(apiResult);
 				await startRealtimeSync();
+				return { ok: true };
 			} catch (e) {
+				if (isAbortError(e)) {
+					setLastError(null);
+					return { ok: false, reason: "cancelled" };
+				}
 				await stopRealtimeSync();
 				if (!background) {
 					setLastError(e);
@@ -511,8 +569,9 @@ export function usePortfolioData() {
 				if (rows.length === 0) {
 					clearDashboardData();
 				}
+				return { ok: false, reason: "failed" };
 			} finally {
-				syncInFlightRef.current = false;
+				finishSync(abortController);
 				if (!silent) {
 					setLoadingMode(LOADING_MODE_IDLE);
 				}
@@ -520,7 +579,9 @@ export function usePortfolioData() {
 		},
 		[
 			applyApiResult,
+			beginSync,
 			clearDashboardData,
+			finishSync,
 			loadFromApi,
 			loadingMode,
 			rows.length,
@@ -538,6 +599,9 @@ export function usePortfolioData() {
 		} = {}) => {
 			if (preferCached) {
 				const restoredCache = await loadCachedSnapshot();
+				if (restoredCache === "cancelled") {
+					return { ok: false, reason: "cancelled" };
+				}
 				return load({
 					background: restoredCache,
 					silent: true,
@@ -559,9 +623,10 @@ export function usePortfolioData() {
 
 	useEffect(() => {
 		return () => {
+			cancelSync();
 			stopRealtimeSync();
 		};
-	}, [stopRealtimeSync]);
+	}, [cancelSync, stopRealtimeSync]);
 
 	const patchPortfolioPosition = useCallback(
 		async ({
@@ -747,12 +812,14 @@ export function usePortfolioData() {
 		colorStandards,
 		isLoading: loadingMode !== LOADING_MODE_IDLE,
 		isBackgroundLoading: loadingMode === LOADING_MODE_BACKGROUND,
+		isSyncing: syncInFlight,
 		isUsingDemoData,
 		lastError,
 		stats,
 		topTickers,
 		actions: {
 			sync,
+			cancelSync,
 			addOrUpdate,
 			setQuantity,
 			importFromImage,
