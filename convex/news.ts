@@ -258,12 +258,10 @@ export const deleteByTickers = mutation({
 		for (const ticker of tickers) {
 			const rows = await ctx.db
 				.query("news")
-				.withIndex("by_ticker", (q) => q.eq("ticker", ticker))
+				.withIndex("by_key_ticker", (q) => q.eq("key", key).eq("ticker", ticker))
 				.collect();
 			for (const row of rows) {
-				if (row.key === key) {
-					await ctx.db.delete(row._id);
-				}
+				await ctx.db.delete(row._id);
 			}
 		}
 

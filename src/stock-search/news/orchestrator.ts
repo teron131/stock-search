@@ -38,6 +38,7 @@ const MAX_PROVIDER_SUMMARY_CHARS = 1_200;
 const MIN_PROVIDER_SUMMARY_CHARS = 140;
 const MAX_NEWS_FETCH_RETENTION_DAYS = 3;
 const MAX_NEWS_PUBLISHED_RETENTION_DAYS = 3;
+const NEWS_PROVIDER_TIMEOUT_MS = 8_000;
 const THIN_COVERAGE_HEADLINE = "Coverage remains thin";
 const THIN_COVERAGE_PARAGRAPH =
 	"Current feed does not surface a clear ticker-specific development yet.";
@@ -140,6 +141,7 @@ type ReadableAnalysisItem = ProviderBatchItem & {
 
 type HttpResponse = {
 	ok?: boolean;
+	status?: number;
 	json(): Promise<unknown>;
 	raise_for_status?: () => void;
 };
@@ -194,6 +196,7 @@ function extractDomain(rawUrl: string): string {
 function createHttpResponse(response: Response): HttpResponse {
 	return {
 		ok: response.ok,
+		status: response.status,
 		async json(): Promise<unknown> {
 			return response.json();
 		},
@@ -203,6 +206,23 @@ function createHttpResponse(response: Response): HttpResponse {
 			}
 		},
 	};
+}
+
+async function fetchWithTimeout(
+	url: string,
+	init: RequestInit,
+	timeoutMs = NEWS_PROVIDER_TIMEOUT_MS,
+): Promise<Response> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		return await fetch(url, {
+			...init,
+			signal: controller.signal,
+		});
+	} finally {
+		clearTimeout(timeoutId);
+	}
 }
 
 function createHttpClient(): HttpClient {
@@ -216,7 +236,7 @@ function createHttpClient(): HttpClient {
 		}): Promise<HttpResponse> {
 			const targetUrl = `${url}?${new URLSearchParams(params).toString()}`;
 			return createHttpResponse(
-				await fetch(targetUrl, {
+				await fetchWithTimeout(targetUrl, {
 					headers: {
 						"user-agent": "Mozilla/5.0",
 					},
@@ -233,7 +253,7 @@ function createHttpClient(): HttpClient {
 			headers: Record<string, string>;
 		}): Promise<HttpResponse> {
 			return createHttpResponse(
-				await fetch(url, {
+				await fetchWithTimeout(url, {
 					method: "POST",
 					headers,
 					body: JSON.stringify(json),
@@ -241,6 +261,10 @@ function createHttpClient(): HttpClient {
 			);
 		},
 	};
+}
+
+function hasEnvValue(value: string | undefined): boolean {
+	return typeof value === "string" && value.trim().length > 0;
 }
 
 export function _dedupeNews(items: NewsArticle[]): NewsArticle[] {
@@ -1141,8 +1165,9 @@ export async function getNewsAsync(
 	}
 
 	const client = createHttpClient();
-	const primaryProviderSpecs: readonly ProviderSpec[] = [
-		[
+	const primaryProviderSpecs: ProviderSpec[] = [];
+	if (hasEnvValue(process.env.NEWSDATA_API_KEY)) {
+		primaryProviderSpecs.push([
 			"newsdata",
 			() =>
 				newsProviders.getNewsNewsDataAsync({
@@ -1150,8 +1175,10 @@ export async function getNewsAsync(
 					maxResults: boundedMaxResults,
 					client,
 				}),
-		],
-		[
+		]);
+	}
+	if (hasEnvValue(process.env.MASSIVE_API_KEY)) {
+		primaryProviderSpecs.push([
 			"massive",
 			() =>
 				newsProviders.getNewsMassiveAsync({
@@ -1160,8 +1187,10 @@ export async function getNewsAsync(
 					maxResults: boundedMaxResults,
 					client,
 				}),
-		],
-		[
+		]);
+	}
+	if (hasEnvValue(process.env.NEWS_API_KEY)) {
+		primaryProviderSpecs.push([
 			"newsapi",
 			() =>
 				newsProviders.getNewsNewsApiAsync({
@@ -1170,16 +1199,16 @@ export async function getNewsAsync(
 					maxResults: boundedMaxResults,
 					client,
 				}),
-		],
-		[
-			"yfinance",
-			() =>
-				newsProviders.getNewsYahooFinance({
-					ticker,
-					maxResults: boundedMaxResults,
-				}),
-		],
-	];
+		]);
+	}
+	primaryProviderSpecs.push([
+		"yfinance",
+		() =>
+			newsProviders.getNewsYahooFinance({
+				ticker,
+				maxResults: boundedMaxResults,
+			}),
+	]);
 
 	const primaryBatch = await _fetchProviderBatch(ticker, primaryProviderSpecs);
 	let rawNewsList = _dedupeNews(primaryBatch.rawNewsList).slice(
@@ -1188,12 +1217,15 @@ export async function getNewsAsync(
 	);
 	const providerCounts = { ...primaryBatch.providerCounts };
 
-	if (rawNewsList.length < boundedMaxResults) {
+	if (
+		rawNewsList.length < boundedMaxResults &&
+		hasEnvValue(process.env.EXA_API_KEY)
+	) {
 		const exaBatch = await _fetchProviderBatch(ticker, [
 			[
 				"exa",
 				() =>
-				newsProviders.getNewsExaAsync({
+					newsProviders.getNewsExaAsync({
 						query: ticker,
 						nDays,
 						maxResults: boundedMaxResults,

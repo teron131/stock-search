@@ -34,6 +34,7 @@ export default defineSchema({
 	})
 		.index("by_key", ["key"])
 		.index("by_ticker", ["ticker"])
+		.index("by_key_ticker", ["key", "ticker"])
 		.index("by_updated_at", ["updatedAt"]),
 	meta_versions: defineTable({
 		key: v.string(),

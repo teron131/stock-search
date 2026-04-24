@@ -7,6 +7,7 @@ export class ConvexHttpClient {
 		private readonly baseUrl: string,
 		deployKey: string,
 		private readonly maxRetries = 2,
+		private readonly requestTimeoutMs = 7_000,
 	) {
 		if (!baseUrl) {
 			throw new Error("Missing CONVEX_URL for Convex data store.");
@@ -39,14 +40,25 @@ export class ConvexHttpClient {
 		let lastError: unknown;
 		for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
 			try {
-				const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/api/${endpoint}`, {
-					method: "POST",
-					headers: this.headers,
-					body: JSON.stringify({
-						path,
-						args: args ?? {},
-						format: "json",
-					}),
+				const controller = new AbortController();
+				const timeoutId = setTimeout(
+					() => controller.abort(),
+					this.requestTimeoutMs,
+				);
+				const response = await fetch(
+					`${this.baseUrl.replace(/\/$/, "")}/api/${endpoint}`,
+					{
+						method: "POST",
+						headers: this.headers,
+						body: JSON.stringify({
+							path,
+							args: args ?? {},
+							format: "json",
+						}),
+						signal: controller.signal,
+					},
+				).finally(() => {
+					clearTimeout(timeoutId);
 				});
 				if (!response.ok) {
 					throw new Error(`Convex HTTP ${response.status}`);

@@ -1,6 +1,7 @@
 /** Resolve ticker stats with family-level freshness and background refreshes. */
 
 import type { BackendStore, StockEntry } from "./api/data-store.js";
+import { PortfolioConfig } from "./config.js";
 import { nowIso, normalizeTicker } from "./utils.js";
 import {
 	fetchStockAnalysisFinancials,
@@ -211,6 +212,28 @@ function mergeFamilyRow(
 	}
 	merged[FAMILY_TIMESTAMP_FIELD[family]] = new Date(timestamp).toISOString();
 	return merged;
+}
+
+async function mapWithConcurrency<T, U>(
+	items: T[],
+	concurrency: number,
+	mapper: (item: T) => Promise<U>,
+): Promise<U[]> {
+	const results = new Array<U>(items.length);
+	let nextIndex = 0;
+	const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+	await Promise.all(
+		Array.from({ length: workerCount }, async () => {
+			while (nextIndex < items.length) {
+				const currentIndex = nextIndex;
+				nextIndex += 1;
+				results[currentIndex] = await mapper(items[currentIndex]);
+			}
+		}),
+	);
+
+	return results;
 }
 
 async function refreshFamilyRow(
@@ -499,14 +522,14 @@ export async function resolveTickerStatsMap(
 	const unique = [...new Set(tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean))];
 	const prefetchedStocks =
 		stockEntries ?? (await store.loadStocksByTickers(unique));
-	const results = await Promise.all(
-		unique.map(
-			async (ticker) =>
-				[
-					ticker,
-					await resolveTickerStats(store, ticker, mode, prefetchedStocks[ticker] ?? null),
-				] as const,
-		),
+	const results = await mapWithConcurrency(
+		unique,
+		PortfolioConfig.MAX_WORKERS,
+		async (ticker) =>
+			[
+				ticker,
+				await resolveTickerStats(store, ticker, mode, prefetchedStocks[ticker] ?? null),
+			] as const,
 	);
 	return Object.fromEntries(results);
 }
