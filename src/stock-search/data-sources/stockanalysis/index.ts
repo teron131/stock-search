@@ -1,13 +1,9 @@
-/** StockAnalysis source adapter package. */
+/** StockAnalysis data-source package. */
 
 export {
 	StockAnalysisSource,
 	getIndustrySnapshot,
-} from "./adapter.js";
-export {
-	invokeStockanalysisSearch,
-	invokeStockanalysisSearchOrDefault,
-} from "./exa-fallback.js";
+} from "./source.js";
 export type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
@@ -16,9 +12,3 @@ export type {
 	StockAnalysisIndustrySummary,
 	StockAnalysisStatistics,
 } from "./schemas.js";
-export {
-	ETF_HOLDINGS_SEARCH_SYSTEM_PROMPT,
-	ETF_SECTOR_SEARCH_SYSTEM_PROMPT,
-	FINANCIALS_SYSTEM_PROMPT,
-	STATISTICS_SYSTEM_PROMPT,
-} from "./prompts.js";
