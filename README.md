@@ -21,13 +21,6 @@ Run the backend only with:
 npm run server:start
 ```
 
-## Core Methodology
-
-- **Separation of concerns**: Portfolio management, ticker-level stat resolution, and evaluation logic are isolated so each layer can evolve independently.
-- **Source-first indicators**: Data source adapters (`yfinance`, StockAnalysis) are treated as causes; indicator orchestration is the effect layer that unifies fields and fills gaps.
-- **Cache-aware by design**: Missing fields resolve to `None` or cached values when freshness rules allow, reducing noisy failures and unnecessary refetches.
-- **Batch over piecemeal**: When a provider call naturally returns grouped data, the app consumes it as a batch to reduce duplicate requests.
-
 ## Stats Resolution Flow
 
 ```mermaid
@@ -52,7 +45,7 @@ flowchart TD
     Decision -->|Fresh| Fresh["Use cached family"]
     Decision -->|Slow family stale in `auto`| Stale["Serve stale family"]
     Stale -.-> Queue["Queue background refresh"]
-    Decision -->|Slow family missing| InlineSlow["Inline scrape/fetch"]
+    Decision -->|Slow family missing| InlineSlow["Inline provider load"]
     Decision -->|Market family expired| InlineFast["Inline market refresh"]
     Decision -->|`live` mode| ForceLive["Force inline refresh"]
 
@@ -86,16 +79,16 @@ flowchart TD
 
     subgraph ScrapeLed["Scrape-led families"]
         direction LR
-        Stats["Statistics"] --> StatsFlow["StockAnalysis scrape -> fresh cache -> Yahoo fallback"]
-        Financials["Financials"] --> FinancialsFlow["StockAnalysis scrape -> fresh cache -> Yahoo fallback"]
+        Stats["Statistics"] --> StatsFlow["StockAnalysis Exa load -> fresh cache -> Yahoo fallback"]
+        Financials["Financials"] --> FinancialsFlow["StockAnalysis Exa load -> fresh cache -> Yahoo fallback"]
     end
 ```
 
 ## Module Overview
 
 - **`src/stock-search/data-sources/`**
-  - Provider-specific fetchers and parsers.
-  - Keeps external API/scraping variability out of business logic.
+  - Provider-specific loaders and normalizers.
+  - Keeps external provider variability out of business logic.
 
 - **`src/stock-search/indicators.ts`**
   - Unified indicator resolver across sources.
@@ -119,11 +112,11 @@ flowchart TD
 
 ## Data Sources
 
-- **Yahoo Finance (`yfinance`)**
+- **Yahoo Finance**
   - Fast quote/history/options/ratings-oriented data access.
   - Broad free coverage and strong baseline for live market fields.
 
-- **StockAnalysis (web extraction)**
+- **StockAnalysis (Exa-loaded page contents)**
   - Statistics/financial statement aligned fields and ETF holdings context.
   - Better alignment for valuation/fundamental fields where API feeds can diverge.
 

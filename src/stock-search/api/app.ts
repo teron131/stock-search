@@ -11,13 +11,14 @@ import { createAuthRouter } from "./routes/auth.js";
 import { createMiscRouter } from "./routes/misc.js";
 import { createPortfolioRouter } from "./routes/portfolio.js";
 import { createStandaloneTickerRouter } from "./routes/standalone-ticker.js";
+import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import {
 	CALENDAR,
 	DASHBOARD,
 	DASHBOARD_PAGE_PATHS,
-	INDUSTRY,
 	MARKETMAP,
 	ROOT,
+	SECTORS,
 } from "./route-paths.js";
 
 export type AppDependencies = {
@@ -33,6 +34,16 @@ async function serveIndex(indexFile: string): Promise<Response> {
 			"content-type": "text/html; charset=utf-8",
 		},
 	});
+}
+
+function isPageNavigation(request: Request): boolean {
+	const destination = request.headers.get("sec-fetch-dest");
+	if (destination === "document") {
+		return true;
+	}
+
+	const accept = request.headers.get("accept") ?? "";
+	return accept.includes("text/html") && !accept.includes("application/json");
 }
 
 export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
@@ -51,7 +62,13 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	}
 	app.get(ROOT, async () => serveIndex(deps.indexFile));
 	app.get(DASHBOARD, async () => serveIndex(deps.indexFile));
-	app.get(INDUSTRY, async () => serveIndex(deps.indexFile));
+	app.get(SECTORS, async (c) => {
+		if (isPageNavigation(c.req.raw)) {
+			return serveIndex(deps.indexFile);
+		}
+		c.header("Cache-Control", "no-store");
+		return c.json(await getSectorSnapshot());
+	});
 	app.get(MARKETMAP, async () => serveIndex(deps.indexFile));
 	app.get(CALENDAR, async () => serveIndex(deps.indexFile));
 

@@ -8,7 +8,6 @@ import { buildColorStandardsPayload } from "../color-standards.js";
 import type { BackendStore } from "../data-store.js";
 import { normalizeTicker } from "../../utils.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
-import { getIndustrySnapshot } from "../../data-sources/stockanalysis/index.js";
 import {
 	PortfolioNewsSummaryRequestArticleSchema,
 	PortfolioNewsSummaryRequestRowSchema,
@@ -17,7 +16,6 @@ import * as newsOrchestrator from "../../news/orchestrator.js";
 import {
 	COLOR_STANDARDS,
 	EVAL,
-	INDUSTRIES,
 	PORTFOLIO_NEWS_SUMMARY,
 	REALTIME_CONFIG,
 	STOCK_NEWS_ROUTE,
@@ -162,11 +160,6 @@ export function createMiscRouter(store: BackendStore): Hono {
 	router.get(EVAL, async (c) => {
 		c.header("Cache-Control", "no-store");
 		return c.json(await loadEvalMap(store, parseTickersQuery(c.req.query("tickers"))));
-	});
-
-	router.get(INDUSTRIES, async (c) => {
-		c.header("Cache-Control", "no-store");
-		return c.json(await getIndustrySnapshot());
 	});
 
 	router.get(COLOR_STANDARDS, (c) => {

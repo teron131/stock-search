@@ -256,7 +256,7 @@ export function NewsView({
 		<div class="news-view">
 			<section class="news-toolbar">
 				<div class="news-toolbar-copy">
-					<div class="industry-section-label">Portfolio News</div>
+					<div class="sector-section-label">Portfolio News</div>
 					<div class="news-toolbar-heading">
 						<h2 class="news-toolbar-title">Held Positions</h2>
 						<div class="news-toolbar-status">
@@ -313,7 +313,7 @@ export function NewsView({
 			<section class="news-workspace-shell">
 				<div class="news-summary-panel">
 					<div class="news-panel-header">
-						<div class="industry-section-label">Portfolio News Summary</div>
+						<div class="sector-section-label">Portfolio News Summary</div>
 					</div>
 					${
 						portfolioNewsSummary?.hasNews
@@ -366,7 +366,7 @@ export function NewsView({
 
 				<div class="news-list-panel">
 					<div class="news-panel-header">
-						<div class="industry-section-label">Portfolio News Feed</div>
+						<div class="sector-section-label">Portfolio News Feed</div>
 						<div class="news-panel-title">Latest Coverage</div>
 					</div>
 

@@ -4,15 +4,15 @@ import {
 	loadEtfHoldingsSnapshot,
 	loadEtfSectorsSnapshot,
 	loadFinancialsSnapshot,
-	loadIndustrySnapshot,
 	loadQuoteFields,
+	loadSectorSnapshot,
 	loadStatisticsSnapshot,
 } from "./extractors.js";
 import type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
 	StockAnalysisIndicatorsSnapshot,
-	StockAnalysisIndustrySnapshot,
+	StockAnalysisSectorSnapshot,
 	StockAnalysisStatistics,
 } from "./schemas.js";
 
@@ -28,9 +28,9 @@ function hasModelData(snapshot: Record<string, unknown> | null | undefined): boo
 	});
 }
 
-/** Fetch sector and industry summary rows from the StockAnalysis industries page. */
-export async function getIndustrySnapshot(): Promise<StockAnalysisIndustrySnapshot> {
-	return loadIndustrySnapshot();
+/** Fetch sector summary rows from StockAnalysis. */
+export async function getSectorSnapshot(): Promise<StockAnalysisSectorSnapshot> {
+	return loadSectorSnapshot();
 }
 
 export class StockAnalysisSource {

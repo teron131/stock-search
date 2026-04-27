@@ -129,7 +129,7 @@ const ICON_DEFS = {
 const NAV_ICON_NAMES = {
 	dashboard: "grid",
 	news: "news",
-	industry: "factory",
+	sectors: "factory",
 	marketmap: "heatmap",
 	calendar: "calendar",
 };

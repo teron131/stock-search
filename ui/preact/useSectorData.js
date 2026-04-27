@@ -7,11 +7,8 @@ import {
 } from "preact/hooks";
 
 import { CONFIG } from "./config.js";
-import { normalizeIndustryPayload } from "./dataContract.js";
-import {
-	buildIndustryViewModel,
-	buildSectorOptions,
-} from "./industryViewModel.js";
+import { normalizeSectorPayload } from "./dataContract.js";
+import { buildSectorViewModel } from "./sectorViewModel.js";
 
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
@@ -27,15 +24,13 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
 	}
 }
 
-export function useIndustryData({ enabled = false } = {}) {
-	const [industries, setIndustries] = useState([]);
+export function useSectorData({ enabled = false } = {}) {
+	const [sectors, setSectors] = useState([]);
 	const [meta, setMeta] = useState({
-		source: "stockanalysis",
+		source: "stockanalysis-sectors",
 		fetched_at: null,
 		sector_count: 0,
-		industry_count: 0,
 	});
-	const [selectedSector, setSelectedSector] = useState("ALL");
 	const [sortKey, setSortKey] = useState("change_percent_1d");
 	const [sortDirection, setSortDirection] = useState("desc");
 	const [isLoading, setIsLoading] = useState(false);
@@ -52,26 +47,26 @@ export function useIndustryData({ enabled = false } = {}) {
 		setLastError(null);
 		try {
 			const endpoints = CONFIG.isDemoMode
-				? [CONFIG.demoEndpoints.industries]
-				: [CONFIG.endpoints.industries];
+				? [CONFIG.demoEndpoints.sectors]
+				: [CONFIG.endpoints.sectors];
 
 			let payload = null;
 			for (const endpoint of endpoints) {
 				const rawPayload = await fetchJsonWithTimeout(
 					endpoint,
-					CONFIG.requestTimeoutMs.industries,
+					CONFIG.requestTimeoutMs.sectors,
 				);
-				payload = normalizeIndustryPayload(rawPayload);
+				payload = normalizeSectorPayload(rawPayload);
 				if (payload) {
 					break;
 				}
 			}
 			if (!payload) {
-				throw new Error("Industry API failure");
+				throw new Error("Sector API failure");
 			}
 
 			hasRequestedRef.current = true;
-			setIndustries(payload.industries);
+			setSectors(payload.sectors);
 			setMeta(payload.meta);
 		} catch (error) {
 			setLastError(error);
@@ -86,28 +81,13 @@ export function useIndustryData({ enabled = false } = {}) {
 		refresh();
 	}, [enabled, refresh]);
 
-	const sectorOptions = useMemo(
-		() => buildSectorOptions(industries),
-		[industries],
-	);
-
-	useEffect(() => {
-		if (
-			selectedSector !== "ALL" &&
-			!sectorOptions.some((option) => option.sector === selectedSector)
-		) {
-			setSelectedSector("ALL");
-		}
-	}, [sectorOptions, selectedSector]);
-
 	const viewModel = useMemo(
 		() =>
-			buildIndustryViewModel(industries, {
-				selectedSector,
+			buildSectorViewModel(sectors, {
 				sortKey,
 				sortDirection,
 			}),
-		[industries, selectedSector, sortDirection, sortKey],
+		[sectors, sortDirection, sortKey],
 	);
 
 	const toggleSortKey = useCallback(
@@ -121,13 +101,10 @@ export function useIndustryData({ enabled = false } = {}) {
 	);
 
 	return {
-		industries,
+		sectors,
 		meta,
 		isLoading,
 		lastError,
-		sectorOptions,
-		selectedSector,
-		setSelectedSector,
 		sortKey,
 		sortDirection,
 		setSortKey: toggleSortKey,

@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { buildColorStandardsPayload } from "./api/color-standards.js";
 import { DATA_SQLITE_PATH, RAW_UI_DIR } from "./config.js";
-import { getIndustrySnapshot } from "./data-sources/stockanalysis/index.js";
+import { getSectorSnapshot } from "./data-sources/stockanalysis/index.js";
 import { writeJson } from "./file-utils.js";
 import { getNewsAsync } from "./news/orchestrator.js";
 import { SQLiteStore } from "./sqlite-store.js";
@@ -272,23 +272,22 @@ function getDemoNewsTickers(portfolioPayload: Record<string, unknown>): string[]
 	return tickers;
 }
 
-async function buildIndustriesPayload(): Promise<Record<string, unknown>> {
-	const snapshot = await getIndustrySnapshot();
-	const industries = snapshot.industries.map((industry) => ({ ...industry }));
+async function buildSectorsPayload(): Promise<Record<string, unknown>> {
+	const snapshot = await getSectorSnapshot();
+	const sectors = snapshot.sectors.map((sector) => ({ ...sector }));
 	const sectorCount = new Set(
-		industries
-			.map((industry) =>
-				typeof industry.sector === "string" ? industry.sector.trim() : "",
+		sectors
+			.map((sector) =>
+				typeof sector.sector === "string" ? sector.sector.trim() : "",
 			)
 			.filter(Boolean),
 	).size;
 	return {
-		industries,
+		sectors,
 		meta: {
 			source: "stockanalysis",
-			fetched_at: industries.length > 0 ? new Date().toISOString() : null,
+			fetched_at: sectors.length > 0 ? new Date().toISOString() : null,
 			sector_count: sectorCount,
-			industry_count: industries.length,
 		},
 	};
 }
@@ -376,7 +375,7 @@ export async function writeStaticDemoSnapshot({
 	const writtenPaths = {
 		portfolio: path.join(outputDir, "portfolio.json"),
 		color_standards: path.join(outputDir, "color-standards.json"),
-		industries: path.join(outputDir, "industries.json"),
+		sectors: path.join(outputDir, "sectors.json"),
 		news: path.join(outputDir, "news.json"),
 	};
 
@@ -386,13 +385,13 @@ export async function writeStaticDemoSnapshot({
 		buildColorStandardsPayload(),
 	);
 
-	const [industriesPayload, newsPayload] = await Promise.all([
-		buildIndustriesPayload(),
+	const [sectorsPayload, newsPayload] = await Promise.all([
+		buildSectorsPayload(),
 		buildNewsPayload(demoNewsTickers, {
 			generatedAt: resolvedGeneratedAt,
 		}),
 	]);
-	await writeJson(writtenPaths.industries, industriesPayload);
+	await writeJson(writtenPaths.sectors, sectorsPayload);
 	await writeJson(writtenPaths.news, newsPayload);
 
 	return writtenPaths;

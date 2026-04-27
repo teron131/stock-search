@@ -1,21 +1,21 @@
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { DataTable } from "./components/DataTable.js";
-import { IndustryView } from "./components/IndustryView.js";
 import { NewsView } from "./components/NewsView.js";
 import { QuickAdd } from "./components/QuickAdd.js";
+import { SectorView } from "./components/SectorView.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
 import { fmt } from "./format.js";
-import { getIconDefinition, getNavIconName } from "./industryIcons.js";
-import { useIndustryData } from "./useIndustryData.js";
+import { getIconDefinition, getNavIconName } from "./sectorIcons.js";
 import { useNewsData } from "./useNewsData.js";
 import { usePortfolioData } from "./usePortfolioData.js";
+import { useSectorData } from "./useSectorData.js";
 import { getPathForView, getViewForPath } from "./viewRoutes.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DASHBOARD_VIEW = "dashboard";
 const NEWS_VIEW = "news";
-const INDUSTRY_VIEW = "industry";
+const SECTORS_VIEW = "sectors";
 const MARKETMAP_VIEW = "marketmap";
 const CALENDAR_VIEW = "calendar";
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
@@ -24,7 +24,7 @@ const NEWS_BACKGROUND_SYNC_INTERVAL_MS = CONFIG.newsAutoRefreshIntervalMs;
 const VIEW_TITLES = {
 	[DASHBOARD_VIEW]: "DASHBOARD",
 	[NEWS_VIEW]: "NEWS",
-	[INDUSTRY_VIEW]: "INDUSTRY",
+	[SECTORS_VIEW]: "SECTORS",
 	[MARKETMAP_VIEW]: "MARKET MAP",
 	[CALENDAR_VIEW]: "ECONOMIC CALENDAR",
 };
@@ -221,7 +221,7 @@ function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 
 	const isDashboard = view === DASHBOARD_VIEW;
 	const showsPreactRoot =
-		isDashboard || view === INDUSTRY_VIEW || view === NEWS_VIEW;
+		isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
 
 	const preactRoot = document.getElementById("preact-root");
 	if (preactRoot) {
@@ -255,7 +255,7 @@ function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 function syncRefreshButtonState({
 	view,
 	isPortfolioSyncing,
-	isIndustryLoading,
+	isSectorLoading,
 	isNewsLoading,
 }) {
 	const refreshBtn = document.getElementById("refresh-btn");
@@ -263,7 +263,7 @@ function syncRefreshButtonState({
 	const isDashboardSyncing = view === DASHBOARD_VIEW && isPortfolioSyncing;
 	const isViewLoading =
 		isDashboardSyncing ||
-		(view === INDUSTRY_VIEW && isIndustryLoading) ||
+		(view === SECTORS_VIEW && isSectorLoading) ||
 		(view === NEWS_VIEW && isNewsLoading);
 
 	if (syncStatus) {
@@ -313,18 +313,15 @@ function updatePortfolioSummary(stats) {
 	}`;
 }
 
-function renderIndustryScreen(industryData) {
+function renderSectorScreen(sectorData) {
 	return html`
-		<${IndustryView}
-			isLoading=${industryData.isLoading}
-			lastError=${industryData.lastError}
-			sectorOptions=${industryData.sectorOptions}
-			selectedSector=${industryData.selectedSector}
-			setSelectedSector=${industryData.setSelectedSector}
-			sortKey=${industryData.sortKey}
-			sortDirection=${industryData.sortDirection}
-			setSortKey=${industryData.setSortKey}
-			filteredIndustries=${industryData.sortedIndustries}
+		<${SectorView}
+			isLoading=${sectorData.isLoading}
+			lastError=${sectorData.lastError}
+			sortKey=${sectorData.sortKey}
+			sortDirection=${sectorData.sortDirection}
+			setSortKey=${sectorData.setSortKey}
+			filteredSectors=${sectorData.sortedSectors}
 		/>
 	`;
 }
@@ -560,7 +557,7 @@ export function App() {
 		actions,
 	} = usePortfolioData();
 
-	const industryData = useIndustryData({ enabled: view === INDUSTRY_VIEW });
+	const sectorData = useSectorData({ enabled: view === SECTORS_VIEW });
 	const newsData = useNewsData({
 		rows,
 		enabled: view === NEWS_VIEW,
@@ -572,7 +569,7 @@ export function App() {
 	const cancelSyncRef = useRef(actions.cancelSync);
 	const portfolioSyncingRef = useRef(isSyncing);
 	const importImageRef = useRef(actions.importFromImage);
-	const industryRefreshRef = useRef(industryData.refresh);
+	const sectorRefreshRef = useRef(sectorData.refresh);
 	const newsRefreshRef = useRef(newsData.refresh);
 	const viewRef = useRef(view);
 
@@ -593,8 +590,8 @@ export function App() {
 	}, [actions.importFromImage]);
 
 	useEffect(() => {
-		industryRefreshRef.current = industryData.refresh;
-	}, [industryData.refresh]);
+		sectorRefreshRef.current = sectorData.refresh;
+	}, [sectorData.refresh]);
 
 	useEffect(() => {
 		newsRefreshRef.current = newsData.refresh;
@@ -638,8 +635,8 @@ export function App() {
 		const logoutBtn = document.getElementById("logout-btn");
 
 		const onRefresh = () => {
-			if (viewRef.current === INDUSTRY_VIEW) {
-				industryRefreshRef.current?.();
+			if (viewRef.current === SECTORS_VIEW) {
+				sectorRefreshRef.current?.();
 				return;
 			}
 			if (viewRef.current === NEWS_VIEW) {
@@ -796,14 +793,14 @@ export function App() {
 		syncRefreshButtonState({
 			view,
 			isPortfolioSyncing: isSyncing,
-			isIndustryLoading: industryData.isLoading,
+			isSectorLoading: sectorData.isLoading,
 			isNewsLoading: newsData.isLoading,
 		});
-	}, [industryData.isLoading, isSyncing, newsData.isLoading, view]);
+	}, [sectorData.isLoading, isSyncing, newsData.isLoading, view]);
 
 	const activeTimestamp =
-		view === INDUSTRY_VIEW
-			? industryData.meta.fetched_at
+		view === SECTORS_VIEW
+			? sectorData.meta.fetched_at
 			: view === NEWS_VIEW
 				? newsData.generatedAt
 				: generatedAt;
@@ -838,10 +835,10 @@ export function App() {
 	}, [isLoading, lastError, view]);
 
 	useEffect(() => {
-		if (industryData.lastError && !industryData.isLoading) {
-			showToast("INDUSTRY SNAPSHOT FAILED");
+		if (sectorData.lastError && !sectorData.isLoading) {
+			showToast("SECTOR SNAPSHOT FAILED");
 		}
-	}, [industryData.isLoading, industryData.lastError]);
+	}, [sectorData.isLoading, sectorData.lastError]);
 
 	useEffect(() => {
 		if (
@@ -915,8 +912,8 @@ export function App() {
 		return renderNewsScreen(newsData);
 	}
 
-	if (view === INDUSTRY_VIEW) {
-		return renderIndustryScreen(industryData);
+	if (view === SECTORS_VIEW) {
+		return renderSectorScreen(sectorData);
 	}
 
 	return renderDashboardScreen({

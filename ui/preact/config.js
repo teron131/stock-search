@@ -16,7 +16,7 @@ export const CONFIG = {
 		portfolio: "/portfolio",
 		portfolioImportImage: "/portfolio/import-image",
 		portfolioNewsSummary: "/portfolio/news-summary",
-		industries: "/industries",
+		sectors: "/sectors",
 		stock: "/stock",
 		stockStats: (ticker) =>
 			`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`,
@@ -30,7 +30,7 @@ export const CONFIG = {
 
 	demoEndpoints: {
 		portfolio: getDemoAssetUrl("portfolio.json"),
-		industries: getDemoAssetUrl("industries.json"),
+		sectors: getDemoAssetUrl("sectors.json"),
 		news: getDemoAssetUrl("news.json"),
 		colorStandards: getDemoAssetUrl("color-standards.json"),
 	},
@@ -38,7 +38,7 @@ export const CONFIG = {
 	requestTimeoutMs: {
 		portfolioForeground: 30_000,
 		portfolioBackground: 120_000,
-		industries: 30_000,
+		sectors: 30_000,
 		news: 30_000,
 	},
 

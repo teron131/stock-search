@@ -45,17 +45,15 @@ export function normalizeApiDashboardPayload(payload) {
 	return normalized;
 }
 
-export function normalizeIndustryPayload(payload) {
+export function normalizeSectorPayload(payload) {
 	if (!payload || typeof payload !== "object") {
 		return null;
 	}
 
-	const industries = Array.isArray(payload.industries)
-		? payload.industries.filter(
-				(industry) => industry && typeof industry === "object",
-			)
+	const sectors = Array.isArray(payload.sectors)
+		? payload.sectors.filter((sector) => sector && typeof sector === "object")
 		: null;
-	if (!industries) {
+	if (!sectors) {
 		return null;
 	}
 
@@ -63,7 +61,7 @@ export function normalizeIndustryPayload(payload) {
 		payload.meta && typeof payload.meta === "object" ? payload.meta : {};
 
 	return {
-		industries: industries.map((industry) => ({ ...industry })),
+		sectors: sectors.map((sector) => ({ ...sector })),
 		meta: {
 			source:
 				typeof meta.source === "string" && meta.source
@@ -74,7 +72,6 @@ export function normalizeIndustryPayload(payload) {
 					? meta.fetched_at
 					: null,
 			sector_count: Number(meta.sector_count) || 0,
-			industry_count: Number(meta.industry_count) || 0,
 		},
 	};
 }

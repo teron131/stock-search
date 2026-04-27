@@ -4,7 +4,7 @@ const backendTarget = process.env.VITE_BACKEND_URL || "http://localhost:8000";
 const base = process.env.VITE_BASE_URL || "/";
 const proxyPaths = [
 	"/portfolio",
-	"/industries",
+	"/sectors",
 	"/stock",
 	"/color-standards",
 	"/realtime-config",

@@ -2,13 +2,13 @@
 
 export {
 	StockAnalysisSource,
-	getIndustrySnapshot,
+	getSectorSnapshot,
 } from "./source.js";
 export type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
 	StockAnalysisIndicatorsSnapshot,
-	StockAnalysisIndustrySnapshot,
-	StockAnalysisIndustrySummary,
+	StockAnalysisSectorSnapshot,
+	StockAnalysisSectorSummary,
 	StockAnalysisStatistics,
 } from "./schemas.js";

@@ -1,13 +1,12 @@
 export const ROOT = "/";
 export const DASHBOARD = "/dashboard";
-export const INDUSTRY = "/industry";
+export const SECTORS = "/sectors";
 export const MARKETMAP = "/marketmap";
 export const CALENDAR = "/calendar";
 
 export const DASHBOARD_PAGE_PATHS = [
 	ROOT,
 	DASHBOARD,
-	INDUSTRY,
 	MARKETMAP,
 	CALENDAR,
 ] as const;
@@ -29,7 +28,6 @@ export const STOCK_NEWS_ROUTE = "/stock/:ticker/news";
 
 export const STOCKS = "/stocks";
 export const EVAL = "/eval";
-export const INDUSTRIES = "/industries";
 export const COLOR_STANDARDS = "/color-standards";
 export const REALTIME_CONFIG = "/realtime-config";
 

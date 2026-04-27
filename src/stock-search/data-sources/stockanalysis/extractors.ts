@@ -1,14 +1,19 @@
 /** StockAnalysis-specific extraction into app snapshot shapes. */
 
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+
 import { ExaAnswerAgent, ExaLoadAgent } from "llm-harness-js/agents";
 import { z, type ZodType } from "zod";
 
+import { appConfig } from "../../api/config.js";
+import { loadJson, writeJson } from "../../file-utils.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "../../models/labels.js";
 import type {
 	StockAnalysisEtfHolding,
 	StockAnalysisEtfSector,
-	StockAnalysisIndustrySnapshot,
-	StockAnalysisIndustrySummary,
+	StockAnalysisSectorSnapshot,
+	StockAnalysisSectorSummary,
 } from "./schemas.js";
 
 const DEFAULT_CONTENT_OPTIONS = {
@@ -16,8 +21,6 @@ const DEFAULT_CONTENT_OPTIONS = {
 	maxAgeHours: 0,
 	filterEmptyResults: false,
 };
-
-const LARGE_PAGE_MAX_CHARACTERS = 50_000;
 
 const STOCKANALYSIS_SYSTEM_PROMPT = [
 	"You extract structured data only from the supplied StockAnalysis page contents fetched through Exa Contents.",
@@ -33,10 +36,17 @@ const STOCKANALYSIS_FINANCIALS_URL =
 	"https://stockanalysis.com/stocks/{ticker}/financials/";
 const STOCKANALYSIS_ETF_HOLDINGS_URL =
 	"https://stockanalysis.com/etf/{ticker}/holdings/";
-const STOCKANALYSIS_INDUSTRY_URL =
-	"https://stockanalysis.com/stocks/industry/";
-const STOCKANALYSIS_INDUSTRY_ALL_URL =
-	"https://stockanalysis.com/stocks/industry/all/";
+const STOCKANALYSIS_SECTORS_URL =
+	"https://stockanalysis.com/stocks/industry/sectors/";
+const STOCKANALYSIS_SECTOR_URL =
+	"https://stockanalysis.com/stocks/sector/{sector}/";
+const SECTOR_TOP_TICKER_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SECTOR_TOP_TICKER_COUNT = 5;
+const SECTOR_TOP_TICKER_PAGE_MAX_CHARACTERS = 40_000;
+const SECTOR_TOP_TICKER_CACHE_PATH = path.join(
+	path.dirname(appConfig.dataSqlitePath),
+	"stockanalysis-sector-top-tickers.json",
+);
 
 const NullableNumber = z.number().nullable();
 
@@ -105,27 +115,138 @@ const EtfSectorsSchema = z.object({
 	sectors: z.array(EtfSectorSchema).default([]),
 });
 
-const IndustryRowSchema = z.object({
+const SectorRowSchema = z.object({
 	sector: z.string(),
-	industry: z.string(),
 	stock_count: z.number(),
 	market_cap: NullableNumber,
 	pe: NullableNumber,
 	profit_margin: NullableNumber,
-	gross_margin: NullableNumber,
 	change_percent_1d: NullableNumber,
-	change_percent_1m: NullableNumber,
 	change_percent_1y: NullableNumber,
 });
 
-const IndustrySnapshotSchema = z.object({
-	industries: z.array(IndustryRowSchema).default([]),
+const SectorSnapshotSchema = z.object({
+	sectors: z.array(SectorRowSchema).default([]),
 });
+
+type SectorTopTickerCacheEntry = {
+	fetched_at: string;
+	tickers: string[];
+};
+
+type SectorTopTickerCache = {
+	entries: Record<string, SectorTopTickerCacheEntry>;
+};
+
+type SectorTopTickerCacheMatch = {
+	freshTickers: string[] | null;
+	fallbackTickers: string[] | null;
+};
 
 type QuoteFields = z.output<typeof QuoteFieldsSchema>;
 
 function stockUrl(template: string, tickerLower: string): string {
 	return template.replace("{ticker}", tickerLower);
+}
+
+function sectorSlug(sectorName: string): string {
+	return sectorName
+		.trim()
+		.toLowerCase()
+		.replace(/&/g, "and")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
+function sectorUrl(sectorName: string): string {
+	return STOCKANALYSIS_SECTOR_URL.replace("{sector}", sectorSlug(sectorName));
+}
+
+function normalizeTickerSymbol(value: string): string {
+	return value
+		.trim()
+		.toUpperCase()
+		.replace(/^NYSE:/, "")
+		.replace(/^NASDAQ:/, "")
+		.replace(/^AMEX:/, "");
+}
+
+function normalizeTopTickers(values: string[]): string[] {
+	const tickers: string[] = [];
+	const seen = new Set<string>();
+	for (const value of values) {
+		const ticker = normalizeTickerSymbol(String(value || ""));
+		if (!ticker || seen.has(ticker)) {
+			continue;
+		}
+		seen.add(ticker);
+		tickers.push(ticker);
+		if (tickers.length >= SECTOR_TOP_TICKER_COUNT) {
+			break;
+		}
+	}
+	return tickers;
+}
+
+function parseSectorTopTickers(text: string): string[] {
+	const topTickers: string[] = [];
+	for (const line of text.split("\n")) {
+		const rowMatch = line
+			.trim()
+			.match(/^\|\s*\d+\s*\|\s*([A-Za-z][A-Za-z0-9.-]*)\s*\|/);
+		if (!rowMatch?.[1]) {
+			continue;
+		}
+		topTickers.push(rowMatch[1]);
+		if (topTickers.length >= SECTOR_TOP_TICKER_COUNT) {
+			break;
+		}
+	}
+	return normalizeTopTickers(topTickers);
+}
+
+function isFreshCacheEntry(
+	entry: SectorTopTickerCacheEntry | undefined,
+	now: Date,
+): boolean {
+	if (!entry || entry.tickers.length === 0) {
+		return false;
+	}
+	const fetchedAt = Date.parse(entry.fetched_at);
+	return (
+		Number.isFinite(fetchedAt) &&
+		now.getTime() - fetchedAt <= SECTOR_TOP_TICKER_CACHE_TTL_MS
+	);
+}
+
+async function loadSectorTopTickerCache(): Promise<SectorTopTickerCache> {
+	return loadJson<SectorTopTickerCache>(SECTOR_TOP_TICKER_CACHE_PATH, {
+		entries: {},
+	});
+}
+
+async function writeSectorTopTickerCache(
+	cache: SectorTopTickerCache,
+): Promise<void> {
+	await mkdir(path.dirname(SECTOR_TOP_TICKER_CACHE_PATH), { recursive: true });
+	await writeJson(SECTOR_TOP_TICKER_CACHE_PATH, cache);
+}
+
+function readCachedSectorTopTickers(
+	cache: SectorTopTickerCache,
+	slug: string,
+	now: Date,
+): SectorTopTickerCacheMatch {
+	const entry = cache.entries[slug];
+	if (!entry?.tickers.length) {
+		return { freshTickers: null, fallbackTickers: null };
+	}
+
+	const tickers = normalizeTopTickers(entry.tickers);
+	return {
+		freshTickers: isFreshCacheEntry(entry, now) ? tickers : null,
+		fallbackTickers: tickers,
+	};
 }
 
 function normalizeSectorName(value: string): string {
@@ -206,6 +327,76 @@ async function answerWithExaOrDefault<T extends ZodType>({
 	} catch {
 		return defaultValue;
 	}
+}
+
+async function fetchSectorTopTickers(
+	sectorNames: string[],
+): Promise<Map<string, string[]>> {
+	if (sectorNames.length === 0) {
+		return new Map();
+	}
+
+	const agent = new ExaLoadAgent({
+		contentOptions: {
+			...DEFAULT_CONTENT_OPTIONS,
+			maxCharacters: SECTOR_TOP_TICKER_PAGE_MAX_CHARACTERS,
+		},
+	});
+	const { pages } = await agent.load(sectorNames.map(sectorUrl));
+	const tickersBySlug = new Map<string, string[]>();
+	for (const [index, sectorName] of sectorNames.entries()) {
+		const page = pages[index];
+		const slug = sectorSlug(sectorName);
+		const tickers = parseSectorTopTickers(page?.text ?? "");
+		if (slug && tickers.length > 0) {
+			tickersBySlug.set(slug, tickers);
+		}
+	}
+	return tickersBySlug;
+}
+
+async function enrichSectorsWithTopTickers(
+	sectors: StockAnalysisSectorSummary[],
+): Promise<StockAnalysisSectorSummary[]> {
+	const now = new Date();
+	const cache = await loadSectorTopTickerCache();
+	const tickersBySlug = new Map<string, string[]>();
+	const staleTickersBySlug = new Map<string, string[]>();
+	const missingSectorNames: string[] = [];
+
+	for (const sector of sectors) {
+		const slug = sectorSlug(sector.sector);
+		const cachedTickers = readCachedSectorTopTickers(cache, slug, now);
+		if (cachedTickers.freshTickers) {
+			tickersBySlug.set(slug, cachedTickers.freshTickers);
+			continue;
+		}
+		if (cachedTickers.fallbackTickers) {
+			staleTickersBySlug.set(slug, cachedTickers.fallbackTickers);
+		}
+		missingSectorNames.push(sector.sector);
+	}
+
+	const fetchedTickersBySlug = await fetchSectorTopTickers(missingSectorNames);
+	const fetchedAt = now.toISOString();
+	let cacheChanged = false;
+	for (const [slug, tickers] of fetchedTickersBySlug) {
+		cache.entries[slug] = { fetched_at: fetchedAt, tickers };
+		tickersBySlug.set(slug, tickers);
+		cacheChanged = true;
+	}
+
+	if (cacheChanged) {
+		await writeSectorTopTickerCache(cache);
+	}
+
+	return sectors.map((sector) => ({
+		...sector,
+		top_tickers:
+			tickersBySlug.get(sectorSlug(sector.sector)) ??
+			staleTickersBySlug.get(sectorSlug(sector.sector)) ??
+			[],
+	}));
 }
 
 /** Load quote fields from a StockAnalysis statistics page. */
@@ -329,32 +520,34 @@ export async function loadEtfSectorsSnapshot(
 	}));
 }
 
-/** Load sector and industry summary rows from StockAnalysis industry pages. */
-export async function loadIndustrySnapshot(): Promise<StockAnalysisIndustrySnapshot> {
+/** Load sector summary rows from StockAnalysis. */
+export async function loadSectorSnapshot(): Promise<StockAnalysisSectorSnapshot> {
 	const output = await loadStockAnalysisPageOrDefault({
-		urls: [STOCKANALYSIS_INDUSTRY_URL, STOCKANALYSIS_INDUSTRY_ALL_URL],
-		outputSchema: IndustrySnapshotSchema,
-		defaultValue: { industries: [] },
-		maxCharacters: LARGE_PAGE_MAX_CHARACTERS,
+		urls: STOCKANALYSIS_SECTORS_URL,
+		outputSchema: SectorSnapshotSchema,
+		defaultValue: { sectors: [] },
 		instruction: [
-			"Extract StockAnalysis sector and industry summary rows from the supplied industry pages.",
-			"Return every industry row visible in the supplied contents.",
+			"Extract StockAnalysis sector summary rows from the supplied sectors page.",
+			"Return every sector row visible in the supplied contents.",
 			"Use stock_count as an integer count.",
 			"Use market_cap as absolute dollars when displayed; otherwise null.",
-			"Use profit_margin, gross_margin, and change_percent fields as 0-100 numeric values.",
+			"Use profit_margin and displayed change_percent fields as 0-100 numeric values.",
 		].join("\n"),
 	});
-	const industries = output.industries.filter(
-		(row): row is StockAnalysisIndustrySummary =>
-			!!row.sector && !!row.industry && Number.isFinite(row.stock_count),
+	const sectors = output.sectors.map((sector) => ({
+		...sector,
+		top_tickers: [] as string[],
+	})).filter(
+		(row): row is StockAnalysisSectorSummary =>
+			!!row.sector && Number.isFinite(row.stock_count),
 	);
+	const enrichedSectors = await enrichSectorsWithTopTickers(sectors);
 	return {
-		industries,
+		sectors: enrichedSectors,
 		meta: {
-			source: "stockanalysis",
-			fetched_at: industries.length > 0 ? new Date().toISOString() : null,
-			sector_count: new Set(industries.map((row) => row.sector)).size,
-			industry_count: industries.length,
+			source: "stockanalysis-sectors",
+			fetched_at: enrichedSectors.length > 0 ? new Date().toISOString() : null,
+			sector_count: new Set(enrichedSectors.map((row) => row.sector)).size,
 		},
 	};
 }

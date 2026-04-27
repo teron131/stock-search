@@ -4,26 +4,23 @@ export type StockAnalysisStatistics = Record<string, unknown>;
 export type StockAnalysisFinancials = Record<string, unknown>;
 export type StockAnalysisIndicatorsSnapshot = Record<string, unknown>;
 
-export type StockAnalysisIndustrySummary = {
+export type StockAnalysisSectorSummary = {
 	sector: string;
-	industry: string;
+	top_tickers: string[];
 	stock_count: number;
 	market_cap: number | null;
 	pe: number | null;
 	profit_margin: number | null;
-	gross_margin: number | null;
 	change_percent_1d: number | null;
-	change_percent_1m: number | null;
 	change_percent_1y: number | null;
 };
 
-export type StockAnalysisIndustrySnapshot = {
-	industries: StockAnalysisIndustrySummary[];
+export type StockAnalysisSectorSnapshot = {
+	sectors: StockAnalysisSectorSummary[];
 	meta: {
 		source: string;
 		fetched_at: string | null;
 		sector_count: number;
-		industry_count: number;
 	};
 };
 

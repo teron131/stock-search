@@ -12,7 +12,7 @@ import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
 } from "../api/ticker-standalone.js";
-import { getIndustrySnapshot } from "../data-sources/stockanalysis/index.js";
+import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
 import {
@@ -96,7 +96,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		execute: async () => loadDashboardHtml(),
 	},
 	{
-		name: "serve_dashboard_industry_get",
+		name: "serve_dashboard_sectors_get",
 		description: "Serve client-side dashboard routes.",
 		parameters: NoArgsSchema,
 		execute: async () => loadDashboardHtml(),
@@ -219,10 +219,10 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 			loadStocksMap(getStore(), Array.isArray(tickers) ? tickers : undefined),
 	},
 	{
-		name: "industries_api_industries_get",
-		description: "Return the current StockAnalysis industry snapshot.",
+		name: "sectors_api_sectors_get",
+		description: "Return the current StockAnalysis sector snapshot.",
 		parameters: NoArgsSchema,
-		execute: async () => getIndustrySnapshot(),
+		execute: async () => getSectorSnapshot(),
 	},
 	{
 		name: "get_color_standards",
