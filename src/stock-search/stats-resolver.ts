@@ -1,6 +1,7 @@
 /** Resolve ticker stats with family-level freshness and background refreshes. */
 
 import type { BackendStore, StockEntry } from "./api/data-store.js";
+import { parseCacheTimestamp } from "./cache.js";
 import { PortfolioConfig } from "./config.js";
 import { nowIso, normalizeTicker } from "./utils.js";
 import {
@@ -90,19 +91,11 @@ function resolutionKey(ticker: string, family: StatsFamily): string {
 	return `${ticker}:${family}`;
 }
 
-function parseTimestamp(value: unknown): number | null {
-	if (typeof value !== "string" || !value.trim()) {
-		return null;
-	}
-	const timestamp = Date.parse(value);
-	return Number.isFinite(timestamp) ? timestamp : null;
-}
-
 function familyTimestamp(
 	row: Record<string, unknown>,
 	family: StatsFamily,
 ): number | null {
-	return parseTimestamp(row[FAMILY_TIMESTAMP_FIELD[family]]);
+	return parseCacheTimestamp(row[FAMILY_TIMESTAMP_FIELD[family]]);
 }
 
 function familyRow(

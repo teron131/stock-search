@@ -6,6 +6,7 @@ import {
 } from "./data-sources/stockanalysis/index.js";
 import { ETF_QUOTE_TYPE, YahooFinanceSource } from "./data-sources/yahoo-finance.js";
 import type { BackendStore, PositionRow, StockEntry } from "./api/data-store.js";
+import { isCacheTimestampFresh } from "./cache.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "./models/labels.js";
 import { normalizeTicker } from "./utils.js";
 
@@ -42,13 +43,6 @@ export type EtfSnapshotCacheResult = {
 };
 
 const ETF_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-function parseTimestamp(value: unknown): number | null {
-	if (typeof value !== "string" || !value.trim()) {
-		return null;
-	}
-	const timestamp = Date.parse(value);
-	return Number.isFinite(timestamp) ? timestamp : null;
-}
 
 /** Normalize sector labels into the stable display values used by the app. */
 export function normalizeSectorName(value: string | null | undefined): string {
@@ -74,8 +68,14 @@ function loadEtfCache(
 	now: number,
 	requireFresh: boolean,
 ): { holdings: EtfHolding[]; sectors: EtfSector[] } | null {
-	const fetchedAt = parseTimestamp(indicators.etf_holdings_fetched_at);
-	if (requireFresh && (fetchedAt == null || fetchedAt < now - ETF_CACHE_MAX_AGE_MS)) {
+	if (
+		requireFresh &&
+		!isCacheTimestampFresh(
+			indicators.etf_holdings_fetched_at,
+			now,
+			ETF_CACHE_MAX_AGE_MS,
+		)
+	) {
 		return null;
 	}
 	if (!Array.isArray(indicators.etf_holdings)) {

@@ -2,6 +2,7 @@
 
 import type { BackendStore, PositionRow, StockEntry } from "./api/data-store.js";
 import { asNumber, normalizeTicker, nowIso, uniqueTickers } from "./utils.js";
+import { isCacheTimestampFresh } from "./cache.js";
 import { clamp, safeFloat } from "./common-utils.js";
 import { agetLabels } from "./labeler.js";
 import {
@@ -45,14 +46,6 @@ const EVAL_KEYS = [
 	"bull_probability",
 	"bear_probability",
 ] as const;
-
-function parseTimestamp(value: unknown): number | null {
-	if (typeof value !== "string" || !value.trim()) {
-		return null;
-	}
-	const timestamp = Date.parse(value);
-	return Number.isFinite(timestamp) ? timestamp : null;
-}
 
 function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
@@ -101,10 +94,12 @@ function computeMissingLabels(
 		const labels = normalizeLabels(
 			stockEntry?.indicators[PORTFOLIO_LABEL_FIELD] ?? stockEntry?.labels,
 		);
-		const fetchedAt = parseTimestamp(
+		const labelsAreFresh = isCacheTimestampFresh(
 			stockEntry?.indicators[LABEL_FETCHED_AT_FIELD],
+			now,
+			LABEL_CACHE_MAX_AGE_MS,
 		);
-		return labels.length === 0 || fetchedAt == null || fetchedAt < now - LABEL_CACHE_MAX_AGE_MS;
+		return labels.length === 0 || !labelsAreFresh;
 	});
 }
 

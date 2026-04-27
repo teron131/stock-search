@@ -1,9 +1,57 @@
-/** Provide a small tiered cache with stale and failure windows. */
+/** Shared cache helpers for memory and persisted JSON cache layers. */
+
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+
+import type { ZodType } from "zod";
+
+import { loadJson, writeJson } from "./file-utils.js";
 
 export type CacheEntry<T> = {
 	value: T;
 	updatedAt: Date;
 };
+
+/** Parse a cache timestamp into epoch milliseconds. */
+export function parseCacheTimestamp(value: unknown): number | null {
+	if (typeof value !== "string" || !value.trim()) {
+		return null;
+	}
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+/** Return whether a cache timestamp is inside the supplied freshness window. */
+export function isCacheTimestampFresh(
+	value: unknown,
+	now: number | Date,
+	maxAgeMs: number,
+): boolean {
+	const timestamp = parseCacheTimestamp(value);
+	const nowMs = now instanceof Date ? now.getTime() : now;
+	return timestamp != null && timestamp >= nowMs - maxAgeMs;
+}
+
+/** Load a JSON cache file and validate its shape before returning it. */
+export async function loadJsonCache<T>(
+	filePath: string,
+	schema: ZodType<T>,
+	createDefaultValue: () => T,
+): Promise<T> {
+	const payload = await loadJson<unknown>(filePath, null);
+	const result = schema.safeParse(payload);
+	return result.success ? result.data : createDefaultValue();
+}
+
+/** Write a JSON cache file, creating the parent directory if needed. */
+export async function writeJsonCache(
+	filePath: string,
+	data: unknown,
+	options?: { indent?: number },
+): Promise<void> {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	await writeJson(filePath, data, options);
+}
 
 /** Thread-safe-enough cache with fresh/stale windows and failure cooldown. */
 export class TieredCache<T> {

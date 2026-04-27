@@ -1,13 +1,16 @@
 /** StockAnalysis-specific extraction into app snapshot shapes. */
 
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { ExaAnswerAgent, ExaLoadAgent } from "llm-harness-js/agents";
 import { z, type ZodType } from "zod";
 
 import { appConfig } from "../../api/config.js";
-import { loadJson, writeJson } from "../../file-utils.js";
+import {
+	isCacheTimestampFresh,
+	loadJsonCache,
+	writeJsonCache,
+} from "../../cache.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "../../models/labels.js";
 import type {
 	StockAnalysisEtfHolding,
@@ -139,18 +142,20 @@ const SectorSnapshotCacheSchema = z.object({
 	sectors: z.array(SectorRowSchema).default([]),
 });
 
+const SectorTopTickerCacheEntrySchema = z.object({
+	fetched_at: z.string(),
+	tickers: z.array(z.string()).default([]),
+});
+
+const SectorTopTickerCacheSchema = z.object({
+	entries: z.record(z.string(), SectorTopTickerCacheEntrySchema).default({}),
+});
+
 type SectorRow = z.output<typeof SectorRowSchema>;
 
 type SectorSnapshotCache = z.output<typeof SectorSnapshotCacheSchema>;
 
-type SectorTopTickerCacheEntry = {
-	fetched_at: string;
-	tickers: string[];
-};
-
-type SectorTopTickerCache = {
-	entries: Record<string, SectorTopTickerCacheEntry>;
-};
+type SectorTopTickerCache = z.output<typeof SectorTopTickerCacheSchema>;
 
 type SectorTopTickerCacheMatch = {
 	freshTickers: string[] | null;
@@ -219,25 +224,6 @@ function parseSectorTopTickers(text: string): string[] {
 	return normalizeTopTickers(topTickers);
 }
 
-function isFreshTimestamp(
-	fetchedAtValue: string | null | undefined,
-	now: Date,
-	ttlMs: number,
-): boolean {
-	const fetchedAt = Date.parse(fetchedAtValue ?? "");
-	return Number.isFinite(fetchedAt) && now.getTime() - fetchedAt <= ttlMs;
-}
-
-function isFreshCacheEntry(
-	entry: SectorTopTickerCacheEntry | undefined,
-	now: Date,
-): boolean {
-	if (!entry || entry.tickers.length === 0) {
-		return false;
-	}
-	return isFreshTimestamp(entry.fetched_at, now, SECTOR_TOP_TICKER_CACHE_TTL_MS);
-}
-
 function normalizeSectorRows(rows: SectorRow[]): StockAnalysisSectorSummary[] {
 	return rows
 		.map((sector) => ({
@@ -273,31 +259,31 @@ function toSectorCacheRows(rows: StockAnalysisSectorSummary[]): SectorRow[] {
 }
 
 async function loadSectorSnapshotCache(): Promise<SectorSnapshotCache> {
-	const cache = await loadJson<unknown>(SECTOR_SNAPSHOT_CACHE_PATH, null);
-	return SectorSnapshotCacheSchema.catch({
-		fetched_at: null,
-		sectors: [],
-	}).parse(cache);
+	return loadJsonCache(
+		SECTOR_SNAPSHOT_CACHE_PATH,
+		SectorSnapshotCacheSchema,
+		() => ({ fetched_at: null, sectors: [] }),
+	);
 }
 
 async function writeSectorSnapshotCache(
 	cache: SectorSnapshotCache,
 ): Promise<void> {
-	await mkdir(path.dirname(SECTOR_SNAPSHOT_CACHE_PATH), { recursive: true });
-	await writeJson(SECTOR_SNAPSHOT_CACHE_PATH, cache);
+	await writeJsonCache(SECTOR_SNAPSHOT_CACHE_PATH, cache);
 }
 
 async function loadSectorTopTickerCache(): Promise<SectorTopTickerCache> {
-	return loadJson<SectorTopTickerCache>(SECTOR_TOP_TICKER_CACHE_PATH, {
-		entries: {},
-	});
+	return loadJsonCache(
+		SECTOR_TOP_TICKER_CACHE_PATH,
+		SectorTopTickerCacheSchema,
+		() => ({ entries: {} }),
+	);
 }
 
 async function writeSectorTopTickerCache(
 	cache: SectorTopTickerCache,
 ): Promise<void> {
-	await mkdir(path.dirname(SECTOR_TOP_TICKER_CACHE_PATH), { recursive: true });
-	await writeJson(SECTOR_TOP_TICKER_CACHE_PATH, cache);
+	await writeJsonCache(SECTOR_TOP_TICKER_CACHE_PATH, cache);
 }
 
 function readCachedSectorTopTickers(
@@ -311,8 +297,17 @@ function readCachedSectorTopTickers(
 	}
 
 	const tickers = normalizeTopTickers(entry.tickers);
+	if (tickers.length === 0) {
+		return { freshTickers: null, fallbackTickers: null };
+	}
+
+	const isFresh = isCacheTimestampFresh(
+		entry.fetched_at,
+		now,
+		SECTOR_TOP_TICKER_CACHE_TTL_MS,
+	);
 	return {
-		freshTickers: isFreshCacheEntry(entry, now) ? tickers : null,
+		freshTickers: isFresh ? tickers : null,
 		fallbackTickers: tickers,
 	};
 }
@@ -444,7 +439,7 @@ async function loadSectorRowsWithCache(): Promise<StockAnalysisSectorSummary[]> 
 	const cachedRows = normalizeSectorRows(cache.sectors);
 	if (
 		cachedRows.length > 0 &&
-		isFreshTimestamp(cache.fetched_at, now, SECTOR_SNAPSHOT_CACHE_TTL_MS)
+		isCacheTimestampFresh(cache.fetched_at, now, SECTOR_SNAPSHOT_CACHE_TTL_MS)
 	) {
 		return cachedRows;
 	}

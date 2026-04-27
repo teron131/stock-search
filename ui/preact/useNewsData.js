@@ -5,7 +5,14 @@ import {
 	useRef,
 	useState,
 } from "preact/hooks";
-
+import {
+	DAY_IN_MS,
+	isCacheTimestampFresh,
+	isSameLocalDay,
+	parseCacheTimestamp,
+	readLocalStorageJson,
+	writeLocalStorageJson,
+} from "./cache.js";
 import { CONFIG } from "./config.js";
 import {
 	normalizeDemoNewsPayload,
@@ -27,7 +34,6 @@ const RELEVANCE_SCORES = {
 	medium: 1,
 	low: 0,
 };
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();
@@ -64,11 +70,6 @@ async function postJsonWithTimeout(url, payload, timeoutMs) {
 	} finally {
 		clearTimeout(timeoutId);
 	}
-}
-
-function parseTimestamp(value) {
-	const timestamp = Date.parse(value || "");
-	return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function normalizeDomain(rawDomain) {
@@ -114,11 +115,11 @@ function getPublishedTimestamp(article) {
 		article?.metadata?.published_at ||
 		article?.date ||
 		article?.metadata?.fetched_at;
-	return parseTimestamp(publishedAt);
+	return parseCacheTimestamp(publishedAt) ?? 0;
 }
 
 function getFetchedTimestamp(article) {
-	return parseTimestamp(article?.metadata?.fetched_at);
+	return parseCacheTimestamp(article?.metadata?.fetched_at) ?? 0;
 }
 
 function isExpiredTimestamp(timestamp, maxAgeMs, now) {
@@ -288,114 +289,51 @@ function getPortfolioNewsSummaryCacheKey(heldTickerKey) {
 }
 
 function readTickerNewsCache(ticker) {
-	if (typeof window === "undefined" || !window.localStorage) {
+	const parsedValue = readLocalStorageJson(getNewsCacheKey(ticker));
+	const fetchedAt =
+		typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
+			? parsedValue.fetched_at
+			: null;
+	if (!fetchedAt) {
 		return null;
 	}
 
-	try {
-		const rawValue = window.localStorage.getItem(getNewsCacheKey(ticker));
-		if (!rawValue) {
-			return null;
-		}
-
-		const parsedValue = JSON.parse(rawValue);
-		const fetchedAt =
-			typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
-				? parsedValue.fetched_at
-				: null;
-		if (!fetchedAt) {
-			return null;
-		}
-
-		return {
-			ticker,
-			fetchedAt,
-			items: pruneRetainedNewsItems(
-				normalizeTickerNewsPayload(parsedValue.items, ticker),
-			),
-		};
-	} catch {
-		return null;
-	}
+	return {
+		ticker,
+		fetchedAt,
+		items: pruneRetainedNewsItems(
+			normalizeTickerNewsPayload(parsedValue.items, ticker),
+		),
+	};
 }
 
 function writeTickerNewsCache(ticker, items, fetchedAt) {
-	if (typeof window === "undefined" || !window.localStorage) {
-		return;
-	}
-
-	try {
-		const retainedItems = pruneRetainedNewsItems(items);
-		window.localStorage.setItem(
-			getNewsCacheKey(ticker),
-			JSON.stringify({
-				fetched_at: fetchedAt,
-				items: retainedItems,
-			}),
-		);
-	} catch {
-		// Ignore storage failures and continue with in-memory state.
-	}
-}
-
-function getLocalDateKey(value) {
-	const timestamp = Date.parse(value || "");
-	if (!Number.isFinite(timestamp)) {
-		return null;
-	}
-
-	const date = new Date(timestamp);
-	return [
-		date.getFullYear(),
-		String(date.getMonth() + 1).padStart(2, "0"),
-		String(date.getDate()).padStart(2, "0"),
-	].join("-");
-}
-
-function isSameLocalDay(value, now = new Date().toISOString()) {
-	const nowDayKey = getLocalDateKey(now);
-	const valueDayKey = getLocalDateKey(value);
-	return Boolean(nowDayKey && valueDayKey && nowDayKey === valueDayKey);
+	writeLocalStorageJson(getNewsCacheKey(ticker), {
+		fetched_at: fetchedAt,
+		items: pruneRetainedNewsItems(items),
+	});
 }
 
 function isCacheFresh(fetchedAt) {
-	const fetchedTimestamp = Date.parse(fetchedAt || "");
-	if (!Number.isFinite(fetchedTimestamp)) {
-		return false;
-	}
-
-	return Date.now() - fetchedTimestamp < CONFIG.stockNewsCacheTtlMs;
+	return isCacheTimestampFresh(fetchedAt, CONFIG.stockNewsCacheTtlMs);
 }
 
 function readPortfolioNewsSummaryCache(heldTickerKey) {
-	if (typeof window === "undefined" || !window.localStorage) {
+	const parsedValue = readLocalStorageJson(
+		getPortfolioNewsSummaryCacheKey(heldTickerKey),
+	);
+	const fetchedAt =
+		typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
+			? parsedValue.fetched_at
+			: null;
+	const portfolioNewsSummary = normalizePortfolioNewsSummaryPayload(
+		parsedValue?.summary,
+	);
+	if (!fetchedAt || !portfolioNewsSummary) {
 		return null;
 	}
 
-	try {
-		const rawValue = window.localStorage.getItem(
-			getPortfolioNewsSummaryCacheKey(heldTickerKey),
-		);
-		if (!rawValue) {
-			return null;
-		}
-
-		const parsedValue = JSON.parse(rawValue);
-		const fetchedAt =
-			typeof parsedValue?.fetched_at === "string" && parsedValue.fetched_at
-				? parsedValue.fetched_at
-				: null;
-		const portfolioNewsSummary = normalizePortfolioNewsSummaryPayload(
-			parsedValue?.summary,
-		);
-		if (!fetchedAt || !portfolioNewsSummary) {
-			return null;
-		}
-
-		return { fetchedAt, portfolioNewsSummary };
-	} catch {
-		return null;
-	}
+	return { fetchedAt, portfolioNewsSummary };
 }
 
 function writePortfolioNewsSummaryCache(
@@ -403,34 +341,18 @@ function writePortfolioNewsSummaryCache(
 	portfolioNewsSummary,
 	fetchedAt,
 ) {
-	if (typeof window === "undefined" || !window.localStorage) {
-		return;
-	}
-
-	try {
-		window.localStorage.setItem(
-			getPortfolioNewsSummaryCacheKey(heldTickerKey),
-			JSON.stringify({
-				fetched_at: fetchedAt,
-				summary: portfolioNewsSummary,
-			}),
-		);
-	} catch {
-		// Ignore storage failures and continue with in-memory state.
-	}
+	writeLocalStorageJson(getPortfolioNewsSummaryCacheKey(heldTickerKey), {
+		fetched_at: fetchedAt,
+		summary: portfolioNewsSummary,
+	});
 }
 
 function isPortfolioNewsSummaryFresh(fetchedAt) {
-	const fetchedTimestamp = Date.parse(fetchedAt || "");
-	if (!Number.isFinite(fetchedTimestamp)) {
-		return false;
-	}
-
 	if (isSameLocalDay(fetchedAt)) {
 		return true;
 	}
 
-	return Date.now() - fetchedTimestamp < CONFIG.portfolioNewsCacheTtlMs;
+	return isCacheTimestampFresh(fetchedAt, CONFIG.portfolioNewsCacheTtlMs);
 }
 
 function buildCacheSnapshot(heldTickers) {
