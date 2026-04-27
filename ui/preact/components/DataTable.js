@@ -265,6 +265,7 @@ export function DataTable({
 	animateRows = true,
 }) {
 	const cols = COLS[tab];
+	const isEvaluationTab = tab === "evaluations";
 	const tickerCharCount = getColumnCharCount(
 		rows.map((row) => getTickerDisplayValue(row.ticker)),
 		"TICKER",
@@ -284,23 +285,30 @@ export function DataTable({
 	});
 
 	const sorted = sortRows(filtered, sortCol, sortDir);
+	const hasRows = sorted.length > 0;
 	const widthGroupCharCounts = getWidthGroupCharCounts(sorted, cols);
 	const colorMeta = calculateScoreColorMetadata(sorted, cols, {
 		colorBandFraction: CONFIG.colorBandFraction,
 		keyStandards: colorStandards,
 	});
+	const evaluationFluidColumnCount = isEvaluationTab
+		? cols.filter((col) => col.key !== "ticker" && col.key !== "remove").length
+		: null;
 	const tableWrapperStyle = {
 		"--ticker-char-count": tickerCharCount,
+		...(evaluationFluidColumnCount
+			? { "--evaluation-fluid-column-count": evaluationFluidColumnCount }
+			: {}),
 	};
 	const tableWrapperClassName = [
 		"table-wrapper data-table-scroll",
-		tab === "evaluations" ? "table-wrapper-evaluations" : "",
+		isEvaluationTab ? "table-wrapper-evaluations" : "",
 	]
 		.filter(Boolean)
 		.join(" ");
 	const tableClassName = [
 		"data-table",
-		tab === "evaluations" ? "data-table-evaluations" : "",
+		isEvaluationTab ? "data-table-evaluations" : "",
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -352,7 +360,7 @@ export function DataTable({
 					</thead>
 					<tbody>
 						${
-							sorted.length
+							hasRows
 								? sorted.map(
 										(row, i) =>
 											html`<tr
@@ -389,6 +397,22 @@ export function DataTable({
 											</tr>`,
 									)
 								: null
+						}
+						${
+							hasRows
+								? null
+								: html`
+										<tr class="table-empty-row">
+											<td colspan=${cols.length}>
+												<div class="table-empty-state">
+													<div class="table-empty-title">No rows in this view</div>
+													<div class="table-empty-copy">
+														Add positions or switch tabs to inspect available ticker data.
+													</div>
+												</div>
+											</td>
+										</tr>
+									`
 						}
 					</tbody>
 				</table>

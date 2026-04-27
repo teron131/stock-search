@@ -365,6 +365,12 @@ function renderDashboardScreen({
 	return html`
 		<div class="tabs-container" id="dashboard-tables">
 			<div class="dashboard-summary">
+				<div class="dashboard-summary-heading">
+					<div class="dashboard-summary-label">Position command</div>
+					<div class="dashboard-summary-copy">
+						Add a ticker or revise an existing quantity.
+					</div>
+				</div>
 				<div class="dashboard-summary-actions">
 					<${QuickAdd}
 						rows=${rows}
