@@ -40,9 +40,14 @@ const STOCKANALYSIS_SECTORS_URL =
 	"https://stockanalysis.com/stocks/industry/sectors/";
 const STOCKANALYSIS_SECTOR_URL =
 	"https://stockanalysis.com/stocks/sector/{sector}/";
+const SECTOR_SNAPSHOT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const SECTOR_TOP_TICKER_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SECTOR_TOP_TICKER_COUNT = 5;
 const SECTOR_TOP_TICKER_PAGE_MAX_CHARACTERS = 40_000;
+const SECTOR_SNAPSHOT_CACHE_PATH = path.join(
+	path.dirname(appConfig.dataSqlitePath),
+	"stockanalysis-sectors.json",
+);
 const SECTOR_TOP_TICKER_CACHE_PATH = path.join(
 	path.dirname(appConfig.dataSqlitePath),
 	"stockanalysis-sector-top-tickers.json",
@@ -129,6 +134,15 @@ const SectorSnapshotSchema = z.object({
 	sectors: z.array(SectorRowSchema).default([]),
 });
 
+const SectorSnapshotCacheSchema = z.object({
+	fetched_at: z.string().nullable().default(null),
+	sectors: z.array(SectorRowSchema).default([]),
+});
+
+type SectorRow = z.output<typeof SectorRowSchema>;
+
+type SectorSnapshotCache = z.output<typeof SectorSnapshotCacheSchema>;
+
 type SectorTopTickerCacheEntry = {
 	fetched_at: string;
 	tickers: string[];
@@ -205,6 +219,15 @@ function parseSectorTopTickers(text: string): string[] {
 	return normalizeTopTickers(topTickers);
 }
 
+function isFreshTimestamp(
+	fetchedAtValue: string | null | undefined,
+	now: Date,
+	ttlMs: number,
+): boolean {
+	const fetchedAt = Date.parse(fetchedAtValue ?? "");
+	return Number.isFinite(fetchedAt) && now.getTime() - fetchedAt <= ttlMs;
+}
+
 function isFreshCacheEntry(
 	entry: SectorTopTickerCacheEntry | undefined,
 	now: Date,
@@ -212,11 +235,56 @@ function isFreshCacheEntry(
 	if (!entry || entry.tickers.length === 0) {
 		return false;
 	}
-	const fetchedAt = Date.parse(entry.fetched_at);
-	return (
-		Number.isFinite(fetchedAt) &&
-		now.getTime() - fetchedAt <= SECTOR_TOP_TICKER_CACHE_TTL_MS
+	return isFreshTimestamp(entry.fetched_at, now, SECTOR_TOP_TICKER_CACHE_TTL_MS);
+}
+
+function normalizeSectorRows(rows: SectorRow[]): StockAnalysisSectorSummary[] {
+	return rows
+		.map((sector) => ({
+			...sector,
+			top_tickers: [] as string[],
+		}))
+		.filter(
+			(row): row is StockAnalysisSectorSummary =>
+				!!row.sector && Number.isFinite(row.stock_count),
+		);
+}
+
+function toSectorCacheRows(rows: StockAnalysisSectorSummary[]): SectorRow[] {
+	return rows.map(
+		({
+			sector,
+			stock_count,
+			market_cap,
+			pe,
+			profit_margin,
+			change_percent_1d,
+			change_percent_1y,
+		}) => ({
+			sector,
+			stock_count,
+			market_cap,
+			pe,
+			profit_margin,
+			change_percent_1d,
+			change_percent_1y,
+		}),
 	);
+}
+
+async function loadSectorSnapshotCache(): Promise<SectorSnapshotCache> {
+	const cache = await loadJson<unknown>(SECTOR_SNAPSHOT_CACHE_PATH, null);
+	return SectorSnapshotCacheSchema.catch({
+		fetched_at: null,
+		sectors: [],
+	}).parse(cache);
+}
+
+async function writeSectorSnapshotCache(
+	cache: SectorSnapshotCache,
+): Promise<void> {
+	await mkdir(path.dirname(SECTOR_SNAPSHOT_CACHE_PATH), { recursive: true });
+	await writeJson(SECTOR_SNAPSHOT_CACHE_PATH, cache);
 }
 
 async function loadSectorTopTickerCache(): Promise<SectorTopTickerCache> {
@@ -353,6 +421,48 @@ async function fetchSectorTopTickers(
 		}
 	}
 	return tickersBySlug;
+}
+
+async function fetchSectorRows(): Promise<StockAnalysisSectorSummary[]> {
+	const output = await loadStockAnalysisPage({
+		urls: STOCKANALYSIS_SECTORS_URL,
+		outputSchema: SectorSnapshotSchema,
+		instruction: [
+			"Extract StockAnalysis sector summary rows from the supplied sectors page.",
+			"Return every sector row visible in the supplied contents.",
+			"Use stock_count as an integer count.",
+			"Use market_cap as absolute dollars when displayed; otherwise null.",
+			"Use profit_margin and displayed change_percent fields as 0-100 numeric values.",
+		].join("\n"),
+	});
+	return normalizeSectorRows(output.sectors);
+}
+
+async function loadSectorRowsWithCache(): Promise<StockAnalysisSectorSummary[]> {
+	const now = new Date();
+	const cache = await loadSectorSnapshotCache();
+	const cachedRows = normalizeSectorRows(cache.sectors);
+	if (
+		cachedRows.length > 0 &&
+		isFreshTimestamp(cache.fetched_at, now, SECTOR_SNAPSHOT_CACHE_TTL_MS)
+	) {
+		return cachedRows;
+	}
+
+	try {
+		const fetchedRows = await fetchSectorRows();
+		if (fetchedRows.length > 0) {
+			await writeSectorSnapshotCache({
+				fetched_at: now.toISOString(),
+				sectors: toSectorCacheRows(fetchedRows),
+			});
+			return fetchedRows;
+		}
+	} catch {
+		// Fall through to stale cache rows when live refresh is unavailable.
+	}
+
+	return cachedRows;
 }
 
 async function enrichSectorsWithTopTickers(
@@ -522,25 +632,7 @@ export async function loadEtfSectorsSnapshot(
 
 /** Load sector summary rows from StockAnalysis. */
 export async function loadSectorSnapshot(): Promise<StockAnalysisSectorSnapshot> {
-	const output = await loadStockAnalysisPageOrDefault({
-		urls: STOCKANALYSIS_SECTORS_URL,
-		outputSchema: SectorSnapshotSchema,
-		defaultValue: { sectors: [] },
-		instruction: [
-			"Extract StockAnalysis sector summary rows from the supplied sectors page.",
-			"Return every sector row visible in the supplied contents.",
-			"Use stock_count as an integer count.",
-			"Use market_cap as absolute dollars when displayed; otherwise null.",
-			"Use profit_margin and displayed change_percent fields as 0-100 numeric values.",
-		].join("\n"),
-	});
-	const sectors = output.sectors.map((sector) => ({
-		...sector,
-		top_tickers: [] as string[],
-	})).filter(
-		(row): row is StockAnalysisSectorSummary =>
-			!!row.sector && Number.isFinite(row.stock_count),
-	);
+	const sectors = await loadSectorRowsWithCache();
 	const enrichedSectors = await enrichSectorsWithTopTickers(sectors);
 	return {
 		sectors: enrichedSectors,
