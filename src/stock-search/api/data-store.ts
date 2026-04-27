@@ -4,6 +4,7 @@ import { appConfig, type BackendName } from "./config.js";
 import { ConvexApiError } from "../models/convex/client.js";
 import { ConvexStore, convexRealtimeTopics } from "../models/convex/store.js";
 import { SQLiteStore } from "../sqlite-store.js";
+import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 
 export type PositionRow = Record<string, unknown> & {
 	ticker: string;
@@ -49,6 +50,11 @@ export interface BackendStore {
 	loadNews(key?: string): Promise<CachedNewsRow[]>;
 	saveNews(rows: CachedNewsRow[], key?: string): Promise<void>;
 	deleteNewsByTickers(tickers: string[], key?: string): Promise<void>;
+	loadSectorSnapshot(key?: string): Promise<StockAnalysisSectorSnapshot | null>;
+	saveSectorSnapshot(
+		snapshot: StockAnalysisSectorSnapshot,
+		key?: string,
+	): Promise<void>;
 	getMetaValue(key: string): Promise<string | null>;
 	setMetaValue(key: string, value: string): Promise<void>;
 }
@@ -97,6 +103,12 @@ function createLazyStore(): BackendStore {
 		},
 		deleteNewsByTickers(tickers, key) {
 			return getStore().deleteNewsByTickers(tickers, key);
+		},
+		loadSectorSnapshot(key) {
+			return getStore().loadSectorSnapshot(key);
+		},
+		saveSectorSnapshot(snapshot, key) {
+			return getStore().saveSectorSnapshot(snapshot, key);
 		},
 		getMetaValue(key) {
 			return getStore().getMetaValue(key);
@@ -208,6 +220,21 @@ class FallbackConvexStore implements BackendStore {
 
 	deleteNewsByTickers(tickers: string[], key?: string): Promise<void> {
 		return this.convexStore.deleteNewsByTickers(tickers, key);
+	}
+
+	loadSectorSnapshot(key?: string): Promise<StockAnalysisSectorSnapshot | null> {
+		return this.readOrFallback(
+			"sector snapshot",
+			() => this.convexStore.loadSectorSnapshot(key),
+			() => this.sqliteStore.loadSectorSnapshot(key),
+		);
+	}
+
+	saveSectorSnapshot(
+		snapshot: StockAnalysisSectorSnapshot,
+		key?: string,
+	): Promise<void> {
+		return this.convexStore.saveSectorSnapshot(snapshot, key);
 	}
 
 	getMetaValue(key: string): Promise<string | null> {

@@ -67,7 +67,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 			return serveIndex(deps.indexFile);
 		}
 		c.header("Cache-Control", "no-store");
-		return c.json(await getSectorSnapshot());
+		return c.json(await getSectorSnapshot(deps.store));
 	});
 	app.get(MARKETMAP, async () => serveIndex(deps.indexFile));
 	app.get(CALENDAR, async () => serveIndex(deps.indexFile));

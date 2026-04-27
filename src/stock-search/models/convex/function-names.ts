@@ -15,6 +15,8 @@ export const CONVEX_STOCK_REPLACE_ALL = "stock:replaceAll";
 export const CONVEX_NEWS_LIST = "news:list";
 export const CONVEX_NEWS_DELETE_BY_TICKERS = "news:deleteByTickers";
 export const CONVEX_NEWS_REPLACE_ALL = "news:replaceAll";
+export const CONVEX_SECTORS_GET = "sectors:get";
+export const CONVEX_SECTORS_SET = "sectors:set";
 export const CONVEX_META_GET = "meta_versions:get";
 export const CONVEX_META_SET = "meta_versions:set";
 

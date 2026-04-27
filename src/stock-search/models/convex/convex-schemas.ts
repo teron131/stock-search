@@ -35,6 +35,13 @@ export type ConvexMetaVersionRow = {
 	updatedAt?: number | null;
 };
 
+export type ConvexSectorSnapshotRow = {
+	key: string;
+	sectors: Array<Record<string, unknown>>;
+	meta: Record<string, unknown>;
+	updatedAt?: number | null;
+};
+
 /** Normalize Convex portfolio rows into local position dicts. */
 export function normalizePortfolioPositions(
 	rows: Array<Record<string, unknown>>,

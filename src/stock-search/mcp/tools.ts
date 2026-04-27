@@ -222,7 +222,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		name: "sectors_api_sectors_get",
 		description: "Return the current StockAnalysis sector snapshot.",
 		parameters: NoArgsSchema,
-		execute: async () => getSectorSnapshot(),
+		execute: async () => getSectorSnapshot(getStore()),
 	},
 	{
 		name: "get_color_standards",

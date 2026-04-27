@@ -8,6 +8,25 @@ export const PortfolioPositionSchema = v.object({
 });
 export type PortfolioPosition = Infer<typeof PortfolioPositionSchema>;
 
+const NullableNumberSchema = v.union(v.number(), v.null());
+
+export const SectorSummarySchema = v.object({
+	sector: v.string(),
+	top_tickers: v.array(v.string()),
+	stock_count: v.number(),
+	market_cap: NullableNumberSchema,
+	pe: NullableNumberSchema,
+	profit_margin: NullableNumberSchema,
+	change_percent_1d: NullableNumberSchema,
+	change_percent_1y: NullableNumberSchema,
+});
+
+export const SectorSnapshotMetaSchema = v.object({
+	source: v.string(),
+	fetched_at: v.union(v.string(), v.null()),
+	sector_count: v.number(),
+});
+
 export default defineSchema({
 	stocks: defineTable({
 		ticker: v.string(),
@@ -39,6 +58,14 @@ export default defineSchema({
 	meta_versions: defineTable({
 		key: v.string(),
 		value: v.string(),
+		updatedAt: v.number(),
+	})
+		.index("by_key", ["key"])
+		.index("by_updated_at", ["updatedAt"]),
+	sectors: defineTable({
+		key: v.string(),
+		sectors: v.array(SectorSummarySchema),
+		meta: SectorSnapshotMetaSchema,
 		updatedAt: v.number(),
 	})
 		.index("by_key", ["key"])

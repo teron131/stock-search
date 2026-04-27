@@ -6,6 +6,7 @@ export {
 	type ConvexNewsRow,
 	type ConvexPortfolioPosition,
 	type ConvexPortfolioRow,
+	type ConvexSectorSnapshotRow,
 	type ConvexStockRow,
 } from "./convex-schemas.js";
 export {
@@ -19,6 +20,8 @@ export {
 	CONVEX_PORTFOLIO_SET,
 	CONVEX_PORTFOLIO_SET_POSITIONS,
 	CONVEX_REALTIME_TOPICS,
+	CONVEX_SECTORS_GET,
+	CONVEX_SECTORS_SET,
 	CONVEX_STOCK_DELETE_BY_TICKERS,
 	CONVEX_STOCK_GET,
 	CONVEX_STOCK_GET_MANY,

@@ -7,6 +7,7 @@ import { SQLiteStore } from "../../sqlite-store.js";
 import {
 	CONVEX_META_SET,
 	CONVEX_PORTFOLIO_SET,
+	CONVEX_SECTORS_SET,
 	CONVEX_STOCK_REPLACE_ALL,
 } from "./function-names.js";
 import { ConvexHttpClient } from "./client.js";
@@ -22,18 +23,19 @@ export async function runImportFromLocalStore({
 	dbPath = DATA_SQLITE_PATH,
 }: {
 	dbPath?: string;
-} = {}): Promise<{ positions: number; stocks: number }> {
+} = {}): Promise<{ positions: number; stocks: number; sectors: number }> {
 	const client = new ConvexHttpClient(
 		process.env.CONVEX_URL ?? "",
 		process.env.CONVEX_DEPLOY_KEY ?? "",
 	);
 	const store = new SQLiteStore(dbPath);
-	const [positions, mergedStockMap] = await Promise.all([
+	const [positions, mergedStockMap, sectorSnapshot] = await Promise.all([
 		store.loadPositions().then(normalizePortfolioPositions),
 		store.loadStocks(),
+		store.loadSectorSnapshot(),
 	]);
 
-	await Promise.all([
+	const mutations: Array<Promise<unknown>> = [
 		client.mutation(CONVEX_PORTFOLIO_SET, {
 			key: "default",
 			positions,
@@ -56,11 +58,24 @@ export async function runImportFromLocalStore({
 			key: STATS_GENERATED_AT_KEY,
 			value: new Date().toISOString(),
 		}),
-	]);
+	];
+
+	if (sectorSnapshot && sectorSnapshot.sectors.length > 0) {
+		mutations.push(
+			client.mutation(CONVEX_SECTORS_SET, {
+				key: "default",
+				sectors: sectorSnapshot.sectors,
+				meta: sectorSnapshot.meta,
+			}),
+		);
+	}
+
+	await Promise.all(mutations);
 
 	return {
 		positions: positions.length,
 		stocks: Object.keys(mergedStockMap).length,
+		sectors: sectorSnapshot?.sectors.length ?? 0,
 	};
 }
 
@@ -75,7 +90,7 @@ export async function runImportFromLocalFiles({
 	portfolioPath?: string | null;
 	statsPath?: string | null;
 	evalPath?: string | null;
-} = {}): Promise<{ positions: number; stocks: number }> {
+} = {}): Promise<{ positions: number; stocks: number; sectors: number }> {
 	if (portfolioPath != null || statsPath != null || evalPath != null) {
 		throw new Error(
 			"JSON-based import arguments were removed. Use dbPath or runImportFromLocalStore() with the local SQLite database instead.",

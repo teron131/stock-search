@@ -10,6 +10,10 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "./api/data-store.js";
+import { normalizeSectorSnapshot } from "./data-sources/stockanalysis/sector-cache.js";
+import type { StockAnalysisSectorSnapshot } from "./data-sources/stockanalysis/index.js";
+
+const SECTOR_SNAPSHOT_META_KEY = "sector_snapshot";
 
 function jsonParse<T>(value: unknown, fallback: T): T {
 	if (typeof value !== "string") {
@@ -327,6 +331,24 @@ export class SQLiteStore implements BackendStore {
 		this.database
 			.prepare(`DELETE FROM news WHERE key = ? AND ticker IN (${placeholders})`)
 			.run(key, ...normalizedTickers);
+	}
+
+	async loadSectorSnapshot(_key = "default"): Promise<StockAnalysisSectorSnapshot | null> {
+		return normalizeSectorSnapshot(
+			jsonParse<unknown>(
+				this.database
+					.prepare("SELECT value FROM meta WHERE key = ?")
+					.get(SECTOR_SNAPSHOT_META_KEY)?.value,
+				null,
+			),
+		);
+	}
+
+	async saveSectorSnapshot(
+		snapshot: StockAnalysisSectorSnapshot,
+		_key = "default",
+	): Promise<void> {
+		await this.setMetaValue(SECTOR_SNAPSHOT_META_KEY, jsonStringify(snapshot));
 	}
 
 	async getMetaValue(key: string): Promise<string | null> {

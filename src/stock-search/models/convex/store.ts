@@ -13,6 +13,8 @@ import {
 	CONVEX_STOCK_DELETE_BY_TICKERS,
 	CONVEX_STOCK_GET_MANY,
 	CONVEX_REALTIME_TOPICS,
+	CONVEX_SECTORS_GET,
+	CONVEX_SECTORS_SET,
 	CONVEX_STOCK_GET,
 	CONVEX_STOCK_LIST,
 	CONVEX_STOCK_REPLACE_ALL,
@@ -26,6 +28,8 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "../../api/data-store.js";
+import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
+import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
 
 function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
@@ -276,6 +280,32 @@ export class ConvexStore implements BackendStore {
 			rows.filter((row) => !removed.has(normalizeTicker(row.ticker))),
 			key,
 		);
+	}
+
+	async loadSectorSnapshot(
+		key = "default",
+	): Promise<StockAnalysisSectorSnapshot | null> {
+		try {
+			return normalizeSectorSnapshot(
+				await this.client.query(CONVEX_SECTORS_GET, { key }),
+			);
+		} catch (error) {
+			if (this.isMissingFunctionError(error)) {
+				return null;
+			}
+			throw error;
+		}
+	}
+
+	async saveSectorSnapshot(
+		snapshot: StockAnalysisSectorSnapshot,
+		key = "default",
+	): Promise<void> {
+		await this.client.mutation(CONVEX_SECTORS_SET, {
+			key,
+			sectors: snapshot.sectors,
+			meta: snapshot.meta,
+		});
 	}
 
 	async getMetaValue(key: string): Promise<string | null> {

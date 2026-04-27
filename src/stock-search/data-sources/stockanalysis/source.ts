@@ -8,6 +8,13 @@ import {
 	loadSectorSnapshot,
 	loadStatisticsSnapshot,
 } from "./extractors.js";
+import {
+	hasSectorRows,
+	isFreshSectorSnapshot,
+	loadCachedSectorSnapshot,
+	saveCachedSectorSnapshot,
+	type SectorSnapshotCacheStore,
+} from "./sector-cache.js";
 import type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
@@ -29,8 +36,28 @@ function hasModelData(snapshot: Record<string, unknown> | null | undefined): boo
 }
 
 /** Fetch sector summary rows from StockAnalysis. */
-export async function getSectorSnapshot(): Promise<StockAnalysisSectorSnapshot> {
-	return loadSectorSnapshot();
+export async function getSectorSnapshot(
+	store?: SectorSnapshotCacheStore,
+): Promise<StockAnalysisSectorSnapshot> {
+	const cachedSnapshot = await loadCachedSectorSnapshot(store);
+	if (isFreshSectorSnapshot(cachedSnapshot)) {
+		return cachedSnapshot;
+	}
+
+	try {
+		const snapshot = await loadSectorSnapshot();
+		if (hasSectorRows(snapshot)) {
+			await saveCachedSectorSnapshot(store, snapshot);
+			return snapshot;
+		}
+
+		return cachedSnapshot ?? snapshot;
+	} catch (error) {
+		if (cachedSnapshot) {
+			return cachedSnapshot;
+		}
+		throw error;
+	}
 }
 
 export class StockAnalysisSource {
