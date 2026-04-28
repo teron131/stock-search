@@ -15,6 +15,7 @@ import {
 	DEFAULT_BULL_PROBABILITY,
 	DEFAULT_SCORE,
 } from "./evaluation/constants.js";
+import { Notional } from "./models/schemas.js";
 import {
 	classifyAndResolveEtfs,
 	normalizeSectorName,
@@ -36,6 +37,13 @@ const ALL_UNIVERSE_SCOPES = new Set<PortfolioScope>(["all_cached", "all"]);
 const PORTFOLIO_LABEL_FIELD = "industry_labels";
 const LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at";
 const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const ETF_REPRESENTATIVE_LIMIT = 10;
+const ETF_REPRESENTATIVE_MIN_WEIGHT = 3;
+const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
+type EtfRepresentativePosition = PositionRow & {
+	etf_holding_weight: number;
+	etf_source_tickers: string[];
+};
 const EVAL_KEYS = [
 	"overall_score",
 	"quality_score",
@@ -478,6 +486,154 @@ function normalizeWeightsTo100(
 	return rounded;
 }
 
+function resolveRowStrategy(
+	ticker: string,
+	indicators: Record<string, unknown>,
+	evaluation: Record<string, unknown>,
+): string | null {
+	const cachedStrategy =
+		typeof indicators.strategy === "string" && indicators.strategy.trim()
+			? indicators.strategy.trim()
+			: null;
+	return bucketFromEvaluation(ticker, evaluation) ?? cachedStrategy;
+}
+
+function getTickerNotional(
+	notionalByTicker: Record<string, Notional>,
+	ticker: string,
+): Notional {
+	notionalByTicker[ticker] ??= new Notional();
+	return notionalByTicker[ticker];
+}
+
+function buildNotionalByTicker(
+	rows: Array<Record<string, unknown>>,
+	resolution: EtfResolutionResult,
+): Record<string, Notional> {
+	const notionalByTicker: Record<string, Notional> = {};
+	const rowByTicker = new Map(
+		rows.map((row) => [normalizeEtfHoldingTicker(row.ticker), row] as const),
+	);
+
+	for (const row of rows) {
+		const ticker = normalizeEtfHoldingTicker(row.ticker);
+		const total = safeFloat(row.total) ?? 0;
+		if (!ticker || total <= 0) {
+			continue;
+		}
+		if (String(row.equity_type ?? "").trim().toUpperCase() === "ETF") {
+			continue;
+		}
+		getTickerNotional(notionalByTicker, ticker).addFromStocks(total);
+	}
+
+	for (const etfPosition of resolution.etfPositions) {
+		const etfTicker = normalizeTicker(etfPosition.ticker);
+		const etfTotal = safeFloat(rowByTicker.get(etfTicker)?.total) ?? 0;
+		const snapshot = resolution.snapshotByTicker[etfTicker];
+		if (etfTotal <= 0 || !snapshot) {
+			continue;
+		}
+		for (const holding of snapshot.holdings) {
+			const holdingTicker = normalizeEtfHoldingTicker(holding.ticker);
+			if (
+				!holdingTicker ||
+				!isStockLikeEtfRepresentativeTicker(holdingTicker) ||
+				!Number.isFinite(holding.weight)
+			) {
+				continue;
+			}
+			getTickerNotional(notionalByTicker, holdingTicker).addFromEtf(
+				etfTotal * (holding.weight / 100),
+			);
+		}
+	}
+
+	return Object.fromEntries(
+		Object.entries(notionalByTicker).map(([ticker, notional]) => [
+			ticker,
+			notional.rounded(),
+		]),
+	);
+}
+
+function normalizeEtfHoldingTicker(value: unknown): string {
+	return normalizeTicker(value).replace(/\s*:\s*/g, ":");
+}
+
+function isStockLikeEtfRepresentativeTicker(ticker: string): boolean {
+	if (!ticker) {
+		return false;
+	}
+	if (/\s/.test(ticker)) {
+		return false;
+	}
+	const [exchangePrefix, tickerBody] = ticker.includes(":")
+		? ticker.split(":", 2)
+		: ["", ticker];
+	if (exchangePrefix && !/^[A-Z]{2,6}$/.test(exchangePrefix)) {
+		return false;
+	}
+	if (/^\d{7,}/.test(tickerBody)) {
+		return false;
+	}
+	const parts = tickerBody.split(/[.-]/);
+	const suffix = parts.at(-1);
+	if (suffix && parts.length > 1 && NON_STOCK_ETF_HOLDING_SUFFIXES.has(suffix)) {
+		return false;
+	}
+	return /^[A-Z0-9]{1,6}([.-][A-Z0-9]{1,4})?$/.test(tickerBody);
+}
+
+function buildEtfRepresentativePositions(
+	resolution: EtfResolutionResult,
+	existingTickers: Set<string>,
+): EtfRepresentativePosition[] {
+	const representativesByTicker = new Map<string, EtfRepresentativePosition>();
+
+	for (const etfPosition of resolution.etfPositions) {
+		const etfTicker = normalizeTicker(etfPosition.ticker);
+		const snapshot = resolution.snapshotByTicker[etfTicker];
+		const topHoldings =
+			snapshot?.holdings.slice(0, ETF_REPRESENTATIVE_LIMIT) ?? [];
+		for (const holding of topHoldings) {
+			const holdingTicker = normalizeEtfHoldingTicker(holding.ticker);
+			const holdingWeight = safeFloat(holding.weight) ?? 0;
+			if (
+				!holdingTicker ||
+				existingTickers.has(holdingTicker) ||
+				!isStockLikeEtfRepresentativeTicker(holdingTicker) ||
+				holdingWeight < ETF_REPRESENTATIVE_MIN_WEIGHT
+			) {
+				continue;
+			}
+
+			const existing = representativesByTicker.get(holdingTicker);
+			if (existing) {
+				existing.etf_holding_weight = Math.max(
+					existing.etf_holding_weight,
+					holdingWeight,
+				);
+				if (etfTicker && !existing.etf_source_tickers.includes(etfTicker)) {
+					existing.etf_source_tickers.push(etfTicker);
+				}
+				continue;
+			}
+
+			representativesByTicker.set(holdingTicker, {
+				ticker: holdingTicker,
+				name: holding.name,
+				quantity: 0,
+				etf_lookthrough_only: true,
+				etf_holding_weight: holdingWeight,
+				etf_source_tickers: etfTicker ? [etfTicker] : [],
+			});
+		}
+	}
+
+	return [...representativesByTicker.values()];
+}
+
 async function fetchEquitySector(
 	ticker: string,
 	rowByTicker: Map<string, Record<string, unknown>>,
@@ -510,6 +666,7 @@ async function buildEtfTables(
 	rows: Array<Record<string, unknown>>,
 	resolution: EtfResolutionResult,
 	targetTickers: string[],
+	notionalByTicker: Record<string, Notional>,
 ): Promise<{
 	tickerTable: Array<Record<string, unknown>>;
 	sectorTable: Array<Record<string, unknown>>;
@@ -524,6 +681,16 @@ async function buildEtfTables(
 	const etfTickers = resolution.etfPositions.map((position) =>
 		normalizeTicker(position.ticker),
 	);
+	const exposureTickers = new Set(targetTickers);
+	for (const etfTicker of etfTickers) {
+		const snapshot = resolution.snapshotByTicker[etfTicker];
+		for (const holding of snapshot?.holdings ?? []) {
+			const holdingTicker = normalizeEtfHoldingTicker(holding.ticker);
+			if (holdingTicker && isStockLikeEtfRepresentativeTicker(holdingTicker)) {
+				exposureTickers.add(holdingTicker);
+			}
+		}
+	}
 	const portfolioTotal = targetTickers.reduce((sum, ticker) => {
 		return sum + (safeFloat(rowByTicker.get(ticker)?.total) ?? 0);
 	}, 0);
@@ -540,7 +707,7 @@ async function buildEtfTables(
 		}),
 	);
 	const tickerExposure = Object.fromEntries(
-		targetTickers.map((ticker) => [
+		[...exposureTickers].map((ticker) => [
 			ticker,
 			{
 				direct_weight: directWeights[ticker] ?? 0,
@@ -568,8 +735,8 @@ async function buildEtfTables(
 		}
 		const etfWeight = etfAllocation[etfTicker] ?? 0;
 		for (const holding of snapshot.holdings) {
-			const holdingTicker = normalizeTicker(holding.ticker);
-			if (!tickerExposure[holdingTicker]) {
+			const holdingTicker = normalizeEtfHoldingTicker(holding.ticker);
+			if (!holdingTicker || !tickerExposure[holdingTicker]) {
 				continue;
 			}
 			const contribution = etfWeight * (holding.weight / 100);
@@ -629,6 +796,7 @@ async function buildEtfTables(
 			direct_weight: Number(data.direct_weight.toFixed(4)),
 			etf_lookthrough_weight: Number(data.etf_lookthrough_weight.toFixed(4)),
 			combined_weight: Number(data.combined_weight.toFixed(4)),
+			notional: notionalByTicker[ticker] ?? new Notional(),
 		}))
 		.sort((left, right) => right.combined_weight - left.combined_weight);
 
@@ -838,11 +1006,7 @@ export function mergePortfolioRow(
 		: Array.isArray(indicators.holdings)
 			? indicators.holdings
 			: [];
-	const strategy =
-		typeof position.strategy === "string" && position.strategy.trim()
-			? position.strategy
-			: bucketFromEvaluation(ticker, evaluation) ??
-				(typeof indicators.strategy === "string" ? indicators.strategy : null);
+	const strategy = resolveRowStrategy(ticker, indicators, evaluation);
 
 	return {
 		...indicators,
@@ -945,6 +1109,62 @@ export async function buildPortfolioPayload(
 				? mergedStocks[ticker]?.indicators.etf_holdings_fetched_at
 				: nowIso();
 	}
+	const etfRepresentativePositions = buildEtfRepresentativePositions(
+		etfResolution,
+		new Set(
+			rows.map((row) => normalizeEtfHoldingTicker(row.ticker)).filter(Boolean),
+		),
+	);
+	const etfRepresentativeTickers = etfRepresentativePositions.map(
+		(position) => position.ticker,
+	);
+	const etfRepresentativeStocks =
+		etfRepresentativePositions.length > 0
+			? await store.loadStocksByTickers(etfRepresentativeTickers)
+			: {};
+	const etfRepresentativeLiveResults =
+		LIVE_SCOPES.has(scope) && etfRepresentativePositions.length > 0
+			? await resolveTickerStatsMap(
+					store,
+					etfRepresentativeTickers,
+					"auto",
+					etfRepresentativeStocks,
+				)
+			: {};
+	for (const position of etfRepresentativePositions) {
+		const ticker = normalizeTicker(position.ticker);
+		const cachedStock = etfRepresentativeStocks[ticker] ?? mergedStocks[ticker];
+		const resolvedRow = etfRepresentativeLiveResults[ticker]?.row;
+		const row = mergePortfolioRow(
+			position,
+			resolvedRow
+				? {
+						indicators: resolvedRow,
+						evaluation: cachedStock?.evaluation ?? {},
+						labels: cachedStock?.labels ?? [],
+					}
+				: cachedStock,
+		);
+		row.etf_lookthrough_only = true;
+		row.weight_pct = 0;
+		row.etf_holding_weight = position.etf_holding_weight;
+		row.etf_source_tickers = position.etf_source_tickers;
+		if (row.equity_type === "UNKNOWN") {
+			row.equity_type = "STOCK";
+		}
+		rows.push(row);
+	}
+	const notionalByTicker = buildNotionalByTicker(rows, etfResolution);
+	for (const row of rows) {
+		const ticker = normalizeTicker(row.ticker);
+		const rowNotional = notionalByTicker[ticker] ?? new Notional();
+		row.notional = rowNotional;
+		row.notional_value = rowNotional.total;
+		row.notional_weight_pct =
+			heldTotal > 0 && rowNotional.total > 0
+				? (rowNotional.total / heldTotal) * 100
+				: 0;
+	}
 
 	rankRows(rows);
 	rows.sort((left, right) => Number(right.weight_pct ?? 0) - Number(left.weight_pct ?? 0));
@@ -954,16 +1174,20 @@ export async function buildPortfolioPayload(
 	const sectorDistribution = buildSectorDistribution(rows, etfResolution);
 	const [{ tickerTable, sectorTable, meta: tableMeta }, generatedAt] =
 		await Promise.all([
-			buildEtfTables(rows, etfResolution, heldTickers),
+			buildEtfTables(rows, etfResolution, heldTickers, notionalByTicker),
 			LIVE_SCOPES.has(scope)
 				? Promise.resolve(generatedAtIso())
 				: store.getMetaValue("stats_generated_at"),
 		]);
+	const allLiveResults = {
+		...liveResults,
+		...etfRepresentativeLiveResults,
+	};
 	let dataSource = LIVE_SCOPES.has(scope)
-		? aggregateTickerDataSource(liveResults, "auto")
+		? aggregateTickerDataSource(allLiveResults, "auto")
 		: "cache";
 	if (LIVE_SCOPES.has(scope) && dataSource === "live") {
-		const liveTickerSet = new Set(Object.keys(liveResults));
+		const liveTickerSet = new Set(Object.keys(allLiveResults));
 		for (const row of rows) {
 			const ticker = normalizeTicker(row.ticker);
 			if (ticker && !liveTickerSet.has(ticker)) {

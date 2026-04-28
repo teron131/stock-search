@@ -10,8 +10,53 @@ import {
 } from "../tableStyle.js";
 import { useQtyCellState } from "./useQtyCellState.js";
 
+const NON_US_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
+const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
+const PLAIN_ALLOCATION_COLUMNS = new Set([
+	"total",
+	"notional_value",
+	"weight_pct",
+	"notional_weight_pct",
+]);
+
 function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
+}
+
+function isNonUsTicker(ticker) {
+	const displayTicker = getTickerDisplayValue(ticker);
+	if (/^\d/.test(displayTicker)) {
+		return true;
+	}
+
+	const [prefix, prefixedSymbol] = displayTicker.includes(":")
+		? displayTicker.split(":", 2)
+		: ["", ""];
+	if (prefixedSymbol) {
+		return !US_EXCHANGE_PREFIXES.has(prefix);
+	}
+
+	const suffix = displayTicker.match(/\.([A-Z]{1,4})$/)?.[1];
+	return suffix ? NON_US_SUFFIXES.has(suffix) : false;
+}
+
+function isNonUsLookthroughRow(row) {
+	return Boolean(row?.etf_lookthrough_only) && isNonUsTicker(row?.ticker);
+}
+
+function getTickerCellLabel(row) {
+	const ticker = getTickerDisplayValue(row?.ticker);
+	const name = String(row?.name || "").trim();
+	if (!isNonUsLookthroughRow(row) || !name || name === ticker) {
+		return ticker;
+	}
+	return name
+		.replace(/\bCorporation\b/gi, "Corp")
+		.replace(/\bIncorporated\b/gi, "Inc.")
+		.replace(/\s+(Co\.,?\s*)?Ltd\.?$/i, "")
+		.replace(/\s+Inc\.?$/i, "")
+		.replace(/\s+Corp\.?$/i, "")
+		.trim();
 }
 
 function getColumnClassName(key) {
@@ -33,6 +78,31 @@ function compareNullable(a, b, dir) {
 	return dir === "asc" ? (na < nb ? -1 : 1) : na < nb ? 1 : -1;
 }
 
+function notionalTotal(value) {
+	if (!value || typeof value !== "object") return null;
+	const total =
+		Number(value.from_stocks ?? 0) +
+		Number(value.from_etf ?? 0) +
+		Number(value.from_options ?? 0);
+	return Number.isFinite(total) ? total : null;
+}
+
+function stripCurrencySymbol(value) {
+	return String(value).replace(/^\$/, "");
+}
+
+function formatCellValue(row, col) {
+	const formatter = fmt[col.format] || fmt.default;
+	const formatted = formatter(row[col.key]);
+	if (
+		isNonUsTicker(row?.ticker) &&
+		["currency", "market_cap"].includes(col.format)
+	) {
+		return stripCurrencySymbol(formatted);
+	}
+	return formatted;
+}
+
 function sortRows(rows, col, dir) {
 	const sorted = [...rows];
 	sorted.sort((a, b) => {
@@ -51,11 +121,10 @@ function sortRows(rows, col, dir) {
 
 function getColumnDisplayValues(rows, col) {
 	if (col.key === "ticker") {
-		return rows.map((row) => getTickerDisplayValue(row.ticker));
+		return rows.map((row) => getTickerCellLabel(row));
 	}
 
-	const formatter = fmt[col.format] || fmt.default;
-	return rows.map((row) => formatter(row[col.key]));
+	return rows.map((row) => formatCellValue(row, col));
 }
 
 function getWidthGroupCharCounts(rows, cols) {
@@ -190,6 +259,12 @@ function renderCell({
 
 	if (key === "ticker") {
 		const val = getTickerDisplayValue(row.ticker);
+		if (isNonUsLookthroughRow(row)) {
+			const label = getTickerCellLabel(row);
+			return html`<span class="ticker-name-cell" title=${val}>
+				<span class="ticker-name-primary">${label}</span>
+			</span>`;
+		}
 		return html`<tv-ticker-tag
       symbol=${val}
       preserve-text
@@ -202,18 +277,23 @@ function renderCell({
 	}
 
 	const valueForDisplay = row[key];
-	const formatter = fmt[format] || fmt.default;
 
 	let content;
 	if (format === "percent") {
 		const numeric = Number(valueForDisplay);
 		const badgeClass = numeric > 0 ? "positive" : numeric < 0 ? "negative" : "";
 		content = html`<span class=${`badge ${badgeClass}`}
-      >${formatter(valueForDisplay)}</span
+      >${formatCellValue(row, col)}</span
     >`;
+	} else if (
+		format === "percent_neutral" &&
+		key === "weight_pct" &&
+		row.etf_lookthrough_only
+	) {
+		content = html`<span class="cell-weight">--</span>`;
 	} else if (format === "percent_neutral") {
 		content = html`<span class="cell-weight"
-      >${formatter(valueForDisplay)}</span
+      >${formatCellValue(row, col)}</span
     >`;
 	} else if (format === "score") {
 		const numeric = Number(valueForDisplay);
@@ -224,18 +304,20 @@ function renderCell({
 					? "score-low"
 					: "score-mid";
 		content = html`<span class=${scoreClass}
-      >${formatter(valueForDisplay)}</span
+      >${formatCellValue(row, col)}</span
     >`;
 	} else {
-		content = formatter(valueForDisplay);
+		content = formatCellValue(row, col);
 	}
 
 	// Apply conditional coloring
 	const colorKey = col.key;
 	const isColorizable =
-		["score", "prob", "percent_neutral", "number", "market_cap"].includes(
+		!PLAIN_ALLOCATION_COLUMNS.has(colorKey) &&
+		(["score", "prob", "percent_neutral", "number", "market_cap"].includes(
 			format,
-		) || ["rank", "rsi", "market_cap"].includes(colorKey);
+		) ||
+			["rank", "rsi", "market_cap"].includes(colorKey));
 
 	if (isColorizable && colorMeta?.[colorKey]) {
 		const rawValue =
@@ -278,8 +360,11 @@ export function DataTable({
 		const hasEvalScore = r.overall_score != null && r.overall_score !== "";
 		const hasEvalRank = r.rank != null;
 		const isEval = hasEvalScore || hasEvalRank;
+		const isLookthroughRepresentative =
+			Boolean(r.etf_lookthrough_only) && (notionalTotal(r.notional) ?? 0) > 0;
 
-		if (tab === "all") return isHolding || isEval;
+		if (tab === "all")
+			return isHolding || isEval || isLookthroughRepresentative;
 		if (tab === "holdings") return isHolding;
 		return isEval;
 	});

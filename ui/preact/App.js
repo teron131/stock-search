@@ -127,7 +127,6 @@ async function importImageFile(file, importImageRef) {
 	const res = await importImageRef.current?.({
 		file,
 		replace: true,
-		strategy: CONFIG.defaultStrategy,
 	});
 	if (!res?.ok) {
 		showActionError(res?.reason, res?.detail);

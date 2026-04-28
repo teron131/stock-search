@@ -2,8 +2,8 @@ import { html } from "htm/preact";
 
 import { getScoreColor } from "./color.js";
 
-const DEFAULT_COLUMN_PADDING_CHARS = 1;
-const DEFAULT_COLUMN_EXTRA_PX = 14;
+const DEFAULT_COLUMN_PADDING_CHARS = 0;
+const DEFAULT_COLUMN_EXTRA_PX = 8;
 
 function getTextLength(value) {
 	return String(value ?? "").length;

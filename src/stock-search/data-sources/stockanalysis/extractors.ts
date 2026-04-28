@@ -12,6 +12,7 @@ import {
 	writeJsonCache,
 } from "../../cache.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "../../models/labels.js";
+import { stockAnalysisStockPathForTicker } from "../provider-symbols.js";
 import type {
 	StockAnalysisEtfHolding,
 	StockAnalysisEtfSector,
@@ -166,6 +167,11 @@ type QuoteFields = z.output<typeof QuoteFieldsSchema>;
 
 function stockUrl(template: string, tickerLower: string): string {
 	return template.replace("{ticker}", tickerLower);
+}
+
+function stockDataUrl(template: string, ticker: string): string {
+	const path = stockAnalysisStockPathForTicker(ticker);
+	return template.replace("stocks/{ticker}", path).replace("{ticker}", ticker);
 }
 
 function sectorSlug(sectorName: string): string {
@@ -508,7 +514,7 @@ async function enrichSectorsWithTopTickers(
 export async function loadQuoteFields(
 	tickerLower: string,
 ): Promise<Required<QuoteFields>> {
-	const url = stockUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
+	const url = stockDataUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
 	const output = await loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: QuoteFieldsSchema,
@@ -533,7 +539,7 @@ export async function loadQuoteFields(
 export async function loadStatisticsSnapshot(
 	tickerLower: string,
 ): Promise<Record<string, unknown>> {
-	const url = stockUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
+	const url = stockDataUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
 	return loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: StatisticsSchema,
@@ -553,7 +559,7 @@ export async function loadStatisticsSnapshot(
 export async function loadFinancialsSnapshot(
 	tickerLower: string,
 ): Promise<Record<string, unknown>> {
-	const url = stockUrl(STOCKANALYSIS_FINANCIALS_URL, tickerLower);
+	const url = stockDataUrl(STOCKANALYSIS_FINANCIALS_URL, tickerLower);
 	return loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: FinancialsSchema,

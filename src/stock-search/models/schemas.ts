@@ -17,6 +17,58 @@ const newsCategoryValues = [
 	"other",
 ] as const;
 
+function finiteNumber(value: unknown): number {
+	const number = Number(value);
+	return Number.isFinite(number) ? number : 0;
+}
+
+/** Break down position notional by source so ETF lookthrough stays optional. */
+export class Notional {
+	from_stocks: number;
+	from_etf: number;
+	from_options: number;
+
+	constructor(input: Partial<Notional> = {}) {
+		this.from_stocks = finiteNumber(input.from_stocks);
+		this.from_etf = finiteNumber(input.from_etf);
+		this.from_options = finiteNumber(input.from_options);
+	}
+
+	get total(): number {
+		return this.from_stocks + this.from_etf + this.from_options;
+	}
+
+	addFromStocks(value: number): this {
+		this.from_stocks += finiteNumber(value);
+		return this;
+	}
+
+	addFromEtf(value: number): this {
+		this.from_etf += finiteNumber(value);
+		return this;
+	}
+
+	addFromOptions(value: number): this {
+		this.from_options += finiteNumber(value);
+		return this;
+	}
+
+	rounded(decimals = 2): Notional {
+		const factor = 10 ** decimals;
+		return new Notional({
+			from_stocks: Math.round(this.from_stocks * factor) / factor,
+			from_etf: Math.round(this.from_etf * factor) / factor,
+			from_options: Math.round(this.from_options * factor) / factor,
+		});
+	}
+}
+
+export const NotionalSchema = z.object({
+	from_stocks: z.number().default(0),
+	from_etf: z.number().default(0),
+	from_options: z.number().default(0),
+});
+
 export const NewsAnalysisSchema = z.object({
 	summary: z.string().default(""),
 	relevancy: z.enum(relevancyValues).default("low"),
@@ -134,6 +186,7 @@ export const PortfolioNewsSummaryResponseSchema = z.object({
 });
 
 export type NewsAnalysis = z.infer<typeof NewsAnalysisSchema>;
+export type NotionalValue = z.infer<typeof NotionalSchema>;
 export type ScoredReason = z.infer<typeof ScoredReasonSchema>;
 export type MetricsEvaluation = z.infer<typeof MetricsEvaluationSchema>;
 export type ResearchEvaluation = z.infer<typeof ResearchEvaluationSchema>;

@@ -131,6 +131,17 @@ function mergeRows(dashData, evalData) {
 		merged.ticker = safeTicker;
 		merged.name = merged.name || e.name || safeTicker;
 
+		if (merged.notional == null && !isEtfLikeRow(merged)) {
+			const total = Number(merged.total);
+			if (Number.isFinite(total) && total > 0) {
+				merged.notional = {
+					from_stocks: total,
+					from_etf: 0,
+					from_options: 0,
+				};
+			}
+		}
+
 		if (isEtfLikeRow(merged)) {
 			EVAL_KEYS.forEach((key) => {
 				merged[key] = null;
@@ -637,16 +648,16 @@ export function usePortfolioData() {
 	}, [cancelSync, stopRealtimeSync]);
 
 	const patchPortfolioPosition = useCallback(
-		async ({
-			ticker,
-			quantity,
-			strategy = CONFIG.defaultStrategy,
-			silent = false,
-		}) => {
+		async ({ ticker, quantity, strategy, silent = false }) => {
 			const normalizedTicker = normalizeTicker(ticker);
 			const normalizedQuantity = normalizeQuantityInput(quantity);
 			if (!normalizedTicker || normalizedQuantity == null) {
 				return { ok: false, reason: "invalid" };
+			}
+
+			const patch = { quantity: normalizedQuantity };
+			if (strategy !== undefined) {
+				patch.strategy = strategy;
 			}
 
 			const res = await fetch(
@@ -654,10 +665,7 @@ export function usePortfolioData() {
 				{
 					method: "PATCH",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						quantity: normalizedQuantity,
-						strategy,
-					}),
+					body: JSON.stringify(patch),
 				},
 			);
 
@@ -703,19 +711,13 @@ export function usePortfolioData() {
 			return patchPortfolioPosition({
 				ticker: t,
 				quantity: q,
-				strategy: CONFIG.defaultStrategy,
 			});
 		},
 		[isUsingDemoData, patchPortfolioPosition],
 	);
 
 	const setQuantity = useCallback(
-		async ({
-			ticker,
-			quantity,
-			strategy = CONFIG.defaultStrategy,
-			silent = false,
-		}) => {
+		async ({ ticker, quantity, strategy, silent = false }) => {
 			if (isUsingDemoData) return { ok: false, reason: "demo" };
 
 			return patchPortfolioPosition({
@@ -729,11 +731,7 @@ export function usePortfolioData() {
 	);
 
 	const importFromImage = useCallback(
-		async ({
-			file,
-			replace = true,
-			strategy = CONFIG.defaultStrategy,
-		} = {}) => {
+		async ({ file, replace = true, strategy } = {}) => {
 			if (isUsingDemoData) return { ok: false, reason: "demo" };
 			if (!(file instanceof File)) return { ok: false, reason: "invalid" };
 

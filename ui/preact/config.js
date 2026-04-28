@@ -54,7 +54,7 @@ export const CONFIG = {
 		live: "portfolio_live",
 	},
 
-	defaultStrategy: "Speculation",
+	defaultStrategy: null,
 	maxTickerLength: 10,
 	maxTickerTapeCount: 20,
 
@@ -95,17 +95,41 @@ const WIDTH_GROUPS = {
 const HOLDINGS_TAIL_CLUSTER = "holdings-tail";
 
 export const WIDTH_GROUP_OPTIONS = {
-	[WIDTH_GROUPS.holdingStrategy]: {
+	[WIDTH_GROUPS.changePercent]: {
+		paddingChars: 0,
+		extraPx: 6,
+	},
+	[WIDTH_GROUPS.abbrevCurrency]: {
+		paddingChars: 0,
+		extraPx: 6,
+	},
+	[WIDTH_GROUPS.marketNumber]: {
+		paddingChars: 0,
+		extraPx: 6,
+	},
+	[WIDTH_GROUPS.fundamentalPercent]: {
+		paddingChars: 0,
+		extraPx: 6,
+	},
+	[WIDTH_GROUPS.evaluationScore]: {
 		paddingChars: 0,
 		extraPx: 4,
+	},
+	[WIDTH_GROUPS.evaluationProbability]: {
+		paddingChars: 0,
+		extraPx: 4,
+	},
+	[WIDTH_GROUPS.holdingStrategy]: {
+		paddingChars: 0,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.holdingCurrency]: {
 		paddingChars: 0,
-		extraPx: 4,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.holdingPercent]: {
 		paddingChars: 0,
-		extraPx: 2,
+		extraPx: 0,
 	},
 };
 
@@ -301,8 +325,22 @@ const HOLDING_ACTION_COLUMNS = [
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
 	createGroupedColumn(
+		"notional_value",
+		"NOTIONAL",
+		"currency",
+		WIDTH_GROUPS.holdingCurrency,
+		{ cluster: HOLDINGS_TAIL_CLUSTER },
+	),
+	createGroupedColumn(
 		"weight_pct",
 		"WEIGHT",
+		"percent_neutral",
+		WIDTH_GROUPS.holdingPercent,
+		{ cluster: HOLDINGS_TAIL_CLUSTER },
+	),
+	createGroupedColumn(
+		"notional_weight_pct",
+		"NOTIONAL",
 		"percent_neutral",
 		WIDTH_GROUPS.holdingPercent,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },

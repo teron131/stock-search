@@ -2,6 +2,7 @@
 
 import { roundOptional } from "../common-utils.js";
 import { normalizeTicker } from "../utils.js";
+import { yahooSymbolForTicker } from "./provider-symbols.js";
 import { fetchJson, toFiniteNumber } from "./shared.js";
 
 export const ETF_QUOTE_TYPE = "ETF";
@@ -878,7 +879,7 @@ function buildFundamentalsSnapshot(
 }
 
 export function normalizeYahooTicker(ticker: string): string {
-	return normalizeTicker(ticker).replace(/ /g, "-").replace(/\./g, "-");
+	return yahooSymbolForTicker(ticker);
 }
 
 export class YahooFinanceSource {
