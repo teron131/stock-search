@@ -8,17 +8,16 @@
  * @module
  */
 
-import type * as meta_versions from "../meta_versions.js";
-import type * as news from "../news.js";
-import type * as portfolio from "../portfolio.js";
-import type * as sectors from "../sectors.js";
-import type * as stock from "../stock.js";
-
 import type {
 	ApiFromModules,
 	FilterApi,
 	FunctionReference,
 } from "convex/server";
+import type * as meta_versions from "../meta_versions.js";
+import type * as news from "../news.js";
+import type * as portfolio from "../portfolio.js";
+import type * as sectors from "../sectors.js";
+import type * as stock from "../stock.js";
 
 declare const fullApi: ApiFromModules<{
 	meta_versions: typeof meta_versions;

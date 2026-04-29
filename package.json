@@ -35,7 +35,7 @@
 	"dependencies": {
 		"@google/genai": "^1.50.1",
 		"@hono/node-server": "^1.19.6",
-		"@langchain/core": "1.1.40",
+		"@langchain/core": "1.1.42",
 		"@langchain/google-genai": "2.1.27",
 		"@langchain/langgraph": "1.2.9",
 		"@langchain/openai": "1.4.4",
@@ -63,7 +63,7 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"@langchain/core": "1.1.40"
+			"@langchain/core": "1.1.42"
 		}
 	}
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm ci && npm run build && npm run prepare:vercel-public",
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm run build && pnpm run prepare:vercel-public",
   "outputDirectory": "public",
   "routes": [
     {
