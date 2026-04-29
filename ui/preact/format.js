@@ -43,6 +43,7 @@ export function cleanNumericString(value) {
 	return String(value)
 		.trim()
 		.toUpperCase()
+		.replace(/^[A-Z]{3}\s+/, "")
 		.replace(/^\$/, "")
 		.replace(/,/g, "");
 }
@@ -112,7 +113,6 @@ export const fmt = {
 			return rounded ? `$${rounded}${match[2]}` : "--";
 		}
 
-		// Raw dollars
 		const numeric = toNumberOrNull(cleaned);
 		if (numeric == null) return "--";
 

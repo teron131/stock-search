@@ -14,6 +14,9 @@ type YahooChartResponse = {
 				shortName?: string;
 				longName?: string;
 				instrumentType?: string;
+				currency?: string;
+				exchangeName?: string;
+				fullExchangeName?: string;
 				regularMarketPrice?: number;
 			};
 			timestamp?: number[];
@@ -111,9 +114,17 @@ const YAHOO_INTRADAY_URL =
 	"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1d&interval=5m&includePrePost=true";
 const YAHOO_SEARCH_URL =
 	"https://query2.finance.yahoo.com/v1/finance/search?q={ticker}";
+const YAHOO_FX_URL =
+	"https://query1.finance.yahoo.com/v8/finance/chart/{pair}?range=5d&interval=1d";
 const YAHOO_COOKIE_URL = "https://fc.yahoo.com";
 const YAHOO_CRUMB_URL = "https://query1.finance.yahoo.com/v1/test/getcrumb";
 const YAHOO_BENCHMARK_TICKER = "^GSPC";
+const USD_CURRENCY = "USD";
+const FX_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const fxRateCache = new Map<
+	string,
+	{ fetchedAtMs: number; rate: number | null }
+>();
 const YAHOO_FUNDAMENTALS_FIELDS = [
 	"trailingPegRatio",
 	"annualDilutedEPS",
@@ -422,6 +433,53 @@ function quoteSummaryStringField(
 		}
 	}
 	return null;
+}
+
+function normalizeCurrency(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const currency = value.trim().toUpperCase();
+	return /^[A-Z]{3}$/.test(currency) ? currency : null;
+}
+
+function finiteNumber(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function fxPairForCurrency(currency: string): string {
+	return `${currency}${USD_CURRENCY}=X`;
+}
+
+async function fetchCurrencyToUsdRate(
+	currencyInput: unknown,
+): Promise<number | null> {
+	const currency = normalizeCurrency(currencyInput);
+	if (!currency || currency === USD_CURRENCY) {
+		return currency === USD_CURRENCY ? 1 : null;
+	}
+
+	const cached = fxRateCache.get(currency);
+	if (cached && Date.now() - cached.fetchedAtMs <= FX_CACHE_TTL_MS) {
+		return cached.rate;
+	}
+
+	const pair = fxPairForCurrency(currency);
+	const payload = await fetchJson<YahooChartResponse>(
+		YAHOO_FX_URL.replace("{pair}", encodeURIComponent(pair)),
+	);
+	const result = payload?.chart?.result?.[0];
+	const closes = result?.indicators?.quote?.[0]?.close ?? [];
+	const lastClose = [...closes]
+		.reverse()
+		.find((value) => typeof value === "number" && Number.isFinite(value));
+	const rate =
+		toFiniteNumber(result?.meta?.regularMarketPrice) ?? toFiniteNumber(lastClose);
+	fxRateCache.set(currency, {
+		fetchedAtMs: Date.now(),
+		rate,
+	});
+	return rate;
 }
 
 function selectRealtimePriceEntry(priceModule: YahooQuoteSummaryModule | undefined): {
@@ -954,6 +1012,22 @@ export class YahooFinanceSource {
 			series,
 			benchmarkSeries,
 		);
+		const marketCapCurrency =
+			normalizeCurrency(
+				quoteSummaryStringField(
+					[quoteSummaryPayload?.quoteSummary?.result?.[0]?.price],
+					"currency",
+				),
+			) ??
+			normalizeCurrency(meta.currency) ??
+			USD_CURRENCY;
+		const marketCap = finiteNumber(fundamentals.market_cap);
+		const marketCapFx =
+			marketCap != null && marketCapCurrency !== USD_CURRENCY
+				? await fetchCurrencyToUsdRate(marketCapCurrency)
+				: marketCapCurrency === USD_CURRENCY
+					? 1
+					: null;
 		const latest = series[series.length - 1] ?? null;
 		const name =
 			quoteSummaryStringField(
@@ -978,6 +1052,15 @@ export class YahooFinanceSource {
 		return {
 			name,
 			quote_type: quoteType,
+			currency: marketCapCurrency,
+			exchange:
+				typeof meta.exchangeName === "string" && meta.exchangeName.trim()
+					? meta.exchangeName.trim()
+					: null,
+			exchange_name:
+				typeof meta.fullExchangeName === "string" && meta.fullExchangeName.trim()
+					? meta.fullExchangeName.trim()
+					: null,
 			price: currentPrice,
 			change: sessionMarketData.change,
 			change_percent_1d: sessionMarketData.changePercent1d,
@@ -1040,6 +1123,8 @@ export class YahooFinanceSource {
 			median_upside: ratingsSnapshot.medianUpside,
 			ratings: ratingsSnapshot.ratings,
 			...fundamentals,
+			market_cap_currency: marketCap != null ? marketCapCurrency : null,
+			fx: marketCap != null && marketCapCurrency !== USD_CURRENCY ? marketCapFx : null,
 		};
 	}
 

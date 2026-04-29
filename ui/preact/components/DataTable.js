@@ -94,10 +94,7 @@ function stripCurrencySymbol(value) {
 function formatCellValue(row, col) {
 	const formatter = fmt[col.format] || fmt.default;
 	const formatted = formatter(row[col.key]);
-	if (
-		isNonUsTicker(row?.ticker) &&
-		["currency", "market_cap"].includes(col.format)
-	) {
+	if (isNonUsTicker(row?.ticker) && col.format === "currency") {
 		return stripCurrencySymbol(formatted);
 	}
 	return formatted;

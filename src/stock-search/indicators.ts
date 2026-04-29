@@ -2,6 +2,7 @@
 
 import { StockAnalysisSource } from "./data-sources/stockanalysis/index.js";
 import { YahooFinanceSource } from "./data-sources/yahoo-finance.js";
+import { normalizeMonetaryFields } from "./monetary-fields.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -24,6 +25,8 @@ const YAHOO_PRIORITY_FIELDS = new Set([
 ]);
 const STATISTICS_PRIORITY_FIELDS = new Set([
 	"market_cap",
+	"market_cap_currency",
+	"fx",
 	"pe",
 	"pe_forward",
 	"peg",
@@ -35,6 +38,11 @@ const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"revenue_growth",
 	"gross_margin",
 	"debt_to_equity",
+]);
+const FX_SOURCE_FIELDS = new Set([
+	"market_cap",
+	"market_cap_currency",
+	"free_cash_flow",
 ]);
 
 /** Fetch indicator-shaped Yahoo fields for one ticker. */
@@ -97,6 +105,10 @@ export async function fetchLiveIndicators(
 	};
 
 	function resolveField(field: string): unknown {
+		const hasYahooFx = yahooPayload.fx !== null && yahooPayload.fx !== undefined;
+		if (hasYahooFx && FX_SOURCE_FIELDS.has(field)) {
+			return yahooPayload[field] ?? null;
+		}
 		const priorities = YAHOO_PRIORITY_FIELDS.has(field)
 			? [yahooPayload, stockAnalysisPayload, cachedIndicators]
 			: STATISTICS_PRIORITY_FIELDS.has(field) ||
@@ -120,6 +132,7 @@ export async function fetchLiveIndicators(
 	])) {
 		liveFields[field] = resolveField(field);
 	}
+	normalizeMonetaryFields(liveFields);
 
 	const hasLiveField = Object.values(liveFields).some(
 		(value) => value !== null && value !== undefined,

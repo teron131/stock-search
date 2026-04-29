@@ -14,7 +14,10 @@ type PrefixedTicker = {
 };
 
 const PROVIDER_EXCHANGES: Record<string, ProviderExchange> = {
+	HK: { yahooSuffix: "HK", stockAnalysisSlug: "hkg" },
 	JP: { yahooSuffix: "T", stockAnalysisSlug: "tyo" },
+	KQ: { yahooSuffix: "KQ", stockAnalysisSlug: "kosdaq" },
+	KS: { yahooSuffix: "KS", stockAnalysisSlug: "krx" },
 	KRX: { yahooSuffix: "KS", stockAnalysisSlug: "krx" },
 	LON: { yahooSuffix: "L", stockAnalysisSlug: "lon" },
 	TT: { yahooSuffix: "TW", stockAnalysisSlug: "tpe" },

@@ -3,6 +3,7 @@
 import type { BackendStore, StockEntry } from "./api/data-store.js";
 import { parseCacheTimestamp } from "./cache.js";
 import { PortfolioConfig } from "./config.js";
+import { mergeAndNormalizeMonetaryFields } from "./monetary-fields.js";
 import { nowIso, normalizeTicker } from "./utils.js";
 import {
 	fetchStockAnalysisFinancials,
@@ -245,7 +246,14 @@ async function refreshFamilyRow(
 		return familyRow({ ...yahoo, ...metadata }, family);
 	}
 	if (family === "statistics") {
-		return familyRow(await bundle.getStatistics(), family);
+		const [statistics, yahoo] = await Promise.all([
+			bundle.getStatistics(),
+			bundle.getYahooIndicators(),
+		]);
+		return familyRow(
+			mergeAndNormalizeMonetaryFields(statistics, yahoo),
+			family,
+		);
 	}
 	if (family === "financials") {
 		const [financials, statistics] = await Promise.all([

@@ -24,6 +24,27 @@ export function asRecord(
 }
 
 export function asNumber(value: unknown): number | null {
+	if (value == null) {
+		return null;
+	}
+	if (typeof value === "string") {
+		const normalized = value
+			.trim()
+			.toUpperCase()
+			.replace(/^[A-Z]{3}\s+/, "")
+			.replace(/^\$/, "")
+			.replace(/,/g, "");
+		const match = normalized.match(/^(-?\d+(?:\.\d+)?)([TBMK])?$/);
+		if (!match) {
+			const parsed = Number(normalized);
+			return Number.isFinite(parsed) ? parsed : null;
+		}
+		const multiplier = { T: 1e12, B: 1e9, M: 1e6, K: 1e3 }[
+			match[2] as "T" | "B" | "M" | "K"
+		] ?? 1;
+		const parsed = Number(match[1]);
+		return Number.isFinite(parsed) ? parsed * multiplier : null;
+	}
 	const numeric = Number(value);
 	return Number.isFinite(numeric) ? numeric : null;
 }

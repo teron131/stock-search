@@ -40,6 +40,8 @@ const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const ETF_REPRESENTATIVE_LIMIT = 10;
 const ETF_REPRESENTATIVE_MIN_WEIGHT = 3;
 const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
+const NON_US_TICKER_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
+const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 type EtfRepresentativePosition = PositionRow & {
 	etf_holding_weight: number;
 	etf_source_tickers: string[];
@@ -64,6 +66,24 @@ function normalizeLabels(value: unknown): string[] {
 
 function portfolioTickers(positions: PositionRow[]): string[] {
 	return uniqueTickers(positions.map((position) => position.ticker));
+}
+
+function isNonUsTicker(tickerInput: unknown): boolean {
+	const ticker = normalizeTicker(tickerInput).replace("-", ".");
+	if (!ticker) {
+		return false;
+	}
+	if (/^\d/.test(ticker)) {
+		return true;
+	}
+	const [prefix, prefixedSymbol] = ticker.includes(":")
+		? ticker.split(":", 2)
+		: ["", ""];
+	if (prefixedSymbol) {
+		return !US_EXCHANGE_PREFIXES.has(prefix);
+	}
+	const suffix = ticker.match(/\.([A-Z]{1,4})$/)?.[1];
+	return suffix ? NON_US_TICKER_SUFFIXES.has(suffix) : false;
 }
 
 async function forgetRemovedPortfolioTickers(
@@ -955,6 +975,29 @@ function liveTickersForScope(
 	);
 }
 
+function fxRefreshTickersForScope(
+	positions: PositionRow[],
+	stocksMap: Record<string, StockEntry>,
+	scope: PortfolioScope,
+): string[] {
+	if (!LIVE_SCOPES.has(scope)) {
+		return [];
+	}
+	return uniqueTickers(
+		positions
+			.filter((position) => {
+				const ticker = normalizeTicker(position.ticker);
+				const indicators = stocksMap[ticker]?.indicators ?? {};
+				return (
+					isNonUsTicker(ticker) &&
+					asNumber(indicators.market_cap) != null &&
+					asNumber(indicators.fx) == null
+				);
+			})
+			.map((position) => position.ticker),
+	);
+}
+
 function syncModeForScope(scope: PortfolioScope): string {
 	return LIVE_SCOPES.has(scope) ? "realtime_subscription" : "realtime_subscription";
 }
@@ -1071,11 +1114,24 @@ export async function buildPortfolioPayload(
 			.map(([ticker]) => ticker),
 	);
 	const liveTickers = liveTickersForScope(scopedPositions, evalTickers, scope);
-	const liveResults =
+	const fxRefreshTickers = fxRefreshTickersForScope(
+		scopedPositions,
+		stocksMap,
+		scope,
+	);
+	const [liveResults, fxRefreshResults] = await Promise.all([
 		liveTickers.length > 0
-			? await resolveTickerStatsMap(store, liveTickers, "auto", stocksMap)
-			: {};
-	const mergedStocks = mergeLiveResultsIntoStocks(stocksMap, liveResults);
+			? resolveTickerStatsMap(store, liveTickers, "auto", stocksMap)
+			: Promise.resolve({}),
+		fxRefreshTickers.length > 0
+			? resolveTickerStatsMap(store, fxRefreshTickers, "live", stocksMap)
+			: Promise.resolve({}),
+	]);
+	const resolvedLiveResults = {
+		...liveResults,
+		...fxRefreshResults,
+	};
+	const mergedStocks = mergeLiveResultsIntoStocks(stocksMap, resolvedLiveResults);
 
 	const rows = scopedPositions.map((position) =>
 		mergePortfolioRow(position, mergedStocks[normalizeTicker(position.ticker)]),
@@ -1180,7 +1236,7 @@ export async function buildPortfolioPayload(
 				: store.getMetaValue("stats_generated_at"),
 		]);
 	const allLiveResults = {
-		...liveResults,
+		...resolvedLiveResults,
 		...etfRepresentativeLiveResults,
 	};
 	let dataSource = LIVE_SCOPES.has(scope)

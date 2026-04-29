@@ -82,6 +82,13 @@ function getNumberField(indicator: IndicatorLike, fieldName: string): number | n
 	return asNumber(indicator[fieldName]);
 }
 
+function canonicalMarketCap(indicator: IndicatorLike): number | null {
+	const currency = String(indicator.market_cap_currency ?? "USD")
+		.trim()
+		.toUpperCase();
+	return currency === "USD" ? getNumberField(indicator, "market_cap") : null;
+}
+
 function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 	const weightedScores: number[] = [];
 	let totalWeight = 0;
@@ -110,7 +117,7 @@ function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 }
 
 function fcfYieldPercent(indicator: IndicatorLike): number | null {
-	const marketCap = getNumberField(indicator, "market_cap");
+	const marketCap = canonicalMarketCap(indicator);
 	const freeCashFlow = getNumberField(indicator, "free_cash_flow");
 	if (freeCashFlow == null || marketCap == null || marketCap <= 0) {
 		return null;
@@ -125,7 +132,8 @@ export function marketCapScore(
 	if (!info) {
 		return null;
 	}
-	const marketCap = asNumber(info.marketCap ?? info.market_cap);
+	const marketCap =
+		"marketCap" in info ? asNumber(info.marketCap) : canonicalMarketCap(info);
 	const quoteType = info.quoteType ?? info.quote_type;
 	if (quoteType === "ETF" || marketCap == null || marketCap <= 0) {
 		return null;
