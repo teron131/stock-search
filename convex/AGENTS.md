@@ -51,7 +51,7 @@ This guide is for changes inside `convex/`.
 ## Validation commands
 
 - Deploy Convex:
-  - `npx convex deploy -y --typecheck disable --env-file .env`
+  - `pnpm exec convex deploy -y --typecheck disable --env-file .env`
 - Bootstrap data:
   - `uv run python -m stock_search.api.import_convex_data`
 - API smoke after deploy:

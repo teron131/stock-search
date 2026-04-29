@@ -11,14 +11,14 @@ A single-user stock analysis app that prioritizes free data, resilient fallbacks
 Run the full app with:
 
 ```bash
-npm ci
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Run the backend only with:
 
 ```bash
-npm run server:start
+pnpm run server:start
 ```
 
 ## Stats Resolution Flow
@@ -147,7 +147,7 @@ A FastMCP server is available for the TypeScript backend. It exposes the same ap
 Run it with:
 
 ```bash
-npm run mcp:start
+pnpm run mcp:start
 ```
 
 The MCP server currently exposes tools for:
@@ -164,10 +164,10 @@ The same MCP-backed tool set is also available as a local CLI.
 Run it with:
 
 ```bash
-npm run cli -- list-tools
-npm run cli -- get-portfolio --scope priority
-npm run cli -- get-stock-stats NVDA --source cache
-npm run cli -- evaluate-stock NVDA
+pnpm run cli -- list-tools
+pnpm run cli -- get-portfolio --scope priority
+pnpm run cli -- get-stock-stats NVDA --source cache
+pnpm run cli -- evaluate-stock NVDA
 ```
 
 The CLI discovers the MCP tools at runtime and maps them to kebab-case subcommands, so it stays aligned with the MCP surface.

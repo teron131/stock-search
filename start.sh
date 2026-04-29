@@ -65,27 +65,27 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "Building frontend bundle for backend-served pages..."
-npm run ui:build >/dev/null
+pnpm run ui:build >/dev/null
 
 if is_port_open "${BACKEND_HOST}" "${BACKEND_PORT}"; then
 	if http_is_healthy "http://${BACKEND_HOST}:${BACKEND_PORT}/"; then
 		echo "Backend already running on http://${BACKEND_HOST}:${BACKEND_PORT}"
 	elif kill_listener_if_matches "${BACKEND_PORT}" "tsx watch src/node.ts"; then
-		PORT="${BACKEND_PORT}" npm run server:dev &
+		PORT="${BACKEND_PORT}" pnpm run server:dev &
 		backend_pid=$!
 	else
 		echo "Port ${BACKEND_PORT} is in use by another process and the backend is not healthy."
-		echo "Run with BACKEND_PORT=<port> npm run dev to use a different backend port."
+		echo "Run with BACKEND_PORT=<port> pnpm run dev to use a different backend port."
 	fi
 else
-	PORT="${BACKEND_PORT}" npm run server:dev &
+	PORT="${BACKEND_PORT}" pnpm run server:dev &
 	backend_pid=$!
 fi
 
 if is_port_open "${FRONTEND_HOST}" "${FRONTEND_PORT}"; then
 	echo "Frontend already running on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
 else
-	npm run ui:dev -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" &
+	pnpm run ui:dev -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" &
 	frontend_pid=$!
 fi
 

@@ -41,6 +41,6 @@ Primary files:
 ## Validation
 
 - Manual run through API:
-  - `npm run server:start`
+  - `pnpm run server:start`
 - Format/lint:
   - `/Users/teron/Projects/Agents-Config/.factory/hooks/formatter.sh`

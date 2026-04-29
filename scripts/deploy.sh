@@ -21,7 +21,7 @@ Options:
   --preview           Deploy a preview build (default)
   --prod              Deploy a production build
   --alias <host>      Point a production alias at the new deployment
-  --skip-build        Skip local npm build verification
+  --skip-build        Skip local pnpm build verification
   --skip-convex       Skip convex function/schema deploy
   --scope <team>      Override Vercel scope/team slug
   -h, --help          Show this help
@@ -81,12 +81,12 @@ fi
 
 if [[ "$RUN_BUILD" -eq 1 ]]; then
 	echo "==> Building app"
-	npm run build
+	pnpm run build
 fi
 
 if [[ "$RUN_CONVEX" -eq 1 ]]; then
 	echo "==> Deploying Convex functions"
-	npm run convex:deploy
+	pnpm run convex:deploy
 fi
 
 echo "==> Deploying to Vercel ($TARGET)"

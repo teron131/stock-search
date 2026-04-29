@@ -141,7 +141,7 @@ This ensures the dashboard always shows the freshest data available, while remai
 
 ### Run API + UI
 
-- `npm run dev`
+- `pnpm run dev`
 
 ### Tests / Scripts
 
