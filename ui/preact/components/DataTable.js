@@ -44,6 +44,16 @@ function isNonUsLookthroughRow(row) {
 	return Boolean(row?.etf_lookthrough_only) && isNonUsTicker(row?.ticker);
 }
 
+function isEtfLikeRow(row) {
+	const equityType = String(row?.equity_type ?? "")
+		.trim()
+		.toUpperCase();
+	const quoteType = String(row?.quote_type ?? "")
+		.trim()
+		.toUpperCase();
+	return equityType === "ETF" || quoteType === "ETF";
+}
+
 function getTickerCellLabel(row) {
 	const ticker = getTickerDisplayValue(row?.ticker);
 	const name = String(row?.name || "").trim();
@@ -92,6 +102,9 @@ function stripCurrencySymbol(value) {
 }
 
 function formatCellValue(row, col) {
+	if (col.key === "market_cap" && isEtfLikeRow(row)) {
+		return "--";
+	}
 	const formatter = fmt[col.format] || fmt.default;
 	const formatted = formatter(row[col.key]);
 	if (isNonUsTicker(row?.ticker) && col.format === "currency") {

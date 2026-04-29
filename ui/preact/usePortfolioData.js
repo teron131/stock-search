@@ -101,7 +101,16 @@ function ensureEvalEntries(evalData) {
 
 function isEtfLikeRow(row) {
 	const equityType = String(row?.equity_type ?? "").toUpperCase();
-	return equityType === "ETF";
+	const quoteType = String(row?.quote_type ?? "").toUpperCase();
+	return equityType === "ETF" || quoteType === "ETF";
+}
+
+function clearEtfMarketCap(row) {
+	row.market_cap = null;
+	row.market_cap_currency = null;
+	row.market_cap_native = null;
+	row.market_cap_native_currency = null;
+	row.fx = null;
 }
 
 function mergeRows(dashData, evalData) {
@@ -143,6 +152,7 @@ function mergeRows(dashData, evalData) {
 		}
 
 		if (isEtfLikeRow(merged)) {
+			clearEtfMarketCap(merged);
 			EVAL_KEYS.forEach((key) => {
 				merged[key] = null;
 			});

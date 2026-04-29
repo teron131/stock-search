@@ -57,6 +57,14 @@ const EVAL_KEYS = [
 	"bear_probability",
 ] as const;
 
+function clearEtfMarketCapFields(row: Record<string, unknown>): void {
+	row.market_cap = null;
+	row.market_cap_currency = null;
+	row.market_cap_native = null;
+	row.market_cap_native_currency = null;
+	row.fx = null;
+}
+
 function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -1158,6 +1166,7 @@ export async function buildPortfolioPayload(
 			continue;
 		}
 		row.equity_type = "ETF";
+		clearEtfMarketCapFields(row);
 		row.etf_holdings = snapshot.holdings;
 		row.etf_sectors = snapshot.sectors;
 		row.etf_holdings_fetched_at =
