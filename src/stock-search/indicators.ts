@@ -25,7 +25,6 @@ const YAHOO_PRIORITY_FIELDS = new Set([
 ]);
 const STATISTICS_PRIORITY_FIELDS = new Set([
 	"market_cap",
-	"market_cap_currency",
 	"fx",
 	"pe",
 	"pe_forward",
@@ -41,7 +40,6 @@ const FINANCIALS_PRIORITY_FIELDS = new Set([
 ]);
 const FX_SOURCE_FIELDS = new Set([
 	"market_cap",
-	"market_cap_currency",
 	"free_cash_flow",
 ]);
 

@@ -33,9 +33,6 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 	],
 	statistics: [
 		"market_cap",
-		"market_cap_currency",
-		"market_cap_native",
-		"market_cap_native_currency",
 		"fx",
 		"pe",
 		"pe_forward",

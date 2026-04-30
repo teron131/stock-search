@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 import { normalizeTicker } from "./utils.js";
+import { normalizeStockIndicators } from "./models/schemas.js";
 import type {
 	BackendStore,
 	CachedNewsRow,
@@ -124,7 +125,9 @@ export class SQLiteStore implements BackendStore {
 				continue;
 			}
 			stocks[ticker] = {
-				indicators: jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+				indicators: normalizeStockIndicators(
+					jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+				),
 				evaluation: jsonParse<Record<string, unknown>>(row.evaluation_json, {}),
 				labels: jsonParse<string[]>(row.labels_json, []).filter(Boolean),
 			};
@@ -162,7 +165,9 @@ export class SQLiteStore implements BackendStore {
 				continue;
 			}
 			stocks[ticker] = {
-				indicators: jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+				indicators: normalizeStockIndicators(
+					jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+				),
 				evaluation: jsonParse<Record<string, unknown>>(row.evaluation_json, {}),
 				labels: jsonParse<string[]>(row.labels_json, []).filter(Boolean),
 			};
@@ -196,7 +201,9 @@ export class SQLiteStore implements BackendStore {
 			return null;
 		}
 		return {
-			indicators: jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+			indicators: normalizeStockIndicators(
+				jsonParse<Record<string, unknown>>(row.indicators_json, {}),
+			),
 			evaluation: jsonParse<Record<string, unknown>>(row.evaluation_json, {}),
 			labels: jsonParse<string[]>(row.labels_json, []).filter(Boolean),
 		};
@@ -231,9 +238,10 @@ export class SQLiteStore implements BackendStore {
 					  }
 					| undefined;
 
-			const indicators =
+			const indicators = normalizeStockIndicators(
 				row.indicators ??
-				jsonParse<Record<string, unknown>>(existing?.indicators_json, {});
+					jsonParse<Record<string, unknown>>(existing?.indicators_json, {}),
+			);
 			const evaluation =
 				row.evaluation ??
 				jsonParse<Record<string, unknown>>(existing?.evaluation_json, {});

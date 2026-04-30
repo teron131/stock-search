@@ -83,10 +83,7 @@ function getNumberField(indicator: IndicatorLike, fieldName: string): number | n
 }
 
 function canonicalMarketCap(indicator: IndicatorLike): number | null {
-	const currency = String(indicator.market_cap_currency ?? "USD")
-		.trim()
-		.toUpperCase();
-	return currency === "USD" ? getNumberField(indicator, "market_cap") : null;
+	return getNumberField(indicator, "market_cap");
 }
 
 function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {

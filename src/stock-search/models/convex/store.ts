@@ -30,6 +30,7 @@ import type {
 } from "../../api/data-store.js";
 import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
 import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
+import { normalizeStockIndicators } from "../schemas.js";
 
 function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
@@ -48,7 +49,7 @@ function normalizeStockEntry(value: unknown): StockEntry | null {
 	return {
 		indicators:
 			typeof row.indicators === "object" && row.indicators !== null
-				? (row.indicators as Record<string, unknown>)
+				? normalizeStockIndicators(row.indicators)
 				: {},
 		evaluation:
 			typeof row.evaluation === "object" && row.evaluation !== null
@@ -191,13 +192,22 @@ export class ConvexStore implements BackendStore {
 			indicators?: Record<string, unknown>;
 			evaluation?: Record<string, unknown>;
 			labels?: string[];
-		}>,
+	}>,
 	): Promise<void> {
 		if (rows.length === 0) {
 			return;
 		}
+		const normalizedRows = rows.map((row) => ({
+			...row,
+			indicators:
+				row.indicators === undefined
+					? undefined
+					: normalizeStockIndicators(row.indicators),
+		}));
 		try {
-			await this.client.mutation(CONVEX_STOCK_UPSERT_MANY, { rows });
+			await this.client.mutation(CONVEX_STOCK_UPSERT_MANY, {
+				rows: normalizedRows,
+			});
 			return;
 		} catch (error) {
 			if (!this.isMissingFunctionError(error)) {
@@ -206,7 +216,9 @@ export class ConvexStore implements BackendStore {
 		}
 
 		await Promise.all(
-			rows.map((row) => this.client.mutation(CONVEX_STOCK_UPSERT, row)),
+			normalizedRows.map((row) =>
+				this.client.mutation(CONVEX_STOCK_UPSERT, row),
+			),
 		);
 	}
 

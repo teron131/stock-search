@@ -22,6 +22,35 @@ function finiteNumber(value: unknown): number {
 	return Number.isFinite(number) ? number : 0;
 }
 
+const ETF_MARKET_CAP_FIELDS = [
+	"market_cap",
+	"fx",
+] as const;
+
+function isEtfIndicatorRow(row: Record<string, unknown>): boolean {
+	return String(row.quote_type ?? row.equity_type ?? "")
+		.trim()
+		.toUpperCase() === "ETF";
+}
+
+/** Normalize indicator payloads before they are cached, persisted, or rendered. */
+export function normalizeStockIndicators(value: unknown): Record<string, unknown> {
+	const indicators =
+		typeof value === "object" && value !== null && !Array.isArray(value)
+			? { ...(value as Record<string, unknown>) }
+			: {};
+	if (isEtfIndicatorRow(indicators)) {
+		for (const field of ETF_MARKET_CAP_FIELDS) {
+			indicators[field] = null;
+		}
+	}
+	return indicators;
+}
+
+export const StockIndicatorsSchema = z
+	.record(z.string(), z.unknown())
+	.transform(normalizeStockIndicators);
+
 /** Break down position notional by source so ETF lookthrough stays optional. */
 export class Notional {
 	from_stocks: number;

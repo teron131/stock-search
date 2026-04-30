@@ -59,9 +59,6 @@ const EVAL_KEYS = [
 
 function clearEtfMarketCapFields(row: Record<string, unknown>): void {
 	row.market_cap = null;
-	row.market_cap_currency = null;
-	row.market_cap_native = null;
-	row.market_cap_native_currency = null;
 	row.fx = null;
 }
 

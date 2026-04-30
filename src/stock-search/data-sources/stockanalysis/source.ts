@@ -79,12 +79,7 @@ export class StockAnalysisSource {
 		}
 
 		const loaded = await loadStatisticsSnapshot(this.tickerLower);
-		this.statisticsSnapshot = hasModelData(loaded)
-			? {
-					...loaded,
-					market_cap_currency: loaded.market_cap != null ? "USD" : null,
-				}
-			: {};
+		this.statisticsSnapshot = hasModelData(loaded) ? loaded : {};
 		return this.statisticsSnapshot;
 	}
 

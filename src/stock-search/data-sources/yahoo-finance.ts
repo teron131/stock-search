@@ -1123,7 +1123,6 @@ export class YahooFinanceSource {
 			median_upside: ratingsSnapshot.medianUpside,
 			ratings: ratingsSnapshot.ratings,
 			...fundamentals,
-			market_cap_currency: marketCap != null ? marketCapCurrency : null,
 			fx: marketCap != null && marketCapCurrency !== USD_CURRENCY ? marketCapFx : null,
 		};
 	}

@@ -20,6 +20,10 @@ type StockWrite =
 	| { kind: "skip" }
 	| { kind: "insert"; payload: StockPayload }
 	| { kind: "patch"; id: Id<"stocks">; payload: StockPayload };
+const ETF_MARKET_CAP_FIELDS = [
+	"market_cap",
+	"fx",
+] as const;
 
 function normalizeTicker(value: unknown): string {
 	return typeof value === "string" ? value.toUpperCase().trim() : "";
@@ -39,6 +43,19 @@ function normalizeObject(value: unknown): GenericRow {
 		return {};
 	}
 	return value as GenericRow;
+}
+
+function normalizeIndicators(value: unknown): GenericRow {
+	const indicators = { ...normalizeObject(value) };
+	const quoteType = String(indicators.quote_type ?? indicators.equity_type ?? "")
+		.trim()
+		.toUpperCase();
+	if (quoteType === "ETF") {
+		for (const field of ETF_MARKET_CAP_FIELDS) {
+			indicators[field] = null;
+		}
+	}
+	return indicators;
 }
 
 function normalizeTickers(tickers: unknown): string[] {
@@ -72,8 +89,8 @@ function buildStockPayload(
 		ticker: normalizeTicker(entry.ticker),
 		indicators:
 			entry.indicators === undefined
-				? normalizeObject(existing?.indicators)
-				: normalizeObject(entry.indicators),
+				? normalizeIndicators(existing?.indicators)
+				: normalizeIndicators(entry.indicators),
 		evaluation:
 			entry.evaluation === undefined
 				? normalizeObject(existing?.evaluation)
@@ -170,7 +187,7 @@ function toStockPayload(row: {
 }) {
 	return {
 		ticker: row.ticker,
-		indicators: normalizeObject(row.indicators),
+		indicators: normalizeIndicators(row.indicators),
 		evaluation: normalizeObject(row.evaluation),
 		labels: normalizeLabels(row.labels),
 		updatedAt: row.updatedAt,

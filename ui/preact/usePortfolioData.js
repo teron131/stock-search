@@ -107,9 +107,6 @@ function isEtfLikeRow(row) {
 
 function clearEtfMarketCap(row) {
 	row.market_cap = null;
-	row.market_cap_currency = null;
-	row.market_cap_native = null;
-	row.market_cap_native_currency = null;
 	row.fx = null;
 }
 
