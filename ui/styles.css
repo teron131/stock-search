@@ -748,8 +748,9 @@ body::after {
 		(var(--row-height) * var(--table-visible-rows)) +
 			var(--table-header-height)
 	);
-	scroll-snap-type: y mandatory;
 	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	overscroll-behavior-y: none;
 	position: relative;
 	isolation: isolate;
 }
@@ -919,14 +920,12 @@ td {
 }
 
 tbody tr {
-	scroll-snap-align: start;
 	scroll-margin-top: 0;
 	transition: background 0.1s;
 }
 
 tbody tr:last-child {
 	border-bottom: none;
-	scroll-snap-align: end;
 	scroll-margin-bottom: 0;
 }
 
@@ -2170,6 +2169,26 @@ tbody tr:hover td:first-child {
 
 tr.animate-in {
 	animation: row-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.virtual-spacer-row,
+.virtual-spacer-row:hover {
+	background: transparent;
+	pointer-events: none;
+}
+
+.virtual-spacer-row td,
+.virtual-spacer-row:hover td,
+.virtual-spacer-row td:first-child,
+.virtual-spacer-row:hover td:first-child {
+	position: static;
+	width: auto;
+	min-width: 0;
+	max-width: none;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
 }
 
 @keyframes row-rise {

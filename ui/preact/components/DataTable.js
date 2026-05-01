@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
@@ -18,6 +19,11 @@ const PLAIN_ALLOCATION_COLUMNS = new Set([
 	"weight_pct",
 	"notional_weight_pct",
 ]);
+const VIRTUAL_ROW_HEIGHT_PX = 34;
+const VIRTUAL_ROW_OVERSCAN = 6;
+const VIRTUAL_INITIAL_VIEWPORT_ROWS = 18;
+const VIRTUAL_INITIAL_VIEWPORT_HEIGHT =
+	VIRTUAL_ROW_HEIGHT_PX * VIRTUAL_INITIAL_VIEWPORT_ROWS;
 
 function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
@@ -97,6 +103,21 @@ function notionalTotal(value) {
 	return Number.isFinite(total) ? total : null;
 }
 
+function rowBelongsToTab(row, tab) {
+	const qty = Number(row.quantity);
+	const hasQty = row.quantity != null && !Number.isNaN(qty);
+	const isHolding = hasQty && qty > 0 && row.total != null;
+	const hasEvalScore = row.overall_score != null && row.overall_score !== "";
+	const hasEvalRank = row.rank != null;
+	const isEval = hasEvalScore || hasEvalRank;
+	const isLookthroughRepresentative =
+		Boolean(row.etf_lookthrough_only) && (notionalTotal(row.notional) ?? 0) > 0;
+
+	if (tab === "all") return isHolding || isEval || isLookthroughRepresentative;
+	if (tab === "holdings") return isHolding;
+	return isEval;
+}
+
 function stripCurrencySymbol(value) {
 	return String(value).replace(/^\$/, "");
 }
@@ -127,6 +148,44 @@ function sortRows(rows, col, dir) {
 		return compareNullable(a[col], b[col], dir);
 	});
 	return sorted;
+}
+
+function getVirtualWindow({ rowCount, start, viewportHeight }) {
+	if (rowCount === 0) {
+		return {
+			start: 0,
+			end: 0,
+			topPadding: 0,
+			bottomPadding: 0,
+		};
+	}
+
+	const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT_PX);
+	const safeStart = Math.min(Math.max(start, 0), Math.max(rowCount - 1, 0));
+	const end = Math.min(
+		rowCount,
+		safeStart + visibleCount + VIRTUAL_ROW_OVERSCAN * 2,
+	);
+
+	return {
+		start: safeStart,
+		end,
+		topPadding: safeStart * VIRTUAL_ROW_HEIGHT_PX,
+		bottomPadding: (rowCount - end) * VIRTUAL_ROW_HEIGHT_PX,
+	};
+}
+
+function getNextVirtualStart({ currentStart, scrollTop, viewportHeight }) {
+	const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT_PX);
+	const firstVisible = Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT_PX);
+	const currentEnd = currentStart + visibleCount + VIRTUAL_ROW_OVERSCAN * 2;
+	const overscanEdge = Math.max(2, Math.floor(VIRTUAL_ROW_OVERSCAN / 2));
+	const shouldMoveWindow =
+		firstVisible < currentStart + overscanEdge ||
+		firstVisible + visibleCount > currentEnd - overscanEdge;
+
+	if (!shouldMoveWindow) return currentStart;
+	return Math.max(0, firstVisible - VIRTUAL_ROW_OVERSCAN);
 }
 
 function getColumnDisplayValues(rows, col) {
@@ -356,31 +415,41 @@ export function DataTable({
 	isUsingDemoData = false,
 	animateRows = true,
 }) {
+	const scrollRef = useRef(null);
+	const rafRef = useRef(null);
+	const virtualStartRef = useRef(0);
+	const virtualViewportHeightRef = useRef(VIRTUAL_INITIAL_VIEWPORT_HEIGHT);
+	const hasScrolledRef = useRef(false);
+	const [virtualStart, setVirtualStart] = useState(0);
+	const [virtualViewportHeight, setVirtualViewportHeight] = useState(
+		VIRTUAL_INITIAL_VIEWPORT_HEIGHT,
+	);
 	const cols = COLS[tab];
 	const isEvaluationTab = tab === "evaluations";
-	const tickerCharCount = getColumnCharCount(
-		rows.map((row) => getTickerDisplayValue(row.ticker)),
-		"TICKER",
+
+	const filtered = useMemo(
+		() => rows.filter((row) => rowBelongsToTab(row, tab)),
+		[rows, tab],
 	);
 
-	const filtered = rows.filter((r) => {
-		const qty = Number(r.quantity);
-		const hasQty = r.quantity != null && !Number.isNaN(qty);
-		const isHolding = hasQty && qty > 0 && r.total != null;
-		const hasEvalScore = r.overall_score != null && r.overall_score !== "";
-		const hasEvalRank = r.rank != null;
-		const isEval = hasEvalScore || hasEvalRank;
-		const isLookthroughRepresentative =
-			Boolean(r.etf_lookthrough_only) && (notionalTotal(r.notional) ?? 0) > 0;
-
-		if (tab === "all")
-			return isHolding || isEval || isLookthroughRepresentative;
-		if (tab === "holdings") return isHolding;
-		return isEval;
+	const sorted = useMemo(
+		() => sortRows(filtered, sortCol, sortDir),
+		[filtered, sortCol, sortDir],
+	);
+	const virtualWindow = getVirtualWindow({
+		rowCount: sorted.length,
+		start: virtualStart,
+		viewportHeight: virtualViewportHeight,
 	});
+	const visibleRows = sorted.slice(virtualWindow.start, virtualWindow.end);
+	const shouldAnimateRows =
+		animateRows && virtualStart === 0 && !hasScrolledRef.current;
 
-	const sorted = sortRows(filtered, sortCol, sortDir);
 	const hasRows = sorted.length > 0;
+	const tickerCharCount = getColumnCharCount(
+		sorted.map((row) => getTickerDisplayValue(row.ticker)),
+		"TICKER",
+	);
 	const widthGroupCharCounts = getWidthGroupCharCounts(sorted, cols);
 	const colorMeta = calculateScoreColorMetadata(sorted, cols, {
 		colorBandFraction: CONFIG.colorBandFraction,
@@ -408,10 +477,78 @@ export function DataTable({
 		.filter(Boolean)
 		.join(" ");
 
+	useEffect(() => {
+		const scrollEl = scrollRef.current;
+		if (!scrollEl) return;
+
+		const updateViewportHeight = () => {
+			const nextHeight = scrollEl.clientHeight || VIRTUAL_ROW_HEIGHT_PX;
+			virtualViewportHeightRef.current = nextHeight;
+			setVirtualViewportHeight(nextHeight);
+		};
+
+		updateViewportHeight();
+
+		window.addEventListener("resize", updateViewportHeight);
+		window.visualViewport?.addEventListener("resize", updateViewportHeight);
+		return () => {
+			window.removeEventListener("resize", updateViewportHeight);
+			window.visualViewport?.removeEventListener(
+				"resize",
+				updateViewportHeight,
+			);
+		};
+	}, []);
+
+	useEffect(() => {
+		const scrollEl = scrollRef.current;
+		if (!scrollEl) return;
+
+		scrollEl.scrollTop = 0;
+		virtualStartRef.current = 0;
+		hasScrolledRef.current = false;
+		setVirtualStart(0);
+	}, [tab, sortCol, sortDir]);
+
+	useEffect(() => {
+		return () => {
+			if (rafRef.current != null) {
+				cancelAnimationFrame(rafRef.current);
+			}
+		};
+	}, []);
+
+	function handleScroll(event) {
+		const nextScrollTop = event.currentTarget.scrollTop;
+		if (nextScrollTop > 0) {
+			hasScrolledRef.current = true;
+		}
+		if (rafRef.current != null) return;
+
+		rafRef.current = requestAnimationFrame(() => {
+			rafRef.current = null;
+			const currentStart = virtualStartRef.current;
+			const nextStart = getNextVirtualStart({
+				currentStart,
+				scrollTop: nextScrollTop,
+				viewportHeight: virtualViewportHeightRef.current,
+			});
+			if (nextStart === currentStart) return;
+
+			virtualStartRef.current = nextStart;
+			setVirtualStart(nextStart);
+		});
+	}
+
 	return html`
 		<div class="table-shell">
 			<div class="table-scroll-hint">Swipe sideways for full factor view</div>
-			<div class=${tableWrapperClassName} style=${tableWrapperStyle}>
+			<div
+				ref=${scrollRef}
+				class=${tableWrapperClassName}
+				style=${tableWrapperStyle}
+				onScroll=${handleScroll}
+			>
 				<table id="main-table" class=${tableClassName}>
 					<colgroup>
 						${cols.map((col) => {
@@ -456,15 +593,28 @@ export function DataTable({
 					<tbody>
 						${
 							hasRows
-								? sorted.map(
-										(row, i) =>
-											html`<tr
+								? html`
+										${
+											virtualWindow.topPadding > 0
+												? html`<tr class="virtual-spacer-row">
+														<td
+															colspan=${cols.length}
+															style=${{
+																height: `${virtualWindow.topPadding}px`,
+															}}
+														></td>
+													</tr>`
+												: null
+										}
+										${visibleRows.map((row, rowOffset) => {
+											const rowIndex = virtualWindow.start + rowOffset;
+											return html`<tr
 												key=${normalizeTicker(row.ticker)}
-												class=${animateRows ? "animate-in" : ""}
+												class=${shouldAnimateRows ? "animate-in" : ""}
 												style=${
-													animateRows
+													shouldAnimateRows
 														? {
-																animationDelay: `${i * CONFIG.animationDelayMs}ms`,
+																animationDelay: `${Math.min(rowIndex, 12) * CONFIG.animationDelayMs}ms`,
 															}
 														: null
 												}
@@ -489,8 +639,21 @@ export function DataTable({
 														})}
 													</td>`,
 												)}
-											</tr>`,
-									)
+											</tr>`;
+										})}
+										${
+											virtualWindow.bottomPadding > 0
+												? html`<tr class="virtual-spacer-row">
+														<td
+															colspan=${cols.length}
+															style=${{
+																height: `${virtualWindow.bottomPadding}px`,
+															}}
+														></td>
+													</tr>`
+												: null
+										}
+									`
 								: null
 						}
 						${
