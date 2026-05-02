@@ -1,5 +1,5 @@
-import { html } from "htm/preact";
-import { useState } from "preact/hooks";
+import { html } from "htm/react";
+import { useState } from "react";
 
 const TRADINGVIEW_SYMBOL_OVERRIDES = {
 	"BRK-A": "NYSE:BRK.A",
@@ -91,7 +91,8 @@ function getSentimentTone(sentiment) {
 
 function renderTickerPills(sourceTickers) {
 	return (sourceTickers || []).map(
-		(ticker) => html`<span class="news-ticker-pill">${ticker}</span>`,
+		(ticker) =>
+			html`<span key=${ticker} className="news-ticker-pill">${ticker}</span>`,
 	);
 }
 
@@ -142,7 +143,7 @@ function renderHighlightedText(text, tickers) {
 	const tickerSet = new Set(normalizedTickers);
 	return parts.map((part, index) =>
 		tickerSet.has(part)
-			? html`<strong key=${`${part}-${index}`} class="news-inline-ticker">${part}</strong>`
+			? html`<strong key=${`${part}-${index}`} className="news-inline-ticker">${part}</strong>`
 			: part,
 	);
 }
@@ -154,12 +155,15 @@ function renderSummaryChapters(chapters) {
 	}
 
 	return html`
-		<div class="news-summary-list">
+		<div className="news-summary-list">
 			${safeChapters.map(
-				(chapter) => html`
-					<div class="news-summary-item">
-						<div class="news-summary-item-topic">${chapter.headline}</div>
-						<div class="news-summary-item-text">
+				(chapter, index) => html`
+					<div
+						key=${`${chapter.headline || "chapter"}-${index}`}
+						className="news-summary-item"
+					>
+						<div className="news-summary-item-topic">${chapter.headline}</div>
+						<div className="news-summary-item-text">
 							${renderHighlightedText(
 								chapter.paragraph,
 								chapter.relatedTickers,
@@ -189,13 +193,13 @@ function getTradingViewTickerTagSymbol(ticker) {
 function renderTradingViewTickerTag(ticker) {
 	const symbol = getTradingViewTickerTagSymbol(ticker);
 	if (!symbol) {
-		return html`<div class="news-ticker-brief-ticker">${ticker}</div>`;
+		return html`<div className="news-ticker-brief-ticker">${ticker}</div>`;
 	}
 
 	return html`
-		<div class="news-ticker-brief-tag-shell">
+		<div className="news-ticker-brief-tag-shell">
 			<tv-ticker-tag
-				class="news-ticker-brief-tag"
+				className="news-ticker-brief-tag"
 				symbol=${symbol}
 				theme="dark"
 			></tv-ticker-tag>
@@ -253,25 +257,25 @@ export function NewsView({
 	};
 
 	return html`
-		<div class="news-view">
-			<section class="news-toolbar">
-				<div class="news-toolbar-copy">
-					<div class="sector-section-label">Portfolio News</div>
-					<div class="news-toolbar-heading">
-						<h2 class="news-toolbar-title">Held Positions</h2>
-						<div class="news-toolbar-status">
+		<div className="news-view">
+			<section className="news-toolbar">
+				<div className="news-toolbar-copy">
+					<div className="sector-section-label">Portfolio News</div>
+					<div className="news-toolbar-heading">
+						<h2 className="news-toolbar-title">Held Positions</h2>
+						<div className="news-toolbar-status">
 							${coverageText}
 							${
 								isRefreshing
 									? html`
-										<span class="news-toolbar-note">Background refresh</span>
+										<span className="news-toolbar-note">Background refresh</span>
 									`
 									: null
 							}
 							${
 								failedTickers.length > 0
 									? html`
-										<span class="news-toolbar-note">
+										<span className="news-toolbar-note">
 											${failedTickers.length} ticker${failedTickers.length === 1 ? "" : "s"} unavailable
 										</span>
 									`
@@ -281,25 +285,26 @@ export function NewsView({
 					</div>
 				</div>
 
-				<div class="news-controls">
-					<label class="news-control">
-						<span class="news-control-label">Tickers</span>
+				<div className="news-controls">
+					<label className="news-control">
+						<span className="news-control-label">Tickers</span>
 						<select
-							class="news-control-select"
+							className="news-control-select"
 							value=${tickerFilter}
 							onChange=${(event) => setTickerFilter(event.target.value)}
 						>
 							<option value="ALL">ALL HELD</option>
 							${heldTickers.map(
-								(ticker) => html`<option value=${ticker}>${ticker}</option>`,
+								(ticker) =>
+									html`<option key=${ticker} value=${ticker}>${ticker}</option>`,
 							)}
 						</select>
 					</label>
 
-					<label class="news-control">
-						<span class="news-control-label">Relevance</span>
+					<label className="news-control">
+						<span className="news-control-label">Relevance</span>
 						<select
-							class="news-control-select"
+							className="news-control-select"
 							value=${relevanceFilter}
 							onChange=${(event) => setRelevanceFilter(event.target.value)}
 						>
@@ -310,35 +315,38 @@ export function NewsView({
 				</div>
 			</section>
 
-			<section class="news-workspace-shell">
-				<div class="news-summary-panel">
-					<div class="news-panel-header">
-						<div class="sector-section-label">Portfolio News Summary</div>
+			<section className="news-workspace-shell">
+				<div className="news-summary-panel">
+					<div className="news-panel-header">
+						<div className="sector-section-label">Portfolio News Summary</div>
 					</div>
 					${
 						portfolioNewsSummary?.hasNews
 							? html`
-								<div class="news-summary-body">
+								<div className="news-summary-body">
 									${
 										hasMacroItems
 											? html`
-												<div class="news-summary-section is-macros">
-													<div class="news-summary-title">Macros</div>
+												<div className="news-summary-section is-macros">
+													<div className="news-summary-title">Macros</div>
 													${renderSummaryChapters(portfolioNewsSummary.macros)}
 												</div>
 											`
 											: null
 									}
 
-									<div class="news-summary-section is-top-tickers">
-										<div class="news-summary-title">Top tickers</div>
-										<div class="news-ticker-briefs">
+									<div className="news-summary-section is-top-tickers">
+										<div className="news-summary-title">Top tickers</div>
+										<div className="news-ticker-briefs">
 											${portfolioNewsSummary.topTickers.map(
 												(summaryItem) => html`
-													<article class="news-ticker-brief">
-														<div class="news-ticker-brief-header">
+													<article
+														key=${summaryItem.ticker}
+														className="news-ticker-brief"
+													>
+														<div className="news-ticker-brief-header">
 															${renderTradingViewTickerTag(summaryItem.ticker)}
-															<div class="news-ticker-brief-weight">
+															<div className="news-ticker-brief-weight">
 																${
 																	summaryItem.weightLabel ||
 																	formatWeight(summaryItem.weightPct)
@@ -354,9 +362,9 @@ export function NewsView({
 								</div>
 							`
 							: html`
-								<div class="news-summary-body news-summary-placeholder">
-									<div class="news-summary-title">${summaryPlaceholderTitle}</div>
-									<div class="news-summary-copy">
+								<div className="news-summary-body news-summary-placeholder">
+									<div className="news-summary-title">${summaryPlaceholderTitle}</div>
+									<div className="news-summary-copy">
 										${summaryPlaceholderCopy}
 									</div>
 								</div>
@@ -364,18 +372,18 @@ export function NewsView({
 					}
 				</div>
 
-				<div class="news-list-panel">
-					<div class="news-panel-header">
-						<div class="sector-section-label">Portfolio News Feed</div>
-						<div class="news-panel-title">Latest Coverage</div>
+				<div className="news-list-panel">
+					<div className="news-panel-header">
+						<div className="sector-section-label">Portfolio News Feed</div>
+						<div className="news-panel-title">Latest Coverage</div>
 					</div>
 
 					${
 						isWaitingOnPortfolio
 							? html`
-								<div class="news-empty-state">
-									<div class="news-empty-title">Loading portfolio scope</div>
-									<div class="news-empty-copy">
+								<div className="news-empty-state">
+									<div className="news-empty-title">Loading portfolio scope</div>
+									<div className="news-empty-copy">
 										Preparing the held-position set before the portfolio news feed comes online.
 									</div>
 								</div>
@@ -386,9 +394,9 @@ export function NewsView({
 					${
 						showFeedLoadingState
 							? html`
-								<div class="news-empty-state">
-									<div class="news-empty-title">Loading latest coverage</div>
-									<div class="news-empty-copy">
+								<div className="news-empty-state">
+									<div className="news-empty-title">Loading latest coverage</div>
+									<div className="news-empty-copy">
 										Refreshing the portfolio news feed for the held-position set.
 									</div>
 								</div>
@@ -399,9 +407,9 @@ export function NewsView({
 					${
 						!isWaitingOnPortfolio && !hasHoldings && !isLoading
 							? html`
-								<div class="news-empty-state">
-									<div class="news-empty-title">No held positions in scope</div>
-									<div class="news-empty-copy">
+								<div className="news-empty-state">
+									<div className="news-empty-title">No held positions in scope</div>
+									<div className="news-empty-copy">
 										Add a portfolio position to populate the portfolio news feed.
 									</div>
 								</div>
@@ -416,11 +424,11 @@ export function NewsView({
 						!hasItems &&
 						!isLoading
 							? html`
-								<div class="news-empty-state">
-									<div class="news-empty-title">
+								<div className="news-empty-state">
+									<div className="news-empty-title">
 										${lastError ? "News feed unavailable" : "No stories in scope"}
 									</div>
-									<div class="news-empty-copy">
+									<div className="news-empty-copy">
 										${
 											lastError
 												? "The current feed could not be loaded for the held-position set. Try syncing again."
@@ -435,7 +443,7 @@ export function NewsView({
 					${
 						hasItems
 							? html`
-								<div class="news-list">
+								<div className="news-list">
 									${items.map((item) => {
 										const articleKey = item.url;
 										const summary =
@@ -444,7 +452,8 @@ export function NewsView({
 										const isExpanded = expandedArticleKeys.has(articleKey);
 										return html`
 											<article
-												class=${`news-story-row ${isExpanded ? "is-expanded" : ""}`}
+												key=${articleKey}
+												className=${`news-story-row ${isExpanded ? "is-expanded" : ""}`}
 												onClick=${() => toggleExpanded(articleKey)}
 												onKeyDown=${(event) => {
 													if (event.key === "Enter" || event.key === " ") {
@@ -456,26 +465,26 @@ export function NewsView({
 												tabIndex="0"
 												aria-expanded=${isExpanded ? "true" : "false"}
 											>
-												<div class="news-story-topline">
-													<div class="news-story-tickers">
+												<div className="news-story-topline">
+													<div className="news-story-tickers">
 														${renderTickerPills(item.sourceTickers)}
 													</div>
-													<div class="news-story-age">${formatRelativeTime(item)}</div>
+													<div className="news-story-age">${formatRelativeTime(item)}</div>
 												</div>
 
-												<div class="news-story-headline">${item.title}</div>
+												<div className="news-story-headline">${item.title}</div>
 												<div
-													class=${`news-story-summary ${isExpanded ? "is-expanded" : ""}`}
+													className=${`news-story-summary ${isExpanded ? "is-expanded" : ""}`}
 												>
 													${renderHighlightedText(summary, item.sourceTickers)}
 												</div>
 												${
 													canToggleSummary
 														? html`
-															<div class="news-story-summary-actions">
+															<div className="news-story-summary-actions">
 																<button
 																	type="button"
-																	class="news-story-toggle"
+																	className="news-story-toggle"
 																	onClick=${(event) => {
 																		event.stopPropagation();
 																		toggleExpanded(articleKey);
@@ -490,9 +499,9 @@ export function NewsView({
 												${
 													isExpanded
 														? html`
-															<div class="news-story-expanded-actions">
+															<div className="news-story-expanded-actions">
 																<a
-																	class="btn btn-secondary news-open-btn"
+																	className="btn btn-secondary news-open-btn"
 																	href=${item.url}
 																	target="_blank"
 																	rel="noreferrer"
@@ -505,15 +514,15 @@ export function NewsView({
 														: null
 												}
 
-												<div class="news-story-footer">
-													<span class="news-story-source">${formatDomain(item)}</span>
-													<span class=${`news-story-tag ${getRelevanceTone(item.relevancy)}`}>
+												<div className="news-story-footer">
+													<span className="news-story-source">${formatDomain(item)}</span>
+													<span className=${`news-story-tag ${getRelevanceTone(item.relevancy)}`}>
 														${String(item.relevancy || "low").toUpperCase()}
 													</span>
-													<span class="news-story-tag">
+													<span className="news-story-tag">
 														${formatCategory(item.category)}
 													</span>
-													<span class=${`news-story-tag ${getSentimentTone(item.sentiment)}`}>
+													<span className=${`news-story-tag ${getSentimentTone(item.sentiment)}`}>
 														${formatSentiment(item.sentiment)}
 													</span>
 												</div>

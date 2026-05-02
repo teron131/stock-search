@@ -1,4 +1,4 @@
-import { html } from "htm/preact";
+import { html } from "htm/react";
 
 import { calculateScoreColorMetadata } from "../color.js";
 import { CONFIG } from "../config.js";
@@ -105,12 +105,14 @@ function renderIcon(iconName, className) {
 			viewBox="0 0 16 16"
 			fill="none"
 			stroke="currentColor"
-			stroke-width="1.3"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			class=${className}
+			strokeWidth="1.3"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			className=${className}
 		>
-			${iconDefinition.paths.map((pathValue) => html`<path d=${pathValue} />`)}
+			${iconDefinition.paths.map(
+				(pathValue) => html`<path key=${pathValue} d=${pathValue} />`,
+			)}
 		</svg>
 	`;
 }
@@ -120,7 +122,7 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 	return html`
 		<button
 			type="button"
-			class=${`sector-header-btn ${isActive ? "active" : ""}`}
+			className=${`sector-header-btn ${isActive ? "active" : ""}`}
 			onClick=${() => setSortKey(key)}
 		>
 			${label}${isActive ? ` ${sortDirection === "desc" ? "↓" : "↑"}` : ""}
@@ -147,11 +149,12 @@ function renderTopTickerTags(tickers) {
 	}
 
 	return html`
-		<span class="sector-top-tickers" aria-label="Top market-cap tickers">
+		<span className="sector-top-tickers" aria-label="Top market-cap tickers">
 			${normalizedTickers.map(
 				(ticker) => html`
 					<tv-ticker-tag
-						class="sector-top-ticker-tag"
+						key=${ticker}
+						className="sector-top-ticker-tag"
 						symbol=${ticker}
 						preserve-text
 						hide-background
@@ -165,11 +168,14 @@ function renderTopTickerTags(tickers) {
 }
 
 function renderSectorHeader(column, sortKey, sortDirection, setSortKey) {
+	const key = column.sortKey || column.className;
 	if (!column.sortKey) {
-		return html`<th class=${column.headerClassName}>${column.label}</th>`;
+		return html`<th key=${key} className=${column.headerClassName}>
+			${column.label}
+		</th>`;
 	}
 	return html`
-		<th>
+		<th key=${key}>
 			${renderSortableHeader(
 				column.label,
 				column.sortKey,
@@ -203,27 +209,27 @@ export function SectorView({
 	);
 
 	return html`
-		<div class="sector-view">
-			<section class="sector-hero">
-				<div class="sector-hero-top">
-					<div class="sector-hero-copy">
-						<div class="sector-section-label">Market-wide scan</div>
-						<h2 class="sector-hero-title">Sector Pulse</h2>
+		<div className="sector-view">
+			<section className="sector-hero">
+				<div className="sector-hero-top">
+					<div className="sector-hero-copy">
+						<div className="sector-section-label">Market-wide scan</div>
+						<h2 className="sector-hero-title">Sector Pulse</h2>
 					</div>
 				</div>
 			</section>
 
 			<section
-				class=${`sector-ledger-shell ${
+				className=${`sector-ledger-shell ${
 					!filteredSectors.length && !isLoading ? "is-empty" : ""
 				}`}
 			>
-				<div class="sector-ledger-header">
-					<div class="sector-ledger-title-wrap">
-						<div class="sector-section-label">Sector ledger</div>
-						<div class="sector-ledger-title">All sectors</div>
+				<div className="sector-ledger-header">
+					<div className="sector-ledger-title-wrap">
+						<div className="sector-section-label">Sector ledger</div>
+						<div className="sector-ledger-title">All sectors</div>
 					</div>
-					<div class="sector-ledger-status">
+					<div className="sector-ledger-status">
 						${
 							isLoading
 								? "Refreshing snapshot..."
@@ -235,11 +241,11 @@ export function SectorView({
 				${
 					!filteredSectors.length && !isLoading
 						? html`
-							<div class="sector-empty-state">
-								<div class="sector-empty-title">
+							<div className="sector-empty-state">
+								<div className="sector-empty-title">
 									${lastError ? "Sector snapshot unavailable" : "No sectors to display"}
 								</div>
-								<div class="sector-empty-copy">
+								<div className="sector-empty-copy">
 									${
 										lastError
 											? "The latest market-wide snapshot could not be loaded. Try syncing again."
@@ -249,16 +255,20 @@ export function SectorView({
 							</div>
 						`
 						: html`
-								<div class="sector-ledger-table-wrap data-table-scroll">
+								<div className="sector-ledger-table-wrap data-table-scroll">
 									<table
-										class="sector-ledger-table data-table"
+										className="sector-ledger-table data-table"
 										style=${{
 											"--sector-name-char-count": sectorCharCount,
 										}}
 									>
 										<colgroup>
 											${SECTOR_TABLE_COLUMNS.map(
-												(column) => html`<col class=${column.className} />`,
+												(column) =>
+													html`<col
+														key=${column.sortKey || column.className}
+														className=${column.className}
+													/>`,
 											)}
 										</colgroup>
 										<thead>
@@ -282,11 +292,11 @@ export function SectorView({
 													sector.market_cap,
 												);
 												return html`
-													<tr>
-														<td class="sector-name-cell">
-															<span class="sector-name-ident">
+													<tr key=${sector.sector}>
+														<td className="sector-name-cell">
+															<span className="sector-name-ident">
 																<span
-																	class="sector-icon"
+																	className="sector-icon"
 																	title=${sector.sector}
 																	aria-label=${sector.sector}
 																>
@@ -295,7 +305,7 @@ export function SectorView({
 																		"sector-row-glyph",
 																	)}
 																</span>
-																<span class="sector-name" title=${sector.sector}>
+																<span className="sector-name" title=${sector.sector}>
 																	${displaySectorName}
 																</span>
 															</span>
@@ -317,7 +327,7 @@ export function SectorView({
 																colorKey: "pe",
 															},
 														)}</td>
-														<td class=${getToneClass(
+														<td className=${getToneClass(
 															sector.profit_margin,
 															"sector-tone",
 														)}>
@@ -330,19 +340,19 @@ export function SectorView({
 																},
 															)}
 														</td>
-														<td class=${getToneClass(
+														<td className=${getToneClass(
 															sector.change_percent_1d,
 															"sector-tone",
 														)}>
 															${fmt.percent(sector.change_percent_1d)}
 														</td>
-														<td class=${getToneClass(
+														<td className=${getToneClass(
 															sector.change_percent_1y,
 															"sector-tone",
 														)}>
 															${fmt.percent(sector.change_percent_1y)}
 														</td>
-														<td class="sector-top-tickers-cell">
+														<td className="sector-top-tickers-cell">
 															${renderTopTickerTags(sector.top_tickers)}
 														</td>
 													</tr>

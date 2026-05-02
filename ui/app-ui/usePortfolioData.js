@@ -4,7 +4,7 @@ import {
 	useMemo,
 	useRef,
 	useState,
-} from "preact/hooks";
+} from "react";
 
 import { CONFIG } from "./config.js";
 import { normalizeApiDashboardPayload } from "./dataContract.js";

@@ -1,5 +1,5 @@
-import { html } from "htm/preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { html } from "htm/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
@@ -236,9 +236,9 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 		onSetQuantity,
 	});
 
-	return html`<div class="qty-control">
+	return html`<div className="qty-control">
     <input
-      class="qty-input"
+      className="qty-input"
       type="number"
       step="1"
       min="0"
@@ -248,10 +248,10 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
       onBlur=${onBlur}
       disabled=${!canEdit}
     />
-    <div class="qty-spin">
+    <div className="qty-spin">
       <button
         type="button"
-        class="qty-spin-btn"
+        className="qty-spin-btn"
         disabled=${!canEdit}
         onPointerDown=${onSpinPointerDown(1)}
         onPointerUp=${stopHold}
@@ -265,7 +265,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
       </button>
       <button
         type="button"
-        class="qty-spin-btn"
+        className="qty-spin-btn"
         disabled=${!canEdit}
         onPointerDown=${onSpinPointerDown(-1)}
         onPointerUp=${stopHold}
@@ -303,7 +303,7 @@ function renderCell({
 	if (key === "remove") {
 		return html`<button
       type="button"
-      class="btn-remove-cell"
+      className="btn-remove-cell"
       onClick=${() => onRemove(row.ticker)}
       title="Remove"
     >
@@ -314,9 +314,9 @@ function renderCell({
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         aria-hidden="true"
         focusable="false"
       >
@@ -330,8 +330,8 @@ function renderCell({
 		const val = getTickerDisplayValue(row.ticker);
 		if (isNonUsLookthroughRow(row)) {
 			const label = getTickerCellLabel(row);
-			return html`<span class="ticker-name-cell" title=${val}>
-				<span class="ticker-name-primary">${label}</span>
+			return html`<span className="ticker-name-cell" title=${val}>
+				<span className="ticker-name-primary">${label}</span>
 			</span>`;
 		}
 		return html`<tv-ticker-tag
@@ -351,7 +351,7 @@ function renderCell({
 	if (format === "percent") {
 		const numeric = Number(valueForDisplay);
 		const badgeClass = numeric > 0 ? "positive" : numeric < 0 ? "negative" : "";
-		content = html`<span class=${`badge ${badgeClass}`}
+		content = html`<span className=${`badge ${badgeClass}`}
       >${formatCellValue(row, col)}</span
     >`;
 	} else if (
@@ -359,9 +359,9 @@ function renderCell({
 		key === "weight_pct" &&
 		row.etf_lookthrough_only
 	) {
-		content = html`<span class="cell-weight">--</span>`;
+		content = html`<span className="cell-weight">--</span>`;
 	} else if (format === "percent_neutral") {
-		content = html`<span class="cell-weight"
+		content = html`<span className="cell-weight"
       >${formatCellValue(row, col)}</span
     >`;
 	} else if (format === "score") {
@@ -372,7 +372,7 @@ function renderCell({
 				: numeric <= CONFIG.scoreThresholds.low
 					? "score-low"
 					: "score-mid";
-		content = html`<span class=${scoreClass}
+		content = html`<span className=${scoreClass}
       >${formatCellValue(row, col)}</span
     >`;
 	} else {
@@ -541,15 +541,15 @@ export function DataTable({
 	}
 
 	return html`
-		<div class="table-shell">
-			<div class="table-scroll-hint">Swipe sideways for full factor view</div>
+		<div className="table-shell">
+			<div className="table-scroll-hint">Swipe sideways for full factor view</div>
 			<div
 				ref=${scrollRef}
-				class=${tableWrapperClassName}
+				className=${tableWrapperClassName}
 				style=${tableWrapperStyle}
 				onScroll=${handleScroll}
 			>
-				<table id="main-table" class=${tableClassName}>
+				<table id="main-table" className=${tableClassName}>
 					<colgroup>
 						${cols.map((col) => {
 							const className = [
@@ -559,7 +559,8 @@ export function DataTable({
 								.filter(Boolean)
 								.join(" ");
 							return html`<col
-								class=${className}
+								key=${col.key}
+								className=${className}
 								style=${getColumnWidthStyle(
 									widthGroupCharCounts[col.widthGroup],
 									WIDTH_GROUP_OPTIONS[col.widthGroup],
@@ -577,12 +578,13 @@ export function DataTable({
 									.filter(Boolean)
 									.join(" ");
 								if (c.key === "remove")
-									return html`<th class=${columnClassName}></th>`;
+									return html`<th key=${c.key} className=${columnClassName}></th>`;
 								const sortedClass =
 									sortCol === c.key ? `sorted ${sortDir}` : "";
 								return html`<th
+									key=${c.key}
 									data-sort=${c.key}
-									class=${`${columnClassName} ${sortedClass}`.trim()}
+									className=${`${columnClassName} ${sortedClass}`.trim()}
 									onClick=${() => onSort(c.key)}
 								>
 									${c.label}
@@ -596,9 +598,9 @@ export function DataTable({
 								? html`
 										${
 											virtualWindow.topPadding > 0
-												? html`<tr class="virtual-spacer-row">
+												? html`<tr key="top-spacer" className="virtual-spacer-row">
 														<td
-															colspan=${cols.length}
+															colSpan=${cols.length}
 															style=${{
 																height: `${virtualWindow.topPadding}px`,
 															}}
@@ -610,7 +612,7 @@ export function DataTable({
 											const rowIndex = virtualWindow.start + rowOffset;
 											return html`<tr
 												key=${normalizeTicker(row.ticker)}
-												class=${shouldAnimateRows ? "animate-in" : ""}
+												className=${shouldAnimateRows ? "animate-in" : ""}
 												style=${
 													shouldAnimateRows
 														? {
@@ -622,7 +624,8 @@ export function DataTable({
 												${cols.map(
 													(col) =>
 														html`<td
-															class=${[
+															key=${col.key}
+															className=${[
 																getColumnClassName(col.key),
 																getColumnClusterClassName(col.cluster),
 															]
@@ -643,9 +646,9 @@ export function DataTable({
 										})}
 										${
 											virtualWindow.bottomPadding > 0
-												? html`<tr class="virtual-spacer-row">
+												? html`<tr key="bottom-spacer" className="virtual-spacer-row">
 														<td
-															colspan=${cols.length}
+															colSpan=${cols.length}
 															style=${{
 																height: `${virtualWindow.bottomPadding}px`,
 															}}
@@ -660,11 +663,11 @@ export function DataTable({
 							hasRows
 								? null
 								: html`
-										<tr class="table-empty-row">
-											<td colspan=${cols.length}>
-												<div class="table-empty-state">
-													<div class="table-empty-title">No rows in this view</div>
-													<div class="table-empty-copy">
+										<tr key="empty-row" className="table-empty-row">
+											<td colSpan=${cols.length}>
+												<div className="table-empty-state">
+													<div className="table-empty-title">No rows in this view</div>
+													<div className="table-empty-copy">
 														Add positions or switch tabs to inspect available ticker data.
 													</div>
 												</div>

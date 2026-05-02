@@ -1,5 +1,5 @@
-import { html } from "htm/preact";
-import { useMemo, useState } from "preact/hooks";
+import { html } from "htm/react";
+import { useMemo, useState } from "react";
 
 import { normalizeTicker } from "../format.js";
 
@@ -36,14 +36,14 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 	const submitLabel = existingQty != null ? "UPDATE" : "ADD";
 
 	return html`
-    <form id="quick-add-form" class="quick-add-compact" onSubmit=${submit}>
+    <form id="quick-add-form" className="quick-add-compact" onSubmit=${submit}>
       <input
         type="text"
         id="input-ticker"
         aria-label="Ticker symbol"
         placeholder="TICKER"
         required
-        autocomplete="off"
+        autoComplete="off"
         value=${ticker}
         onInput=${(e) => setTicker(e.target.value)}
         disabled=${isSubmitting}
@@ -60,7 +60,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
       />
       <button
         type="submit"
-        class="btn-add-mini"
+        className="btn-add-mini"
         title=${existingQty != null ? "Update existing position" : "Add new position"}
         disabled=${isSubmitting}
       >

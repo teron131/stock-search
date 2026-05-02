@@ -1,5 +1,5 @@
-import { html } from "htm/preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { html } from "htm/react";
+import { useEffect, useRef, useState } from "react";
 import { DataTable } from "./components/DataTable.js";
 import { NewsView } from "./components/NewsView.js";
 import { QuickAdd } from "./components/QuickAdd.js";
@@ -219,12 +219,11 @@ function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
 
 	const isDashboard = view === DASHBOARD_VIEW;
-	const showsPreactRoot =
-		isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
+	const showsAppRoot = isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
 
-	const preactRoot = document.getElementById("preact-root");
-	if (preactRoot) {
-		preactRoot.style.display = showsPreactRoot ? "block" : "none";
+	const appRoot = document.getElementById("app-root");
+	if (appRoot) {
+		appRoot.style.display = showsAppRoot ? "block" : "none";
 	}
 
 	setDisplay("heatmap-section", view === MARKETMAP_VIEW ? "block" : "none");
@@ -359,15 +358,15 @@ function renderDashboardScreen({
 	onAddOrUpdate,
 }) {
 	return html`
-		<div class="tabs-container" id="dashboard-tables">
-			<div class="dashboard-summary">
-				<div class="dashboard-summary-heading">
-					<div class="dashboard-summary-label">Position command</div>
-					<div class="dashboard-summary-copy">
+		<div className="tabs-container" id="dashboard-tables">
+			<div className="dashboard-summary">
+				<div className="dashboard-summary-heading">
+					<div className="dashboard-summary-label">Position command</div>
+					<div className="dashboard-summary-copy">
 						Add a ticker or revise an existing quantity.
 					</div>
 				</div>
-				<div class="dashboard-summary-actions">
+				<div className="dashboard-summary-actions">
 					<${QuickAdd}
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
@@ -375,25 +374,25 @@ function renderDashboardScreen({
 					/>
 				</div>
 			</div>
-			<div class="tabs-header">
-				<div class="tab-group">
+			<div className="tabs-header">
+				<div className="tab-group">
 					<button
 						type="button"
-						class=${`tab-btn ${tab === "all" ? "active" : ""}`}
+						className=${`tab-btn ${tab === "all" ? "active" : ""}`}
 						onClick=${() => onTabChange("all")}
 					>
 						ALL
 					</button>
 					<button
 						type="button"
-						class=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
+						className=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
 						onClick=${() => onTabChange("holdings")}
 					>
 						PORTFOLIO
 					</button>
 					<button
 						type="button"
-						class=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
+						className=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
 						onClick=${() => onTabChange("evaluations")}
 					>
 						EVALUATION
@@ -533,10 +532,8 @@ function initHeatmapTabs() {
 	};
 }
 
-export function App() {
-	const [view, setView] = useState(() =>
-		getViewForPath(window.location.pathname),
-	);
+export function App({ initialView = DASHBOARD_VIEW }) {
+	const [view, setView] = useState(initialView);
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
@@ -624,9 +621,16 @@ export function App() {
 	}, []);
 
 	useEffect(() => {
+		if (view !== MARKETMAP_VIEW) return undefined;
+		return initHeatmapTabs();
+	}, [view]);
+
+	useEffect(() => {
+		if (view === CALENDAR_VIEW) createCalendarWidget();
+	}, [view]);
+
+	useEffect(() => {
 		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
-		const cleanupHeatmapTabs = initHeatmapTabs();
-		createCalendarWidget();
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const importBtn = document.getElementById("import-image-btn");
@@ -722,7 +726,6 @@ export function App() {
 
 		return () => {
 			cleanupSidebar?.();
-			cleanupHeatmapTabs?.();
 			if (logoutBtn) {
 				logoutBtn.removeEventListener("click", onLogout);
 			}

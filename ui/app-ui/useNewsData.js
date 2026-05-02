@@ -4,7 +4,7 @@ import {
 	useMemo,
 	useRef,
 	useState,
-} from "preact/hooks";
+} from "react";
 import {
 	DAY_IN_MS,
 	isCacheTimestampFresh,

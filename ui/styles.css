@@ -1432,7 +1432,7 @@ tv-ticker-tag {
 	color: var(--ink);
 }
 
-#preact-root {
+#app-root {
 	min-height: 0;
 }
 

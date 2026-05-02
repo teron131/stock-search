@@ -1,6 +1,6 @@
-# AGENTS.md (ui/preact)
+# AGENTS.md (ui/app-ui)
 
-This guide is for changes inside `ui/preact/`.
+This guide is for changes inside `ui/app-ui/`.
 
 ## Scope
 
@@ -9,10 +9,10 @@ This guide is for changes inside `ui/preact/`.
 
 Primary files:
 
-- `ui/preact/usePortfolioData.js` -> data fetch/orchestration hook
-- `ui/preact/dataContract.js` -> payload normalization and compatibility
-- `ui/preact/App.js` -> page wiring, refresh cycles, view behavior
-- `ui/preact/config.js` -> endpoint and UI constants
+- `ui/app-ui/usePortfolioData.js` -> data fetch/orchestration hook
+- `ui/app-ui/dataContract.js` -> payload normalization and compatibility
+- `ui/app-ui/App.js` -> page wiring, refresh cycles, view behavior
+- `ui/app-ui/config.js` -> endpoint and UI constants
 
 ## Responsibilities
 

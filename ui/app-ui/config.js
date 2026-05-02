@@ -1,8 +1,21 @@
+const isBrowser = typeof window !== "undefined";
 const isDemoMode =
-	window.location.hostname.includes("github.io") ||
-	new URLSearchParams(window.location.search).get("demo") === "true";
+	isBrowser &&
+	(window.location.hostname.includes("github.io") ||
+		new URLSearchParams(window.location.search).get("demo") === "true");
+const apiBase =
+	isBrowser &&
+	window.location.hostname === "localhost" &&
+	window.location.port === "5173"
+		? "/api-proxy"
+		: "";
+
+function apiPath(path) {
+	return `${apiBase}${path}`;
+}
 
 function getDemoAssetUrl(filename) {
+	if (!isBrowser) return `/demo/${filename}`;
 	return new URL(`demo/${filename}`, window.location.href).toString();
 }
 
@@ -10,22 +23,24 @@ export const CONFIG = {
 	isDemoMode,
 
 	endpoints: {
-		authLogin: "/auth/login",
-		authLogout: "/auth/logout",
-		authSession: "/auth/session",
-		portfolio: "/portfolio",
-		portfolioImportImage: "/portfolio/import-image",
-		portfolioNewsSummary: "/portfolio/news-summary",
-		sectors: "/sectors",
-		stock: "/stock",
+		authLogin: apiPath("/auth/login"),
+		authLogout: apiPath("/auth/logout"),
+		authSession: apiPath("/auth/session"),
+		portfolio: apiPath("/portfolio"),
+		portfolioImportImage: apiPath("/portfolio/import-image"),
+		portfolioNewsSummary: apiPath("/portfolio/news-summary"),
+		sectors: apiPath("/sectors"),
+		stock: apiPath("/stock"),
 		stockStats: (ticker) =>
-			`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`,
+			apiPath(`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`),
 		stockEvaluate: (ticker) =>
-			`/stock/${encodeURIComponent(String(ticker || "").trim())}/evaluate`,
+			apiPath(
+				`/stock/${encodeURIComponent(String(ticker || "").trim())}/evaluate`,
+			),
 		stockNews: (ticker) =>
-			`/stock/${encodeURIComponent(String(ticker || "").trim())}/news`,
-		colorStandards: "/color-standards",
-		realtimeConfig: "/realtime-config",
+			apiPath(`/stock/${encodeURIComponent(String(ticker || "").trim())}/news`),
+		colorStandards: apiPath("/color-standards"),
+		realtimeConfig: apiPath("/realtime-config"),
 	},
 
 	demoEndpoints: {

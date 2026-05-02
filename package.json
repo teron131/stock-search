@@ -27,9 +27,9 @@
 		"preserver:typecheck": "pnpm run llm-harness:build",
 		"server:typecheck": "tsc --noEmit",
 		"server:test": "vitest run --root . server/test",
-		"ui:dev": "vite",
-		"ui:build": "vite build",
-		"ui:preview": "vite preview --host localhost",
+		"ui:dev": "next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
+		"ui:build": "next build ui && rm -rf ui/dist && cp -R ui/out ui/dist",
+		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/dist",
 		"build": "pnpm run ui:build && pnpm run server:typecheck"
 	},
 	"dependencies": {
@@ -48,17 +48,20 @@
 		"htm": "^3.1.1",
 		"langchain": "1.3.3",
 		"llm-harness-js": "workspace:*",
+		"next": "^16.2.4",
 		"opencc-js": "^1.0.5",
-		"preact": "^10.29.1",
+		"react": "^19.2.5",
+		"react-dom": "^19.2.5",
 		"turndown": "^7.2.4",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {
 		"@types/node": "^24.9.1",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
 		"convex": "^1.32.0",
 		"tsx": "^4.20.6",
 		"typescript": "^5.9.3",
-		"vite": "^8.0.8",
 		"vitest": "^4.0.7"
 	},
 	"pnpm": {

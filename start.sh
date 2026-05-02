@@ -85,7 +85,7 @@ fi
 if is_port_open "${FRONTEND_HOST}" "${FRONTEND_PORT}"; then
 	echo "Frontend already running on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
 else
-	pnpm run ui:dev -- --host "${FRONTEND_HOST}" --port "${FRONTEND_PORT}" &
+	FRONTEND_HOST="${FRONTEND_HOST}" FRONTEND_PORT="${FRONTEND_PORT}" pnpm run ui:dev &
 	frontend_pid=$!
 fi
 

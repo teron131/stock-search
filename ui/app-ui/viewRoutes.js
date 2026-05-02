@@ -16,7 +16,10 @@ const PATH_VIEWS = {
 };
 
 export function getViewForPath(pathname) {
-	return PATH_VIEWS[String(pathname || "").trim()] || "dashboard";
+	const normalizedPath = String(pathname || "")
+		.trim()
+		.replace(/\/+$/, "");
+	return PATH_VIEWS[normalizedPath || "/"] || "dashboard";
 }
 
 export function getPathForView(view) {
