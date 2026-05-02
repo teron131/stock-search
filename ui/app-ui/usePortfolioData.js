@@ -1,14 +1,9 @@
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CONFIG } from "./config.js";
 import { normalizeApiDashboardPayload } from "./dataContract.js";
 import { normalizeTicker } from "./format.js";
+import { buildTradingViewTickerTapeSymbols } from "./tradingViewSymbols.js";
 
 const EVAL_KEYS = [
 	"overall_score",
@@ -798,25 +793,13 @@ export function usePortfolioData() {
 	);
 
 	const topTickers = useMemo(() => {
-		return (
-			[...rows]
-				.sort(
-					(a, b) => (Number(b.weight_pct) || 0) - (Number(a.weight_pct) || 0),
-				)
-				// TradingView ticker tape accepts plain tickers (no exchange prefix) and
-				// resolves logos internally; keep them lowercase like the official snippet.
-				.map((r) =>
-					String(r?.ticker || "")
-						.trim()
-						.replace("-", ".")
-						.toLowerCase(),
-				)
-				.filter(
-					(t, i, self) =>
-						t && t.length < CONFIG.maxTickerLength && self.indexOf(t) === i,
-				)
-				.slice(0, CONFIG.maxTickerTapeCount)
+		const weightedRows = [...rows].sort(
+			(a, b) => (Number(b.weight_pct) || 0) - (Number(a.weight_pct) || 0),
 		);
+		return buildTradingViewTickerTapeSymbols(weightedRows, {
+			limit: CONFIG.maxTickerTapeCount,
+			maxLength: CONFIG.maxTickerLength,
+		});
 	}, [rows]);
 
 	return {

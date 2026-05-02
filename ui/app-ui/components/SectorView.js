@@ -9,6 +9,7 @@ import {
 	getToneClass,
 	renderConditionallyColoredValue,
 } from "../tableStyle.js";
+import { normalizeTickerLabel } from "../tradingViewSymbols.js";
 
 const SECTOR_ALIAS_MIN_LENGTH = 24;
 
@@ -130,17 +131,10 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 	`;
 }
 
-function getTradingViewTickerTagSymbol(ticker) {
-	return String(ticker || "")
-		.trim()
-		.toUpperCase()
-		.replace("-", ".");
-}
-
 function renderTopTickerTags(tickers) {
 	const normalizedTickers = Array.isArray(tickers)
 		? tickers
-				.map(getTradingViewTickerTagSymbol)
+				.map(normalizeTickerLabel)
 				.filter(Boolean)
 				.slice(0, TOP_TICKER_TAG_LIMIT)
 		: [];
@@ -152,15 +146,12 @@ function renderTopTickerTags(tickers) {
 		<span className="sector-top-tickers" aria-label="Top market-cap tickers">
 			${normalizedTickers.map(
 				(ticker) => html`
-					<tv-ticker-tag
+					<span
 						key=${ticker}
 						className="sector-top-ticker-tag"
-						symbol=${ticker}
-						preserve-text
-						hide-background
-						theme="dark"
-						transparent
-					>${ticker}</tv-ticker-tag>
+					>
+						${ticker}
+					</span>
 				`,
 			)}
 		</span>

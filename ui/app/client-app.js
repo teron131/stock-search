@@ -1,8 +1,40 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect } from "react";
 
 import { App } from "../app-ui/App.js";
+import { getIconDefinition, getNavIconName } from "../app-ui/sectorIcons.js";
+import { isTradingViewSymbolError } from "../app-ui/tradingViewSymbols.js";
+import { getPathForView } from "../app-ui/viewRoutes.js";
+
+const NAV_ITEMS = [
+	{ view: "dashboard", label: "DASHBOARD" },
+	{ view: "news", label: "NEWS" },
+	{ view: "sectors", label: "SECTORS" },
+	{ view: "marketmap", label: "MARKET MAP" },
+	{ view: "calendar", label: "ECONOMIC CALENDAR" },
+];
+
+function NavIcon({ view }) {
+	const iconDefinition = getIconDefinition(getNavIconName(view));
+	return (
+		<svg
+			aria-hidden="true"
+			focusable="false"
+			viewBox="0 0 16 16"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.3"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			{iconDefinition.paths.map((pathValue) => (
+				<path key={pathValue} d={pathValue} />
+			))}
+		</svg>
+	);
+}
 
 function useSlideMenu() {
 	useEffect(() => {
@@ -24,30 +56,58 @@ function useSlideMenu() {
 		menuOpenBtn?.addEventListener("click", openMenu);
 		menuCloseBtn?.addEventListener("click", closeMenu);
 		menuOverlay.addEventListener("click", closeMenu);
-		document
-			.querySelectorAll(".nav-item")
-			.forEach((item) => item.addEventListener("click", closeMenu));
+		document.querySelectorAll(".nav-item").forEach((item) => {
+			item.addEventListener("click", closeMenu);
+		});
 
 		return () => {
 			menuOpenBtn?.removeEventListener("click", openMenu);
 			menuCloseBtn?.removeEventListener("click", closeMenu);
 			menuOverlay.removeEventListener("click", closeMenu);
-			document
-				.querySelectorAll(".nav-item")
-				.forEach((item) => item.removeEventListener("click", closeMenu));
+			document.querySelectorAll(".nav-item").forEach((item) => {
+				item.removeEventListener("click", closeMenu);
+			});
+		};
+	}, []);
+}
+
+function useTradingViewErrorGuard() {
+	useEffect(() => {
+		const onUnhandledRejection = (event) => {
+			if (!isTradingViewSymbolError(event.reason)) return;
+			event.preventDefault();
+		};
+		const onError = (event) => {
+			if (!isTradingViewSymbolError(event.error || event.message)) return;
+			event.preventDefault();
+		};
+
+		window.addEventListener("unhandledrejection", onUnhandledRejection);
+		window.addEventListener("error", onError);
+		return () => {
+			window.removeEventListener("unhandledrejection", onUnhandledRejection);
+			window.removeEventListener("error", onError);
 		};
 	}, []);
 }
 
 export function ClientApp({ initialView = "dashboard" }) {
 	useSlideMenu();
+	useTradingViewErrorGuard();
 
 	return (
 		<div className="terminal-layout">
 			<div id="slide-menu" className="slide-menu">
 				<div className="menu-header">
-					<div className="brand" aria-label="Stock Search">
-						<img className="brand-mark" src="/logo.png" alt="" />
+					<div className="brand">
+						<Image
+							className="brand-mark"
+							src="/logo.png"
+							alt=""
+							width={840}
+							height={840}
+							priority
+						/>
 						<span className="brand-name">STOCK SEARCH</span>
 					</div>
 					<button
@@ -60,21 +120,17 @@ export function ClientApp({ initialView = "dashboard" }) {
 					</button>
 				</div>
 				<nav className="main-nav">
-					<button type="button" className="nav-item active" data-view="dashboard">
-						DASHBOARD
-					</button>
-					<button type="button" className="nav-item" data-view="news">
-						NEWS
-					</button>
-					<button type="button" className="nav-item" data-view="sectors">
-						SECTORS
-					</button>
-					<button type="button" className="nav-item" data-view="marketmap">
-						MARKET MAP
-					</button>
-					<button type="button" className="nav-item" data-view="calendar">
-						ECONOMIC CALENDAR
-					</button>
+					{NAV_ITEMS.map((item) => (
+						<a
+							key={item.view}
+							className={`nav-item ${item.view === initialView ? "active" : ""}`}
+							data-view={item.view}
+							href={getPathForView(item.view)}
+						>
+							<NavIcon view={item.view} />
+							<span>{item.label}</span>
+						</a>
+					))}
 				</nav>
 			</div>
 			<div id="menu-overlay" className="menu-overlay" />

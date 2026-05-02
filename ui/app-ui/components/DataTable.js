@@ -9,6 +9,7 @@ import {
 	getColumnWidthStyle,
 	renderConditionallyColoredValue,
 } from "../tableStyle.js";
+import { getTradingViewTickerTagSymbol } from "../tradingViewSymbols.js";
 import { useQtyCellState } from "./useQtyCellState.js";
 
 const NON_US_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
@@ -328,14 +329,17 @@ function renderCell({
 
 	if (key === "ticker") {
 		const val = getTickerDisplayValue(row.ticker);
-		if (isNonUsLookthroughRow(row)) {
+		const tradingViewSymbol = getTradingViewTickerTagSymbol(row, {
+			allowFunds: true,
+		});
+		if (isNonUsLookthroughRow(row) || !tradingViewSymbol) {
 			const label = getTickerCellLabel(row);
 			return html`<span className="ticker-name-cell" title=${val}>
 				<span className="ticker-name-primary">${label}</span>
 			</span>`;
 		}
 		return html`<tv-ticker-tag
-      symbol=${val}
+      symbol=${tradingViewSymbol}
       preserve-text
       hide-change
       hide-background
@@ -476,6 +480,7 @@ export function DataTable({
 	]
 		.filter(Boolean)
 		.join(" ");
+	const tableResetKey = `${tab}:${sortCol}:${sortDir}`;
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -503,12 +508,13 @@ export function DataTable({
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
+		scrollEl.dataset.resetKey = tableResetKey;
 
 		scrollEl.scrollTop = 0;
 		virtualStartRef.current = 0;
 		hasScrolledRef.current = false;
 		setVirtualStart(0);
-	}, [tab, sortCol, sortDir]);
+	}, [tableResetKey]);
 
 	useEffect(() => {
 		return () => {

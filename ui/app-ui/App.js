@@ -6,13 +6,10 @@ import { QuickAdd } from "./components/QuickAdd.js";
 import { SectorView } from "./components/SectorView.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
 import { fmt } from "./format.js";
-import { getIconDefinition, getNavIconName } from "./sectorIcons.js";
 import { useNewsData } from "./useNewsData.js";
 import { usePortfolioData } from "./usePortfolioData.js";
 import { useSectorData } from "./useSectorData.js";
-import { getPathForView, getViewForPath } from "./viewRoutes.js";
 
-const SVG_NS = "http://www.w3.org/2000/svg";
 const DASHBOARD_VIEW = "dashboard";
 const NEWS_VIEW = "news";
 const SECTORS_VIEW = "sectors";
@@ -156,70 +153,18 @@ function updateTickerTape(tickers) {
 		return;
 	}
 
-	const symbols = tickers
-		.map((ticker) =>
-			String(ticker || "")
-				.trim()
-				.toLowerCase(),
-		)
-		.filter(Boolean)
-		.join(",");
+	const symbols = tickers.filter(Boolean).join(",");
 
 	tape.setAttribute("symbols", symbols);
 	tape.style.height = "auto";
-}
-
-function createIconSvgElement(iconName, className) {
-	const iconDefinition = getIconDefinition(iconName);
-	const svg = document.createElementNS(SVG_NS, "svg");
-	svg.setAttribute("aria-hidden", "true");
-	svg.setAttribute("focusable", "false");
-	svg.setAttribute("viewBox", "0 0 16 16");
-	svg.setAttribute("fill", "none");
-	svg.setAttribute("stroke", "currentColor");
-	svg.setAttribute("stroke-width", "1.3");
-	svg.setAttribute("stroke-linecap", "round");
-	svg.setAttribute("stroke-linejoin", "round");
-	if (className) {
-		svg.setAttribute("class", className);
-	}
-
-	iconDefinition.paths.forEach((pathValue) => {
-		const path = document.createElementNS(SVG_NS, "path");
-		path.setAttribute("d", pathValue);
-		svg.append(path);
-	});
-
-	return svg;
-}
-
-function decorateNavItems(navItems) {
-	navItems.forEach((button) => {
-		if (button.dataset.iconReady === "true") return;
-
-		const label = String(button.textContent || "").trim();
-		const iconName = getNavIconName(button.dataset.view);
-		button.textContent = "";
-		button.append(createIconSvgElement(iconName));
-
-		const labelSpan = document.createElement("span");
-		labelSpan.textContent = label;
-		button.append(labelSpan);
-		button.dataset.iconReady = "true";
-	});
-}
-
-function syncNavItems(viewName) {
-	document.querySelectorAll(".nav-item").forEach((navItem) => {
-		navItem.classList.toggle("active", navItem.dataset.view === viewName);
-	});
 }
 
 function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
 
 	const isDashboard = view === DASHBOARD_VIEW;
-	const showsAppRoot = isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
+	const showsAppRoot =
+		isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
 
 	const appRoot = document.getElementById("app-root");
 	if (appRoot) {
@@ -416,7 +361,7 @@ function renderDashboardScreen({
 	`;
 }
 
-function initSidebarAndNav({ onViewChange }) {
+function initSidebarAndNav() {
 	const sidebar = document.getElementById("sidebar");
 	const toggle = document.getElementById("sidebar-toggle");
 	const cleanupFns = [];
@@ -440,19 +385,12 @@ function initSidebarAndNav({ onViewChange }) {
 		}
 	}
 
-	const navItems = document.querySelectorAll(".nav-item");
-	decorateNavItems(navItems);
-	navItems.forEach((btn) => {
+	document.querySelectorAll(".nav-item").forEach((btn) => {
 		const onClick = () => {
-			const viewName = btn.dataset.view;
-			if (!viewName) return;
-			onViewChange(viewName);
-
 			if (window.innerWidth <= 1024 && sidebar) {
 				sidebar.classList.add("collapsed");
 			}
 		};
-
 		btn.addEventListener("click", onClick);
 		cleanupFns.push(() => btn.removeEventListener("click", onClick));
 	});
@@ -533,7 +471,7 @@ function initHeatmapTabs() {
 }
 
 export function App({ initialView = DASHBOARD_VIEW }) {
-	const [view, setView] = useState(initialView);
+	const view = initialView;
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
@@ -598,29 +536,6 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	}, [view]);
 
 	useEffect(() => {
-		const nextPath = getPathForView(view);
-		if (!CONFIG.isDemoMode && window.location.pathname !== nextPath) {
-			window.history.pushState({}, "", nextPath);
-		}
-		syncNavItems(view);
-	}, [view]);
-
-	useEffect(() => {
-		if (CONFIG.isDemoMode) {
-			return undefined;
-		}
-
-		const onPopState = () => {
-			setView(getViewForPath(window.location.pathname));
-		};
-
-		window.addEventListener("popstate", onPopState);
-		return () => {
-			window.removeEventListener("popstate", onPopState);
-		};
-	}, []);
-
-	useEffect(() => {
 		if (view !== MARKETMAP_VIEW) return undefined;
 		return initHeatmapTabs();
 	}, [view]);
@@ -630,7 +545,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	}, [view]);
 
 	useEffect(() => {
-		const cleanupSidebar = initSidebarAndNav({ onViewChange: setView });
+		const cleanupSidebar = initSidebarAndNav();
 
 		const refreshBtn = document.getElementById("refresh-btn");
 		const importBtn = document.getElementById("import-image-btn");
@@ -701,7 +616,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 				window.location.assign(buildAuthLoginUrl());
 				return;
 			}
-			actions.sync({
+			syncRef.current?.({
 				scope: CONFIG.portfolioScopes.live,
 				preferCached: true,
 			});
@@ -916,6 +831,10 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 
 	if (view === SECTORS_VIEW) {
 		return renderSectorScreen(sectorData);
+	}
+
+	if (view === MARKETMAP_VIEW || view === CALENDAR_VIEW) {
+		return null;
 	}
 
 	return renderDashboardScreen({

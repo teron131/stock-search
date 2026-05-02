@@ -1,10 +1,4 @@
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	DAY_IN_MS,
 	isCacheTimestampFresh,
@@ -684,14 +678,7 @@ export function useNewsData({
 		}
 
 		load();
-	}, [
-		enabled,
-		heldTickerKey,
-		heldTickers.length,
-		load,
-		portfolioLoading,
-		resetFeed,
-	]);
+	}, [enabled, heldTickers.length, load, portfolioLoading, resetFeed]);
 
 	useEffect(() => {
 		if (tickerFilter === "ALL" || heldTickers.includes(tickerFilter)) {

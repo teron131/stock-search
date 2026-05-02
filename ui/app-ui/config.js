@@ -32,7 +32,9 @@ export const CONFIG = {
 		sectors: apiPath("/sectors"),
 		stock: apiPath("/stock"),
 		stockStats: (ticker) =>
-			apiPath(`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`),
+			apiPath(
+				`/stock/${encodeURIComponent(String(ticker || "").trim())}/stats`,
+			),
 		stockEvaluate: (ticker) =>
 			apiPath(
 				`/stock/${encodeURIComponent(String(ticker || "").trim())}/evaluate`,

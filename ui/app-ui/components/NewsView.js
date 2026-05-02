@@ -1,14 +1,6 @@
 import { html } from "htm/react";
 import { useState } from "react";
 
-const TRADINGVIEW_SYMBOL_OVERRIDES = {
-	"BRK-A": "NYSE:BRK.A",
-	"BRK-B": "NYSE:BRK.B",
-	"BF-A": "NYSE:BF.A",
-	"BF-B": "NYSE:BF.B",
-	TSM: "NYSE:TSM",
-};
-
 function toTimestamp(article) {
 	const publishedAt =
 		article?.metadata?.published_at ||
@@ -176,35 +168,8 @@ function renderSummaryChapters(chapters) {
 	`;
 }
 
-function getTradingViewTickerTagSymbol(ticker) {
-	const normalizedTicker = String(ticker || "")
-		.trim()
-		.toUpperCase();
-	if (!normalizedTicker) {
-		return "";
-	}
-
-	return (
-		TRADINGVIEW_SYMBOL_OVERRIDES[normalizedTicker] ||
-		normalizedTicker.replace("-", ".")
-	);
-}
-
-function renderTradingViewTickerTag(ticker) {
-	const symbol = getTradingViewTickerTagSymbol(ticker);
-	if (!symbol) {
-		return html`<div className="news-ticker-brief-ticker">${ticker}</div>`;
-	}
-
-	return html`
-		<div className="news-ticker-brief-tag-shell">
-			<tv-ticker-tag
-				className="news-ticker-brief-tag"
-				symbol=${symbol}
-				theme="dark"
-			></tv-ticker-tag>
-		</div>
-	`;
+function renderTickerBriefLabel(ticker) {
+	return html`<div className="news-ticker-brief-ticker">${ticker}</div>`;
 }
 
 export function NewsView({
@@ -345,7 +310,7 @@ export function NewsView({
 														className="news-ticker-brief"
 													>
 														<div className="news-ticker-brief-header">
-															${renderTradingViewTickerTag(summaryItem.ticker)}
+															${renderTickerBriefLabel(summaryItem.ticker)}
 															<div className="news-ticker-brief-weight">
 																${
 																	summaryItem.weightLabel ||

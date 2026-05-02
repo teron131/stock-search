@@ -27,7 +27,9 @@
 	--table-first-column-gap: 10px;
 	--table-holdings-inline-padding: 6px;
 	--ticker-column-width: calc(
-		(var(--ticker-char-count) * 1ch) + 48px + var(--table-first-column-gap)
+		(var(--ticker-char-count) * 1ch) +
+		48px +
+		var(--table-first-column-gap)
 	);
 
 	/* Border Radius */
@@ -241,6 +243,7 @@ body::after {
 	cursor: pointer;
 	transition: all 0.2s;
 	text-align: left;
+	text-decoration: none;
 	position: relative;
 	overflow: hidden;
 }
@@ -746,7 +749,7 @@ body::after {
 	height: auto;
 	max-height: calc(
 		(var(--row-height) * var(--table-visible-rows)) +
-			var(--table-header-height)
+		var(--table-header-height)
 	);
 	-webkit-overflow-scrolling: touch;
 	overscroll-behavior: contain;
@@ -855,7 +858,8 @@ th:not(:first-child) {
 #main-table th:nth-child(2),
 #main-table td:nth-child(2) {
 	padding-left: calc(
-		var(--table-cell-inline-padding) + var(--table-first-column-gap)
+		var(--table-cell-inline-padding) +
+		var(--table-first-column-gap)
 	);
 }
 
@@ -1456,11 +1460,11 @@ tv-ticker-tag {
 .table-wrapper {
 	height: calc(
 		(var(--row-height) * var(--table-visible-rows)) +
-			var(--table-header-height)
+		var(--table-header-height)
 	);
 	min-height: calc(
 		(var(--row-height) * var(--table-visible-rows)) +
-			var(--table-header-height)
+		var(--table-header-height)
 	);
 }
 
@@ -2061,7 +2065,7 @@ body {
 		calc(100dvh - 284px),
 		calc(
 			(var(--row-height) * var(--table-visible-rows)) +
-				var(--table-header-height)
+			var(--table-header-height)
 		)
 	);
 	min-height: 280px;
@@ -2070,7 +2074,7 @@ body {
 		calc(100dvh - 284px),
 		calc(
 			(var(--row-height) * var(--table-visible-rows)) +
-				var(--table-header-height)
+			var(--table-header-height)
 		)
 	);
 	border-top: 1px solid rgba(255, 255, 255, 0.03);
@@ -2095,11 +2099,12 @@ body {
 	min-width: max(
 		100%,
 		calc(
-			var(--ticker-column-width) + var(--evaluation-action-column-width) +
-				(
-					var(--evaluation-fluid-column-count, 9) *
-						var(--evaluation-min-fluid-column-width)
-				)
+			var(--ticker-column-width) +
+			var(--evaluation-action-column-width) +
+			(
+				var(--evaluation-fluid-column-count, 9) *
+				var(--evaluation-min-fluid-column-width)
+			)
 		)
 	);
 	table-layout: fixed;
@@ -2315,7 +2320,7 @@ tr.animate-in {
 			calc(100dvh - 230px),
 			calc(
 				(var(--row-height) * var(--table-visible-rows)) +
-					var(--table-header-height)
+				var(--table-header-height)
 			)
 		);
 		min-height: 280px;
@@ -2324,7 +2329,7 @@ tr.animate-in {
 			calc(100dvh - 230px),
 			calc(
 				(var(--row-height) * var(--table-visible-rows)) +
-					var(--table-header-height)
+				var(--table-header-height)
 			)
 		);
 	}
@@ -2560,6 +2565,8 @@ tr.animate-in {
 .sector-ledger-table-wrap {
 	width: 100%;
 	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: auto;
 	border-top: 1px solid rgba(255, 255, 255, 0.03);
 }
 
@@ -2572,6 +2579,8 @@ tr.animate-in {
 	--sector-row-bg: rgb(12, 12, 12);
 	--sector-row-bg-alt: rgb(18, 18, 18);
 	--sector-row-bg-hover: rgb(20, 20, 20);
+	width: max-content;
+	min-width: 1480px;
 	table-layout: fixed;
 }
 
@@ -2580,7 +2589,7 @@ tr.animate-in {
 }
 
 .sector-col-top-tickers {
-	width: auto;
+	width: 680px;
 }
 
 .sector-col-stocks {
@@ -2723,26 +2732,34 @@ tr.animate-in {
 	display: inline-flex;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 4px;
-	min-width: 0;
-	width: 100%;
-	overflow: hidden;
+	gap: 10px;
+	min-width: max-content;
+	width: max-content;
+	overflow: visible;
 }
 
 .sector-ledger-table td.sector-top-tickers-cell {
 	text-align: left;
 	padding-left: 28px;
-	overflow: hidden;
+	overflow: visible;
 }
 
 .sector-top-ticker-tag {
-	display: block;
+	display: inline-flex;
+	height: 28px;
 	width: 136px;
 	max-width: 136px;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.03);
+	color: var(--ink);
+	font-family: "IBM Plex Sans", sans-serif;
 	font-size: 11px;
-	transform: scale(0.84);
-	transform-origin: left center;
-	--tv-color-platform-background: transparent;
+	font-weight: 700;
+	line-height: 1;
+	text-align: center;
 }
 
 .sector-tone.positive {

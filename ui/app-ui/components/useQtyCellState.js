@@ -34,7 +34,7 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
 			numericDraftRef.current = next;
 		}
 		lastCommitted.current = next;
-	}, [row.quantity]);
+	}, [draftQty, row.quantity]);
 
 	const commit = async (qty) => {
 		if (!canEdit) return;
@@ -170,8 +170,17 @@ export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
 
 	useEffect(() => {
 		return () => {
-			stopHold();
-			clearDebounce();
+			if (holdRef.current.timer) {
+				clearTimeout(holdRef.current.timer);
+			}
+			holdRef.current.isActive = false;
+			holdRef.current.timer = null;
+			holdRef.current.captureTarget = null;
+			holdRef.current.pointerId = null;
+			if (debounceRef.current) {
+				clearTimeout(debounceRef.current);
+				debounceRef.current = null;
+			}
 		};
 	}, []);
 
