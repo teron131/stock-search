@@ -2576,11 +2576,12 @@ tr.animate-in {
 		calc((var(--sector-name-char-count, 24) * 1ch) + 42px),
 		240px
 	);
+	--sector-table-min-width: 1480px;
 	--sector-row-bg: rgb(12, 12, 12);
 	--sector-row-bg-alt: rgb(18, 18, 18);
 	--sector-row-bg-hover: rgb(20, 20, 20);
-	width: max-content;
-	min-width: 1480px;
+	width: 100%;
+	min-width: max(100%, var(--sector-table-min-width));
 	table-layout: fixed;
 }
 
@@ -2589,7 +2590,7 @@ tr.animate-in {
 }
 
 .sector-col-top-tickers {
-	width: 680px;
+	width: auto;
 }
 
 .sector-col-stocks {
@@ -2729,12 +2730,12 @@ tr.animate-in {
 }
 
 .sector-top-tickers {
-	display: inline-flex;
+	display: grid;
+	grid-template-columns: repeat(5, minmax(136px, 1fr));
 	align-items: center;
-	justify-content: flex-start;
 	gap: 10px;
-	min-width: max-content;
-	width: max-content;
+	min-width: 0;
+	width: 100%;
 	overflow: visible;
 }
 
@@ -2745,10 +2746,16 @@ tr.animate-in {
 }
 
 .sector-top-ticker-tag {
+	display: block;
+	width: 100%;
+	max-width: none;
+	font-size: 11px;
+	--tv-color-platform-background: transparent;
+}
+
+.sector-top-ticker-fallback {
 	display: inline-flex;
 	height: 28px;
-	width: 136px;
-	max-width: 136px;
 	align-items: center;
 	justify-content: center;
 	border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2756,7 +2763,6 @@ tr.animate-in {
 	background: rgba(255, 255, 255, 0.03);
 	color: var(--ink);
 	font-family: "IBM Plex Sans", sans-serif;
-	font-size: 11px;
 	font-weight: 700;
 	line-height: 1;
 	text-align: center;

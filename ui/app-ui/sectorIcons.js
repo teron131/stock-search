@@ -149,21 +149,6 @@ const SECTOR_ICON_NAMES = {
 	utilities: "plug",
 };
 
-const SECTOR_DISPLAY_LABELS = {
-	all: "ALL",
-	technology: "TECH",
-	healthcare: "HEALTH",
-	financials: "FINANCIALS",
-	energy: "ENERGY",
-	industrials: "INDUSTRIALS",
-	"consumer discretionary": "CONS DISC",
-	"consumer staples": "CONS STAPLES",
-	"communication services": "COMM SVCS",
-	"real estate": "REAL ESTATE",
-	materials: "MATERIALS",
-	utilities: "UTILITIES",
-};
-
 function normalizeSectorKey(sector) {
 	return String(sector || "")
 		.trim()
@@ -186,10 +171,4 @@ export function getNavIconName(viewName) {
 
 export function getSectorIconName(sector) {
 	return SECTOR_ICON_NAMES[normalizeSectorKey(sector)] || "dot";
-}
-
-export function getSectorDisplayLabel(sector) {
-	return (
-		SECTOR_DISPLAY_LABELS[normalizeSectorKey(sector)] || String(sector || "")
-	);
 }

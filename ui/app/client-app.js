@@ -6,15 +6,7 @@ import { useEffect } from "react";
 import { App } from "../app-ui/App.js";
 import { getIconDefinition, getNavIconName } from "../app-ui/sectorIcons.js";
 import { isTradingViewSymbolError } from "../app-ui/tradingViewSymbols.js";
-import { getPathForView } from "../app-ui/viewRoutes.js";
-
-const NAV_ITEMS = [
-	{ view: "dashboard", label: "DASHBOARD" },
-	{ view: "news", label: "NEWS" },
-	{ view: "sectors", label: "SECTORS" },
-	{ view: "marketmap", label: "MARKET MAP" },
-	{ view: "calendar", label: "ECONOMIC CALENDAR" },
-];
+import { VIEW_ROUTES } from "../app-ui/viewRoutes.js";
 
 function NavIcon({ view }) {
 	const iconDefinition = getIconDefinition(getNavIconName(view));
@@ -120,12 +112,12 @@ export function ClientApp({ initialView = "dashboard" }) {
 					</button>
 				</div>
 				<nav className="main-nav">
-					{NAV_ITEMS.map((item) => (
+					{VIEW_ROUTES.map((item) => (
 						<a
 							key={item.view}
 							className={`nav-item ${item.view === initialView ? "active" : ""}`}
 							data-view={item.view}
-							href={getPathForView(item.view)}
+							href={item.path}
 						>
 							<NavIcon view={item.view} />
 							<span>{item.label}</span>

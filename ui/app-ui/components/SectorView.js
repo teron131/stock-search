@@ -9,7 +9,10 @@ import {
 	getToneClass,
 	renderConditionallyColoredValue,
 } from "../tableStyle.js";
-import { normalizeTickerLabel } from "../tradingViewSymbols.js";
+import {
+	getTradingViewTickerTagSymbol,
+	normalizeTickerLabel,
+} from "../tradingViewSymbols.js";
 
 const SECTOR_ALIAS_MIN_LENGTH = 24;
 
@@ -132,27 +135,47 @@ function renderSortableHeader(label, key, sortKey, sortDirection, setSortKey) {
 }
 
 function renderTopTickerTags(tickers) {
-	const normalizedTickers = Array.isArray(tickers)
+	const tickerTags = Array.isArray(tickers)
 		? tickers
-				.map(normalizeTickerLabel)
-				.filter(Boolean)
+				.map((ticker) => {
+					const label = normalizeTickerLabel(ticker);
+					return {
+						label,
+						symbol: getTradingViewTickerTagSymbol(label, {
+							allowFunds: true,
+						}),
+					};
+				})
+				.filter((ticker) => ticker.label)
 				.slice(0, TOP_TICKER_TAG_LIMIT)
 		: [];
-	if (!normalizedTickers.length) {
+	if (!tickerTags.length) {
 		return null;
 	}
 
 	return html`
 		<span className="sector-top-tickers" aria-label="Top market-cap tickers">
-			${normalizedTickers.map(
-				(ticker) => html`
-					<span
-						key=${ticker}
-						className="sector-top-ticker-tag"
-					>
-						${ticker}
-					</span>
-				`,
+			${tickerTags.map((ticker) =>
+				ticker.symbol
+					? html`
+							<tv-ticker-tag
+								key=${ticker.label}
+								className="sector-top-ticker-tag"
+								symbol=${ticker.symbol}
+								preserve-text
+								hide-background
+								theme="dark"
+								transparent
+							>${ticker.label}</tv-ticker-tag>
+						`
+					: html`
+							<span
+								key=${ticker.label}
+								className="sector-top-ticker-tag sector-top-ticker-fallback"
+							>
+								${ticker.label}
+							</span>
+						`,
 			)}
 		</span>
 	`;

@@ -1,4 +1,5 @@
 const COMMON_US_SYMBOL_PATTERN = /^[A-Z]{1,5}$/;
+const US_SHARE_CLASS_SYMBOL_PATTERN = /^[A-Z]{1,5}\.[A-Z]$/;
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 
 export function normalizeTickerLabel(ticker) {
@@ -50,7 +51,9 @@ export function getTradingViewTickerTagSymbol(input, options = {}) {
 	}
 
 	if (!COMMON_US_SYMBOL_PATTERN.test(normalizedTicker)) {
-		return "";
+		return US_SHARE_CLASS_SYMBOL_PATTERN.test(normalizedTicker)
+			? `NYSE:${normalizedTicker}`
+			: "";
 	}
 
 	return normalizedTicker;

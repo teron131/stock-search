@@ -1,8 +1,7 @@
+import { getMetadataForView } from "../../app-ui/viewRoutes.js";
 import { ClientApp } from "../client-app.js";
 
-export const metadata = {
-	title: "Sectors - Stock Search",
-};
+export const metadata = getMetadataForView("sectors");
 
 export default function SectorsPage() {
 	return <ClientApp initialView="sectors" />;
