@@ -1132,72 +1132,6 @@ td:first-child {
 	display: none;
 }
 
-.btn-image-import-top {
-	height: 36px;
-	width: 36px;
-	padding: 0;
-	justify-content: center;
-	color: var(--accent-text);
-	border: none;
-	background: var(--accent);
-	border-radius: 10px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-	transition:
-		transform 0.15s ease,
-		filter 0.15s ease,
-		box-shadow 0.15s ease;
-}
-
-.btn-icon-top {
-	height: 36px;
-	width: 36px;
-	padding: 0;
-	justify-content: center;
-	color: var(--accent-text);
-	border: none;
-	background: var(--accent);
-	border-radius: 10px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-	transition:
-		transform 0.15s ease,
-		filter 0.15s ease,
-		box-shadow 0.15s ease;
-}
-
-.btn-image-import-top:hover,
-.btn-icon-top:hover {
-	filter: brightness(1.08);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.btn-image-import-top:active,
-.btn-icon-top:active {
-	transform: translateY(1px) scale(0.98);
-}
-
-.btn-icon-top.is-syncing {
-	background: transparent;
-	color: var(--accent);
-	box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.btn-icon-top.is-syncing:hover {
-	background: var(--accent);
-	color: var(--accent-text);
-}
-
-.btn-image-import-top.drag-over {
-	filter: brightness(1.12);
-	box-shadow: 0 0 0 2px rgba(213, 255, 59, 0.3);
-}
-
-.btn-image-import-top:disabled,
-.btn-icon-top:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-	box-shadow: none;
-}
-
 /* TradingView override basics */
 tv-ticker-tag {
 	--tv-color-platform-background: transparent;
@@ -1817,6 +1751,10 @@ body {
 
 .btn-icon-top {
 	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 36px;
 	width: 36px;
 	min-width: 36px;
 	padding: 0;
@@ -1826,6 +1764,16 @@ body {
 	font-size: var(--text-xs);
 	font-weight: 700;
 	letter-spacing: 0.08em;
+}
+
+.btn-icon-top:active {
+	transform: translateY(1px) scale(0.98);
+}
+
+.btn-icon-top:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	box-shadow: none;
 }
 
 .top-bar-right,
@@ -1887,9 +1835,18 @@ body {
 }
 
 #refresh-btn {
+	background: var(--accent);
+	border: 1px solid var(--accent);
+	color: var(--accent-text);
 	box-shadow:
 		inset 0 1px 0 rgba(255, 255, 255, 0.28),
 		0 8px 22px rgba(109, 132, 13, 0.18);
+}
+
+.top-bar-right .btn-icon-top.is-syncing {
+	background: transparent;
+	border-color: var(--accent);
+	color: var(--accent);
 }
 
 .top-bar-right #refresh-btn:hover {

@@ -185,6 +185,13 @@ function statesEqual(a, b) {
 	);
 }
 
+function syncScrollState(setScrollState, scrollEl) {
+	const nextState = getScrollState(scrollEl);
+	setScrollState((currentState) =>
+		statesEqual(currentState, nextState) ? currentState : nextState,
+	);
+}
+
 function getVirtualWindow({ rowCount, start, viewportHeight }) {
 	if (rowCount === 0) {
 		return {
@@ -527,17 +534,11 @@ export function DataTable({
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
 
-		const syncScrollState = () => {
-			const nextState = getScrollState(scrollEl);
-			setScrollState((currentState) =>
-				statesEqual(currentState, nextState) ? currentState : nextState,
-			);
-		};
 		const updateViewportHeight = () => {
 			const nextHeight = scrollEl.clientHeight || VIRTUAL_ROW_HEIGHT_PX;
 			virtualViewportHeightRef.current = nextHeight;
 			setVirtualViewportHeight(nextHeight);
-			syncScrollState();
+			syncScrollState(setScrollState, scrollEl);
 		};
 
 		updateViewportHeight();
@@ -556,10 +557,7 @@ export function DataTable({
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
-		const nextState = getScrollState(scrollEl);
-		setScrollState((currentState) =>
-			statesEqual(currentState, nextState) ? currentState : nextState,
-		);
+		syncScrollState(setScrollState, scrollEl);
 	});
 
 	useEffect(() => {
@@ -582,10 +580,7 @@ export function DataTable({
 	}, []);
 
 	function handleScroll(event) {
-		const nextState = getScrollState(event.currentTarget);
-		setScrollState((currentState) =>
-			statesEqual(currentState, nextState) ? currentState : nextState,
-		);
+		syncScrollState(setScrollState, event.currentTarget);
 
 		const nextScrollTop = event.currentTarget.scrollTop;
 		if (nextScrollTop > 0) {

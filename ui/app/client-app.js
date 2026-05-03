@@ -8,6 +8,32 @@ import { getIconDefinition, getNavIconName } from "../app-ui/sectorIcons.js";
 import { isTradingViewSymbolError } from "../app-ui/tradingViewSymbols.js";
 import { VIEW_ROUTES } from "../app-ui/viewRoutes.js";
 
+const ACTION_ICON_PATHS = {
+	logout: [
+		<path key="door" d="M9 3.5H5.5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1H9" />,
+		<path key="arrow" d="M9.5 8h5" />,
+		<path key="chev" d="M12.5 5.5 15 8l-2.5 2.5" />,
+	],
+	image: [
+		<rect key="frame" x="3" y="3.5" width="10" height="9" rx="1.4" />,
+		<path key="mountain" d="m4.5 10 2.6-2.7 2.1 2 1.2-1.1 2.1 2.3" />,
+		<circle key="sun" cx="10.7" cy="5.8" r="0.9" />,
+	],
+	sync: [
+		<path key="top" d="M12.8 5.3A4.8 4.8 0 0 0 4.2 6.9" />,
+		<path key="topArrow" d="M12.8 3.2v2.1h-2.1" />,
+		<path key="bottom" d="M3.2 10.7a4.8 4.8 0 0 0 8.6-1.6" />,
+		<path key="bottomArrow" d="M3.2 12.8v-2.1h2.1" />,
+	],
+	stop: [<rect key="stop" x="4.5" y="4.5" width="7" height="7" rx="1" />],
+};
+
+const TOP_ACTIONS = [
+	{ id: "logout-btn", label: "Logout", icon: "logout", hidden: true },
+	{ id: "import-image-btn", label: "Import Image", icon: "image" },
+	{ id: "refresh-btn", label: "Sync", icon: "sync" },
+];
+
 function NavIcon({ view }) {
 	const iconDefinition = getIconDefinition(getNavIconName(view));
 	return (
@@ -29,26 +55,6 @@ function NavIcon({ view }) {
 }
 
 function ActionIcon({ name }) {
-	const icons = {
-		logout: [
-			<path key="door" d="M9 3.5H5.5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1H9" />,
-			<path key="arrow" d="M9.5 8h5" />,
-			<path key="chev" d="M12.5 5.5 15 8l-2.5 2.5" />,
-		],
-		image: [
-			<rect key="frame" x="3" y="3.5" width="10" height="9" rx="1.4" />,
-			<path key="mountain" d="m4.5 10 2.6-2.7 2.1 2 1.2-1.1 2.1 2.3" />,
-			<circle key="sun" cx="10.7" cy="5.8" r="0.9" />,
-		],
-		sync: [
-			<path key="top" d="M12.8 5.3A4.8 4.8 0 0 0 4.2 6.9" />,
-			<path key="topArrow" d="M12.8 3.2v2.1h-2.1" />,
-			<path key="bottom" d="M3.2 10.7a4.8 4.8 0 0 0 8.6-1.6" />,
-			<path key="bottomArrow" d="M3.2 12.8v-2.1h2.1" />,
-		],
-		stop: [<rect key="stop" x="4.5" y="4.5" width="7" height="7" rx="1" />],
-	};
-
 	return (
 		<svg
 			aria-hidden="true"
@@ -60,7 +66,7 @@ function ActionIcon({ name }) {
 			strokeLinecap="round"
 			strokeLinejoin="round"
 		>
-			{icons[name] || icons.sync}
+			{ACTION_ICON_PATHS[name] || ACTION_ICON_PATHS.sync}
 		</svg>
 	);
 }
@@ -210,34 +216,19 @@ export function ClientApp({ initialView = "dashboard" }) {
 							tabIndex="-1"
 						/>
 						<div className="action-icon-group">
-							<button
-								type="button"
-								className="btn btn-secondary btn-icon-top"
-								id="logout-btn"
-								aria-label="Logout"
-								data-tooltip="Logout"
-								hidden
-							>
-								<ActionIcon name="logout" />
-							</button>
-							<button
-								type="button"
-								className="btn btn-secondary btn-icon-top"
-								id="import-image-btn"
-								aria-label="Import Image"
-								data-tooltip="Import Image"
-							>
-								<ActionIcon name="image" />
-							</button>
-							<button
-								type="button"
-								className="btn btn-secondary btn-icon-top"
-								id="refresh-btn"
-								aria-label="Sync"
-								data-tooltip="Sync"
-							>
-								<ActionIcon name="sync" />
-							</button>
+							{TOP_ACTIONS.map(({ id, label, icon, hidden }) => (
+								<button
+									key={id}
+									type="button"
+									className="btn btn-secondary btn-icon-top"
+									id={id}
+									aria-label={label}
+									data-tooltip={label}
+									hidden={hidden}
+								>
+									<ActionIcon name={icon} />
+								</button>
+							))}
 						</div>
 					</div>
 				</header>

@@ -101,6 +101,12 @@ async function fetchRuntimeConfig() {
 	}
 }
 
+function syncButtonTooltip(button, tooltip) {
+	button.setAttribute("aria-label", tooltip);
+	button.dataset.tooltip = tooltip;
+	button.removeAttribute("title");
+}
+
 function syncLogoutButton(authSession) {
 	const logoutBtn = document.getElementById("logout-btn");
 	if (!logoutBtn) return;
@@ -115,9 +121,7 @@ function syncLogoutButton(authSession) {
 		shouldShow && authSession?.email
 			? `Logout (${authSession.email})`
 			: "Logout";
-	logoutBtn.setAttribute("aria-label", tooltip);
-	logoutBtn.dataset.tooltip = tooltip;
-	logoutBtn.removeAttribute("title");
+	syncButtonTooltip(logoutBtn, tooltip);
 }
 
 async function importImageFile(file, importImageRef) {
@@ -226,12 +230,7 @@ function syncRefreshButtonState({
 	refreshBtn.classList.toggle("is-syncing", isDashboardSyncing);
 	refreshBtn.dataset.icon = isDashboardSyncing ? "stop" : "sync";
 	refreshBtn.innerHTML = getRefreshIconMarkup(isDashboardSyncing);
-	refreshBtn.setAttribute(
-		"aria-label",
-		isDashboardSyncing ? "Stop syncing" : "Sync",
-	);
-	refreshBtn.dataset.tooltip = isDashboardSyncing ? "Stop syncing" : "Sync";
-	refreshBtn.removeAttribute("title");
+	syncButtonTooltip(refreshBtn, isDashboardSyncing ? "Stop syncing" : "Sync");
 	refreshBtn.setAttribute(
 		"aria-pressed",
 		isDashboardSyncing ? "true" : "false",
