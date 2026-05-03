@@ -151,10 +151,6 @@ function sortRows(rows, col, dir) {
 	return sorted;
 }
 
-function getSortLabel(cols, sortCol) {
-	return cols.find((col) => col.key === sortCol)?.label || sortCol;
-}
-
 function getAriaSort(sortCol, sortDir, key) {
 	if (sortCol !== key) return "none";
 	return sortDir === "asc" ? "ascending" : "descending";
@@ -612,13 +608,6 @@ export function DataTable({
 		});
 	}
 
-	const sortLabel = getSortLabel(cols, sortCol);
-	const scrollHint = scrollState.hasMoreX
-		? "More columns to the right"
-		: scrollState.hasOverflowX
-			? "At horizontal edge"
-			: "All columns visible";
-
 	return html`
 		<div className="table-shell">
 			<div className="table-scroll-hint">Swipe sideways for full factor view</div>
@@ -783,13 +772,6 @@ export function DataTable({
 						}
 					</tbody>
 				</table>
-			</div>
-			<div className="table-footer">
-				<span>${shouldShowLoadingRows ? "Loading rows" : `${sorted.length} rows`}</span>
-				<span>Sorted by ${sortLabel} ${sortDir === "asc" ? "asc" : "desc"}</span>
-				<span className=${scrollState.hasMoreX ? "has-more-x" : ""}>
-					${scrollHint}
-				</span>
 			</div>
 		</div>
 	`;
