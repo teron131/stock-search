@@ -19,16 +19,16 @@
 
 	/* Spatial - Bloomberg Dense */
 	--header-height: 60px;
-	--row-height: 34px;
-	--table-header-height: 44px;
+	--row-height: 28px;
+	--table-header-height: 30px;
 	--table-visible-rows: 25;
 	--ticker-char-count: 6;
 	--table-cell-inline-padding: 10px;
 	--table-first-column-gap: 10px;
 	--table-holdings-inline-padding: 6px;
 	--ticker-column-width: calc(
-		(var(--ticker-char-count) * 1ch) +
-		48px +
+		(var(--ticker-char-count) * 0.82ch) +
+		38px +
 		var(--table-first-column-gap)
 	);
 
@@ -57,15 +57,15 @@
 	--font-mono: "IBM Plex Mono", monospace;
 
 	/* Typography Scale */
-	--text-xs: 11px;
-	--text-sm: 12px;
-	--text-base: 14px;
-	--text-lg: 16px;
-	--text-xl: 18px;
-	--text-title: 22px;
-	--text-title-lg: 28px;
-	--text-display: 32px;
-	--text-hero: 36px;
+	--text-xs: 12px;
+	--text-sm: 13px;
+	--text-base: 15px;
+	--text-lg: 17px;
+	--text-xl: 19px;
+	--text-title: 23px;
+	--text-title-lg: 29px;
+	--text-display: 33px;
+	--text-hero: 37px;
 
 	--shadow-sm: none;
 	--shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -804,7 +804,7 @@ tv-ticker-tag {
 	max-width: 100%;
 	overflow: hidden;
 	font-family: var(--font-sans);
-	font-size: var(--text-base);
+	font-size: var(--text-sm);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -824,7 +824,7 @@ tv-ticker-tag {
 	white-space: nowrap;
 	color: var(--ink);
 	font-size: var(--text-xs);
-	font-weight: 700;
+	font-weight: 600;
 }
 
 th {
@@ -1135,6 +1135,13 @@ td:first-child {
 /* TradingView override basics */
 tv-ticker-tag {
 	--tv-color-platform-background: transparent;
+}
+
+.ticker-tag-compact {
+	height: 24px;
+	width: 128%;
+	transform: scale(0.78);
+	transform-origin: left center;
 }
 
 /* Toast */
@@ -1539,7 +1546,7 @@ tv-ticker-tag {
 /* Force table density */
 .data-table th,
 .data-table td {
-	padding: var(--space-xs);
+	padding: 0 var(--space-xs);
 	font-size: var(--text-xs);
 	border-bottom: 1px solid var(--border);
 	border-right: none;
@@ -1698,6 +1705,11 @@ body {
 .top-bar {
 	padding: 0 18px;
 	background:
+		radial-gradient(
+			circle at 12% 0,
+			rgba(217, 255, 63, 0.07),
+			transparent 34%
+		),
 		linear-gradient(180deg, rgba(14, 14, 14, 0.98), rgba(10, 10, 10, 0.94)),
 		var(--bg-surface);
 	border-bottom-color: var(--border-bright);
@@ -1780,7 +1792,12 @@ body {
 .top-bar-right *,
 .top-bar-right *::before,
 .top-bar-right *::after {
-	transition: none;
+	transition:
+		background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		box-shadow 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-icon-top svg {
@@ -1866,9 +1883,13 @@ body {
 
 .ticker-tape-container {
 	padding: 0;
-	background: rgba(12, 12, 12, 0.9);
+	background:
+		linear-gradient(90deg, rgba(217, 255, 63, 0.045), transparent 28%),
+		rgba(12, 12, 12, 0.9);
 	border-top: none;
 	border-bottom-color: var(--border);
+	position: relative;
+	overflow: hidden;
 }
 
 #ticker-tape-widget {
@@ -1937,9 +1958,14 @@ body {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	padding: 10px 18px;
+	padding: 12px 18px;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 	background:
+		radial-gradient(
+			circle at 100% 50%,
+			rgba(217, 255, 63, 0.055),
+			transparent 28%
+		),
 		linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)),
 		rgba(11, 11, 11, 0.82);
 }
@@ -1981,7 +2007,7 @@ body {
 	display: grid;
 	grid-template-columns: minmax(92px, 108px) minmax(62px, 74px) auto;
 	align-items: stretch;
-	height: 36px;
+	height: 32px;
 	min-width: 0;
 	gap: 0;
 	padding: 0;
@@ -1989,7 +2015,9 @@ body {
 	background:
 		linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(255, 255, 255, 0)),
 		rgba(8, 8, 8, 0.9);
-	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.03),
+		0 10px 28px rgba(0, 0, 0, 0.18);
 }
 
 .quick-add-compact input {
@@ -2034,10 +2062,14 @@ body {
 
 .tabs-header {
 	height: auto;
-	min-height: 54px;
+	min-height: 42px;
 	padding: 0 16px;
-	background: rgba(12, 12, 12, 0.82);
+	background:
+		linear-gradient(90deg, rgba(255, 255, 255, 0.02), transparent 44%),
+		rgba(12, 12, 12, 0.82);
 	border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	justify-content: space-between;
+	gap: 12px;
 }
 
 .tab-group {
@@ -2045,31 +2077,26 @@ body {
 }
 
 .tab-btn {
-	height: 54px;
-	padding: 0 14px;
+	height: 42px;
+	padding: 0 12px;
 	font-family: "IBM Plex Sans", sans-serif;
-	font-size: var(--text-base);
+	font-size: var(--text-sm);
 	font-weight: 600;
-	letter-spacing: 0.06em;
+	letter-spacing: 0.05em;
 	color: var(--ink-ghost);
+	border-top: 1px solid transparent;
 }
 
 .tab-btn.active {
 	color: var(--ink);
+	background: rgba(217, 255, 63, 0.035);
+	border-top-color: rgba(217, 255, 63, 0.18);
 }
 
 .tab-btn.active::after {
 	left: 14px;
 	right: 14px;
 	height: 2px;
-}
-
-.table-status {
-	font-family: "IBM Plex Sans", sans-serif;
-	font-size: var(--text-xs);
-	color: var(--ink-ghost);
-	letter-spacing: 0.06em;
-	white-space: nowrap;
 }
 
 .table-shell {
@@ -2081,7 +2108,7 @@ body {
 .table-wrapper {
 	height: clamp(
 		280px,
-		calc(100dvh - 284px),
+		calc(100dvh - 224px),
 		calc(
 			(var(--row-height) * var(--table-visible-rows)) +
 			var(--table-header-height)
@@ -2090,7 +2117,7 @@ body {
 	min-height: 280px;
 	max-height: clamp(
 		280px,
-		calc(100dvh - 284px),
+		calc(100dvh - 224px),
 		calc(
 			(var(--row-height) * var(--table-visible-rows)) +
 			var(--table-header-height)
@@ -2160,7 +2187,7 @@ body {
 th {
 	height: var(--table-header-height);
 	font-family: "IBM Plex Sans", sans-serif;
-	font-size: var(--text-sm);
+	font-size: var(--text-xs);
 	font-weight: 600;
 	letter-spacing: 0.08em;
 	color: var(--ink-ghost);
@@ -2235,12 +2262,12 @@ th.sorted.desc .sort-indicator::before {
 
 th:first-child,
 td:first-child {
-	padding-left: 14px;
+	padding-left: 10px;
 	background: var(--bg-surface-high);
 }
 
 td {
-	font-size: var(--text-base);
+	font-size: var(--text-xs);
 	color: rgba(255, 255, 255, 0.92);
 }
 
@@ -2376,8 +2403,8 @@ tr.animate-in {
 }
 
 .qty-input {
-	height: 30px;
-	padding: 0 28px 0 10px;
+	height: 24px;
+	padding: 0 26px 0 8px;
 	border-radius: 0;
 	border-color: rgba(255, 255, 255, 0.08);
 	background: rgba(255, 255, 255, 0.02);
@@ -2386,15 +2413,18 @@ tr.animate-in {
 }
 
 .qty-spin-btn {
+	width: 16px;
+	height: 12px;
 	border-radius: 0;
 }
 
 .table-scroll-hint {
 	display: none;
-	padding: 10px 18px 0;
+	padding: 0;
 	font-family: "IBM Plex Sans", sans-serif;
 	font-size: var(--text-sm);
 	color: var(--ink-ghost);
+	white-space: nowrap;
 }
 
 @media (max-width: 900px) {
@@ -2429,15 +2459,10 @@ tr.animate-in {
 		padding-left: 12px;
 	}
 
-	.table-scroll-hint {
-		padding-left: 12px;
-		padding-right: 12px;
-	}
-
 	.table-wrapper {
 		height: clamp(
 			280px,
-			calc(100dvh - 230px),
+			calc(100dvh - 174px),
 			calc(
 				(var(--row-height) * var(--table-visible-rows)) +
 				var(--table-header-height)
@@ -2446,7 +2471,7 @@ tr.animate-in {
 		min-height: 280px;
 		max-height: clamp(
 			280px,
-			calc(100dvh - 230px),
+			calc(100dvh - 174px),
 			calc(
 				(var(--row-height) * var(--table-visible-rows)) +
 				var(--table-header-height)
@@ -2458,8 +2483,8 @@ tr.animate-in {
 @media (max-width: 640px) {
 	.top-bar {
 		height: auto;
-		padding-top: 10px;
-		padding-bottom: 10px;
+		padding-top: 8px;
+		padding-bottom: 8px;
 		align-items: flex-start;
 	}
 
@@ -2479,6 +2504,14 @@ tr.animate-in {
 		max-width: none;
 		width: 100%;
 		text-align: right;
+	}
+
+	.ticker-tape-container {
+		display: none !important;
+	}
+
+	#ticker-tape-view {
+		display: none !important;
 	}
 
 	.sync-status {
@@ -2502,27 +2535,15 @@ tr.animate-in {
 		padding-right: 12px;
 	}
 
-	.dashboard-summary {
-		flex-direction: column;
-		align-items: stretch;
-		gap: 8px;
-	}
-
-	.dashboard-summary-heading {
-		align-items: flex-start;
-	}
-
 	.dashboard-summary-actions {
-		align-items: flex-end;
-		flex-direction: column;
-		gap: 6px;
-		width: 100%;
+		flex: 0 0 auto;
+		margin-left: 0;
 	}
 
 	.quick-add-compact {
-		width: min(232px, 100%);
+		width: min(220px, 100%);
 		min-width: 0;
-		grid-template-columns: minmax(0, 108px) minmax(0, 74px) 48px;
+		grid-template-columns: minmax(0, 96px) minmax(0, 68px) 46px;
 		justify-self: end;
 		margin-left: auto;
 	}
@@ -2542,21 +2563,20 @@ tr.animate-in {
 	}
 
 	.tabs-header {
-		flex-direction: column;
-		align-items: flex-start;
-		justify-content: center;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
 		gap: 8px;
-		padding-top: 10px;
-		padding-bottom: 10px;
+		min-height: 40px;
+		padding-top: 0;
+		padding-bottom: 0;
+		overflow-x: auto;
 	}
 
-	.table-status {
+	.tab-btn {
+		height: 40px;
 		font-size: var(--text-xs);
-	}
-
-	.table-scroll-hint {
-		display: block;
-		padding-bottom: 10px;
+		padding: 0 9px;
 	}
 }
 
@@ -3627,4 +3647,98 @@ tr.animate-in {
 		max-height: 48vh;
 		overflow: hidden;
 	}
+}
+
+/* Cross-route typography normalization. Keep every app surface on the same compact console scale. */
+.sector-view,
+.news-view,
+.sector-view *,
+.news-view * {
+	font-family: var(--font-sans);
+}
+
+.sector-section-label,
+.news-control-label,
+.news-toolbar-status,
+.news-summary-title,
+.news-summary-meta,
+.news-story-age,
+.news-story-source,
+.news-story-tag,
+.news-story-toggle,
+.sector-ledger-status {
+	font-size: var(--text-xs);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	line-height: 1.2;
+	text-transform: uppercase;
+}
+
+.sector-hero-title,
+.news-toolbar-title,
+.sector-ledger-title,
+.news-panel-title,
+.sector-empty-title,
+.news-empty-title {
+	font-size: var(--text-lg);
+	font-weight: 600;
+	letter-spacing: 0;
+	line-height: 1.2;
+}
+
+.sector-empty-copy,
+.news-summary-copy,
+.news-summary-item-text,
+.news-ticker-brief-copy,
+.news-story-summary,
+.news-empty-copy {
+	font-size: var(--text-sm);
+	line-height: 1.5;
+	letter-spacing: 0;
+}
+
+.news-summary-item-topic,
+.news-story-headline,
+.news-ticker-brief-ticker {
+	font-size: var(--text-base);
+	font-weight: 600;
+	letter-spacing: 0;
+	line-height: 1.28;
+}
+
+.sector-ledger-table th,
+.sector-ledger-table td {
+	padding: 0 var(--space-xs);
+	height: var(--row-height);
+	font-size: var(--text-xs);
+	line-height: 1.2;
+}
+
+.sector-ledger-table thead th {
+	height: var(--table-header-height);
+	font-size: var(--text-xs);
+	letter-spacing: 0.08em;
+}
+
+.sector-name {
+	font-size: var(--text-xs);
+	font-weight: 600;
+}
+
+.sector-row-glyph {
+	width: 13px;
+	height: 13px;
+}
+
+.sector-top-ticker-tag {
+	height: 24px;
+	width: 128%;
+	transform: scale(0.78);
+	transform-origin: left center;
+}
+
+.sector-top-ticker-fallback {
+	height: 24px;
+	font-size: var(--text-xs);
+	font-weight: 600;
 }

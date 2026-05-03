@@ -312,21 +312,6 @@ function renderDashboardScreen({
 }) {
 	return html`
 		<div className="tabs-container" id="dashboard-tables">
-			<div className="dashboard-summary">
-				<div className="dashboard-summary-heading">
-					<div className="dashboard-summary-label">Position command</div>
-					<div className="dashboard-summary-copy">
-						Add a ticker or revise an existing quantity.
-					</div>
-				</div>
-				<div className="dashboard-summary-actions">
-					<${QuickAdd}
-						rows=${rows}
-						isUsingDemoData=${isUsingDemoData}
-						onSubmit=${onAddOrUpdate}
-					/>
-				</div>
-			</div>
 			<div className="tabs-header">
 				<div className="tab-group">
 					<button
@@ -350,6 +335,13 @@ function renderDashboardScreen({
 					>
 						EVALUATION
 					</button>
+				</div>
+				<div className="dashboard-summary-actions">
+					<${QuickAdd}
+						rows=${rows}
+						isUsingDemoData=${isUsingDemoData}
+						onSubmit=${onAddOrUpdate}
+					/>
 				</div>
 			</div>
 

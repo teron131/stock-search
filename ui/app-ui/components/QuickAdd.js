@@ -17,15 +17,15 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 
 	const submit = async (e) => {
 		e.preventDefault();
-		if (isUsingDemoData) return;
 
 		setIsSubmitting(true);
 		try {
-			await onSubmit({
+			const result = await onSubmit({
 				ticker,
 				quantity: qty.trim() === "" ? null : qty,
 				existingQuantity: existingQty,
 			});
+			if (!result?.ok) return;
 			setTicker("");
 			setQty("");
 		} finally {
@@ -61,7 +61,13 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
       <button
         type="submit"
         className="btn-add-mini"
-        title=${existingQty != null ? "Update existing position" : "Add new position"}
+        title=${
+					isUsingDemoData
+						? "Demo mode: changes are not saved"
+						: existingQty != null
+							? "Update existing position"
+							: "Add new position"
+				}
         disabled=${isSubmitting}
       >
         ${isSubmitting ? "…" : submitLabel}

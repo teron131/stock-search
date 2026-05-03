@@ -20,7 +20,7 @@ const PLAIN_ALLOCATION_COLUMNS = new Set([
 	"weight_pct",
 	"notional_weight_pct",
 ]);
-const VIRTUAL_ROW_HEIGHT_PX = 34;
+const VIRTUAL_ROW_HEIGHT_PX = 28;
 const VIRTUAL_ROW_OVERSCAN = 6;
 const VIRTUAL_INITIAL_VIEWPORT_ROWS = 18;
 const VIRTUAL_INITIAL_VIEWPORT_HEIGHT =
@@ -380,6 +380,7 @@ function renderCell({
 			</span>`;
 		}
 		return html`<tv-ticker-tag
+			className="ticker-tag-compact"
       symbol=${tradingViewSymbol}
       preserve-text
       hide-change
@@ -605,7 +606,6 @@ export function DataTable({
 
 	return html`
 		<div className="table-shell">
-			<div className="table-scroll-hint">Swipe sideways for full factor view</div>
 			<div
 				ref=${scrollRef}
 				className=${tableWrapperClassName}
