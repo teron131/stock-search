@@ -151,6 +151,44 @@ function sortRows(rows, col, dir) {
 	return sorted;
 }
 
+function getSortLabel(cols, sortCol) {
+	return cols.find((col) => col.key === sortCol)?.label || sortCol;
+}
+
+function getAriaSort(sortCol, sortDir, key) {
+	if (sortCol !== key) return "none";
+	return sortDir === "asc" ? "ascending" : "descending";
+}
+
+function getScrollState(scrollEl) {
+	if (!scrollEl) {
+		return {
+			hasOverflowX: false,
+			isScrolledX: false,
+			hasMoreX: false,
+		};
+	}
+
+	const maxScrollLeft = Math.max(
+		0,
+		scrollEl.scrollWidth - scrollEl.clientWidth,
+	);
+	const scrollLeft = Math.max(0, scrollEl.scrollLeft);
+	return {
+		hasOverflowX: maxScrollLeft > 1,
+		isScrolledX: scrollLeft > 1,
+		hasMoreX: maxScrollLeft - scrollLeft > 1,
+	};
+}
+
+function statesEqual(a, b) {
+	return (
+		a.hasOverflowX === b.hasOverflowX &&
+		a.isScrolledX === b.isScrolledX &&
+		a.hasMoreX === b.hasMoreX
+	);
+}
+
 function getVirtualWindow({ rowCount, start, viewportHeight }) {
 	if (rowCount === 0) {
 		return {
@@ -417,6 +455,7 @@ export function DataTable({
 	onSetQuantity,
 	colorStandards = null,
 	isUsingDemoData = false,
+	isLoading = false,
 	animateRows = true,
 }) {
 	const scrollRef = useRef(null);
@@ -428,6 +467,7 @@ export function DataTable({
 	const [virtualViewportHeight, setVirtualViewportHeight] = useState(
 		VIRTUAL_INITIAL_VIEWPORT_HEIGHT,
 	);
+	const [scrollState, setScrollState] = useState(() => getScrollState(null));
 	const cols = COLS[tab];
 	const isEvaluationTab = tab === "evaluations";
 
@@ -450,6 +490,8 @@ export function DataTable({
 		animateRows && virtualStart === 0 && !hasScrolledRef.current;
 
 	const hasRows = sorted.length > 0;
+	const shouldShowLoadingRows = isLoading && !hasRows;
+	const skeletonRows = useMemo(() => Array.from({ length: 10 }), []);
 	const tickerCharCount = getColumnCharCount(
 		sorted.map((row) => getTickerDisplayValue(row.ticker)),
 		"TICKER",
@@ -471,6 +513,9 @@ export function DataTable({
 	const tableWrapperClassName = [
 		"table-wrapper data-table-scroll",
 		isEvaluationTab ? "table-wrapper-evaluations" : "",
+		scrollState.hasOverflowX ? "has-overflow-x" : "",
+		scrollState.isScrolledX ? "is-scrolled-x" : "",
+		scrollState.hasMoreX ? "has-more-x" : "",
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -486,10 +531,17 @@ export function DataTable({
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
 
+		const syncScrollState = () => {
+			const nextState = getScrollState(scrollEl);
+			setScrollState((currentState) =>
+				statesEqual(currentState, nextState) ? currentState : nextState,
+			);
+		};
 		const updateViewportHeight = () => {
 			const nextHeight = scrollEl.clientHeight || VIRTUAL_ROW_HEIGHT_PX;
 			virtualViewportHeightRef.current = nextHeight;
 			setVirtualViewportHeight(nextHeight);
+			syncScrollState();
 		};
 
 		updateViewportHeight();
@@ -504,6 +556,15 @@ export function DataTable({
 			);
 		};
 	}, []);
+
+	useEffect(() => {
+		const scrollEl = scrollRef.current;
+		if (!scrollEl) return;
+		const nextState = getScrollState(scrollEl);
+		setScrollState((currentState) =>
+			statesEqual(currentState, nextState) ? currentState : nextState,
+		);
+	});
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -525,6 +586,11 @@ export function DataTable({
 	}, []);
 
 	function handleScroll(event) {
+		const nextState = getScrollState(event.currentTarget);
+		setScrollState((currentState) =>
+			statesEqual(currentState, nextState) ? currentState : nextState,
+		);
+
 		const nextScrollTop = event.currentTarget.scrollTop;
 		if (nextScrollTop > 0) {
 			hasScrolledRef.current = true;
@@ -545,6 +611,13 @@ export function DataTable({
 			setVirtualStart(nextStart);
 		});
 	}
+
+	const sortLabel = getSortLabel(cols, sortCol);
+	const scrollHint = scrollState.hasMoreX
+		? "More columns to the right"
+		: scrollState.hasOverflowX
+			? "At horizontal edge"
+			: "All columns visible";
 
 	return html`
 		<div className="table-shell">
@@ -591,14 +664,41 @@ export function DataTable({
 									key=${c.key}
 									data-sort=${c.key}
 									className=${`${columnClassName} ${sortedClass}`.trim()}
-									onClick=${() => onSort(c.key)}
+									aria-sort=${getAriaSort(sortCol, sortDir, c.key)}
 								>
-									${c.label}
+									<button
+										type="button"
+										className="table-sort-btn"
+										onClick=${() => onSort(c.key)}
+									>
+										<span>${c.label}</span>
+										<span className="sort-indicator" aria-hidden="true"></span>
+									</button>
 								</th>`;
 							})}
 						</tr>
 					</thead>
 					<tbody>
+						${
+							shouldShowLoadingRows
+								? skeletonRows.map(
+										(_, rowIndex) => html`<tr
+											key=${`loading-${rowIndex}`}
+											className="table-skeleton-row"
+										>
+											${cols.map(
+												(col, colIndex) => html`<td key=${col.key}>
+													<span
+														className=${`table-skeleton-cell ${
+															colIndex === 0 ? "is-ticker" : ""
+														}`}
+													></span>
+												</td>`,
+											)}
+										</tr>`,
+									)
+								: null
+						}
 						${
 							hasRows
 								? html`
@@ -666,7 +766,7 @@ export function DataTable({
 								: null
 						}
 						${
-							hasRows
+							hasRows || shouldShowLoadingRows
 								? null
 								: html`
 										<tr key="empty-row" className="table-empty-row">
@@ -683,6 +783,13 @@ export function DataTable({
 						}
 					</tbody>
 				</table>
+			</div>
+			<div className="table-footer">
+				<span>${shouldShowLoadingRows ? "Loading rows" : `${sorted.length} rows`}</span>
+				<span>Sorted by ${sortLabel} ${sortDir === "asc" ? "asc" : "desc"}</span>
+				<span className=${scrollState.hasMoreX ? "has-more-x" : ""}>
+					${scrollHint}
+				</span>
 			</div>
 		</div>
 	`;

@@ -195,6 +195,13 @@ function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 	tapeView.style.height = "0";
 }
 
+function getRefreshIconMarkup(isSyncing) {
+	if (isSyncing) {
+		return `<svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg>`;
+	}
+	return `<svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 5.3A4.8 4.8 0 0 0 4.2 6.9"></path><path d="M12.8 3.2v2.1h-2.1"></path><path d="M3.2 10.7a4.8 4.8 0 0 0 8.6-1.6"></path><path d="M3.2 12.8v-2.1h2.1"></path></svg>`;
+}
+
 function syncRefreshButtonState({
 	view,
 	isPortfolioSyncing,
@@ -214,8 +221,9 @@ function syncRefreshButtonState({
 	}
 	if (!refreshBtn) return;
 
-	refreshBtn.textContent = isDashboardSyncing ? "■" : "SYNC";
 	refreshBtn.classList.toggle("is-syncing", isDashboardSyncing);
+	refreshBtn.dataset.icon = isDashboardSyncing ? "stop" : "sync";
+	refreshBtn.innerHTML = getRefreshIconMarkup(isDashboardSyncing);
 	refreshBtn.setAttribute(
 		"aria-label",
 		isDashboardSyncing ? "Stop syncing" : "Sync",
@@ -300,6 +308,7 @@ function renderDashboardScreen({
 	colorStandards,
 	isUsingDemoData,
 	isBackgroundLoading,
+	isLoading,
 	onAddOrUpdate,
 }) {
 	return html`
@@ -355,6 +364,7 @@ function renderDashboardScreen({
 				onSetQuantity=${onSetQuantity}
 				colorStandards=${colorStandards}
 				isUsingDemoData=${isUsingDemoData}
+				isLoading=${isLoading}
 				animateRows=${!isBackgroundLoading}
 			/>
 		</div>
@@ -850,6 +860,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		colorStandards,
 		isUsingDemoData,
 		isBackgroundLoading,
+		isLoading,
 		onAddOrUpdate,
 	});
 }

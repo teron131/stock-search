@@ -28,6 +28,43 @@ function NavIcon({ view }) {
 	);
 }
 
+function ActionIcon({ name }) {
+	const icons = {
+		logout: [
+			<path key="door" d="M9 3.5H5.5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1H9" />,
+			<path key="arrow" d="M9.5 8h5" />,
+			<path key="chev" d="M12.5 5.5 15 8l-2.5 2.5" />,
+		],
+		image: [
+			<rect key="frame" x="3" y="3.5" width="10" height="9" rx="1.4" />,
+			<path key="mountain" d="m4.5 10 2.6-2.7 2.1 2 1.2-1.1 2.1 2.3" />,
+			<circle key="sun" cx="10.7" cy="5.8" r="0.9" />,
+		],
+		sync: [
+			<path key="top" d="M12.8 5.3A4.8 4.8 0 0 0 4.2 6.9" />,
+			<path key="topArrow" d="M12.8 3.2v2.1h-2.1" />,
+			<path key="bottom" d="M3.2 10.7a4.8 4.8 0 0 0 8.6-1.6" />,
+			<path key="bottomArrow" d="M3.2 12.8v-2.1h2.1" />,
+		],
+		stop: [<rect key="stop" x="4.5" y="4.5" width="7" height="7" rx="1" />],
+	};
+
+	return (
+		<svg
+			aria-hidden="true"
+			focusable="false"
+			viewBox="0 0 16 16"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.35"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			{icons[name] || icons.sync}
+		</svg>
+	);
+}
+
 function useSlideMenu() {
 	useEffect(() => {
 		const menuOpenBtn = document.getElementById("menu-open-btn");
@@ -180,7 +217,7 @@ export function ClientApp({ initialView = "dashboard" }) {
 								title="Logout"
 								hidden
 							>
-								OUT
+								<ActionIcon name="logout" />
 							</button>
 							<button
 								type="button"
@@ -188,7 +225,7 @@ export function ClientApp({ initialView = "dashboard" }) {
 								id="import-image-btn"
 								title="Import Image"
 							>
-								IMG
+								<ActionIcon name="image" />
 							</button>
 							<button
 								type="button"
@@ -196,7 +233,7 @@ export function ClientApp({ initialView = "dashboard" }) {
 								id="refresh-btn"
 								title="Sync"
 							>
-								SYNC
+								<ActionIcon name="sync" />
 							</button>
 						</div>
 					</div>
