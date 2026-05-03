@@ -1,14 +1,66 @@
 /** CLI for calling the Stock Search MCP tools in-process. */
 
 import { mcp } from "./mcp/index.js";
-import { commandName, type JsonValue, type OpenApiTool } from "./mcp/tools.js";
+import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
+
+type CliCommand = {
+	command: string;
+	toolName: string;
+	description: string;
+};
+
+export const CLI_COMMANDS: readonly CliCommand[] = [
+	{
+		command: "stocks",
+		toolName: "get_stock_stats",
+		description: "Return flattened stats for one or many tickers.",
+	},
+	{
+		command: "sectors",
+		toolName: "sectors_api_sectors_get",
+		description: "Return the current StockAnalysis sector snapshot.",
+	},
+	{
+		command: "news",
+		toolName: "get_stock_news",
+		description: "Return recent news articles for a ticker.",
+	},
+	{
+		command: "evaluate",
+		toolName: "evaluate_stock",
+		description: "Return the evaluation payload for a ticker.",
+	},
+];
 
 const CLI_NAMESPACE_KEYS = new Set([
 	"command",
 	"_builtin",
 	"_tool_name",
 	"compact",
+	"pretty",
 ]);
+
+const STOCK_STATS_FIELDS = [
+	"ticker",
+	"price",
+	"change_percent_1d",
+	"market_cap",
+	"pe",
+	"pe_forward",
+	"peg",
+	"beta",
+	"iv",
+	"rsi",
+	"change_percent_1m",
+	"change_percent_3m",
+	"change_percent_6m",
+	"change_percent_1y",
+	"median_upside",
+	"revenue_growth",
+	"gross_margin",
+	"debt_to_equity",
+	"free_cash_flow",
+] as const;
 
 function parseBool(value: string): boolean {
 	const normalized = value.trim().toLowerCase();
@@ -60,6 +112,21 @@ function jsonArgument(value: string): unknown {
 	}
 }
 
+function arrayArgument(value: string): unknown[] {
+	const trimmed = value.trim();
+	if (trimmed.startsWith("[")) {
+		const parsed = jsonArgument(trimmed);
+		if (!Array.isArray(parsed)) {
+			throw new Error(`Expected a JSON array: ${value}`);
+		}
+		return parsed;
+	}
+	return trimmed
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
 function asJsonValue(value: unknown): JsonValue {
 	return JSON.parse(JSON.stringify(value, null, 0)) as JsonValue;
 }
@@ -76,31 +143,39 @@ function parseArgumentValue(
 	if (schemaType === "boolean") {
 		return parseBool(value);
 	}
-	if (schemaType === "array" || schemaType === "object") {
+	if (schemaType === "array") {
+		return arrayArgument(value);
+	}
+	if (schemaType === "object") {
 		return jsonArgument(value);
 	}
 	return value;
+}
+
+export function resolveCliToolName(command: string): string | undefined {
+	const cliCommand = CLI_COMMANDS.find((item) => item.command === command);
+	return cliCommand?.toolName;
 }
 
 function getToolByCommand(
 	command: string,
 	tools: OpenApiTool[],
 ): OpenApiTool | undefined {
-	return tools.find((tool) => commandName(tool.name) === command);
+	const toolName = resolveCliToolName(command);
+	return toolName ? tools.find((tool) => tool.name === toolName) : undefined;
 }
 
-function printToolList(tools: OpenApiTool[]): void {
-	for (const tool of tools) {
-		const description = tool.description ?? "";
-		console.log(`${commandName(tool.name)}\t${description}`.trimEnd());
+function printCommandList(): void {
+	for (const cliCommand of CLI_COMMANDS) {
+		console.log(`${cliCommand.command}\t${cliCommand.description}`);
 	}
 }
 
 function parseToolArguments(
 	tool: OpenApiTool,
 	argv: string[],
-): { compact: boolean; arguments: Record<string, unknown> } {
-	const compact = argv.includes("--compact");
+): { pretty: boolean; arguments: Record<string, unknown> } {
+	const pretty = argv.includes("--pretty");
 	const parameters =
 		tool.parameters && typeof tool.parameters === "object"
 			? tool.parameters
@@ -127,9 +202,7 @@ function parseToolArguments(
 			const parameterName = token.slice(2).replaceAll("-", "_");
 			const parameterSchema = properties[parameterName];
 			if (!parameterSchema) {
-				throw new Error(
-					`Unknown option for ${commandName(tool.name)}: ${token}`,
-				);
+				throw new Error(`Unknown option for ${tool.name}: ${token}`);
 			}
 			const normalizedSchema = normalizeSchema(parameterSchema);
 			if (normalizedSchema.type === "boolean") {
@@ -161,27 +234,122 @@ function parseToolArguments(
 		);
 	});
 
+	const unusedPositionals = remainingPositionals.slice(
+		orderedRequiredNames.length,
+	);
+	if (
+		unusedPositionals.length > 0 &&
+		values.tickers === undefined &&
+		properties.tickers
+	) {
+		values.tickers = unusedPositionals;
+	}
+
 	return {
-		compact,
+		pretty,
 		arguments: values,
 	};
 }
 
-function printPayload(payload: JsonValue, compact: boolean): void {
-	console.log(JSON.stringify(payload, null, compact ? undefined : 2));
+function printPayload(payload: JsonValue, pretty: boolean): void {
+	console.log(JSON.stringify(payload, null, pretty ? 2 : undefined));
+}
+
+function stockStatsPayload(row: JsonValue): JsonValue {
+	if (!row || typeof row !== "object" || Array.isArray(row)) {
+		return row;
+	}
+
+	const values = row as Record<string, JsonValue>;
+	const stats = Object.fromEntries(
+		STOCK_STATS_FIELDS.filter((field) => Object.hasOwn(values, field)).map(
+			(field) => [field, values[field]],
+		),
+	);
+	return stats as JsonValue;
+}
+
+function parseStocksArguments(argv: string[]): {
+	pretty: boolean;
+	tickers: string[];
+	source?: "auto" | "live" | "cache";
+} {
+	const pretty = argv.includes("--pretty");
+	const tickers: string[] = [];
+	let source: "auto" | "live" | "cache" | undefined;
+
+	for (let index = 0; index < argv.length; index += 1) {
+		const token = argv[index];
+		if (!token || CLI_NAMESPACE_KEYS.has(token.replace(/^--/, ""))) {
+			continue;
+		}
+		if (token === "--source") {
+			const rawSource = argv[index + 1];
+			if (
+				rawSource !== "auto" &&
+				rawSource !== "live" &&
+				rawSource !== "cache"
+			) {
+				throw new Error("Invalid source. Use auto, live, or cache.");
+			}
+			source = rawSource;
+			index += 1;
+			continue;
+		}
+		if (token.startsWith("--")) {
+			throw new Error(`Unknown option for stocks: ${token}`);
+		}
+		tickers.push(...arrayArgument(token).map((value) => String(value)));
+	}
+
+	if (tickers.length === 0) {
+		throw new Error("At least one ticker is required.");
+	}
+
+	return { pretty, tickers, source };
+}
+
+async function callStocksCommand(argv: string[]): Promise<{
+	pretty: boolean;
+	payload: JsonValue;
+}> {
+	const { pretty, tickers, source } = parseStocksArguments(argv);
+	const entries = await Promise.all(
+		tickers.map(async (ticker) => {
+			const payload = await mcp.callTool("get_stock_stats", {
+				ticker,
+				...(source ? { source } : {}),
+			});
+			const content = payload.structuredContent;
+			const row =
+				content &&
+				typeof content === "object" &&
+				!Array.isArray(content) &&
+				"row" in content
+					? (content as Record<string, JsonValue>).row
+					: content;
+			return [String(ticker).toUpperCase(), stockStatsPayload(row)] as const;
+		}),
+	);
+
+	return { pretty, payload: Object.fromEntries(entries) as JsonValue };
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
 	const tools = await mcp.listTools();
 	const [command, ...rest] = argv;
 	if (!command) {
-		throw new Error(
-			"A command is required. Use list-tools to inspect the CLI.",
-		);
+		throw new Error("A command is required. Use commands to inspect the CLI.");
 	}
 
-	if (command === "list-tools") {
-		printToolList(tools);
+	if (command === "commands") {
+		printCommandList();
+		return;
+	}
+
+	if (command === "stocks") {
+		const { pretty, payload } = await callStocksCommand(rest);
+		printPayload(payload, pretty);
 		return;
 	}
 
@@ -190,11 +358,11 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 		throw new Error(`Unknown command: ${command}`);
 	}
 
-	const { compact, arguments: toolArguments } = parseToolArguments(tool, rest);
+	const { pretty, arguments: toolArguments } = parseToolArguments(tool, rest);
 	const payload = await mcp.callTool(tool.name, toolArguments);
 	printPayload(
 		payload.structuredContent ?? asJsonValue(payload.content),
-		compact,
+		pretty,
 	);
 }
 

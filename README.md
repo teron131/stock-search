@@ -159,15 +159,18 @@ The MCP server currently exposes tools for:
 
 ## CLI
 
-The same MCP-backed tool set is also available as a local CLI.
+The local CLI exposes only the useful human-facing endpoints. `stocks` returns compact scalar stock stats and accepts either one ticker or many tickers.
 
 Run it with:
 
 ```bash
-pnpm run cli -- list-tools
-pnpm run cli -- get-portfolio --scope priority
-pnpm run cli -- get-stock-stats NVDA --source cache
-pnpm run cli -- evaluate-stock NVDA
+pnpm run cli commands
+pnpm run cli stocks NVDA
+pnpm run cli stocks NVDA MSFT
+pnpm run cli stocks NVDA,MSFT --source live
+pnpm run cli sectors
+pnpm run cli news NVDA
+pnpm run cli evaluate NVDA
 ```
 
-The CLI discovers the MCP tools at runtime and maps them to kebab-case subcommands, so it stays aligned with the MCP surface.
+JSON output is compact by default; pass `--pretty` for indented output.
