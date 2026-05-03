@@ -111,11 +111,13 @@ function syncLogoutButton(authSession) {
 		Boolean(authSession?.authenticated);
 
 	logoutBtn.hidden = !shouldShow;
-	if (shouldShow && authSession?.email) {
-		logoutBtn.title = `Logout (${authSession.email})`;
-	} else {
-		logoutBtn.title = "Logout";
-	}
+	const tooltip =
+		shouldShow && authSession?.email
+			? `Logout (${authSession.email})`
+			: "Logout";
+	logoutBtn.setAttribute("aria-label", tooltip);
+	logoutBtn.dataset.tooltip = tooltip;
+	logoutBtn.removeAttribute("title");
 }
 
 async function importImageFile(file, importImageRef) {
@@ -228,10 +230,8 @@ function syncRefreshButtonState({
 		"aria-label",
 		isDashboardSyncing ? "Stop syncing" : "Sync",
 	);
-	refreshBtn.setAttribute(
-		"title",
-		isDashboardSyncing ? "Stop syncing" : "Sync",
-	);
+	refreshBtn.dataset.tooltip = isDashboardSyncing ? "Stop syncing" : "Sync";
+	refreshBtn.removeAttribute("title");
 	refreshBtn.setAttribute(
 		"aria-pressed",
 		isDashboardSyncing ? "true" : "false",

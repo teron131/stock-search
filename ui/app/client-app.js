@@ -214,7 +214,8 @@ export function ClientApp({ initialView = "dashboard" }) {
 								type="button"
 								className="btn btn-secondary btn-icon-top"
 								id="logout-btn"
-								title="Logout"
+								aria-label="Logout"
+								data-tooltip="Logout"
 								hidden
 							>
 								<ActionIcon name="logout" />
@@ -223,7 +224,8 @@ export function ClientApp({ initialView = "dashboard" }) {
 								type="button"
 								className="btn btn-secondary btn-icon-top"
 								id="import-image-btn"
-								title="Import Image"
+								aria-label="Import Image"
+								data-tooltip="Import Image"
 							>
 								<ActionIcon name="image" />
 							</button>
@@ -231,7 +233,8 @@ export function ClientApp({ initialView = "dashboard" }) {
 								type="button"
 								className="btn btn-secondary btn-icon-top"
 								id="refresh-btn"
-								title="Sync"
+								aria-label="Sync"
+								data-tooltip="Sync"
 							>
 								<ActionIcon name="sync" />
 							</button>
