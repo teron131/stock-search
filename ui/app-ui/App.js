@@ -336,7 +336,7 @@ function renderDashboardScreen({
 						EVALUATION
 					</button>
 				</div>
-				<div className="dashboard-summary-actions">
+				<div className="dashboard-tabs-actions">
 					<${QuickAdd}
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
