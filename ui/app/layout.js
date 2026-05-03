@@ -5,7 +5,7 @@ export const metadata = {
 	title: "Stock Search",
 	description: "Portfolio dashboard and stock research workspace.",
 	icons: {
-		icon: "/logo.png?v=4",
+		icon: "/logo.png",
 	},
 };
 

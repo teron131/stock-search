@@ -27,7 +27,9 @@
 		"preserver:typecheck": "pnpm run llm-harness:build",
 		"server:typecheck": "tsc --noEmit",
 		"server:test": "vitest run --root . server/test",
+		"preui:dev": "mkdir -p ui/public && cp ui/logo.png ui/public/logo.png",
 		"ui:dev": "next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
+		"preui:build": "mkdir -p ui/public && cp ui/logo.png ui/public/logo.png",
 		"ui:build": "next build ui && rm -rf ui/dist && cp -R ui/out ui/dist",
 		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/dist",
 		"build": "pnpm run ui:build && pnpm run server:typecheck"
