@@ -3,14 +3,13 @@
 import type { BackendStore, StockEntry } from "./api/data-store.js";
 import { parseCacheTimestamp } from "./cache.js";
 import { PortfolioConfig } from "./config.js";
-import { mergeAndNormalizeMonetaryFields } from "./monetary-fields.js";
-import { nowIso, normalizeTicker } from "./utils.js";
 import {
 	fetchStockAnalysisFinancials,
 	fetchStockAnalysisStatistics,
 	fetchYahooIndicators,
 	fetchYahooSymbolMetadata,
 } from "./indicators.js";
+import { mergeAndNormalizeMonetaryFields } from "./monetary-fields.js";
 import {
 	BLOCKING_AUTO_FAMILIES,
 	FAMILY_FIELDS,
@@ -19,6 +18,7 @@ import {
 	STAT_FAMILIES,
 	type StatsFamily,
 } from "./stats-families.js";
+import { normalizeTicker, nowIso } from "./utils.js";
 
 export type StatsResolutionMode = "auto" | "live" | "cache";
 
@@ -133,7 +133,9 @@ function hasFamilyPayload(
 	row: Record<string, unknown>,
 	family: StatsFamily,
 ): boolean {
-	return FAMILY_FIELDS[family].some((field) => hasMeaningfulPayload(row[field]));
+	return FAMILY_FIELDS[family].some((field) =>
+		hasMeaningfulPayload(row[field]),
+	);
 }
 
 function chooseCachedSnapshot(
@@ -493,7 +495,10 @@ export async function resolveTickerStats(
 			persistedRow,
 			stockEntry,
 		);
-		if (families[family].timestamp != null && Object.keys(families[family].row).length > 0) {
+		if (
+			families[family].timestamp != null &&
+			Object.keys(families[family].row).length > 0
+		) {
 			Object.assign(
 				persistedRow,
 				mergeFamilyRow(
@@ -520,7 +525,11 @@ export async function resolveTickerStatsMap(
 	mode: StatsResolutionMode,
 	stockEntries?: Record<string, StockEntry>,
 ): Promise<Record<string, StatsResolutionResult>> {
-	const unique = [...new Set(tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean))];
+	const unique = [
+		...new Set(
+			tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean),
+		),
+	];
 	const prefetchedStocks =
 		stockEntries ?? (await store.loadStocksByTickers(unique));
 	const results = await mapWithConcurrency(
@@ -529,7 +538,12 @@ export async function resolveTickerStatsMap(
 		async (ticker) =>
 			[
 				ticker,
-				await resolveTickerStats(store, ticker, mode, prefetchedStocks[ticker] ?? null),
+				await resolveTickerStats(
+					store,
+					ticker,
+					mode,
+					prefetchedStocks[ticker] ?? null,
+				),
 			] as const,
 	);
 	return Object.fromEntries(results);

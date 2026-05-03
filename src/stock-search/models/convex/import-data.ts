@@ -4,17 +4,17 @@ import { config as loadDotenv } from "dotenv";
 
 import { DATA_SQLITE_PATH } from "../../config.js";
 import { SQLiteStore } from "../../sqlite-store.js";
+import { ConvexHttpClient } from "./client.js";
+import {
+	normalizePortfolioPositions,
+	stockMapToRows,
+} from "./convex-schemas.js";
 import {
 	CONVEX_META_SET,
 	CONVEX_PORTFOLIO_SET,
 	CONVEX_SECTORS_SET,
 	CONVEX_STOCK_REPLACE_ALL,
 } from "./function-names.js";
-import { ConvexHttpClient } from "./client.js";
-import {
-	normalizePortfolioPositions,
-	stockMapToRows,
-} from "./convex-schemas.js";
 
 const STATS_GENERATED_AT_KEY = "stats_generated_at";
 

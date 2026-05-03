@@ -1,9 +1,6 @@
 import { mkdirSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
-
-import { normalizeTicker } from "./utils.js";
-import { normalizeStockIndicators } from "./models/schemas.js";
+import { DatabaseSync } from "node:sqlite";
 import type {
 	BackendStore,
 	CachedNewsRow,
@@ -11,8 +8,10 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "./api/data-store.js";
-import { normalizeSectorSnapshot } from "./data-sources/stockanalysis/sector-cache.js";
 import type { StockAnalysisSectorSnapshot } from "./data-sources/stockanalysis/index.js";
+import { normalizeSectorSnapshot } from "./data-sources/stockanalysis/sector-cache.js";
+import { normalizeStockIndicators } from "./models/schemas.js";
+import { normalizeTicker } from "./utils.js";
 
 const SECTOR_SNAPSHOT_META_KEY = "sector_snapshot";
 
@@ -112,11 +111,11 @@ export class SQLiteStore implements BackendStore {
 				`,
 			)
 			.all() as Array<{
-				ticker: string;
-				indicators_json: string;
-				evaluation_json: string;
-				labels_json: string;
-			}>;
+			ticker: string;
+			indicators_json: string;
+			evaluation_json: string;
+			labels_json: string;
+		}>;
 
 		const stocks: Record<string, StockEntry> = {};
 		for (const row of rows) {
@@ -135,8 +134,12 @@ export class SQLiteStore implements BackendStore {
 		return stocks;
 	}
 
-	async loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>> {
-		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+	async loadStocksByTickers(
+		tickers: string[],
+	): Promise<Record<string, StockEntry>> {
+		const normalizedTickers = [
+			...new Set(tickers.map(normalizeTicker).filter(Boolean)),
+		];
 		if (normalizedTickers.length === 0) {
 			return {};
 		}
@@ -152,11 +155,11 @@ export class SQLiteStore implements BackendStore {
 				`,
 			)
 			.all(...normalizedTickers) as Array<{
-				ticker: string;
-				indicators_json: string;
-				evaluation_json: string;
-				labels_json: string;
-			}>;
+			ticker: string;
+			indicators_json: string;
+			evaluation_json: string;
+			labels_json: string;
+		}>;
 
 		const stocks: Record<string, StockEntry> = {};
 		for (const row of rows) {
@@ -189,13 +192,13 @@ export class SQLiteStore implements BackendStore {
 				`,
 			)
 			.get(tickerSymbol) as
-				| {
-						ticker: string;
-						indicators_json: string;
-						evaluation_json: string;
-						labels_json: string;
-				  }
-				| undefined;
+			| {
+					ticker: string;
+					indicators_json: string;
+					evaluation_json: string;
+					labels_json: string;
+			  }
+			| undefined;
 
 		if (!row) {
 			return null;
@@ -231,12 +234,12 @@ export class SQLiteStore implements BackendStore {
 					`,
 				)
 				.get(ticker) as
-					| {
-							indicators_json: string;
-							evaluation_json: string;
-							labels_json: string;
-					  }
-					| undefined;
+				| {
+						indicators_json: string;
+						evaluation_json: string;
+						labels_json: string;
+				  }
+				| undefined;
 
 			const indicators = normalizeStockIndicators(
 				row.indicators ??
@@ -270,7 +273,9 @@ export class SQLiteStore implements BackendStore {
 	}
 
 	async deleteStocksByTickers(tickers: string[]): Promise<void> {
-		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+		const normalizedTickers = [
+			...new Set(tickers.map(normalizeTicker).filter(Boolean)),
+		];
 		if (normalizedTickers.length === 0) {
 			return;
 		}
@@ -292,11 +297,11 @@ export class SQLiteStore implements BackendStore {
 				`,
 			)
 			.all(key) as Array<{
-				key: string;
-				ticker: string;
-				row_json: string;
-				updated_at: number;
-			}>;
+			key: string;
+			ticker: string;
+			row_json: string;
+			updated_at: number;
+		}>;
 
 		return rows.map((row) => ({
 			key: row.key,
@@ -307,7 +312,9 @@ export class SQLiteStore implements BackendStore {
 	}
 
 	async saveNews(rows: CachedNewsRow[], key = "default"): Promise<void> {
-		const deleteStatement = this.database.prepare("DELETE FROM news WHERE key = ?");
+		const deleteStatement = this.database.prepare(
+			"DELETE FROM news WHERE key = ?",
+		);
 		const insertStatement = this.database.prepare(
 			`
 			INSERT INTO news (key, ticker, row_json, updated_at)
@@ -330,7 +337,9 @@ export class SQLiteStore implements BackendStore {
 	}
 
 	async deleteNewsByTickers(tickers: string[], key = "default"): Promise<void> {
-		const normalizedTickers = [...new Set(tickers.map(normalizeTicker).filter(Boolean))];
+		const normalizedTickers = [
+			...new Set(tickers.map(normalizeTicker).filter(Boolean)),
+		];
 		if (normalizedTickers.length === 0) {
 			return;
 		}
@@ -341,7 +350,9 @@ export class SQLiteStore implements BackendStore {
 			.run(key, ...normalizedTickers);
 	}
 
-	async loadSectorSnapshot(_key = "default"): Promise<StockAnalysisSectorSnapshot | null> {
+	async loadSectorSnapshot(
+		_key = "default",
+	): Promise<StockAnalysisSectorSnapshot | null> {
 		return normalizeSectorSnapshot(
 			jsonParse<unknown>(
 				this.database

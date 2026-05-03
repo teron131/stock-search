@@ -49,7 +49,10 @@ type YahooFundamentalsEntry = {
 		type?: string[];
 	};
 	timestamp?: number[];
-} & Record<string, YahooFundamentalsPoint[] | { type?: string[] } | number[] | undefined>;
+} & Record<
+	string,
+	YahooFundamentalsPoint[] | { type?: string[] } | number[] | undefined
+>;
 
 type YahooFundamentalsResponse = {
 	timeseries?: {
@@ -193,7 +196,10 @@ function subtractMonths(date: Date, months: number): Date {
 	);
 }
 
-function lastCloseAtOrBefore(series: DatedClose[], target: Date): number | null {
+function lastCloseAtOrBefore(
+	series: DatedClose[],
+	target: Date,
+): number | null {
 	for (let index = series.length - 1; index >= 0; index -= 1) {
 		if (series[index].date.getTime() <= target.getTime()) {
 			return series[index].close;
@@ -202,18 +208,24 @@ function lastCloseAtOrBefore(series: DatedClose[], target: Date): number | null 
 	return series[0]?.close ?? null;
 }
 
-function percentChange(current: number, previous: number | null): number | null {
+function percentChange(
+	current: number,
+	previous: number | null,
+): number | null {
 	if (previous == null || previous === 0) {
 		return null;
 	}
 	return ((current - previous) / previous) * 100;
 }
 
-function percentGrowth(current: number | null, previous: number | null): number | null {
+function percentGrowth(
+	current: number | null,
+	previous: number | null,
+): number | null {
 	if (current == null || previous == null || previous === 0) {
 		return null;
 	}
-	return ((current / previous) - 1) * 100;
+	return (current / previous - 1) * 100;
 }
 
 function getSetCookieHeaders(headers: Headers): string[] {
@@ -265,12 +277,7 @@ function computeIv(series: DatedClose[]): number | null {
 	for (let index = 1; index < series.length; index += 1) {
 		const previous = series[index - 1]?.close;
 		const current = series[index]?.close;
-		if (
-			previous == null ||
-			current == null ||
-			previous <= 0 ||
-			current <= 0
-		) {
+		if (previous == null || current == null || previous <= 0 || current <= 0) {
 			continue;
 		}
 		logReturns.push(Math.log(current / previous));
@@ -354,15 +361,10 @@ function dailyReturnsMap(series: DatedClose[]): Map<string, number> {
 	for (let index = 1; index < series.length; index += 1) {
 		const previous = series[index - 1]?.close;
 		const current = series[index]?.close;
-		if (
-			previous == null ||
-			current == null ||
-			previous <= 0 ||
-			current <= 0
-		) {
+		if (previous == null || current == null || previous <= 0 || current <= 0) {
 			continue;
 		}
-		returns.set(toDateKey(series[index].date), (current / previous) - 1);
+		returns.set(toDateKey(series[index].date), current / previous - 1);
 	}
 	return returns;
 }
@@ -396,8 +398,7 @@ function computeBeta(
 	let covariance = 0;
 	let benchmarkVariance = 0;
 	for (const [stockReturn, benchmarkReturn] of aligned) {
-		covariance +=
-			(stockReturn - stockMean) * (benchmarkReturn - benchmarkMean);
+		covariance += (stockReturn - stockMean) * (benchmarkReturn - benchmarkMean);
 		benchmarkVariance += (benchmarkReturn - benchmarkMean) ** 2;
 	}
 	if (benchmarkVariance === 0) {
@@ -474,7 +475,8 @@ async function fetchCurrencyToUsdRate(
 		.reverse()
 		.find((value) => typeof value === "number" && Number.isFinite(value));
 	const rate =
-		toFiniteNumber(result?.meta?.regularMarketPrice) ?? toFiniteNumber(lastClose);
+		toFiniteNumber(result?.meta?.regularMarketPrice) ??
+		toFiniteNumber(lastClose);
 	fxRateCache.set(currency, {
 		fetchedAtMs: Date.now(),
 		rate,
@@ -482,7 +484,9 @@ async function fetchCurrencyToUsdRate(
 	return rate;
 }
 
-function selectRealtimePriceEntry(priceModule: YahooQuoteSummaryModule | undefined): {
+function selectRealtimePriceEntry(
+	priceModule: YahooQuoteSummaryModule | undefined,
+): {
 	key: string | null;
 	price: number | null;
 } {
@@ -507,14 +511,18 @@ function selectRealtimePriceEntry(priceModule: YahooQuoteSummaryModule | undefin
 			price: quoteSummaryNumberField([priceModule], "postMarketPrice"),
 		},
 	].filter(
-		(candidate): candidate is {
+		(
+			candidate,
+		): candidate is {
 			key: string;
 			time: number | null;
 			price: number;
 		} => candidate.price != null,
 	);
 
-	if (candidates.some((candidate) => candidate.time != null && candidate.time > 0)) {
+	if (
+		candidates.some((candidate) => candidate.time != null && candidate.time > 0)
+	) {
 		const latestCandidate = candidates.reduce((best, candidate) => {
 			const candidateTime = candidate.time ?? 0;
 			const bestTime = best?.time ?? 0;
@@ -531,12 +539,17 @@ function selectRealtimePriceEntry(priceModule: YahooQuoteSummaryModule | undefin
 		marketState === "PRE"
 			? "preMarketPrice"
 			: marketState === "POST" ||
-				  marketState === "POSTPOST" ||
-				  marketState === "CLOSED" ||
-				  marketState === "PREPRE"
+					marketState === "POSTPOST" ||
+					marketState === "CLOSED" ||
+					marketState === "PREPRE"
 				? "postMarketPrice"
 				: "regularMarketPrice";
-	for (const key of [preferredKey, "regularMarketPrice", "postMarketPrice", "preMarketPrice"]) {
+	for (const key of [
+		preferredKey,
+		"regularMarketPrice",
+		"postMarketPrice",
+		"preMarketPrice",
+	]) {
 		const price = quoteSummaryNumberField([priceModule], key);
 		if (price != null) {
 			return { key, price };
@@ -618,7 +631,9 @@ function buildRatingsSnapshot(
 	const upsidePercents = sortedHistory
 		.map((entry) => {
 			const target = toFiniteNumber(entry.currentPriceTarget);
-			return target != null ? ((target - currentPrice) / currentPrice) * 100 : null;
+			return target != null
+				? ((target - currentPrice) / currentPrice) * 100
+				: null;
 		})
 		.filter((value): value is number => value != null)
 		.sort((left, right) => left - right);
@@ -687,9 +702,7 @@ function buildRatingsSnapshot(
 					prior_price_target: priorPriceTarget,
 				} satisfies NormalizedYahooRatingRow;
 			})
-			.filter(
-				(entry): entry is NormalizedYahooRatingRow => entry != null,
-			),
+			.filter((entry): entry is NormalizedYahooRatingRow => entry != null),
 	};
 }
 
@@ -842,7 +855,10 @@ function buildFundamentalsSnapshot(
 	const annualTotalDebt = pointsForType(payload, "annualTotalDebt");
 	const quarterlyEquity = pointsForType(payload, "quarterlyStockholdersEquity");
 	const annualEquity = pointsForType(payload, "annualStockholdersEquity");
-	const quarterlyShares = pointsForType(payload, "quarterlyDilutedAverageShares");
+	const quarterlyShares = pointsForType(
+		payload,
+		"quarterlyDilutedAverageShares",
+	);
 	const annualShares = pointsForType(payload, "annualDilutedAverageShares");
 	const epsDiluted = computeDilutedEps(quarterlyDilutedEps, annualDilutedEps);
 	const annualRevenueLatest = latestPointValue(annualRevenue);
@@ -855,8 +871,10 @@ function buildFundamentalsSnapshot(
 		quarterlyRevenue.length >= 5
 			? pointValue(quarterlyRevenue[quarterlyRevenue.length - 5])
 			: null;
-	const debt = latestPointValue(quarterlyTotalDebt) ?? latestPointValue(annualTotalDebt);
-	const equity = latestPointValue(quarterlyEquity) ?? latestPointValue(annualEquity);
+	const debt =
+		latestPointValue(quarterlyTotalDebt) ?? latestPointValue(annualTotalDebt);
+	const equity =
+		latestPointValue(quarterlyEquity) ?? latestPointValue(annualEquity);
 	const dilutedShares =
 		latestPointValue(quarterlyShares) ?? latestPointValue(annualShares);
 	const trailingFreeCashFlow =
@@ -882,12 +900,18 @@ function buildFundamentalsSnapshot(
 
 	return {
 		market_cap:
-			quoteSummaryNumberField([priceModule, summaryDetailModule], "marketCap") ??
+			quoteSummaryNumberField(
+				[priceModule, summaryDetailModule],
+				"marketCap",
+			) ??
 			(currentPrice != null && dilutedShares != null
 				? Math.round(currentPrice * dilutedShares)
 				: null),
 		pe:
-			roundOptional(quoteSummaryNumberField([summaryDetailModule], "trailingPE"), 2) ??
+			roundOptional(
+				quoteSummaryNumberField([summaryDetailModule], "trailingPE"),
+				2,
+			) ??
 			(currentPrice != null && epsDiluted != null && epsDiluted !== 0
 				? roundOptional(currentPrice / epsDiluted, 2)
 				: null),
@@ -902,7 +926,10 @@ function buildFundamentalsSnapshot(
 			(currentPrice != null && forwardEps != null && forwardEps !== 0
 				? roundOptional(currentPrice / forwardEps, 2)
 				: null),
-		peg: roundOptional(latestPointValue(pointsForType(payload, "trailingPegRatio")), 2),
+		peg: roundOptional(
+			latestPointValue(pointsForType(payload, "trailingPegRatio")),
+			2,
+		),
 		beta:
 			roundOptional(
 				quoteSummaryNumberField(
@@ -985,7 +1012,8 @@ export class YahooFinanceSource {
 			benchmarkPayload?.chart?.result?.[0]?.indicators?.quote?.[0]?.close,
 		);
 		const previous = series[series.length - 2]?.close ?? null;
-		const intradayLatest = intradaySeries[intradaySeries.length - 1]?.close ?? null;
+		const intradayLatest =
+			intradaySeries[intradaySeries.length - 1]?.close ?? null;
 		const fallbackCurrentPrice =
 			intradayLatest ??
 			toFiniteNumber(intradayResult?.meta?.regularMarketPrice) ??
@@ -1058,7 +1086,8 @@ export class YahooFinanceSource {
 					? meta.exchangeName.trim()
 					: null,
 			exchange_name:
-				typeof meta.fullExchangeName === "string" && meta.fullExchangeName.trim()
+				typeof meta.fullExchangeName === "string" &&
+				meta.fullExchangeName.trim()
 					? meta.fullExchangeName.trim()
 					: null,
 			price: currentPrice,
@@ -1123,7 +1152,10 @@ export class YahooFinanceSource {
 			median_upside: ratingsSnapshot.medianUpside,
 			ratings: ratingsSnapshot.ratings,
 			...fundamentals,
-			fx: marketCap != null && marketCapCurrency !== USD_CURRENCY ? marketCapFx : null,
+			fx:
+				marketCap != null && marketCapCurrency !== USD_CURRENCY
+					? marketCapFx
+					: null,
 		};
 	}
 

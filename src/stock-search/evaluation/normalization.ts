@@ -1,8 +1,7 @@
 /** Normalize evaluation payloads into the dashboard schema. */
 
 import { toFloat } from "../common-utils.js";
-import type { Evaluation } from "../models/schemas.js";
-import { type ScoredReason } from "../models/schemas.js";
+import type { Evaluation, ScoredReason } from "../models/schemas.js";
 import {
 	DEFAULT_BEAR_PROBABILITY,
 	DEFAULT_BULL_PROBABILITY,
@@ -34,14 +33,8 @@ export function normalizeEvalJson(
 		valuation_score: toFloat(data.valuation_score, DEFAULT_SCORE),
 		upside_score: toFloat(data.upside_score, DEFAULT_SCORE),
 		market_cap_score: toFloat(data.market_cap_score, DEFAULT_SCORE),
-		bull_probability: toFloat(
-			data.bull_probability,
-			DEFAULT_BULL_PROBABILITY,
-		),
-		bear_probability: toFloat(
-			data.bear_probability,
-			DEFAULT_BEAR_PROBABILITY,
-		),
+		bull_probability: toFloat(data.bull_probability, DEFAULT_BULL_PROBABILITY),
+		bear_probability: toFloat(data.bear_probability, DEFAULT_BEAR_PROBABILITY),
 	};
 }
 
@@ -108,7 +101,9 @@ export function bucketFromEvalJson(
 	const bull = normalized.bull_probability;
 	const bear = normalized.bear_probability;
 	const edge =
-		bull != null && bear != null ? bull * SCORE_SCALE - bear * SCORE_SCALE : null;
+		bull != null && bear != null
+			? bull * SCORE_SCALE - bear * SCORE_SCALE
+			: null;
 
 	return strategyLabel(calculateStrategyIndices(scores, edge));
 }

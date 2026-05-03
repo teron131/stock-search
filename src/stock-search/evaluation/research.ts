@@ -4,11 +4,17 @@ import { writeFile } from "node:fs/promises";
 
 import { HumanMessage } from "@langchain/core/messages";
 import { type ToolRuntime, tool } from "@langchain/core/tools";
-import { Annotation, END, InMemoryStore, START, StateGraph } from "@langchain/langgraph";
+import {
+	Annotation,
+	END,
+	InMemoryStore,
+	START,
+	StateGraph,
+} from "@langchain/langgraph";
+import { createAgent, todoListMiddleware } from "langchain";
 import { WebLoaderAgent } from "llm-harness-js/agents";
 import { ChatOpenAI } from "llm-harness-js/clients";
-import { createAgent, todoListMiddleware } from "langchain";
-import { z, type ZodType } from "zod";
+import { type ZodType, z } from "zod";
 
 import { extractDomain } from "../utils.js";
 import { ThresholdConfig } from "./constants.js";
@@ -45,8 +51,15 @@ const researchGraphState = Annotation.Root({
 
 type ResearchGraphState = typeof researchGraphState.State;
 type ResearchStore = {
-	get(namespace: string[], key: string): Promise<{ value?: { notes?: string } } | null>;
-	put(namespace: string[], key: string, value: { notes: string }): Promise<void>;
+	get(
+		namespace: string[],
+		key: string,
+	): Promise<{ value?: { notes?: string } } | null>;
+	put(
+		namespace: string[],
+		key: string,
+		value: { notes: string },
+	): Promise<void>;
 };
 
 function researchMemoryKey(ticker: string): string {
@@ -86,7 +99,7 @@ function extractUrls(text: string | null | undefined): string[] {
 	if (!text) {
 		return [];
 	}
-	return text.match(/https?:\/\/[^\s\]\)>,]+/g) ?? [];
+	return text.match(/https?:\/\/[^\s\])>,]+/g) ?? [];
 }
 
 function extractTodoItems(plan: string | null | undefined): string[] {
@@ -95,11 +108,17 @@ function extractTodoItems(plan: string | null | undefined): string[] {
 	}
 	const items: string[] = [];
 	for (const rawLine of plan.split("\n")) {
-		let line = rawLine.trim().replace(/^[-*]\s*/, "").trim();
+		let line = rawLine
+			.trim()
+			.replace(/^[-*]\s*/, "")
+			.trim();
 		if (!line) {
 			continue;
 		}
-		if (line.toLowerCase().startsWith("todo:") || line.toLowerCase().startsWith("plan:")) {
+		if (
+			line.toLowerCase().startsWith("todo:") ||
+			line.toLowerCase().startsWith("plan:")
+		) {
 			line = line.split(":", 2).at(-1)?.trim() ?? "";
 		}
 		if (line) {
@@ -141,7 +160,9 @@ function stringifyMessageContent(content: unknown): string {
 
 function lastMessageText(response: unknown): string {
 	const messages =
-		response && typeof response === "object" && Array.isArray((response as { messages?: unknown[] }).messages)
+		response &&
+		typeof response === "object" &&
+		Array.isArray((response as { messages?: unknown[] }).messages)
 			? (response as { messages: unknown[] }).messages
 			: [];
 	const lastMessage = messages.at(-1) as { content?: unknown } | undefined;
@@ -156,10 +177,7 @@ function structuredResponseValue<T>(response: unknown): T | null {
 	return structuredResponse ?? null;
 }
 
-function createResearchAgents(
-	systemPrompt: string,
-	responseFormat: ZodType,
-) {
+function createResearchAgents(systemPrompt: string, responseFormat: ZodType) {
 	const qualityModel = process.env.QUALITY_LLM;
 	const fastModel = process.env.FAST_LLM;
 	if (!qualityModel || !fastModel) {
@@ -167,12 +185,10 @@ function createResearchAgents(
 	}
 
 	const loadResearchMemory = tool(
-		async (
-			{ ticker }: { ticker: string },
-			runtime: ToolRuntime,
-		) => {
+		async ({ ticker }: { ticker: string }, runtime: ToolRuntime) => {
 			const key = researchMemoryKey(ticker);
-			const store = (runtime.store as unknown as ResearchStore | null) ?? RESEARCH_STORE;
+			const store =
+				(runtime.store as unknown as ResearchStore | null) ?? RESEARCH_STORE;
 			const stored = await store.get(["research"], key);
 			const value = stored?.value?.notes;
 			return typeof value === "string" ? value : "";
@@ -192,7 +208,8 @@ function createResearchAgents(
 			runtime: ToolRuntime,
 		) => {
 			const key = researchMemoryKey(ticker);
-			const store = (runtime.store as unknown as ResearchStore | null) ?? RESEARCH_STORE;
+			const store =
+				(runtime.store as unknown as ResearchStore | null) ?? RESEARCH_STORE;
 			await store.put(["research"], key, { notes });
 			return "saved";
 		},
@@ -328,7 +345,10 @@ function buildResearchGraph(systemPrompt: string, responseFormat: ZodType) {
 			messages: [new HumanMessage(prompt)],
 		});
 		return {
-			validation: structuredResponseValue<z.infer<typeof ValidationResultSchema>>(response),
+			validation:
+				structuredResponseValue<z.infer<typeof ValidationResultSchema>>(
+					response,
+				),
 			attempts: state.attempts + 1,
 		};
 	}

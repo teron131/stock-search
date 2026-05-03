@@ -1,10 +1,10 @@
 /** Read and persist portfolio data through SQLite or Convex backends. */
 
-import { appConfig, type BackendName } from "./config.js";
+import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { ConvexApiError } from "../models/convex/client.js";
 import { ConvexStore, convexRealtimeTopics } from "../models/convex/store.js";
 import { SQLiteStore } from "../sqlite-store.js";
-import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
+import { appConfig, type BackendName } from "./config.js";
 
 export type PositionRow = Record<string, unknown> & {
 	ticker: string;
@@ -138,7 +138,10 @@ class FallbackConvexStore implements BackendStore {
 			if (!(error instanceof Error || error instanceof ConvexApiError)) {
 				throw error;
 			}
-			console.warn(`Convex ${operation} read failed, using SQLite fallback.`, error);
+			console.warn(
+				`Convex ${operation} read failed, using SQLite fallback.`,
+				error,
+			);
 			return fallback();
 		}
 	}
@@ -222,7 +225,9 @@ class FallbackConvexStore implements BackendStore {
 		return this.convexStore.deleteNewsByTickers(tickers, key);
 	}
 
-	loadSectorSnapshot(key?: string): Promise<StockAnalysisSectorSnapshot | null> {
+	loadSectorSnapshot(
+		key?: string,
+	): Promise<StockAnalysisSectorSnapshot | null> {
 		return this.readOrFallback(
 			"sector snapshot",
 			() => this.convexStore.loadSectorSnapshot(key),
@@ -280,7 +285,9 @@ export async function loadEvalMap(tickers?: string[]) {
 	);
 }
 
-export async function verifyStoreStartup(store: BackendStore = getStore()): Promise<void> {
+export async function verifyStoreStartup(
+	store: BackendStore = getStore(),
+): Promise<void> {
 	if (appConfig.dataStoreBackend !== "convex") {
 		return;
 	}

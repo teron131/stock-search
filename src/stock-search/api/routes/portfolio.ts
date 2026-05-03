@@ -1,17 +1,16 @@
 /** Portfolio API route module. */
 
-import { z } from "zod";
 import { Hono } from "hono";
-
-import type { BackendStore } from "../data-store.js";
-import { normalizeTicker } from "../../utils.js";
-import { importPortfolioImage } from "../import-image.js";
+import { z } from "zod";
 import {
 	buildPortfolioPayload,
 	cacheControlForScope,
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "../../portfolio.js";
+import { normalizeTicker } from "../../utils.js";
+import type { BackendStore } from "../data-store.js";
+import { importPortfolioImage } from "../import-image.js";
 import {
 	PORTFOLIO,
 	PORTFOLIO_IMPORT_IMAGE,
@@ -38,7 +37,9 @@ function parseBooleanFormValue(value: FormDataEntryValue | null): boolean {
 	);
 }
 
-function parseOptionalFormText(value: FormDataEntryValue | null): string | null {
+function parseOptionalFormText(
+	value: FormDataEntryValue | null,
+): string | null {
 	return typeof value === "string" ? value.trim() || null : null;
 }
 
@@ -98,7 +99,9 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 			);
 		} catch (error) {
 			const message =
-				error instanceof Error ? error.message : "Portfolio image import failed.";
+				error instanceof Error
+					? error.message
+					: "Portfolio image import failed.";
 			return c.json({ detail: message }, 400);
 		}
 	});

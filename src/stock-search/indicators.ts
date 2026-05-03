@@ -38,10 +38,7 @@ const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"gross_margin",
 	"debt_to_equity",
 ]);
-const FX_SOURCE_FIELDS = new Set([
-	"market_cap",
-	"free_cash_flow",
-]);
+const FX_SOURCE_FIELDS = new Set(["market_cap", "free_cash_flow"]);
 
 /** Fetch indicator-shaped Yahoo fields for one ticker. */
 export async function fetchYahooIndicators(
@@ -103,14 +100,15 @@ export async function fetchLiveIndicators(
 	};
 
 	function resolveField(field: string): unknown {
-		const hasYahooFx = yahooPayload.fx !== null && yahooPayload.fx !== undefined;
+		const hasYahooFx =
+			yahooPayload.fx !== null && yahooPayload.fx !== undefined;
 		if (hasYahooFx && FX_SOURCE_FIELDS.has(field)) {
 			return yahooPayload[field] ?? null;
 		}
 		const priorities = YAHOO_PRIORITY_FIELDS.has(field)
 			? [yahooPayload, stockAnalysisPayload, cachedIndicators]
 			: STATISTICS_PRIORITY_FIELDS.has(field) ||
-				  FINANCIALS_PRIORITY_FIELDS.has(field)
+					FINANCIALS_PRIORITY_FIELDS.has(field)
 				? [stockAnalysisPayload, cachedIndicators, yahooPayload]
 				: [cachedIndicators, stockAnalysisPayload, yahooPayload];
 

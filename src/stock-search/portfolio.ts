@@ -1,35 +1,46 @@
 /** Build portfolio payloads with cache-aware live refresh and ETF lookthrough. */
 
-import type { BackendStore, PositionRow, StockEntry } from "./api/data-store.js";
-import { asNumber, normalizeTicker, nowIso, uniqueTickers } from "./utils.js";
+import type {
+	BackendStore,
+	PositionRow,
+	StockEntry,
+} from "./api/data-store.js";
 import { isCacheTimestampFresh } from "./cache.js";
 import { clamp, safeFloat } from "./common-utils.js";
-import { agetLabels } from "./labeler.js";
 import {
-	bucketFromEvaluation,
-	normalizeEvaluationRow,
-} from "./evaluation/normalization.js";
+	classifyAndResolveEtfs,
+	type EtfResolutionResult,
+	normalizeSectorName,
+} from "./etf.js";
 import {
 	CalibrationConfig,
 	DEFAULT_BEAR_PROBABILITY,
 	DEFAULT_BULL_PROBABILITY,
 	DEFAULT_SCORE,
 } from "./evaluation/constants.js";
-import { Notional } from "./models/schemas.js";
 import {
-	classifyAndResolveEtfs,
-	normalizeSectorName,
-	type EtfResolutionResult,
-} from "./etf.js";
+	bucketFromEvaluation,
+	normalizeEvaluationRow,
+} from "./evaluation/normalization.js";
+import {
+	fetchYahooIndicators,
+	fetchYahooSymbolMetadata,
+} from "./indicators.js";
+import { agetLabels } from "./labeler.js";
+import { Notional } from "./models/schemas.js";
 import {
 	aggregateTickerDataSource,
 	generatedAtIso,
 	resolveTickerStatsMap,
 	type StatsResolutionResult,
 } from "./stats-resolver.js";
-import { fetchYahooIndicators, fetchYahooSymbolMetadata } from "./indicators.js";
+import { asNumber, normalizeTicker, nowIso, uniqueTickers } from "./utils.js";
 
-export type PortfolioScope = "priority" | "all_cached" | "portfolio_live" | "all";
+export type PortfolioScope =
+	| "priority"
+	| "all_cached"
+	| "portfolio_live"
+	| "all";
 
 const CACHE_SCOPES = new Set<PortfolioScope>(["priority", "all_cached"]);
 const LIVE_SCOPES = new Set<PortfolioScope>(["portfolio_live", "all"]);
@@ -40,7 +51,15 @@ const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const ETF_REPRESENTATIVE_LIMIT = 10;
 const ETF_REPRESENTATIVE_MIN_WEIGHT = 3;
 const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
-const NON_US_TICKER_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
+const NON_US_TICKER_SUFFIXES = new Set([
+	"HK",
+	"JP",
+	"KR",
+	"KS",
+	"KQ",
+	"TT",
+	"TW",
+]);
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 type EtfRepresentativePosition = PositionRow & {
 	etf_holding_weight: number;
@@ -66,7 +85,11 @@ function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	return [...new Set(value.map((label) => String(label ?? "").trim()).filter(Boolean))];
+	return [
+		...new Set(
+			value.map((label) => String(label ?? "").trim()).filter(Boolean),
+		),
+	];
 }
 
 function portfolioTickers(positions: PositionRow[]): string[] {
@@ -97,7 +120,9 @@ async function forgetRemovedPortfolioTickers(
 	nextPositions: PositionRow[],
 ): Promise<void> {
 	const nextTickers = new Set(portfolioTickers(nextPositions));
-	const removedTickers = previousTickers.filter((ticker) => !nextTickers.has(ticker));
+	const removedTickers = previousTickers.filter(
+		(ticker) => !nextTickers.has(ticker),
+	);
 	if (removedTickers.length === 0) {
 		return;
 	}
@@ -156,7 +181,9 @@ async function resolvePortfolioLabels(
 		);
 	}
 
-	const missing = fetchMissing ? computeMissingLabels(tickers, stocksMap, now) : [];
+	const missing = fetchMissing
+		? computeMissingLabels(tickers, stocksMap, now)
+		: [];
 	if (missing.length === 0) {
 		return labelsByTicker;
 	}
@@ -214,7 +241,9 @@ function hasOwnEvaluation(
 	if (!evaluation) {
 		return false;
 	}
-	return EVAL_KEYS.some((key) => evaluation[key] != null && evaluation[key] !== "");
+	return EVAL_KEYS.some(
+		(key) => evaluation[key] != null && evaluation[key] !== "",
+	);
 }
 
 function mapLinear(
@@ -341,21 +370,19 @@ function indicatorEvalFallback(
 	};
 }
 
-function pickEvalValue(
-	{
-		evaluation,
-		normalizedEvaluation,
-		fallbackEvaluation,
-		key,
-		aliases = [],
-	}: {
-		evaluation: Record<string, unknown>;
-		normalizedEvaluation: Record<string, number>;
-		fallbackEvaluation: Record<(typeof EVAL_KEYS)[number], number>;
-		key: (typeof EVAL_KEYS)[number];
-		aliases?: readonly string[];
-	},
-): [number, boolean] {
+function pickEvalValue({
+	evaluation,
+	normalizedEvaluation,
+	fallbackEvaluation,
+	key,
+	aliases = [],
+}: {
+	evaluation: Record<string, unknown>;
+	normalizedEvaluation: Record<string, number>;
+	fallbackEvaluation: Record<(typeof EVAL_KEYS)[number], number>;
+	key: (typeof EVAL_KEYS)[number];
+	aliases?: readonly string[];
+}): [number, boolean] {
 	const hasLlmValue = [key, ...aliases].some(
 		(alias) => evaluation[alias] != null,
 	);
@@ -393,7 +420,9 @@ function buildRowsForScope(
 	}
 
 	const rows = positions.map((position) => ({ ...position }));
-	const existingTickers = new Set(rows.map((row) => normalizeTicker(row.ticker)));
+	const existingTickers = new Set(
+		rows.map((row) => normalizeTicker(row.ticker)),
+	);
 	for (const ticker of Object.keys(stocksMap)) {
 		if (existingTickers.has(ticker)) {
 			continue;
@@ -422,7 +451,9 @@ function rankRows(rows: Array<Record<string, unknown>>): void {
 			index,
 			score: asNumber(row.overall_score),
 		}))
-		.filter((entry): entry is { index: number; score: number } => entry.score != null)
+		.filter(
+			(entry): entry is { index: number; score: number } => entry.score != null,
+		)
 		.sort((left, right) => right.score - left.score);
 
 	for (const [rankIndex, entry] of rankedRows.entries()) {
@@ -488,21 +519,29 @@ function normalizeWeightsTo100(
 	const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
 	if (total <= 0) {
 		return Object.fromEntries(
-			entries.map(([ticker, weight]) => [ticker, Number(weight.toFixed(decimals))]),
+			entries.map(([ticker, weight]) => [
+				ticker,
+				Number(weight.toFixed(decimals)),
+			]),
 		);
 	}
 	const rounded = Object.fromEntries(
-		entries.map(([ticker, weight]) => [ticker, Number(weight.toFixed(decimals))]),
+		entries.map(([ticker, weight]) => [
+			ticker,
+			Number(weight.toFixed(decimals)),
+		]),
 	);
 	const adjustment = Number(
-		(100 - Object.values(rounded).reduce((sum, value) => sum + value, 0)).toFixed(
-			decimals,
-		),
+		(
+			100 - Object.values(rounded).reduce((sum, value) => sum + value, 0)
+		).toFixed(decimals),
 	);
 	if (adjustment === 0) {
 		return rounded;
 	}
-	const largestTicker = Object.entries(rounded).sort((left, right) => right[1] - left[1])[0]?.[0];
+	const largestTicker = Object.entries(rounded).sort(
+		(left, right) => right[1] - left[1],
+	)[0]?.[0];
 	if (largestTicker) {
 		rounded[largestTicker] = Number(
 			(rounded[largestTicker] + adjustment).toFixed(decimals),
@@ -546,7 +585,11 @@ function buildNotionalByTicker(
 		if (!ticker || total <= 0) {
 			continue;
 		}
-		if (String(row.equity_type ?? "").trim().toUpperCase() === "ETF") {
+		if (
+			String(row.equity_type ?? "")
+				.trim()
+				.toUpperCase() === "ETF"
+		) {
 			continue;
 		}
 		getTickerNotional(notionalByTicker, ticker).addFromStocks(total);
@@ -604,7 +647,11 @@ function isStockLikeEtfRepresentativeTicker(ticker: string): boolean {
 	}
 	const parts = tickerBody.split(/[.-]/);
 	const suffix = parts.at(-1);
-	if (suffix && parts.length > 1 && NON_STOCK_ETF_HOLDING_SUFFIXES.has(suffix)) {
+	if (
+		suffix &&
+		parts.length > 1 &&
+		NON_STOCK_ETF_HOLDING_SUFFIXES.has(suffix)
+	) {
 		return false;
 	}
 	return /^[A-Z0-9]{1,6}([.-][A-Z0-9]{1,4})?$/.test(tickerBody);
@@ -680,7 +727,8 @@ async function fetchEquitySector(
 		normalizeSectorName(
 			typeof metadata.sector_name === "string" && metadata.sector_name.trim()
 				? metadata.sector_name
-				: typeof metadata.industry_name === "string" && metadata.industry_name.trim()
+				: typeof metadata.industry_name === "string" &&
+						metadata.industry_name.trim()
 					? metadata.industry_name
 					: null,
 		),
@@ -802,17 +850,22 @@ async function buildEtfTables(
 	);
 	for (const [ticker, data] of Object.entries(tickerExposure)) {
 		data.direct_weight = normalizedDirectWeights[ticker] ?? 0;
-		data.etf_lookthrough_weight = Number(data.etf_lookthrough_weight.toFixed(4));
+		data.etf_lookthrough_weight = Number(
+			data.etf_lookthrough_weight.toFixed(4),
+		);
 		data.combined_weight = normalizedCombinedWeights[ticker] ?? 0;
 	}
 
 	const stockSectorExposure: Record<string, number> = {};
 	const stockSectorResults = await Promise.all(
-		[...new Set(stockTickers)].map((ticker) => fetchEquitySector(ticker, rowByTicker)),
+		[...new Set(stockTickers)].map((ticker) =>
+			fetchEquitySector(ticker, rowByTicker),
+		),
 	);
 	for (const [ticker, sector] of stockSectorResults) {
 		const directWeight = normalizedDirectWeights[ticker] ?? 0;
-		stockSectorExposure[sector] = (stockSectorExposure[sector] ?? 0) + directWeight;
+		stockSectorExposure[sector] =
+			(stockSectorExposure[sector] ?? 0) + directWeight;
 	}
 
 	const tickerTable = Object.entries(tickerExposure)
@@ -827,19 +880,28 @@ async function buildEtfTables(
 
 	const combinedSectorExposure = { ...etfSectorExposure };
 	for (const [sector, weight] of Object.entries(stockSectorExposure)) {
-		combinedSectorExposure[sector] = (combinedSectorExposure[sector] ?? 0) + weight;
+		combinedSectorExposure[sector] =
+			(combinedSectorExposure[sector] ?? 0) + weight;
 	}
-	const etfSleeveTotal = Object.values(etfSectorExposure).reduce((sum, value) => sum + value, 0);
+	const etfSleeveTotal = Object.values(etfSectorExposure).reduce(
+		(sum, value) => sum + value,
+		0,
+	);
 	const sectorTable = Object.entries(combinedSectorExposure)
 		.map(([sector, weight]) => ({
 			sector,
 			stock_weight: Number((stockSectorExposure[sector] ?? 0).toFixed(4)),
-			etf_lookthrough_weight: Number((etfSectorExposure[sector] ?? 0).toFixed(4)),
+			etf_lookthrough_weight: Number(
+				(etfSectorExposure[sector] ?? 0).toFixed(4),
+			),
 			portfolio_weight: Number(weight.toFixed(4)),
 			within_etf_sleeve_weight:
 				etfSleeveTotal > 0
 					? Number(
-							(((etfSectorExposure[sector] ?? 0) / etfSleeveTotal) * 100).toFixed(4),
+							(
+								((etfSectorExposure[sector] ?? 0) / etfSleeveTotal) *
+								100
+							).toFixed(4),
 						)
 					: 0,
 		}))
@@ -850,13 +912,19 @@ async function buildEtfTables(
 		sectorTable,
 		meta: {
 			direct_weight_total: Number(
-				tickerTable.reduce((sum, row) => sum + Number(row.direct_weight), 0).toFixed(4),
+				tickerTable
+					.reduce((sum, row) => sum + Number(row.direct_weight), 0)
+					.toFixed(4),
 			),
 			combined_weight_total: Number(
-				tickerTable.reduce((sum, row) => sum + Number(row.combined_weight), 0).toFixed(4),
+				tickerTable
+					.reduce((sum, row) => sum + Number(row.combined_weight), 0)
+					.toFixed(4),
 			),
 			sector_portfolio_total: Number(
-				sectorTable.reduce((sum, row) => sum + Number(row.portfolio_weight), 0).toFixed(4),
+				sectorTable
+					.reduce((sum, row) => sum + Number(row.portfolio_weight), 0)
+					.toFixed(4),
 			),
 			within_etf_sleeve_total: Number(
 				sectorTable
@@ -923,7 +991,9 @@ function buildSectorDistribution(
 			stock_weight: Number((directExposure.get(sector) ?? 0).toFixed(4)),
 			etf_lookthrough_weight: Number((etfExposure.get(sector) ?? 0).toFixed(4)),
 			portfolio_weight: Number(
-				((directExposure.get(sector) ?? 0) + (etfExposure.get(sector) ?? 0)).toFixed(4),
+				(
+					(directExposure.get(sector) ?? 0) + (etfExposure.get(sector) ?? 0)
+				).toFixed(4),
 			),
 		}))
 		.sort((left, right) => right.portfolio_weight - left.portfolio_weight);
@@ -947,7 +1017,8 @@ function calculatePortfolioStats(
 		if (totalValue == null || totalValue <= 0 || changePercent == null) {
 			continue;
 		}
-		changeValue += ((changePercent / 100) * totalValue) / (1 + changePercent / 100);
+		changeValue +=
+			((changePercent / 100) * totalValue) / (1 + changePercent / 100);
 	}
 
 	const denominator = total - changeValue;
@@ -1004,7 +1075,9 @@ function fxRefreshTickersForScope(
 }
 
 function syncModeForScope(scope: PortfolioScope): string {
-	return LIVE_SCOPES.has(scope) ? "realtime_subscription" : "realtime_subscription";
+	return LIVE_SCOPES.has(scope)
+		? "realtime_subscription"
+		: "realtime_subscription";
 }
 
 /** Return the cache policy used for one portfolio scope. */
@@ -1047,8 +1120,14 @@ export function mergePortfolioRow(
 			: llmCount === 0
 				? "indicator_fallback"
 				: "hybrid";
-	const industryLabels = mergeIndicatorLabels(position, indicators, stockEntry?.labels ?? []);
-	const quoteType = String(indicators.quote_type ?? "").trim().toUpperCase();
+	const industryLabels = mergeIndicatorLabels(
+		position,
+		indicators,
+		stockEntry?.labels ?? [],
+	);
+	const quoteType = String(indicators.quote_type ?? "")
+		.trim()
+		.toUpperCase();
 	const etfHoldings = Array.isArray(indicators.etf_holdings)
 		? indicators.etf_holdings
 		: Array.isArray(indicators.holdings)
@@ -1069,8 +1148,7 @@ export function mergePortfolioRow(
 		ticker,
 		quantity,
 		total,
-		equity_type:
-			quoteType === "ETF" ? "ETF" : quoteType ? "STOCK" : "UNKNOWN",
+		equity_type: quoteType === "ETF" ? "ETF" : quoteType ? "STOCK" : "UNKNOWN",
 		industry_labels: industryLabels,
 		primary_label: industryLabels[0] ?? null,
 		etf_holdings: etfHoldings,
@@ -1105,7 +1183,11 @@ export async function buildPortfolioPayload(
 	const stocksMap = ALL_UNIVERSE_SCOPES.has(scope)
 		? await store.loadStocks()
 		: await store.loadStocksByTickers(portfolioTickers(portfolio.positions));
-	const scopedPositions = buildRowsForScope(portfolio.positions, stocksMap, scope);
+	const scopedPositions = buildRowsForScope(
+		portfolio.positions,
+		stocksMap,
+		scope,
+	);
 	const labelsByTicker = await resolvePortfolioLabels(
 		store,
 		portfolio.positions,
@@ -1136,7 +1218,10 @@ export async function buildPortfolioPayload(
 		...liveResults,
 		...fxRefreshResults,
 	};
-	const mergedStocks = mergeLiveResultsIntoStocks(stocksMap, resolvedLiveResults);
+	const mergedStocks = mergeLiveResultsIntoStocks(
+		stocksMap,
+		resolvedLiveResults,
+	);
 
 	const rows = scopedPositions.map((position) =>
 		mergePortfolioRow(position, mergedStocks[normalizeTicker(position.ticker)]),
@@ -1147,7 +1232,9 @@ export async function buildPortfolioPayload(
 	for (const row of rows) {
 		const rowTotal = Number(row.total ?? 0);
 		row.weight_pct =
-			Number(row.quantity ?? 0) > 0 && heldTotal > 0 ? (rowTotal / heldTotal) * 100 : 0;
+			Number(row.quantity ?? 0) > 0 && heldTotal > 0
+				? (rowTotal / heldTotal) * 100
+				: 0;
 	}
 
 	const etfResolution = await classifyAndResolveEtfs(
@@ -1167,7 +1254,8 @@ export async function buildPortfolioPayload(
 		row.etf_holdings = snapshot.holdings;
 		row.etf_sectors = snapshot.sectors;
 		row.etf_holdings_fetched_at =
-			typeof mergedStocks[ticker]?.indicators.etf_holdings_fetched_at === "string"
+			typeof mergedStocks[ticker]?.indicators.etf_holdings_fetched_at ===
+			"string"
 				? mergedStocks[ticker]?.indicators.etf_holdings_fetched_at
 				: nowIso();
 	}
@@ -1229,7 +1317,10 @@ export async function buildPortfolioPayload(
 	}
 
 	rankRows(rows);
-	rows.sort((left, right) => Number(right.weight_pct ?? 0) - Number(left.weight_pct ?? 0));
+	rows.sort(
+		(left, right) =>
+			Number(right.weight_pct ?? 0) - Number(left.weight_pct ?? 0),
+	);
 	const heldTickers = portfolio.positions
 		.map((position) => normalizeTicker(position.ticker))
 		.filter(Boolean);
@@ -1302,11 +1393,17 @@ export async function patchPortfolioPosition(
 	const positions = await store.loadPositions();
 	const previousTickers = portfolioTickers(positions);
 	const index = findPositionIndex(positions, tickerSymbol);
-	if (index < 0 && patch.quantity === undefined && patch.strategy === undefined) {
+	if (
+		index < 0 &&
+		patch.quantity === undefined &&
+		patch.strategy === undefined
+	) {
 		throw new Error("Patch payload is empty.");
 	}
 	const current =
-		index >= 0 ? { ...positions[index] } : ({ ticker: tickerSymbol } as PositionRow);
+		index >= 0
+			? { ...positions[index] }
+			: ({ ticker: tickerSymbol } as PositionRow);
 	if (index < 0) {
 		await ensureValidNewTicker(tickerSymbol);
 	}
@@ -1327,7 +1424,11 @@ export async function patchPortfolioPosition(
 	} else {
 		positions.push(current);
 	}
-	await savePortfolioPositionsAndForgetRemoved(store, positions, previousTickers);
+	await savePortfolioPositionsAndForgetRemoved(
+		store,
+		positions,
+		previousTickers,
+	);
 	return {
 		status: "ok",
 		ticker: tickerSymbol,

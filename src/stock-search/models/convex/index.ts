@@ -1,13 +1,16 @@
 /** Export Convex data-store helpers and schemas. */
 
-export { ConvexApiError as ConvexAPIError, ConvexHttpClient as ConvexHttpAdapter } from "./client.js";
 export {
-	type ConvexMetaVersionRow,
-	type ConvexNewsRow,
-	type ConvexPortfolioPosition,
-	type ConvexPortfolioRow,
-	type ConvexSectorSnapshotRow,
-	type ConvexStockRow,
+	ConvexApiError as ConvexAPIError,
+	ConvexHttpClient as ConvexHttpAdapter,
+} from "./client.js";
+export type {
+	ConvexMetaVersionRow,
+	ConvexNewsRow,
+	ConvexPortfolioPosition,
+	ConvexPortfolioRow,
+	ConvexSectorSnapshotRow,
+	ConvexStockRow,
 } from "./convex-schemas.js";
 export {
 	CONVEX_META_GET,

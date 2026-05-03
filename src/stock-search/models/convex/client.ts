@@ -85,6 +85,8 @@ export class ConvexHttpClient {
 			}
 		}
 
-		throw lastError instanceof Error ? lastError : new Error("Convex request failed");
+		throw lastError instanceof Error
+			? lastError
+			: new Error("Convex request failed");
 	}
 }

@@ -5,17 +5,17 @@ Documentation: https://docs.exa.ai/reference/search
 - Other LLM analysis costs apply, so disabled here
 */
 
+import { type NewsArticle, NewsArticleSchema } from "../../models/schemas.js";
 import {
+	DAY_IN_MS,
 	daysAgo,
 	fetchJson,
 	formatDate,
-	normalizeDomain,
 	NEWS_PROVIDER_MAX_RESULTS,
+	normalizeDomain,
 	parseDateString,
 	readJsonResponse,
-	DAY_IN_MS,
 } from "./shared.js";
-import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const EXA_PROVIDER_MAX_RESULTS = 25;
 export const EXA_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
@@ -35,7 +35,11 @@ export async function getNewsExaAsync({
 			url: string;
 			json: Record<string, unknown>;
 			headers: Record<string, string>;
-		}) => Promise<{ json(): Promise<unknown> | unknown; ok?: boolean; raise_for_status?: () => void }>;
+		}) => Promise<{
+			json(): Promise<unknown> | unknown;
+			ok?: boolean;
+			raise_for_status?: () => void;
+		}>;
 	};
 }): Promise<NewsArticle[]> {
 	const boundedMaxResults = Math.min(
@@ -57,7 +61,9 @@ export async function getNewsExaAsync({
 		"Content-Type": "application/json",
 	};
 	const payload = client
-		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
+		? await readJsonResponse<{
+				results?: Array<Record<string, unknown>>;
+			} | null>(
 				await client.post({
 					url: "https://api.exa.ai/search",
 					json: payloadBody,

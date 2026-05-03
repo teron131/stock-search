@@ -6,17 +6,17 @@ Documentation: https://newsapi.org/docs/endpoints/everything
 - Max 100 results per query
 */
 
+import { type NewsArticle, NewsArticleSchema } from "../../models/schemas.js";
 import {
+	DAY_IN_MS,
 	daysAgo,
 	fetchJson,
 	formatDate,
-	normalizeDomain,
 	NEWS_PROVIDER_MAX_RESULTS,
+	normalizeDomain,
 	parseDateString,
 	readJsonResponse,
-	DAY_IN_MS,
 } from "./shared.js";
-import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const NEWSAPI_PROVIDER_MAX_RESULTS = 100;
 export const NEWSAPI_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
@@ -31,10 +31,10 @@ export async function getNewsNewsApiAsync({
 	nDays?: number;
 	maxResults?: number;
 	client?: {
-		get: (input: {
-			url: string;
-			params: Record<string, string>;
-		}) => Promise<{ json(): Promise<unknown> | unknown; raise_for_status?: () => void }>;
+		get: (input: { url: string; params: Record<string, string> }) => Promise<{
+			json(): Promise<unknown> | unknown;
+			raise_for_status?: () => void;
+		}>;
 	};
 }): Promise<NewsArticle[]> {
 	const now = new Date();
@@ -58,7 +58,9 @@ export async function getNewsNewsApiAsync({
 		pageSize: String(boundedMaxResults),
 	};
 	const payload = client
-		? await readJsonResponse<{ articles?: Array<Record<string, unknown>> } | null>(
+		? await readJsonResponse<{
+				articles?: Array<Record<string, unknown>>;
+			} | null>(
 				await client.get({
 					url: url.toString(),
 					params,

@@ -3,11 +3,11 @@
 import { readFile } from "node:fs/promises";
 
 import { toJsonSchema } from "xsschema";
-import { z, type ZodType } from "zod";
+import { type ZodType, z } from "zod";
 
 import { buildColorStandardsPayload } from "../api/color-standards.js";
-import { getStore, convexRealtimeTopics } from "../api/data-store.js";
 import { appConfig } from "../api/config.js";
+import { convexRealtimeTopics, getStore } from "../api/data-store.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
@@ -24,10 +24,7 @@ import {
 } from "../portfolio.js";
 
 export type JsonScalar = string | number | boolean | null;
-export type JsonValue =
-	| JsonScalar
-	| JsonValue[]
-	| { [key: string]: JsonValue };
+export type JsonValue = JsonScalar | JsonValue[] | { [key: string]: JsonValue };
 
 export type OpenApiTool = {
 	name: string;

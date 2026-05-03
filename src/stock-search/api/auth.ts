@@ -1,7 +1,7 @@
 import { createHmac, randomBytes } from "node:crypto";
-
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-
+import type { Context, Next } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { sanitizeNextPath } from "../utils.js";
 import { appConfig } from "./config.js";
 import {
 	AUTH_CALLBACK,
@@ -13,8 +13,6 @@ import {
 	PUBLIC_STATIC_PREFIXES,
 	ROOT,
 } from "./route-paths.js";
-import { sanitizeNextPath } from "../utils.js";
-import type { Context, Next } from "hono";
 
 type SessionUser = {
 	email: string;
@@ -79,7 +77,9 @@ function authErrorResponse(
 }
 
 function signPayload(value: string): string {
-	return createHmac("sha256", appConfig.authSecret).update(value).digest("base64url");
+	return createHmac("sha256", appConfig.authSecret)
+		.update(value)
+		.digest("base64url");
 }
 
 function nowUnixSeconds(): number {
@@ -112,7 +112,9 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 		const decoded = JSON.parse(
 			Buffer.from(payload, "base64url").toString("utf8"),
 		) as SessionUser;
-		const email = String(decoded.email ?? "").trim().toLowerCase();
+		const email = String(decoded.email ?? "")
+			.trim()
+			.toLowerCase();
 		const issuedAt = Number(decoded.iat);
 		const expiresAt = Number(decoded.exp);
 		const currentUnixSeconds = nowUnixSeconds();
@@ -182,7 +184,10 @@ export function isPublicRequestPath(pathname: string): boolean {
 	return PUBLIC_STATIC_EXTENSIONS.has(suffix);
 }
 
-export async function authGuard(c: Context, next: Next): Promise<void | Response> {
+export async function authGuard(
+	c: Context,
+	next: Next,
+): Promise<void | Response> {
 	if (!appConfig.authEnabled || isPublicRequestPath(c.req.path)) {
 		return next();
 	}
@@ -220,11 +225,7 @@ function buildGoogleRedirectUri(requestUrl: string): string {
 	return `${new URL(requestUrl).origin}${AUTH_CALLBACK}`;
 }
 
-function setTemporaryAuthCookie(
-	c: Context,
-	name: string,
-	value: string,
-): void {
+function setTemporaryAuthCookie(c: Context, name: string, value: string): void {
 	setCookie(c, name, value, {
 		httpOnly: true,
 		path: "/",
@@ -276,7 +277,9 @@ async function fetchGoogleUserInfo(
 function normalizeAllowedGoogleUser(
 	userInfo: GoogleUserInfo,
 ): Omit<SessionUser, "iat" | "exp"> | null {
-	const email = String(userInfo.email ?? "").trim().toLowerCase();
+	const email = String(userInfo.email ?? "")
+		.trim()
+		.toLowerCase();
 	if (!email || !userInfo.email_verified || email !== appConfig.allowedEmail) {
 		return null;
 	}
@@ -316,7 +319,11 @@ export async function handleCallback(c: Context): Promise<Response> {
 		return authErrorResponse(c, `Google sign-in failed: ${error}`, 400);
 	}
 	if (!code || !state) {
-		return authErrorResponse(c, "Missing Google OAuth callback parameters.", 400);
+		return authErrorResponse(
+			c,
+			"Missing Google OAuth callback parameters.",
+			400,
+		);
 	}
 
 	const expectedState = getCookie(c, STATE_COOKIE);
@@ -328,7 +335,10 @@ export async function handleCallback(c: Context): Promise<Response> {
 	const redirectUri = buildGoogleRedirectUri(c.req.url);
 
 	try {
-		const accessToken = await exchangeGoogleCodeForAccessToken(code, redirectUri);
+		const accessToken = await exchangeGoogleCodeForAccessToken(
+			code,
+			redirectUri,
+		);
 		if (!accessToken) {
 			return authErrorResponse(c, "Failed to verify Google account.", 502);
 		}
@@ -338,7 +348,9 @@ export async function handleCallback(c: Context): Promise<Response> {
 		}
 		const sessionUser = normalizeAllowedGoogleUser(userInfo);
 		if (!sessionUser) {
-			const email = String(userInfo.email ?? "").trim().toLowerCase();
+			const email = String(userInfo.email ?? "")
+				.trim()
+				.toLowerCase();
 			if (!email) {
 				return authErrorResponse(c, "Google account is missing an email.", 403);
 			}

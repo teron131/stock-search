@@ -3,7 +3,7 @@
 import path from "node:path";
 
 import { ExaAnswerAgent, ExaLoadAgent } from "llm-harness-js/agents";
-import { z, type ZodType } from "zod";
+import { type ZodType, z } from "zod";
 
 import { appConfig } from "../../api/config.js";
 import {
@@ -439,7 +439,9 @@ async function fetchSectorRows(): Promise<StockAnalysisSectorSummary[]> {
 	return normalizeSectorRows(output.sectors);
 }
 
-async function loadSectorRowsWithCache(): Promise<StockAnalysisSectorSummary[]> {
+async function loadSectorRowsWithCache(): Promise<
+	StockAnalysisSectorSummary[]
+> {
 	const now = new Date();
 	const cache = await loadSectorSnapshotCache();
 	const cachedRows = normalizeSectorRows(cache.sectors);

@@ -12,8 +12,9 @@ function erf(value: number): number {
 	const t = 1 / (1 + p * absValue);
 	const y =
 		1 -
-		((((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) *
-			Math.exp(-absValue * absValue));
+		((((a5 * t + a4) * t + a3) * t + a2) * t + a1) *
+			t *
+			Math.exp(-absValue * absValue);
 	return sign * y;
 }
 
@@ -44,8 +45,7 @@ export function zScoreMap(
 		return outMax;
 	}
 
-	const sigma =
-		(value <= inMedian ? inMedian - inMin : inMax - inMedian) / 3;
+	const sigma = (value <= inMedian ? inMedian - inMin : inMax - inMedian) / 3;
 	const z = sigma > 0 ? (value - inMedian) / sigma : 0;
 	const phi = 0.5 * (1 + erf(z / Math.sqrt(2)));
 	return clampScore(outMin + (outMax - outMin) * phi);

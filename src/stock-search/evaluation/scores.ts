@@ -1,26 +1,31 @@
 /** Compute normalized factor scores from stock indicators. */
 
+import type { FutureOutlook } from "../models/schemas.js";
+import { asNumber } from "../utils.js";
 import {
-	EDGE_BASE,
-	EDGE_MULTIPLIER,
-	SCORE_SCALE,
 	CalibrationConfig,
 	CoreEngineWeights,
 	DiversifierWeights,
+	EDGE_BASE,
+	EDGE_MULTIPLIER,
 	GameTierThresholds,
 	MarketCapConfig,
 	QualitySignalWeights,
 	SatelliteWeights,
+	SCORE_SCALE,
 	SpeculativeWeights,
 	type StrategyBucket,
 	ThresholdConfig,
 	ValuationWeights,
 } from "./constants.js";
 import { clampScore, zScoreMap } from "./math-utils.js";
-import type { FutureOutlook } from "../models/schemas.js";
-import { asNumber } from "../utils.js";
 
-type WeightedFactorConfig = [number | null, [number, number, number], number, boolean];
+type WeightedFactorConfig = [
+	number | null,
+	[number, number, number],
+	number,
+	boolean,
+];
 type IndicatorLike = Record<string, unknown>;
 
 const MOMENTUM_INPUTS = [
@@ -44,7 +49,12 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 		edgeWeight: CoreEngineWeights.EDGE,
 	},
 	satellite: {
-		scoreKeys: ["moat_score", "quality_score", "valuation_score", "upside_score"],
+		scoreKeys: [
+			"moat_score",
+			"quality_score",
+			"valuation_score",
+			"upside_score",
+		],
 		weights: [
 			SatelliteWeights.MOAT,
 			SatelliteWeights.QUALITY,
@@ -55,7 +65,12 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 		edgeWeight: SatelliteWeights.EDGE,
 	},
 	speculative: {
-		scoreKeys: ["upside_score", "quality_score", "moat_score", "valuation_score"],
+		scoreKeys: [
+			"upside_score",
+			"quality_score",
+			"moat_score",
+			"valuation_score",
+		],
 		weights: [
 			SpeculativeWeights.UPSIDE,
 			SpeculativeWeights.QUALITY,
@@ -66,7 +81,12 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 		edgeWeight: 0,
 	},
 	diversifier: {
-		scoreKeys: ["quality_score", "valuation_score", "size_score", "upside_score"],
+		scoreKeys: [
+			"quality_score",
+			"valuation_score",
+			"size_score",
+			"upside_score",
+		],
 		weights: [
 			DiversifierWeights.QUALITY,
 			DiversifierWeights.VALUATION,
@@ -78,7 +98,10 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 	},
 };
 
-function getNumberField(indicator: IndicatorLike, fieldName: string): number | null {
+function getNumberField(
+	indicator: IndicatorLike,
+	fieldName: string,
+): number | null {
 	return asNumber(indicator[fieldName]);
 }
 
@@ -110,7 +133,9 @@ function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 	if (totalWeight === 0) {
 		return null;
 	}
-	return clampScore(weightedScores.reduce((sum, value) => sum + value, 0) / totalWeight);
+	return clampScore(
+		weightedScores.reduce((sum, value) => sum + value, 0) / totalWeight,
+	);
 }
 
 function fcfYieldPercent(indicator: IndicatorLike): number | null {
@@ -145,7 +170,9 @@ export function marketCapScore(
 }
 
 /** Compute weighted valuation score from valuation and balance-sheet metrics. */
-export function calculateValuationScore(indicator: IndicatorLike): number | null {
+export function calculateValuationScore(
+	indicator: IndicatorLike,
+): number | null {
 	return weightedZscoreAverage([
 		[
 			getNumberField(indicator, "peg"),
@@ -181,7 +208,9 @@ export function calculateValuationScore(indicator: IndicatorLike): number | null
 }
 
 /** Compute market-derived quality score from growth and margin. */
-export function calculateQualitySignalScore(indicator: IndicatorLike): number | null {
+export function calculateQualitySignalScore(
+	indicator: IndicatorLike,
+): number | null {
 	return weightedZscoreAverage([
 		[
 			getNumberField(indicator, "revenue_growth"),

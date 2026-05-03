@@ -3,6 +3,7 @@ Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Sear
 - Free
 */
 
+import { type NewsArticle, NewsArticleSchema } from "../../models/schemas.js";
 import {
 	daysAgo,
 	fetchJson,
@@ -11,7 +12,6 @@ import {
 	normalizeDomain,
 	parseDate,
 } from "./shared.js";
-import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const YFINANCE_PROVIDER_MAX_RESULTS = 25;
 export const YFINANCE_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;

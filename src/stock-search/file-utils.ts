@@ -4,7 +4,10 @@ import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** Load JSON data from disk with a fallback default. */
-export async function loadJson<T>(filePath: string, defaultValue: T): Promise<T> {
+export async function loadJson<T>(
+	filePath: string,
+	defaultValue: T,
+): Promise<T> {
 	try {
 		const payload = await readFile(filePath, "utf8");
 		return JSON.parse(payload) as T;

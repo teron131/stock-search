@@ -2,7 +2,12 @@
 
 import { FastMCP } from "fastmcp";
 
-import { callTool, listTools, stockSearchTools, toolHasParameters } from "./tools.js";
+import {
+	callTool,
+	listTools,
+	stockSearchTools,
+	toolHasParameters,
+} from "./tools.js";
 
 export const SERVER_NAME = "Stock Search MCP";
 

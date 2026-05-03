@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import { type MutationCtx, mutation, query } from "./_generated/server";
 
 type GenericRow = Record<string, unknown>;
 type StockDocument = Doc<"stocks">;
@@ -20,10 +20,7 @@ type StockWrite =
 	| { kind: "skip" }
 	| { kind: "insert"; payload: StockPayload }
 	| { kind: "patch"; id: Id<"stocks">; payload: StockPayload };
-const ETF_MARKET_CAP_FIELDS = [
-	"market_cap",
-	"fx",
-] as const;
+const ETF_MARKET_CAP_FIELDS = ["market_cap", "fx"] as const;
 
 function normalizeTicker(value: unknown): string {
 	return typeof value === "string" ? value.toUpperCase().trim() : "";
@@ -47,7 +44,9 @@ function normalizeObject(value: unknown): GenericRow {
 
 function normalizeIndicators(value: unknown): GenericRow {
 	const indicators = { ...normalizeObject(value) };
-	const quoteType = String(indicators.quote_type ?? indicators.equity_type ?? "")
+	const quoteType = String(
+		indicators.quote_type ?? indicators.equity_type ?? "",
+	)
 		.trim()
 		.toUpperCase();
 	if (quoteType === "ETF") {
@@ -198,14 +197,20 @@ export const list = query({
 	args: {},
 	handler: async (ctx) => {
 		const rows = await ctx.db.query("stocks").collect();
-		return rows.map(toStockPayload).sort((a, b) => a.ticker.localeCompare(b.ticker));
+		return rows
+			.map(toStockPayload)
+			.sort((a, b) => a.ticker.localeCompare(b.ticker));
 	},
 });
 
 export const lastUpdatedAt = query({
 	args: {},
 	handler: async (ctx) => {
-		const row = await ctx.db.query("stocks").withIndex("by_updated_at").order("desc").first();
+		const row = await ctx.db
+			.query("stocks")
+			.withIndex("by_updated_at")
+			.order("desc")
+			.first();
 		return row?.updatedAt ?? null;
 	},
 });

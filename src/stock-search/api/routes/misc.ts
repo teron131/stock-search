@@ -1,18 +1,18 @@
 /** Miscellaneous API route module. */
 
-import { z } from "zod";
 import { Hono } from "hono";
-
-import { appConfig } from "../config.js";
-import { buildColorStandardsPayload } from "../color-standards.js";
-import type { BackendStore } from "../data-store.js";
-import { normalizeTicker } from "../../utils.js";
-import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
+import { z } from "zod";
 import {
 	PortfolioNewsSummaryRequestArticleSchema,
 	PortfolioNewsSummaryRequestRowSchema,
 } from "../../models/schemas.js";
 import * as newsOrchestrator from "../../news/orchestrator.js";
+import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
+import { normalizeTicker } from "../../utils.js";
+import { buildColorStandardsPayload } from "../color-standards.js";
+import { appConfig } from "../config.js";
+import type { BackendStore } from "../data-store.js";
+import { convexRealtimeTopics } from "../data-store.js";
 import {
 	COLOR_STANDARDS,
 	EVAL,
@@ -21,7 +21,6 @@ import {
 	STOCK_NEWS_ROUTE,
 	STOCKS,
 } from "../route-paths.js";
-import { convexRealtimeTopics } from "../data-store.js";
 
 const ARTICLE_CATEGORIES = new Set([
 	"macro_economics",
@@ -108,12 +107,14 @@ function parseTickersQuery(rawValue: string | undefined): string[] | undefined {
 		return undefined;
 	}
 
-	const tickers = [...new Set(
-		rawValue
-			.split(",")
-			.map((ticker) => normalizeTicker(ticker))
-			.filter(Boolean),
-	)];
+	const tickers = [
+		...new Set(
+			rawValue
+				.split(",")
+				.map((ticker) => normalizeTicker(ticker))
+				.filter(Boolean),
+		),
+	];
 	return tickers.length > 0 ? tickers : undefined;
 }
 
@@ -149,21 +150,30 @@ export function createMiscRouter(store: BackendStore): Hono {
 		const { rows, items } = PortfolioNewsSummaryPayloadSchema.parse(
 			await c.req.json().catch(() => null),
 		);
-		return c.json(await newsOrchestrator.buildPortfolioNewsSummary(rows, items));
+		return c.json(
+			await newsOrchestrator.buildPortfolioNewsSummary(rows, items),
+		);
 	});
 
 	router.get(STOCKS, async (c) => {
 		c.header("Cache-Control", "no-store");
-		return c.json(await loadStocksMap(store, parseTickersQuery(c.req.query("tickers"))));
+		return c.json(
+			await loadStocksMap(store, parseTickersQuery(c.req.query("tickers"))),
+		);
 	});
 
 	router.get(EVAL, async (c) => {
 		c.header("Cache-Control", "no-store");
-		return c.json(await loadEvalMap(store, parseTickersQuery(c.req.query("tickers"))));
+		return c.json(
+			await loadEvalMap(store, parseTickersQuery(c.req.query("tickers"))),
+		);
 	});
 
 	router.get(COLOR_STANDARDS, (c) => {
-		c.header("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+		c.header(
+			"Cache-Control",
+			"public, max-age=3600, stale-while-revalidate=86400",
+		);
 		return c.json(buildColorStandardsPayload());
 	});
 

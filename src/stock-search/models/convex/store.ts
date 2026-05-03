@@ -1,4 +1,14 @@
+import type {
+	BackendStore,
+	CachedNewsRow,
+	PortfolioRecord,
+	PositionRow,
+	StockEntry,
+} from "../../api/data-store.js";
+import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
+import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
 import { normalizeTicker } from "../../utils.js";
+import { normalizeStockIndicators } from "../schemas.js";
 import { ConvexApiError, ConvexHttpClient } from "./client.js";
 import {
 	CONVEX_META_GET,
@@ -10,35 +20,23 @@ import {
 	CONVEX_PORTFOLIO_GET_POSITIONS,
 	CONVEX_PORTFOLIO_SET,
 	CONVEX_PORTFOLIO_SET_POSITIONS,
-	CONVEX_STOCK_DELETE_BY_TICKERS,
-	CONVEX_STOCK_GET_MANY,
 	CONVEX_REALTIME_TOPICS,
 	CONVEX_SECTORS_GET,
 	CONVEX_SECTORS_SET,
+	CONVEX_STOCK_DELETE_BY_TICKERS,
 	CONVEX_STOCK_GET,
+	CONVEX_STOCK_GET_MANY,
 	CONVEX_STOCK_LIST,
 	CONVEX_STOCK_REPLACE_ALL,
 	CONVEX_STOCK_UPSERT,
 	CONVEX_STOCK_UPSERT_MANY,
 } from "./function-names.js";
-import type {
-	BackendStore,
-	CachedNewsRow,
-	PortfolioRecord,
-	PositionRow,
-	StockEntry,
-} from "../../api/data-store.js";
-import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
-import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
-import { normalizeStockIndicators } from "../schemas.js";
 
 function normalizeLabels(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	return value
-		.map((label) => String(label ?? "").trim())
-		.filter(Boolean);
+	return value.map((label) => String(label ?? "").trim()).filter(Boolean);
 }
 
 function normalizeStockEntry(value: unknown): StockEntry | null {
@@ -103,7 +101,7 @@ export class ConvexStore implements BackendStore {
 		const positions = Array.isArray(payload?.positions)
 			? (payload.positions.filter(
 					(row) => typeof row === "object" && row !== null,
-			  ) as PositionRow[])
+				) as PositionRow[])
 			: [];
 		return {
 			positions,
@@ -136,7 +134,7 @@ export class ConvexStore implements BackendStore {
 			return Array.isArray(payload)
 				? (payload.filter(
 						(row) => typeof row === "object" && row !== null,
-				  ) as PositionRow[])
+					) as PositionRow[])
 				: [];
 		} catch (error) {
 			if (!this.isMissingFunctionError(error)) {
@@ -172,7 +170,9 @@ export class ConvexStore implements BackendStore {
 		return payloadToStockMap(await this.client.query(CONVEX_STOCK_LIST));
 	}
 
-	async loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>> {
+	async loadStocksByTickers(
+		tickers: string[],
+	): Promise<Record<string, StockEntry>> {
 		return payloadToStockMap(
 			await this.client.query(CONVEX_STOCK_GET_MANY, { tickers }),
 		);
@@ -192,7 +192,7 @@ export class ConvexStore implements BackendStore {
 			indicators?: Record<string, unknown>;
 			evaluation?: Record<string, unknown>;
 			labels?: string[];
-	}>,
+		}>,
 	): Promise<void> {
 		if (rows.length === 0) {
 			return;
@@ -235,9 +235,8 @@ export class ConvexStore implements BackendStore {
 			}
 		}
 
-		const rows = await this.client.query<Record<string, unknown>[]>(
-			CONVEX_STOCK_LIST,
-		);
+		const rows =
+			await this.client.query<Record<string, unknown>[]>(CONVEX_STOCK_LIST);
 		const removed = new Set(tickers.map(normalizeTicker).filter(Boolean));
 		await this.client.mutation(CONVEX_STOCK_REPLACE_ALL, {
 			rows: rows.filter((row) => !removed.has(normalizeTicker(row?.ticker))),
@@ -245,7 +244,9 @@ export class ConvexStore implements BackendStore {
 	}
 
 	async loadNews(key = "default"): Promise<CachedNewsRow[]> {
-		const payload = await this.client.query<unknown[]>(CONVEX_NEWS_LIST, { key });
+		const payload = await this.client.query<unknown[]>(CONVEX_NEWS_LIST, {
+			key,
+		});
 		if (!Array.isArray(payload)) {
 			return [];
 		}

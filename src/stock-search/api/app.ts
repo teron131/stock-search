@@ -3,15 +3,10 @@
 import { readFile } from "node:fs/promises";
 
 import { Hono } from "hono";
-
-import { appConfig } from "./config.js";
-import { authGuard } from "./auth.js";
-import { createLazyStore, type BackendStore } from "./data-store.js";
-import { createAuthRouter } from "./routes/auth.js";
-import { createMiscRouter } from "./routes/misc.js";
-import { createPortfolioRouter } from "./routes/portfolio.js";
-import { createStandaloneTickerRouter } from "./routes/standalone-ticker.js";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
+import { authGuard } from "./auth.js";
+import { appConfig } from "./config.js";
+import { type BackendStore, createLazyStore } from "./data-store.js";
 import {
 	CALENDAR,
 	DASHBOARD,
@@ -20,6 +15,10 @@ import {
 	ROOT,
 	SECTORS,
 } from "./route-paths.js";
+import { createAuthRouter } from "./routes/auth.js";
+import { createMiscRouter } from "./routes/misc.js";
+import { createPortfolioRouter } from "./routes/portfolio.js";
+import { createStandaloneTickerRouter } from "./routes/standalone-ticker.js";
 
 export type AppDependencies = {
 	store: BackendStore;

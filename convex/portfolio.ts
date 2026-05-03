@@ -1,15 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import {
-	type PortfolioPosition,
-	PortfolioPositionSchema,
-} from "./schema";
+import { type PortfolioPosition, PortfolioPositionSchema } from "./schema";
 
 type GenericRow = Record<string, unknown>;
 
-function normalizePositions(
-	positions: unknown,
-): PortfolioPosition[] {
+function normalizePositions(positions: unknown): PortfolioPosition[] {
 	if (!Array.isArray(positions)) {
 		return [];
 	}
@@ -94,7 +89,9 @@ export const set = mutation({
 		const key = args.key.trim() || "default";
 		const now = Date.now();
 		const normalizedPositions = normalizePositions(args.positions);
-		const normalizedPortfolioStats = normalizePortfolioStats(args.portfolioStats);
+		const normalizedPortfolioStats = normalizePortfolioStats(
+			args.portfolioStats,
+		);
 		const existing = await ctx.db
 			.query("portfolios")
 			.withIndex("by_key", (q) => q.eq("key", key))

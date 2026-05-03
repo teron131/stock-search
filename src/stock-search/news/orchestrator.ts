@@ -2,19 +2,19 @@ import { ChatOpenAI } from "llm-harness-js/clients";
 
 import { TieredCache } from "../cache.js";
 import {
+	type NewsAnalysis,
 	NewsAnalysisSchema,
+	type NewsArticle,
 	NewsArticleSchema,
+	type PortfolioNewsChapter,
 	PortfolioNewsChapterSchema,
 	PortfolioNewsSummaryModelSchema,
-	PortfolioNewsSummaryRequestArticleSchema,
-	PortfolioNewsSummaryRequestRowSchema,
-	PortfolioNewsSummaryResponseSchema,
-	type NewsAnalysis,
-	type NewsArticle,
-	type PortfolioNewsChapter,
 	type PortfolioNewsSummaryRequestArticle,
+	PortfolioNewsSummaryRequestArticleSchema,
 	type PortfolioNewsSummaryRequestRow,
+	PortfolioNewsSummaryRequestRowSchema,
 	type PortfolioNewsSummaryResponse,
+	PortfolioNewsSummaryResponseSchema,
 	type PortfolioNewsSummaryResponseTicker,
 	type PortfolioTickerNewsChapters,
 } from "../models/schemas.js";
@@ -270,7 +270,7 @@ function hasEnvValue(value: string | undefined): boolean {
 export function _dedupeNews(items: NewsArticle[]): NewsArticle[] {
 	const seen = new Map<string, NewsArticle>();
 	for (const item of items) {
-		const key = item.url ? normalizeUrl(item.url) : item.title ?? "";
+		const key = item.url ? normalizeUrl(item.url) : (item.title ?? "");
 		if (!seen.has(key)) {
 			seen.set(key, item);
 		}
@@ -279,7 +279,11 @@ export function _dedupeNews(items: NewsArticle[]): NewsArticle[] {
 }
 
 function _normalizeNewsMetadata(
-	metadata: NewsArticle["metadata"] | Record<string, unknown> | null | undefined,
+	metadata:
+		| NewsArticle["metadata"]
+		| Record<string, unknown>
+		| null
+		| undefined,
 ): Record<string, string> {
 	if (!metadata) {
 		return {};
@@ -294,7 +298,9 @@ function _normalizeNewsMetadata(
 	return normalizedMetadata;
 }
 
-function _parseRetentionDatetime(value: string | null | undefined): Date | null {
+function _parseRetentionDatetime(
+	value: string | null | undefined,
+): Date | null {
 	return parseDateString(value ?? undefined);
 }
 
@@ -393,9 +399,7 @@ export function _balanceDomains(items: NewsArticle[]): NewsArticle[] {
 	return kept;
 }
 
-function _splitCachedAnalysis(
-	newsList: NewsArticle[],
-): {
+function _splitCachedAnalysis(newsList: NewsArticle[]): {
 	results: NewsAnalysis[];
 	cacheHits: number;
 	uncachedItems: ProviderBatchItem[];
@@ -546,7 +550,9 @@ function _mergeAnalysisResults(
 	readableItems.forEach((item, index) => {
 		const analysis = responses[index];
 		results[item.index] = analysis;
-		if (!FALLBACK_SUMMARIES.some((prefix) => analysis.summary.startsWith(prefix))) {
+		if (
+			!FALLBACK_SUMMARIES.some((prefix) => analysis.summary.startsWith(prefix))
+		) {
 			ANALYSIS_CACHE.set(item.cacheKey, analysis);
 		}
 	});
@@ -646,7 +652,9 @@ export function _finalizeNewsFeed(newsList: NewsArticle[]): NewsArticle[] {
 
 	return filteredNewsList.sort((left, right) => {
 		const leftDaysAgo =
-			typeof left.days_ago === "number" ? left.days_ago : Number.POSITIVE_INFINITY;
+			typeof left.days_ago === "number"
+				? left.days_ago
+				: Number.POSITIVE_INFINITY;
 		const rightDaysAgo =
 			typeof right.days_ago === "number"
 				? right.days_ago
@@ -658,7 +666,9 @@ export function _finalizeNewsFeed(newsList: NewsArticle[]): NewsArticle[] {
 	});
 }
 
-function _fallbackAnalysisFromProviders(newsList: NewsArticle[]): NewsAnalysis[] {
+function _fallbackAnalysisFromProviders(
+	newsList: NewsArticle[],
+): NewsAnalysis[] {
 	return newsList.map((news) =>
 		NewsAnalysisSchema.parse({
 			summary: news.summary ?? "",
@@ -707,10 +717,8 @@ export async function _analyzeNews(
 		return results;
 	}
 
-	const responses = await invokeStructuredBatch(
-		model,
-		prompts,
-		(value) => NewsAnalysisSchema.parse(value),
+	const responses = await invokeStructuredBatch(model, prompts, (value) =>
+		NewsAnalysisSchema.parse(value),
 	);
 	return _mergeAnalysisResults(results, readableItems, responses);
 }
@@ -751,7 +759,9 @@ function _normalizePortfolioNewsSummaryRows(
 		});
 	}
 
-	return normalizedRows.sort((left, right) => right.weight_pct - left.weight_pct);
+	return normalizedRows.sort(
+		(left, right) => right.weight_pct - left.weight_pct,
+	);
 }
 
 function _normalizePortfolioNewsSummaryItems(
@@ -1096,7 +1106,10 @@ export async function summarizePortfolioNewsAsync(
 
 	const topRows = normalizedRows.slice(0, MAX_PORTFOLIO_SUMMARY_TICKERS);
 	const heldTickers = new Set(normalizedRows.map((row) => row.ticker));
-	const normalizedItems = _normalizePortfolioNewsSummaryItems(items, heldTickers);
+	const normalizedItems = _normalizePortfolioNewsSummaryItems(
+		items,
+		heldTickers,
+	);
 	if (normalizedItems.length === 0) {
 		return PortfolioNewsSummaryResponseSchema.parse({
 			has_news: false,
@@ -1115,7 +1128,9 @@ export async function summarizePortfolioNewsAsync(
 			reasoningEffort: "low",
 		})
 		.withStructuredOutput(PortfolioNewsSummaryModelSchema);
-	const summary = PortfolioNewsSummaryModelSchema.parse(await model.invoke(prompt));
+	const summary = PortfolioNewsSummaryModelSchema.parse(
+		await model.invoke(prompt),
+	);
 
 	let macros = _cleanPortfolioNewsSummaryChapters(summary.macros, {
 		allowedTickers: heldTickers,
@@ -1234,10 +1249,10 @@ export async function getNewsAsync(
 			],
 		]);
 		Object.assign(providerCounts, exaBatch.providerCounts);
-		rawNewsList = _dedupeNews([
-			...rawNewsList,
-			...exaBatch.rawNewsList,
-		]).slice(0, boundedMaxResults);
+		rawNewsList = _dedupeNews([...rawNewsList, ...exaBatch.rawNewsList]).slice(
+			0,
+			boundedMaxResults,
+		);
 	} else {
 		providerCounts.exa = 0;
 	}

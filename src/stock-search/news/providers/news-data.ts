@@ -7,6 +7,7 @@ Documentation: https://newsdata.io/documentation#latest-news
 - Last 48 hours news
 */
 
+import { type NewsArticle, NewsArticleSchema } from "../../models/schemas.js";
 import {
 	daysAgo,
 	fetchJson,
@@ -16,7 +17,6 @@ import {
 	parseDateString,
 	readJsonResponse,
 } from "./shared.js";
-import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 export const NEWSDATA_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
@@ -28,10 +28,10 @@ export async function getNewsNewsDataAsync({
 	query: string;
 	maxResults?: number;
 	client?: {
-		get: (input: {
-			url: string;
-			params: Record<string, string>;
-		}) => Promise<{ json(): Promise<unknown> | unknown; raise_for_status?: () => void }>;
+		get: (input: { url: string; params: Record<string, string> }) => Promise<{
+			json(): Promise<unknown> | unknown;
+			raise_for_status?: () => void;
+		}>;
 	};
 }): Promise<NewsArticle[]> {
 	const url = new URL("https://newsdata.io/api/1/latest");
@@ -49,7 +49,9 @@ export async function getNewsNewsDataAsync({
 	};
 
 	const payload = client
-		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
+		? await readJsonResponse<{
+				results?: Array<Record<string, unknown>>;
+			} | null>(
 				await client.get({
 					url: url.toString(),
 					params,

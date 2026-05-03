@@ -1,13 +1,11 @@
 import { unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { tmpdir } from "node:os";
-
-import { z } from "zod";
-
+import path from "node:path";
 import { ChatOpenAI, MediaMessage } from "llm-harness-js/clients";
-import type { BackendStore, PositionRow } from "./data-store.js";
-import { normalizeTicker } from "../utils.js";
+import { z } from "zod";
 import { savePortfolioPositionsAndForgetRemoved } from "../portfolio.js";
+import { normalizeTicker } from "../utils.js";
+import type { BackendStore, PositionRow } from "./data-store.js";
 
 const PortfolioImageExtractionSchema = z.object({
 	holdings: z
@@ -24,25 +22,26 @@ async function extractPortfolioImage(
 	file: File,
 	modelOverride: string | null,
 ): Promise<z.infer<typeof PortfolioImageExtractionSchema>> {
-	const model = modelOverride || process.env.QUALITY_LLM || process.env.FAST_LLM
+	const model =
+		modelOverride || process.env.QUALITY_LLM || process.env.FAST_LLM;
 	if (!model) {
-		throw new Error("No model configured for image extraction.")
+		throw new Error("No model configured for image extraction.");
 	}
 
-	const fileBytes = Buffer.from(await file.arrayBuffer())
-	const suffix = path.extname(file.name || "") || ".png"
+	const fileBytes = Buffer.from(await file.arrayBuffer());
+	const suffix = path.extname(file.name || "") || ".png";
 	const tempPath = path.join(
 		tmpdir(),
 		`stock-search-import-${Date.now()}-${Math.random().toString(36).slice(2)}${suffix}`,
-	)
-	await writeFile(tempPath, fileBytes)
+	);
+	await writeFile(tempPath, fileBytes);
 
 	try {
 		const mediaMessage = await MediaMessage.fromPathAsync({
 			paths: tempPath,
 			description:
 				"Read this portfolio image and extract holdings. Keep ticker uppercase. Quantity must be numeric. Skip rows if ticker or quantity is unreadable. Return only holdings.",
-		})
+		});
 		const response = await ChatOpenAI({
 			model,
 			temperature: 0,
@@ -54,12 +53,12 @@ async function extractPortfolioImage(
 					role: "user",
 					content: mediaMessage.content as never,
 				},
-			])
-		return PortfolioImageExtractionSchema.parse(response)
+			]);
+		return PortfolioImageExtractionSchema.parse(response);
 	} catch {
-		throw new Error("Failed to extract holdings from image.")
+		throw new Error("Failed to extract holdings from image.");
 	} finally {
-		await unlink(tempPath).catch(() => undefined)
+		await unlink(tempPath).catch(() => undefined);
 	}
 }
 
@@ -83,69 +82,73 @@ export async function importPortfolioImage(
 	replace: boolean;
 }> {
 	if (!file.name) {
-		throw new Error("Image filename is required.")
+		throw new Error("Image filename is required.");
 	}
 	if (file.type && !file.type.startsWith("image/")) {
-		throw new Error("Uploaded file must be an image.")
+		throw new Error("Uploaded file must be an image.");
 	}
 	if (file.size <= 0) {
-		throw new Error("Uploaded image is empty.")
+		throw new Error("Uploaded image is empty.");
 	}
 
-	const previousPositionsPromise = store.loadPositions()
+	const previousPositionsPromise = store.loadPositions();
 	const positionsPromise: Promise<PositionRow[]> = replace
 		? Promise.resolve([])
-		: previousPositionsPromise
+		: previousPositionsPromise;
 	const [extraction, positions, previousPositions] = await Promise.all([
 		extractPortfolioImage(file, model),
 		positionsPromise,
 		previousPositionsPromise,
-	])
+	]);
 	const previousTickers = previousPositions
 		.map((position) => normalizeTicker(position.ticker))
-		.filter(Boolean)
-	const positionIndex = new Map<string, number>()
+		.filter(Boolean);
+	const positionIndex = new Map<string, number>();
 	for (const [index, position] of positions.entries()) {
-		const ticker = normalizeTicker(position.ticker)
+		const ticker = normalizeTicker(position.ticker);
 		if (ticker) {
-			positionIndex.set(ticker, index)
+			positionIndex.set(ticker, index);
 		}
 	}
 
-	const applied: Array<{ ticker: string; quantity: number }> = []
+	const applied: Array<{ ticker: string; quantity: number }> = [];
 	for (const holding of extraction.holdings) {
-		const ticker = normalizeTicker(holding.ticker)
-		const quantity = Number(holding.quantity)
+		const ticker = normalizeTicker(holding.ticker);
+		const quantity = Number(holding.quantity);
 		if (!ticker || quantity <= 0) {
-			continue
+			continue;
 		}
 
-		const payload: PositionRow = { ticker, quantity }
+		const payload: PositionRow = { ticker, quantity };
 		if (strategy) {
-			payload.strategy = strategy
+			payload.strategy = strategy;
 		}
 
 		if (positionIndex.has(ticker)) {
 			const existing: PositionRow = {
 				...positions[positionIndex.get(ticker)!],
 				quantity,
-			}
+			};
 			if (strategy) {
-				existing.strategy = strategy
+				existing.strategy = strategy;
 			}
-			positions[positionIndex.get(ticker)!] = existing
+			positions[positionIndex.get(ticker)!] = existing;
 		} else {
-			positionIndex.set(ticker, positions.length)
-			positions.push(payload)
+			positionIndex.set(ticker, positions.length);
+			positions.push(payload);
 		}
-		applied.push({ ticker, quantity })
+		applied.push({ ticker, quantity });
 	}
 
-	await savePortfolioPositionsAndForgetRemoved(store, positions, previousTickers)
+	await savePortfolioPositionsAndForgetRemoved(
+		store,
+		positions,
+		previousTickers,
+	);
 	return {
 		status: "ok",
 		applied_count: applied.length,
 		applied,
 		replace,
-	}
+	};
 }

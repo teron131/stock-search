@@ -55,11 +55,7 @@ function isRetainedNewsItem(value: unknown, now: number): boolean {
 	}
 
 	if (
-		isExpiredTimestamp(
-			publishedTimestamp,
-			NEWS_PUBLISHED_RETENTION_MS,
-			now,
-		)
+		isExpiredTimestamp(publishedTimestamp, NEWS_PUBLISHED_RETENTION_MS, now)
 	) {
 		return false;
 	}
@@ -123,7 +119,10 @@ function pruneNewsPayload(value: unknown, now: number): unknown | null {
 	return nextValue;
 }
 
-function normalizeNewsEntries(rows: unknown, key: string): Array<{
+function normalizeNewsEntries(
+	rows: unknown,
+	key: string,
+): Array<{
 	ticker: string;
 	row: GenericRow;
 }> {
@@ -258,7 +257,9 @@ export const deleteByTickers = mutation({
 		for (const ticker of tickers) {
 			const rows = await ctx.db
 				.query("news")
-				.withIndex("by_key_ticker", (q) => q.eq("key", key).eq("ticker", ticker))
+				.withIndex("by_key_ticker", (q) =>
+					q.eq("key", key).eq("ticker", ticker),
+				)
 				.collect();
 			for (const row of rows) {
 				await ctx.db.delete(row._id);

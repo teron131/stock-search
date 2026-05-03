@@ -1,9 +1,5 @@
 /** StockAnalysis data-source package. */
 
-export {
-	StockAnalysisSource,
-	getSectorSnapshot,
-} from "./source.js";
 export type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
@@ -12,3 +8,7 @@ export type {
 	StockAnalysisSectorSummary,
 	StockAnalysisStatistics,
 } from "./schemas.js";
+export {
+	getSectorSnapshot,
+	StockAnalysisSource,
+} from "./source.js";

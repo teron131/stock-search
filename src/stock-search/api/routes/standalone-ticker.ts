@@ -4,14 +4,11 @@ import { Hono } from "hono";
 
 import { normalizeTicker } from "../../utils.js";
 import type { BackendStore } from "../data-store.js";
+import { STOCK_EVALUATE_ROUTE, STOCK_STATS_ROUTE } from "../route-paths.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
 } from "../ticker-standalone.js";
-import {
-	STOCK_EVALUATE_ROUTE,
-	STOCK_STATS_ROUTE,
-} from "../route-paths.js";
 
 export function createStandaloneTickerRouter(store: BackendStore): Hono {
 	const router = new Hono();
@@ -37,7 +34,11 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 				: "auto";
 		try {
 			return c.json(
-				await buildStandaloneTickerPayload(store, c.req.param("ticker"), resolvedSource),
+				await buildStandaloneTickerPayload(
+					store,
+					c.req.param("ticker"),
+					resolvedSource,
+				),
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown error";
@@ -50,7 +51,10 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 				);
 			}
 			if (message.includes("Invalid ticker")) {
-				return c.json({ detail: `Invalid ticker: ${c.req.param("ticker")}` }, 400);
+				return c.json(
+					{ detail: `Invalid ticker: ${c.req.param("ticker")}` },
+					400,
+				);
 			}
 			return c.json({ detail: message }, 404);
 		}

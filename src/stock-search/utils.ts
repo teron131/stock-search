@@ -15,9 +15,7 @@ export function uniqueTickers(values: Iterable<string>): string[] {
 	return [...new Set(normalized)];
 }
 
-export function asRecord(
-	value: unknown,
-): Record<string, unknown> | null {
+export function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: null;
@@ -39,9 +37,9 @@ export function asNumber(value: unknown): number | null {
 			const parsed = Number(normalized);
 			return Number.isFinite(parsed) ? parsed : null;
 		}
-		const multiplier = { T: 1e12, B: 1e9, M: 1e6, K: 1e3 }[
-			match[2] as "T" | "B" | "M" | "K"
-		] ?? 1;
+		const multiplier =
+			{ T: 1e12, B: 1e9, M: 1e6, K: 1e3 }[match[2] as "T" | "B" | "M" | "K"] ??
+			1;
 		const parsed = Number(match[1]);
 		return Number.isFinite(parsed) ? parsed * multiplier : null;
 	}

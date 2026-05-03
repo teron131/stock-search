@@ -1,12 +1,19 @@
 /** Resolve ETF holdings and sector snapshots with cache support. */
 
-import {
-	StockAnalysisSource,
-	type StockAnalysisEtfSnapshot,
-} from "./data-sources/stockanalysis/index.js";
-import { ETF_QUOTE_TYPE, YahooFinanceSource } from "./data-sources/yahoo-finance.js";
-import type { BackendStore, PositionRow, StockEntry } from "./api/data-store.js";
+import type {
+	BackendStore,
+	PositionRow,
+	StockEntry,
+} from "./api/data-store.js";
 import { isCacheTimestampFresh } from "./cache.js";
+import {
+	type StockAnalysisEtfSnapshot,
+	StockAnalysisSource,
+} from "./data-sources/stockanalysis/index.js";
+import {
+	ETF_QUOTE_TYPE,
+	YahooFinanceSource,
+} from "./data-sources/yahoo-finance.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "./models/labels.js";
 import { normalizeTicker } from "./utils.js";
 
@@ -213,12 +220,15 @@ export async function resolveEtfSnapshotCache(
 }
 
 /** Fetch one ETF holdings snapshot from StockAnalysis. */
-export async function getEtfSnapshot(
-	tickerInput: string,
-): Promise<{ holdings: EtfHolding[]; sectors: EtfSector[]; error: string | null }> {
+export async function getEtfSnapshot(tickerInput: string): Promise<{
+	holdings: EtfHolding[];
+	sectors: EtfSector[];
+	error: string | null;
+}> {
 	const ticker = normalizeTicker(tickerInput);
-	const snapshot: StockAnalysisEtfSnapshot =
-		await new StockAnalysisSource(ticker).getEtfHoldingsSnapshot();
+	const snapshot: StockAnalysisEtfSnapshot = await new StockAnalysisSource(
+		ticker,
+	).getEtfHoldingsSnapshot();
 	return {
 		holdings: snapshot.holdings,
 		sectors: normalizeEtfSectors(snapshot.sectors),
@@ -236,8 +246,12 @@ async function isEtfTicker(
 	if (cachedQuoteType) {
 		return cachedQuoteType === ETF_QUOTE_TYPE;
 	}
-	const liveIndicators = await new YahooFinanceSource(ticker).getIndicatorsSnapshot();
-	return String(liveIndicators.quote_type ?? "").toUpperCase() === ETF_QUOTE_TYPE;
+	const liveIndicators = await new YahooFinanceSource(
+		ticker,
+	).getIndicatorsSnapshot();
+	return (
+		String(liveIndicators.quote_type ?? "").toUpperCase() === ETF_QUOTE_TYPE
+	);
 }
 
 /** Split held positions into ETF and stock groups and resolve ETF snapshots. */
@@ -262,7 +276,9 @@ export async function classifyAndResolveEtfs(
 			const stockEntry = stockMap[ticker] ?? null;
 			const indicators = stockEntry?.indicators ?? {};
 			const etfLike =
-				String(indicators.quote_type ?? "").trim().toUpperCase() === ETF_QUOTE_TYPE ||
+				String(indicators.quote_type ?? "")
+					.trim()
+					.toUpperCase() === ETF_QUOTE_TYPE ||
 				(loadEtfCache(indicators, now, false)?.holdings.length ?? 0) > 0 ||
 				(allowLiveFetch && (await isEtfTicker(ticker, stockEntry)));
 
@@ -313,7 +329,9 @@ export async function classifyAndResolveEtfs(
 		if (resolved.kind === "stock") {
 			stockPositions.push(resolved.position);
 			if (
-				String(resolved.indicators.quote_type ?? "").trim().toUpperCase() !== "EQUITY" &&
+				String(resolved.indicators.quote_type ?? "")
+					.trim()
+					.toUpperCase() !== "EQUITY" &&
 				allowLiveFetch
 			) {
 				upserts.push({

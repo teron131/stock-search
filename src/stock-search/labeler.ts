@@ -12,11 +12,8 @@ import { z } from "zod";
 
 import { normalizeTickerSymbol } from "./common-utils.js";
 import { ModelConfig } from "./config.js";
-import {
-	INDUSTRY_LABELS,
-	INDUSTRY_LABELS_BY_SECTOR,
-} from "./models/labels.js";
-import { TickerLabelsSchema, type TickerLabels } from "./models/schemas.js";
+import { INDUSTRY_LABELS, INDUSTRY_LABELS_BY_SECTOR } from "./models/labels.js";
+import { type TickerLabels, TickerLabelsSchema } from "./models/schemas.js";
 
 const INDUSTRY_LABEL_SET = new Set(INDUSTRY_LABELS);
 const MAX_LABELS = 5;
@@ -227,7 +224,12 @@ function runLabelerSync<T>(command: string, payload: unknown): T {
 	const workerPath = fileURLToPath(workerUrl);
 	const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 	const tsxBinaryName = process.platform === "win32" ? "tsx.cmd" : "tsx";
-	const tsxBinaryPath = path.join(repoRoot, "node_modules", ".bin", tsxBinaryName);
+	const tsxBinaryPath = path.join(
+		repoRoot,
+		"node_modules",
+		".bin",
+		tsxBinaryName,
+	);
 	const spawnCommand =
 		process.execArgv.length > 0
 			? process.execPath
@@ -239,13 +241,7 @@ function runLabelerSync<T>(command: string, payload: unknown): T {
 			? [...process.execArgv, workerPath, command, JSON.stringify(payload)]
 			: existsSync(tsxBinaryPath)
 				? [workerPath, command, JSON.stringify(payload)]
-				: [
-						"--import",
-						"tsx",
-						workerPath,
-						command,
-						JSON.stringify(payload),
-					];
+				: ["--import", "tsx", workerPath, command, JSON.stringify(payload)];
 	const result = spawnSync(spawnCommand, spawnArgs, {
 		cwd: repoRoot,
 		encoding: "utf8",
@@ -255,7 +251,10 @@ function runLabelerSync<T>(command: string, payload: unknown): T {
 		throw result.error;
 	}
 	if (result.status !== 0) {
-		const message = result.stderr.trim() || result.stdout.trim() || "Labeler sync worker failed";
+		const message =
+			result.stderr.trim() ||
+			result.stdout.trim() ||
+			"Labeler sync worker failed";
 		throw new Error(message);
 	}
 
@@ -288,7 +287,9 @@ export async function agetLabels(
 	{ maxConcurrency = 4 }: { maxConcurrency?: number } = {},
 ): Promise<Record<string, TickerLabels>> {
 	const normalizedTickers = [
-		...new Set(tickers.map((ticker) => normalizeTickerSymbol(ticker)).filter(Boolean)),
+		...new Set(
+			tickers.map((ticker) => normalizeTickerSymbol(ticker)).filter(Boolean),
+		),
 	];
 	if (normalizedTickers.length === 0) {
 		return {};

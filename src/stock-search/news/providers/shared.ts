@@ -31,7 +31,9 @@ export function parseDate(value: unknown): Date | null {
 	return Number.isFinite(timestamp) ? new Date(timestamp) : null;
 }
 
-export function parseDateString(rawDate: string | null | undefined): Date | null {
+export function parseDateString(
+	rawDate: string | null | undefined,
+): Date | null {
 	return parseDate(rawDate);
 }
 

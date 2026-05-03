@@ -82,9 +82,7 @@ export function normalizeStockMap(
 					? { ...(row.evaluation as Record<string, unknown>) }
 					: {},
 			labels: Array.isArray(row.labels)
-				? row.labels
-						.map((label) => String(label).trim())
-						.filter(Boolean)
+				? row.labels.map((label) => String(label).trim()).filter(Boolean)
 				: [],
 		};
 	}
@@ -119,9 +117,7 @@ export function payloadToStockMap(
 					? { ...(row.evaluation as Record<string, unknown>) }
 					: {},
 			labels: Array.isArray(row.labels)
-				? row.labels
-						.map((label) => String(label).trim())
-						.filter(Boolean)
+				? row.labels.map((label) => String(label).trim()).filter(Boolean)
 				: [],
 		};
 	}

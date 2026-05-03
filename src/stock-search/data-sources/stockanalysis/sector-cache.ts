@@ -75,7 +75,8 @@ export function normalizeSectorSnapshot(
 	return {
 		sectors,
 		meta: {
-			source: typeof meta.source === "string" ? meta.source : "stockanalysis-sectors",
+			source:
+				typeof meta.source === "string" ? meta.source : "stockanalysis-sectors",
 			fetched_at: typeof meta.fetched_at === "string" ? meta.fetched_at : null,
 			sector_count: Number(meta.sector_count) || sectors.length,
 		},

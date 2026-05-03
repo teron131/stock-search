@@ -5,17 +5,17 @@ Documentation: https://massive.com/docs/rest/stocks/news
 - Max 1000 results per query
 */
 
+import { type NewsArticle, NewsArticleSchema } from "../../models/schemas.js";
 import {
+	DAY_IN_MS,
 	daysAgo,
 	fetchJson,
 	formatDate,
-	normalizeDomain,
 	NEWS_PROVIDER_MAX_RESULTS,
+	normalizeDomain,
 	parseDate,
 	readJsonResponse,
-	DAY_IN_MS,
 } from "./shared.js";
-import { NewsArticleSchema, type NewsArticle } from "../../models/schemas.js";
 
 const SENTIMENT_MAP: Record<string, NewsArticle["sentiment"]> = {
 	positive: "bullish",
@@ -36,10 +36,10 @@ export async function getNewsMassiveAsync({
 	nDays?: number;
 	maxResults?: number;
 	client?: {
-		get: (input: {
-			url: string;
-			params: Record<string, string>;
-		}) => Promise<{ json(): Promise<unknown> | unknown; raise_for_status?: () => void }>;
+		get: (input: { url: string; params: Record<string, string> }) => Promise<{
+			json(): Promise<unknown> | unknown;
+			raise_for_status?: () => void;
+		}>;
 	};
 }): Promise<NewsArticle[]> {
 	const boundedMaxResults = Math.min(
@@ -57,9 +57,9 @@ export async function getNewsMassiveAsync({
 	};
 	const url = "https://api.massive.com/v2/reference/news";
 	const payload = client
-		? await readJsonResponse<{ results?: Array<Record<string, unknown>> } | null>(
-				await client.get({ url, params }),
-			)
+		? await readJsonResponse<{
+				results?: Array<Record<string, unknown>>;
+			} | null>(await client.get({ url, params }))
 		: await fetchJson<{ results?: Array<Record<string, unknown>> }>(
 				`${url}?${new URLSearchParams(params).toString()}`,
 			);
@@ -69,8 +69,9 @@ export async function getNewsMassiveAsync({
 		const publishedAt = parseDate(row.published_utc);
 		const insights = Array.isArray(row.insights) ? row.insights : [{}];
 		const sentiment =
-			SENTIMENT_MAP[String((insights[0] as Record<string, unknown>).sentiment ?? "")] ??
-			"neutral";
+			SENTIMENT_MAP[
+				String((insights[0] as Record<string, unknown>).sentiment ?? "")
+			] ?? "neutral";
 		const rawUrl = String(row.article_url ?? "");
 		return NewsArticleSchema.parse({
 			url: rawUrl,

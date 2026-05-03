@@ -1,11 +1,11 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
-import type { BackendStore, PositionRow, StockEntry } from "./data-store.js";
+import { resolveEtfSnapshotCache } from "../etf.js";
 import { fetchYahooIndicators } from "../indicators.js";
-import { normalizeTicker, nowIso } from "../utils.js";
 import { mergePortfolioRow } from "../portfolio.js";
 import { resolveTickerStats } from "../stats-resolver.js";
-import { resolveEtfSnapshotCache } from "../etf.js";
+import { normalizeTicker, nowIso } from "../utils.js";
+import type { BackendStore, PositionRow, StockEntry } from "./data-store.js";
 
 type StandaloneTickerSource = "auto" | "live" | "cache";
 type StandaloneTickerPayload = {
@@ -23,11 +23,13 @@ function makePosition(ticker: string): PositionRow {
 }
 
 function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
-	return stockEntry ?? {
-		indicators: {},
-		evaluation: {},
-		labels: [],
-	};
+	return (
+		stockEntry ?? {
+			indicators: {},
+			evaluation: {},
+			labels: [],
+		}
+	);
 }
 
 function buildStandaloneMeta(
@@ -60,7 +62,9 @@ function hasCachedTicker(row: Record<string, unknown>): boolean {
 function hasEtfSnapshotSignal(indicators: Record<string, unknown>): boolean {
 	const cachedHoldings = indicators.etf_holdings;
 	return (
-		String(indicators.quote_type ?? "").trim().toUpperCase() === "ETF" ||
+		String(indicators.quote_type ?? "")
+			.trim()
+			.toUpperCase() === "ETF" ||
 		(Array.isArray(cachedHoldings) && cachedHoldings.length > 0)
 	);
 }
@@ -206,8 +210,7 @@ export async function buildEvaluateTickerPayload(
 		market_cap_score: 9.0,
 		bull_probability: 0.7,
 		bear_probability: 0.2,
-		price:
-			typeof indicators.price === "number" ? indicators.price : null,
+		price: typeof indicators.price === "number" ? indicators.price : null,
 		change_percent_1d:
 			typeof indicators.change_percent_1d === "number"
 				? indicators.change_percent_1d

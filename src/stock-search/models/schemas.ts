@@ -22,19 +22,20 @@ function finiteNumber(value: unknown): number {
 	return Number.isFinite(number) ? number : 0;
 }
 
-const ETF_MARKET_CAP_FIELDS = [
-	"market_cap",
-	"fx",
-] as const;
+const ETF_MARKET_CAP_FIELDS = ["market_cap", "fx"] as const;
 
 function isEtfIndicatorRow(row: Record<string, unknown>): boolean {
-	return String(row.quote_type ?? row.equity_type ?? "")
-		.trim()
-		.toUpperCase() === "ETF";
+	return (
+		String(row.quote_type ?? row.equity_type ?? "")
+			.trim()
+			.toUpperCase() === "ETF"
+	);
 }
 
 /** Normalize indicator payloads before they are cached, persisted, or rendered. */
-export function normalizeStockIndicators(value: unknown): Record<string, unknown> {
+export function normalizeStockIndicators(
+	value: unknown,
+): Record<string, unknown> {
 	const indicators =
 		typeof value === "object" && value !== null && !Array.isArray(value)
 			? { ...(value as Record<string, unknown>) }
@@ -126,8 +127,9 @@ export const FutureOutlookSchema = ScoredReasonSchema.extend({
 	bear_probability: z.number().nullable().optional(),
 });
 
-export const EvaluationSchema = MetricsEvaluationSchema
-	.merge(ResearchEvaluationSchema)
+export const EvaluationSchema = MetricsEvaluationSchema.merge(
+	ResearchEvaluationSchema,
+)
 	.merge(FutureOutlookSchema)
 	.extend({
 		flat_probability: z.number().nullable().optional(),

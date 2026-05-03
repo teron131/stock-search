@@ -5,9 +5,11 @@ import { asNumber } from "./utils.js";
 const FX_MONETARY_FIELDS = ["market_cap", "free_cash_flow"] as const;
 
 function isEtfRow(fields: Record<string, unknown>): boolean {
-	return String(fields.quote_type ?? fields.equity_type ?? "")
-		.trim()
-		.toUpperCase() === "ETF";
+	return (
+		String(fields.quote_type ?? fields.equity_type ?? "")
+			.trim()
+			.toUpperCase() === "ETF"
+	);
 }
 
 /** Convert non-price monetary fields in-place when an FX rate is available. */
@@ -45,7 +47,10 @@ export function mergeAndNormalizeMonetaryFields(
 	fallback: Record<string, unknown>,
 ): Record<string, unknown> {
 	if (isEtfRow(row) || isEtfRow(fallback)) {
-		const output = { ...row, quote_type: row.quote_type ?? fallback.quote_type };
+		const output = {
+			...row,
+			quote_type: row.quote_type ?? fallback.quote_type,
+		};
 		normalizeMonetaryFields(output);
 		return output;
 	}

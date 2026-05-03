@@ -189,7 +189,8 @@ function buildDemoRows(
 
 		const quantity = Number(position.quantity ?? 0);
 		const price = safeFloat(merged.price);
-		const total = price != null && quantity > 0 ? Number((price * quantity).toFixed(2)) : 0;
+		const total =
+			price != null && quantity > 0 ? Number((price * quantity).toFixed(2)) : 0;
 
 		rows.push({
 			...merged,
@@ -232,7 +233,8 @@ function buildDemoRows(
 	}
 
 	const priorTotal = totalValue - changeAbsolute;
-	const changePercent = priorTotal > 0 ? (changeAbsolute / priorTotal) * 100 : 0;
+	const changePercent =
+		priorTotal > 0 ? (changeAbsolute / priorTotal) * 100 : 0;
 	const weightedBeta = weightedAverage(heldRows, "beta");
 	const weightedIv = weightedAverage(heldRows, "iv");
 
@@ -255,7 +257,9 @@ function buildDemoRows(
 	};
 }
 
-function getDemoNewsTickers(portfolioPayload: Record<string, unknown>): string[] {
+function getDemoNewsTickers(
+	portfolioPayload: Record<string, unknown>,
+): string[] {
 	const rows = Array.isArray(portfolioPayload.rows)
 		? (portfolioPayload.rows as Array<Record<string, unknown>>)
 		: [];
@@ -380,10 +384,7 @@ export async function writeStaticDemoSnapshot({
 	};
 
 	await writeJson(writtenPaths.portfolio, portfolioPayload);
-	await writeJson(
-		writtenPaths.color_standards,
-		buildColorStandardsPayload(),
-	);
+	await writeJson(writtenPaths.color_standards, buildColorStandardsPayload());
 
 	const [sectorsPayload, newsPayload] = await Promise.all([
 		buildSectorsPayload(),

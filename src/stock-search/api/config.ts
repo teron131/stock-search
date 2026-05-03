@@ -1,6 +1,6 @@
-import { config as loadDotenv } from "dotenv";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { config as loadDotenv } from "dotenv";
 
 loadDotenv();
 
@@ -39,7 +39,8 @@ export const appConfig = {
 	distUiDir,
 	uiDir: getUiDir(rawUiDir),
 	indexFile: getIndexFile(rawUiDir),
-	isVercelRuntime: truthy(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV),
+	isVercelRuntime:
+		truthy(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV),
 	dataSqlitePath: path.resolve(
 		process.env.DATA_SQLITE_PATH ?? path.join(dataDir, "stock_search.db"),
 	),

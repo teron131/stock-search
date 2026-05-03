@@ -8,13 +8,6 @@ import {
 	loadSectorSnapshot,
 	loadStatisticsSnapshot,
 } from "./extractors.js";
-import {
-	hasSectorRows,
-	isFreshSectorSnapshot,
-	loadCachedSectorSnapshot,
-	saveCachedSectorSnapshot,
-	type SectorSnapshotCacheStore,
-} from "./sector-cache.js";
 import type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
@@ -22,17 +15,29 @@ import type {
 	StockAnalysisSectorSnapshot,
 	StockAnalysisStatistics,
 } from "./schemas.js";
+import {
+	hasSectorRows,
+	isFreshSectorSnapshot,
+	loadCachedSectorSnapshot,
+	type SectorSnapshotCacheStore,
+	saveCachedSectorSnapshot,
+} from "./sector-cache.js";
 
-function hasModelData(snapshot: Record<string, unknown> | null | undefined): boolean {
-	return !!snapshot && Object.values(snapshot).some((value) => {
-		if (value == null) {
-			return false;
-		}
-		if (Array.isArray(value)) {
-			return value.length > 0;
-		}
-		return true;
-	});
+function hasModelData(
+	snapshot: Record<string, unknown> | null | undefined,
+): boolean {
+	return (
+		!!snapshot &&
+		Object.values(snapshot).some((value) => {
+			if (value == null) {
+				return false;
+			}
+			if (Array.isArray(value)) {
+				return value.length > 0;
+			}
+			return true;
+		})
+	);
 }
 
 /** Fetch sector summary rows from StockAnalysis. */
@@ -130,8 +135,7 @@ export class StockAnalysisSource {
 			...quoteFields,
 			...statistics,
 			...financials,
-			gross_margin:
-				financials.gross_margin ?? statistics.gross_margin ?? null,
+			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
 			debt_to_equity: statistics.debt_to_equity ?? null,
 		};
 		return this.indicatorsSnapshot;

@@ -1,5 +1,13 @@
 /** Blend evaluation signals into scores and probabilities. */
 
+import { fetchLiveIndicators } from "../indicators.js";
+import type {
+	Evaluation,
+	ResearchEvaluation,
+	ScoredReason,
+} from "../models/schemas.js";
+import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
+import { normalizeTicker } from "../utils.js";
 import {
 	ELO_K_FACTOR,
 	EXPECTED_DRAW_WEIGHT,
@@ -13,6 +21,7 @@ import {
 	evalFromJson,
 	normalizeEvalJson,
 } from "./normalization.js";
+import { runLlmEvaluation } from "./research.js";
 import {
 	calculateCombinedUpsideScore,
 	calculateEloDelta,
@@ -24,15 +33,6 @@ import {
 	marketCapScore,
 	modelProbabilities,
 } from "./scores.js";
-import type {
-	Evaluation,
-	ResearchEvaluation,
-	ScoredReason,
-} from "../models/schemas.js";
-import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
-import { normalizeTicker } from "../utils.js";
-import { fetchLiveIndicators } from "../indicators.js";
-import { runLlmEvaluation } from "./research.js";
 
 export type EvaluationResult = {
 	inputs: Evaluation;
@@ -71,7 +71,11 @@ function probabilitiesFromScores(
 	if (bullProbability != null && bearProbability != null) {
 		flatProbability = Math.max(
 			0,
-			Number((1 - bullProbability - bearProbability).toFixed(ROUND_PROBABILITY_DIGITS)),
+			Number(
+				(1 - bullProbability - bearProbability).toFixed(
+					ROUND_PROBABILITY_DIGITS,
+				),
+			),
 		);
 	}
 	return [bullProbability, bearProbability, flatProbability];
@@ -143,7 +147,9 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 	const valuationScore = calculateValuationScore(indicator);
 	const qualitySignalScore = calculateQualitySignalScore(indicator);
 	const upsideScore = calculateCombinedUpsideScore(
-		typeof indicator.median_upside === "number" ? indicator.median_upside : null,
+		typeof indicator.median_upside === "number"
+			? indicator.median_upside
+			: null,
 		Array.isArray(indicator.ratings)
 			? (indicator.ratings as Array<Record<string, unknown>>)
 			: null,
@@ -178,7 +184,8 @@ export function evaluateAsset(
 	const bullProbability = inputs.bull_probability ?? null;
 	const bearProbability = inputs.bear_probability ?? null;
 	const pFlat =
-		inputs.flat_probability ?? flatProbability(bullProbability, bearProbability);
+		inputs.flat_probability ??
+		flatProbability(bullProbability, bearProbability);
 
 	const bullScore =
 		bullProbability == null ? null : bullProbability * SCORE_SCALE;
@@ -266,8 +273,8 @@ export function strategyLabel(
 
 export {
 	bucketFromEvalJson,
+	bucketFromEvalJson as bucketFromEvaluation,
 	evalFromJson,
 	normalizeEvalJson,
-	bucketFromEvalJson as bucketFromEvaluation,
 	normalizeEvalJson as normalizeEvaluationRow,
 };

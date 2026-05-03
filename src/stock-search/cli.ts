@@ -3,7 +3,12 @@
 import { mcp } from "./mcp/index.js";
 import { commandName, type JsonValue, type OpenApiTool } from "./mcp/tools.js";
 
-const CLI_NAMESPACE_KEYS = new Set(["command", "_builtin", "_tool_name", "compact"]);
+const CLI_NAMESPACE_KEYS = new Set([
+	"command",
+	"_builtin",
+	"_tool_name",
+	"compact",
+]);
 
 function parseBool(value: string): boolean {
 	const normalized = value.trim().toLowerCase();
@@ -16,7 +21,9 @@ function parseBool(value: string): boolean {
 	throw new Error(`Invalid boolean value: ${value}`);
 }
 
-function normalizeSchema(schema: Record<string, unknown>): Record<string, unknown> {
+function normalizeSchema(
+	schema: Record<string, unknown>,
+): Record<string, unknown> {
 	const anyOf = Array.isArray(schema.anyOf) ? schema.anyOf : null;
 	if (!anyOf) {
 		return schema;
@@ -75,7 +82,10 @@ function parseArgumentValue(
 	return value;
 }
 
-function getToolByCommand(command: string, tools: OpenApiTool[]): OpenApiTool | undefined {
+function getToolByCommand(
+	command: string,
+	tools: OpenApiTool[],
+): OpenApiTool | undefined {
 	return tools.find((tool) => commandName(tool.name) === command);
 }
 
@@ -92,7 +102,9 @@ function parseToolArguments(
 ): { compact: boolean; arguments: Record<string, unknown> } {
 	const compact = argv.includes("--compact");
 	const parameters =
-		tool.parameters && typeof tool.parameters === "object" ? tool.parameters : {};
+		tool.parameters && typeof tool.parameters === "object"
+			? tool.parameters
+			: {};
 	const properties =
 		parameters.properties && typeof parameters.properties === "object"
 			? (parameters.properties as Record<string, Record<string, unknown>>)
@@ -115,7 +127,9 @@ function parseToolArguments(
 			const parameterName = token.slice(2).replaceAll("-", "_");
 			const parameterSchema = properties[parameterName];
 			if (!parameterSchema) {
-				throw new Error(`Unknown option for ${commandName(tool.name)}: ${token}`);
+				throw new Error(
+					`Unknown option for ${commandName(tool.name)}: ${token}`,
+				);
 			}
 			const normalizedSchema = normalizeSchema(parameterSchema);
 			if (normalizedSchema.type === "boolean") {
@@ -141,7 +155,10 @@ function parseToolArguments(
 		if (rawValue == null) {
 			throw new Error(`Missing required argument: ${parameterName}`);
 		}
-		values[parameterName] = parseArgumentValue(properties[parameterName], rawValue);
+		values[parameterName] = parseArgumentValue(
+			properties[parameterName],
+			rawValue,
+		);
 	});
 
 	return {
@@ -158,7 +175,9 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 	const tools = await mcp.listTools();
 	const [command, ...rest] = argv;
 	if (!command) {
-		throw new Error("A command is required. Use list-tools to inspect the CLI.");
+		throw new Error(
+			"A command is required. Use list-tools to inspect the CLI.",
+		);
 	}
 
 	if (command === "list-tools") {
