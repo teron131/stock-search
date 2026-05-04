@@ -1,8 +1,10 @@
 import { ChatOpenAI } from "llm-harness-js/clients";
 
 import { TieredCache } from "../cache.js";
+import { YahooFinanceSource } from "../data-sources/yahoo-finance.js";
 import {
 	type NewsAnalysis,
+	NewsAnalysisModelSchema,
 	NewsAnalysisSchema,
 	type NewsArticle,
 	NewsArticleSchema,
@@ -30,14 +32,13 @@ import * as webloaderModule from "./webloader.js";
 const FAST_LLM = process.env.FAST_LLM;
 const QUALITY_LLM = process.env.QUALITY_LLM;
 const MAX_ANALYSIS_WORKERS = 10;
+const MAX_NEWS_ANALYSIS_CANDIDATES = 25;
 const MAX_PORTFOLIO_SUMMARY_TICKERS = 5;
 const MAX_PORTFOLIO_SUMMARY_ITEMS = 3;
 const MAX_PORTFOLIO_SUMMARY_ARTICLES = 18;
 const MAX_PORTFOLIO_SUMMARY_MACRO_ITEMS = 2;
 const MAX_PROVIDER_SUMMARY_CHARS = 1_200;
-const MIN_PROVIDER_SUMMARY_CHARS = 140;
-const MAX_NEWS_FETCH_RETENTION_DAYS = 3;
-const MAX_NEWS_PUBLISHED_RETENTION_DAYS = 3;
+const DEFAULT_NEWS_DAYS = 3;
 const NEWS_PROVIDER_TIMEOUT_MS = 8_000;
 const THIN_COVERAGE_HEADLINE = "Coverage remains thin";
 const THIN_COVERAGE_PARAGRAPH =
@@ -65,6 +66,23 @@ const RELEVANCY_ORDER: Record<NewsArticle["relevancy"], number> = {
 };
 const MAX_NON_ASCII_LATIN_RATIO = 0.1;
 const MIN_NON_ASCII_LATIN_LETTERS = 5;
+const COMPANY_NAME_STOP_WORDS = new Set([
+	"ads",
+	"adr",
+	"class",
+	"common",
+	"corp",
+	"corporation",
+	"depositary",
+	"inc",
+	"incorporated",
+	"limited",
+	"ltd",
+	"ordinary",
+	"plc",
+	"shares",
+	"stock",
+]);
 
 export const ANALYSIS_CACHE = new TieredCache<NewsAnalysis>({
 	ttlSeconds: 7 * 24 * 60 * 60,
@@ -72,14 +90,32 @@ export const ANALYSIS_CACHE = new TieredCache<NewsAnalysis>({
 	failureCooldownSeconds: 10 * 60,
 });
 
+export type NewsTickerIdentity = {
+	ticker: string;
+	companyName: string | null;
+	label: string;
+	searchTerms: string[];
+};
+
+export type NewsFetchOptions = {
+	nDays?: number;
+	maxResults?: number;
+	tickerIdentity?: NewsTickerIdentity;
+	resolveIdentity?: boolean;
+};
+
 export const newsPipelineDeps = {
 	chatOpenAI: ChatOpenAI,
 	webloader: webloaderModule.webloader,
+	resolveTickerIdentity: resolveTickerIdentityFromYahoo,
 };
 
 export const newsRuntime = {
-	analyzeNews: (ticker: string, newsList: NewsArticle[]) =>
-		_analyzeNews(ticker, newsList),
+	analyzeNews: (
+		ticker: string,
+		newsList: NewsArticle[],
+		tickerIdentity?: NewsTickerIdentity,
+	) => _analyzeNews(ticker, newsList, tickerIdentity),
 };
 
 export type ProviderRateLimit = {
@@ -267,15 +303,184 @@ function hasEnvValue(value: string | undefined): boolean {
 	return typeof value === "string" && value.trim().length > 0;
 }
 
+function cleanCompanyName(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const name = value.trim().replace(/\s+/g, " ");
+	return name && !/^[A-Z0-9.\-]+$/.test(name) ? name : null;
+}
+
+function addSearchTerm(terms: string[], seen: Set<string>, term: string): void {
+	const normalizedTerm = term.trim().replace(/\s+/g, " ");
+	const key = normalizedTerm.toLowerCase();
+	if (!normalizedTerm || seen.has(key)) {
+		return;
+	}
+	seen.add(key);
+	terms.push(normalizedTerm);
+}
+
+function companyNameSearchTerms(companyName: string | null): string[] {
+	if (!companyName) {
+		return [];
+	}
+
+	const terms: string[] = [];
+	const seen = new Set<string>();
+	addSearchTerm(terms, seen, companyName.replace(/\./g, ""));
+
+	const words = companyName
+		.replace(/[^\p{L}\p{N}&]+/gu, " ")
+		.split(/\s+/)
+		.map((word) => word.trim())
+		.filter((word) => {
+			const key = word.toLowerCase();
+			return (
+				word.length >= 3 &&
+				!/^\d+$/.test(word) &&
+				!COMPANY_NAME_STOP_WORDS.has(key)
+			);
+		});
+	if (words.length > 0) {
+		addSearchTerm(terms, seen, words.join(" "));
+	}
+	for (const word of words.slice(0, 4)) {
+		addSearchTerm(terms, seen, word);
+	}
+	return terms;
+}
+
+export function buildNewsTickerIdentity(
+	tickerInput: string,
+	companyNameInput: unknown = null,
+): NewsTickerIdentity {
+	const ticker = normalizeTicker(tickerInput);
+	const companyName = cleanCompanyName(companyNameInput);
+	const label = companyName ? `${ticker} (${companyName})` : ticker;
+	const terms: string[] = [];
+	const seen = new Set<string>();
+	for (const term of companyNameSearchTerms(companyName)) {
+		addSearchTerm(terms, seen, term);
+	}
+	addSearchTerm(terms, seen, ticker);
+	return {
+		ticker,
+		companyName,
+		label,
+		searchTerms: terms,
+	};
+}
+
+async function resolveTickerIdentityFromYahoo(
+	ticker: string,
+): Promise<NewsTickerIdentity> {
+	const metadata = await new YahooFinanceSource(ticker).getSymbolMetadataSnapshot();
+	return buildNewsTickerIdentity(ticker, metadata.name);
+}
+
 export function _dedupeNews(items: NewsArticle[]): NewsArticle[] {
-	const seen = new Map<string, NewsArticle>();
+	const seenUrls = new Set<string>();
+	const seenTitles = new Set<string>();
+	const dedupedItems: NewsArticle[] = [];
 	for (const item of items) {
-		const key = item.url ? normalizeUrl(item.url) : (item.title ?? "");
-		if (!seen.has(key)) {
-			seen.set(key, item);
+		const urlKey = item.url ? normalizeUrl(item.url) : "";
+		const titleKey = (item.title ?? "").trim().toLowerCase();
+		if (
+			(urlKey && seenUrls.has(urlKey)) ||
+			(titleKey && seenTitles.has(titleKey))
+		) {
+			continue;
+		}
+		if (urlKey) {
+			seenUrls.add(urlKey);
+		}
+		if (titleKey) {
+			seenTitles.add(titleKey);
+		}
+		dedupedItems.push(item);
+	}
+	return dedupedItems;
+}
+
+function wordIncludes(text: string, term: string): boolean {
+	const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`(^|[^a-z0-9])${escapedTerm}([^a-z0-9]|$)`, "i").test(text);
+}
+
+function entityMatchScore(text: string, terms: string[]): number {
+	for (const [index, term] of terms.entries()) {
+		if (wordIncludes(text, term)) {
+			return terms.length - index;
 		}
 	}
-	return [...seen.values()];
+	return 0;
+}
+
+function newsCandidateSignals(
+	tickerIdentity: NewsTickerIdentity,
+	news: NewsArticle,
+): {
+	titleMatchScore: number;
+	summaryMatchScore: number;
+	urlMatchScore: number;
+	hasUsableSummary: boolean;
+	isConsentUrl: boolean;
+	daysAgo: number;
+} {
+	const terms =
+		tickerIdentity.searchTerms.length > 0
+			? tickerIdentity.searchTerms
+			: [tickerIdentity.ticker];
+	const title = news.title ?? "";
+	const summary = news.summary ?? "";
+	const url = news.url ?? "";
+	const isFallback = FALLBACK_SUMMARIES.some((prefix) =>
+		summary.startsWith(prefix),
+	);
+	return {
+		titleMatchScore: entityMatchScore(title, terms),
+		summaryMatchScore: entityMatchScore(summary, terms),
+		urlMatchScore: entityMatchScore(url, terms),
+		hasUsableSummary: Boolean(summary.trim()) && !isFallback,
+		isConsentUrl: /consent|privacy|cookie/i.test(url),
+		daysAgo: news.days_ago ?? Number.POSITIVE_INFINITY,
+	};
+}
+
+function _rankNewsCandidates(
+	tickerIdentity: NewsTickerIdentity,
+	newsList: NewsArticle[],
+): NewsArticle[] {
+	return newsList
+		.map((news, index) => ({
+			index,
+			news,
+			signals: newsCandidateSignals(tickerIdentity, news),
+		}))
+		.sort((left, right) => {
+			const signalOrder = [
+				"titleMatchScore",
+				"summaryMatchScore",
+				"urlMatchScore",
+				"hasUsableSummary",
+			] as const;
+			for (const signal of signalOrder) {
+				if (left.signals[signal] !== right.signals[signal]) {
+					return Number(right.signals[signal]) - Number(left.signals[signal]);
+				}
+			}
+			if (left.signals.isConsentUrl !== right.signals.isConsentUrl) {
+				return (
+					Number(left.signals.isConsentUrl) - Number(right.signals.isConsentUrl)
+				);
+			}
+			if (left.signals.daysAgo !== right.signals.daysAgo) {
+				return left.signals.daysAgo - right.signals.daysAgo;
+			}
+			return left.index - right.index;
+		})
+		.map((item) => item.news);
 }
 
 function _normalizeNewsMetadata(
@@ -306,29 +511,34 @@ function _parseRetentionDatetime(
 
 export function _isNewsItemWithinRetention(
 	news: NewsArticle,
-	{ now = new Date() }: { now?: Date } = {},
+	{
+		now = new Date(),
+		retentionDays = DEFAULT_NEWS_DAYS,
+	}: { now?: Date; retentionDays?: number } = {},
 ): boolean {
 	const metadata = _normalizeNewsMetadata(news.metadata);
-	const maxFetchAgeMs = MAX_NEWS_FETCH_RETENTION_DAYS * DAY_IN_MS;
-	const maxPublishedAgeMs = MAX_NEWS_PUBLISHED_RETENTION_DAYS * DAY_IN_MS;
+	const boundedRetentionDays = Number.isFinite(retentionDays)
+		? Math.max(0, retentionDays)
+		: DEFAULT_NEWS_DAYS;
+	const maxAgeMs = boundedRetentionDays * DAY_IN_MS;
 
 	const fetchedAt = _parseRetentionDatetime(metadata.fetched_at);
-	if (fetchedAt && now.getTime() - fetchedAt.getTime() > maxFetchAgeMs) {
+	if (fetchedAt && now.getTime() - fetchedAt.getTime() > maxAgeMs) {
 		return false;
 	}
 
 	if (typeof news.days_ago === "number") {
-		return news.days_ago <= MAX_NEWS_PUBLISHED_RETENTION_DAYS;
+		return news.days_ago <= boundedRetentionDays;
 	}
 
 	const publishedAt = _parseRetentionDatetime(metadata.published_at);
 	if (publishedAt) {
-		return now.getTime() - publishedAt.getTime() <= maxPublishedAgeMs;
+		return now.getTime() - publishedAt.getTime() <= maxAgeMs;
 	}
 
 	const publishedDate = _parseRetentionDatetime(news.date);
 	if (publishedDate) {
-		return now.getTime() - publishedDate.getTime() <= maxPublishedAgeMs;
+		return now.getTime() - publishedDate.getTime() <= maxAgeMs;
 	}
 
 	return fetchedAt !== null;
@@ -348,7 +558,8 @@ export function _isEnglishNewsItem(news: NewsArticle): boolean {
 			continue;
 		}
 		letterCount += 1;
-		if (character.codePointAt(0)! <= 127) {
+		const codePoint = character.codePointAt(0);
+		if (codePoint === undefined || codePoint <= 127) {
 			continue;
 		}
 		if (/\p{Script=Latin}/u.test(character)) {
@@ -401,14 +612,12 @@ export function _balanceDomains(items: NewsArticle[]): NewsArticle[] {
 
 function _splitCachedAnalysis(newsList: NewsArticle[]): {
 	results: NewsAnalysis[];
-	cacheHits: number;
 	uncachedItems: ProviderBatchItem[];
 } {
 	const failed = NewsAnalysisSchema.parse({
 		summary: FALLBACK_SUMMARIES[1],
 	});
 	const results = newsList.map(() => ({ ...failed }));
-	let cacheHits = 0;
 	const uncachedItems: ProviderBatchItem[] = [];
 
 	newsList.forEach((news, index) => {
@@ -416,7 +625,6 @@ function _splitCachedAnalysis(newsList: NewsArticle[]): {
 		const cached = ANALYSIS_CACHE.getStale(cacheKey);
 		if (cached) {
 			results[index] = cached;
-			cacheHits += 1;
 			return;
 		}
 		uncachedItems.push({ index, cacheKey, news });
@@ -424,7 +632,6 @@ function _splitCachedAnalysis(newsList: NewsArticle[]): {
 
 	return {
 		results,
-		cacheHits,
 		uncachedItems,
 	};
 }
@@ -451,53 +658,22 @@ function _providerSummaryContent(news: NewsArticle): string | null {
 	return _trimAnalysisText(summary, MAX_PROVIDER_SUMMARY_CHARS);
 }
 
-function _directProviderAnalysis(news: NewsArticle): NewsAnalysis | null {
-	const summary = _providerSummaryContent(news);
-	if (!summary) {
-		return null;
-	}
-	if (
-		news.relevancy === "low" &&
-		news.category === "other" &&
-		news.sentiment === "neutral"
-	) {
-		return null;
-	}
-	return NewsAnalysisSchema.parse({
-		summary,
-		relevancy: news.relevancy,
-		category: news.category,
-		sentiment: news.sentiment,
-	});
-}
-
 async function _buildAnalysisBatch(
-	ticker: string,
+	tickerIdentity: NewsTickerIdentity,
 	uncachedItems: ProviderBatchItem[],
 ): Promise<{
 	readableItems: ReadableAnalysisItem[];
 	prompts: string[];
 }> {
-	const summaryContentByIndex = new Map<number, string>();
-	const webContentItems: ProviderBatchItem[] = [];
-	for (const item of uncachedItems) {
-		const summaryContent = _providerSummaryContent(item.news);
-		if (summaryContent && summaryContent.length >= MIN_PROVIDER_SUMMARY_CHARS) {
-			summaryContentByIndex.set(item.index, summaryContent);
-			continue;
-		}
-		webContentItems.push(item);
-	}
-
 	const webContentByIndex = new Map<number, string>();
-	if (webContentItems.length > 0) {
+	if (uncachedItems.length > 0) {
 		const contentList = await newsPipelineDeps.webloader(
-			webContentItems.map((item) => item.news.url),
+			uncachedItems.map((item) => item.news.url),
 		);
-		webContentItems.forEach((item, index) => {
+		uncachedItems.forEach((item, index) => {
 			const content = contentList[index];
 			if (typeof content === "string" && content.trim()) {
-				webContentByIndex.set(item.index, content);
+				webContentByIndex.set(item.index, _normalizeAnalysisText(content));
 			}
 		});
 	}
@@ -506,8 +682,7 @@ async function _buildAnalysisBatch(
 		.map((item) => ({
 			...item,
 			content:
-				summaryContentByIndex.get(item.index) ??
-				webContentByIndex.get(item.index),
+				webContentByIndex.get(item.index) ?? _providerSummaryContent(item.news),
 		}))
 		.filter(
 			(item): item is ReadableAnalysisItem =>
@@ -518,7 +693,7 @@ async function _buildAnalysisBatch(
 		readableItems,
 		prompts: readableItems.map(({ news, content }) =>
 			formatPrompt(NEWS_ANALYSIS_PROMPT, {
-				ticker,
+				ticker_label: tickerIdentity.label,
 				title: news.title ?? "",
 				content,
 			}),
@@ -559,95 +734,35 @@ function _mergeAnalysisResults(
 	return results;
 }
 
-function _rateLimitProviderSpecs(
-	_ticker: string,
-	providerSpecs: readonly ProviderSpec[],
-): {
-	allowedSpecs: ProviderSpec[];
-	skippedCounts: Record<string, number>;
-} {
-	const allowedSpecs: ProviderSpec[] = [];
-	const skippedCounts: Record<string, number> = {};
-	for (const [providerName, providerCall] of providerSpecs) {
-		const limiter = PROVIDER_RATE_LIMITERS.get(providerName);
-		if (!limiter || limiter.acquire()) {
-			allowedSpecs.push([providerName, providerCall]);
-			continue;
-		}
-		skippedCounts[providerName] = 0;
-	}
-	return {
-		allowedSpecs,
-		skippedCounts,
-	};
-}
-
-function _collectProviderResults(
-	providerSpecs: readonly ProviderSpec[],
-	providerResults: PromiseSettledResult<NewsArticle[]>[],
-): {
-	rawNewsList: NewsArticle[];
-	providerCounts: Record<string, number>;
-} {
-	const rawNewsList: NewsArticle[] = [];
-	const providerCounts: Record<string, number> = {};
-	providerResults.forEach((result, index) => {
-		const [providerName] = providerSpecs[index];
-		if (result.status === "rejected") {
-			providerCounts[providerName] = 0;
-			return;
-		}
-		providerCounts[providerName] = result.value.length;
-		rawNewsList.push(...result.value);
-	});
-	return {
-		rawNewsList,
-		providerCounts,
-	};
-}
-
 async function _fetchProviderBatch(
-	ticker: string,
 	providerSpecs: readonly ProviderSpec[],
-): Promise<{
-	rawNewsList: NewsArticle[];
-	providerCounts: Record<string, number>;
-}> {
-	const { allowedSpecs, skippedCounts } = _rateLimitProviderSpecs(
-		ticker,
-		providerSpecs,
-	);
+): Promise<NewsArticle[]> {
+	const allowedSpecs = providerSpecs.filter(([providerName]) => {
+		const limiter = PROVIDER_RATE_LIMITERS.get(providerName);
+		return !limiter || limiter.acquire();
+	});
 	if (allowedSpecs.length === 0) {
-		return {
-			rawNewsList: [],
-			providerCounts: skippedCounts,
-		};
+		return [];
 	}
 
 	const providerResults = await Promise.allSettled(
 		allowedSpecs.map(([, providerCall]) => providerCall()),
 	);
-	const { rawNewsList, providerCounts } = _collectProviderResults(
-		allowedSpecs,
-		providerResults,
+	return providerResults.flatMap((result) =>
+		result.status === "fulfilled" ? result.value : [],
 	);
-
-	return {
-		rawNewsList,
-		providerCounts: {
-			...providerCounts,
-			...skippedCounts,
-		},
-	};
 }
 
-export function _finalizeNewsFeed(newsList: NewsArticle[]): NewsArticle[] {
+export function _finalizeNewsFeed(
+	newsList: NewsArticle[],
+	{ retentionDays = DEFAULT_NEWS_DAYS }: { retentionDays?: number } = {},
+): NewsArticle[] {
 	const filteredNewsList = newsList.filter(
 		(news) =>
 			!FALLBACK_SUMMARIES.some((prefix) => news.summary.startsWith(prefix)) &&
 			news.relevancy !== "low" &&
 			_isEnglishNewsItem(news) &&
-			_isNewsItemWithinRetention(news),
+			_isNewsItemWithinRetention(news, { retentionDays }),
 	);
 
 	return filteredNewsList.sort((left, right) => {
@@ -682,23 +797,10 @@ function _fallbackAnalysisFromProviders(
 export async function _analyzeNews(
 	ticker: string,
 	newsList: NewsArticle[],
+	tickerIdentity: NewsTickerIdentity = buildNewsTickerIdentity(ticker),
 ): Promise<NewsAnalysis[]> {
 	const { results, uncachedItems } = _splitCachedAnalysis(newsList);
 	if (uncachedItems.length === 0) {
-		return results;
-	}
-
-	const pendingItems: ProviderBatchItem[] = [];
-	for (const item of uncachedItems) {
-		const directAnalysis = _directProviderAnalysis(item.news);
-		if (!directAnalysis) {
-			pendingItems.push(item);
-			continue;
-		}
-		results[item.index] = directAnalysis;
-		ANALYSIS_CACHE.set(item.cacheKey, directAnalysis);
-	}
-	if (pendingItems.length === 0) {
 		return results;
 	}
 
@@ -708,10 +810,10 @@ export async function _analyzeNews(
 			temperature: 0,
 			reasoningEffort: "low",
 		})
-		.withStructuredOutput(NewsAnalysisSchema);
+		.withStructuredOutput(NewsAnalysisModelSchema);
 	const { readableItems, prompts } = await _buildAnalysisBatch(
-		ticker,
-		pendingItems,
+		tickerIdentity,
+		uncachedItems,
 	);
 	if (readableItems.length === 0) {
 		return results;
@@ -1165,20 +1267,36 @@ export const buildPortfolioNewsSummary = summarizePortfolioNewsAsync;
 
 export async function getNewsAsync(
 	tickerInput: string,
-	nDays = 3,
-	maxResults = 10,
+	options: NewsFetchOptions = {},
 ): Promise<NewsArticle[]> {
 	const ticker = normalizeTicker(tickerInput);
 	if (!ticker) {
 		return [];
 	}
-	const boundedMaxResults = Number.isFinite(maxResults)
-		? Math.max(0, Math.floor(maxResults))
+	const nDays = options.nDays ?? DEFAULT_NEWS_DAYS;
+	const boundedMaxResults = Number.isFinite(options.maxResults)
+		? Math.max(0, Math.floor(options.maxResults ?? 0))
 		: 10;
 	if (boundedMaxResults === 0) {
 		return [];
 	}
 
+	let tickerIdentity = options.tickerIdentity
+		? buildNewsTickerIdentity(
+				options.tickerIdentity.ticker || ticker,
+				options.tickerIdentity.companyName,
+			)
+		: buildNewsTickerIdentity(ticker);
+	if (!options.tickerIdentity && options.resolveIdentity) {
+		try {
+			tickerIdentity = await newsPipelineDeps.resolveTickerIdentity(ticker);
+		} catch {
+			tickerIdentity = buildNewsTickerIdentity(ticker);
+		}
+	}
+	const providerQuery = tickerIdentity.companyName
+		? tickerIdentity.label
+		: tickerIdentity.ticker;
 	const client = createHttpClient();
 	const primaryProviderSpecs: ProviderSpec[] = [];
 	if (hasEnvValue(process.env.NEWSDATA_API_KEY)) {
@@ -1186,8 +1304,7 @@ export async function getNewsAsync(
 			"newsdata",
 			() =>
 				newsProviders.getNewsNewsDataAsync({
-					query: ticker,
-					maxResults: boundedMaxResults,
+					query: providerQuery,
 					client,
 				}),
 		]);
@@ -1199,7 +1316,6 @@ export async function getNewsAsync(
 				newsProviders.getNewsMassiveAsync({
 					ticker,
 					nDays,
-					maxResults: boundedMaxResults,
 					client,
 				}),
 		]);
@@ -1209,9 +1325,8 @@ export async function getNewsAsync(
 			"newsapi",
 			() =>
 				newsProviders.getNewsNewsApiAsync({
-					query: ticker,
+					query: providerQuery,
 					nDays,
-					maxResults: boundedMaxResults,
 					client,
 				}),
 		]);
@@ -1221,47 +1336,51 @@ export async function getNewsAsync(
 		() =>
 			newsProviders.getNewsYahooFinance({
 				ticker,
-				maxResults: boundedMaxResults,
 			}),
 	]);
 
-	const primaryBatch = await _fetchProviderBatch(ticker, primaryProviderSpecs);
-	let rawNewsList = _dedupeNews(primaryBatch.rawNewsList).slice(
-		0,
-		boundedMaxResults,
+	let rawNewsList = _dedupeNews(
+		await _fetchProviderBatch(primaryProviderSpecs),
 	);
-	const providerCounts = { ...primaryBatch.providerCounts };
+	const primaryAnalysisLimit = Math.max(
+		boundedMaxResults,
+		Math.min(MAX_NEWS_ANALYSIS_CANDIDATES, rawNewsList.length),
+	);
 
 	if (
-		rawNewsList.length < boundedMaxResults &&
+		rawNewsList.length < primaryAnalysisLimit &&
 		hasEnvValue(process.env.EXA_API_KEY)
 	) {
-		const exaBatch = await _fetchProviderBatch(ticker, [
+		const exaNewsList = await _fetchProviderBatch([
 			[
 				"exa",
 				() =>
 					newsProviders.getNewsExaAsync({
-						query: ticker,
+						query: providerQuery,
 						nDays,
-						maxResults: boundedMaxResults,
 						client,
 					}),
 			],
 		]);
-		Object.assign(providerCounts, exaBatch.providerCounts);
-		rawNewsList = _dedupeNews([...rawNewsList, ...exaBatch.rawNewsList]).slice(
-			0,
-			boundedMaxResults,
-		);
-	} else {
-		providerCounts.exa = 0;
+		rawNewsList = _dedupeNews([...rawNewsList, ...exaNewsList]);
 	}
 
-	void providerCounts;
+	const analysisLimit = Math.max(
+		boundedMaxResults,
+		Math.min(MAX_NEWS_ANALYSIS_CANDIDATES, rawNewsList.length),
+	);
+	rawNewsList = _rankNewsCandidates(tickerIdentity, rawNewsList).slice(
+		0,
+		analysisLimit,
+	);
 
 	let newsAnalysisList: NewsAnalysis[];
 	try {
-		newsAnalysisList = await newsRuntime.analyzeNews(ticker, rawNewsList);
+		newsAnalysisList = await newsRuntime.analyzeNews(
+			ticker,
+			rawNewsList,
+			tickerIdentity,
+		);
 	} catch {
 		newsAnalysisList = _fallbackAnalysisFromProviders(rawNewsList);
 	}
@@ -1272,16 +1391,15 @@ export async function getNewsAsync(
 		}),
 	);
 
-	return _finalizeNewsFeed(_balanceDomains(newsList)).slice(
-		0,
-		boundedMaxResults,
-	);
+	return _finalizeNewsFeed(_balanceDomains(newsList), {
+		retentionDays: nDays,
+	}).slice(0, boundedMaxResults);
 }
 
 export function getNews(
 	ticker: string,
-	nDays = 3,
+	nDays = DEFAULT_NEWS_DAYS,
 	maxResults = 10,
 ): Promise<NewsArticle[]> {
-	return getNewsAsync(ticker, nDays, maxResults);
+	return getNewsAsync(ticker, { nDays, maxResults });
 }

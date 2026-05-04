@@ -34,6 +34,7 @@ const STOCKANALYSIS_SYSTEM_PROMPT = [
 	"Use percentage fields as displayed percentage-point numbers, not fractions.",
 ].join(" ");
 
+const STOCKANALYSIS_OVERVIEW_URL = "https://stockanalysis.com/stocks/{ticker}/";
 const STOCKANALYSIS_STATISTICS_URL =
 	"https://stockanalysis.com/stocks/{ticker}/statistics/";
 const STOCKANALYSIS_FINANCIALS_URL =
@@ -57,100 +58,245 @@ const SECTOR_TOP_TICKER_CACHE_PATH = path.join(
 	"stockanalysis-sector-top-tickers.json",
 );
 
-const NullableNumber = z.number().nullable();
+const NullableNumber = z
+	.number()
+	.nullable()
+	.describe("Numeric value extracted from StockAnalysis, or null if absent.");
 
-const QuoteFieldsSchema = z.object({
-	price: NullableNumber.optional(),
-	change: NullableNumber.optional(),
-	change_percent_1d: NullableNumber.optional(),
-});
+const QuoteFieldsSchema = z
+	.object({
+		price: NullableNumber.optional().describe(
+			"Current stock price shown in the StockAnalysis quote header.",
+		),
+		change: NullableNumber.optional().describe(
+			"Absolute one-day price change shown beside the current stock price.",
+		),
+		change_percent_1d: NullableNumber.optional().describe(
+			"One-day percentage change shown beside the current stock price.",
+		),
+	})
+	.describe(
+		"Quote header fields extracted from the StockAnalysis overview page.",
+	);
 
-const RatingRowSchema = z.object({
-	firm: z.string().nullable().optional(),
-	to_grade: z.string().nullable().optional(),
-	from_grade: z.string().nullable().optional(),
-	action: z.string().nullable().optional(),
-	date: z.string().nullable().optional(),
-	analyst_count: NullableNumber.optional(),
-	price_target: NullableNumber.optional(),
-	upside_pct: NullableNumber.optional(),
-});
+const RatingRowSchema = z
+	.object({
+		firm: z.string().nullable().optional().describe("Analyst firm name."),
+		to_grade: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Analyst Consensus value from the Analyst Forecast section."),
+		from_grade: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"Previous analyst rating grade, if a rating table provides one.",
+			),
+		action: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Rating action if a rating table provides one."),
+		date: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Rating action date if a rating table provides one."),
+		analyst_count: NullableNumber.optional().describe(
+			"Analyst Count value from the Analyst Forecast section.",
+		),
+		price_target: NullableNumber.optional().describe(
+			"Price Target value from the Analyst Forecast section.",
+		),
+		upside_pct: NullableNumber.optional().describe(
+			"Price Target Difference percentage from the Analyst Forecast section.",
+		),
+	})
+	.describe(
+		"Analyst forecast row extracted from the StockAnalysis statistics page.",
+	);
 
-const StatisticsSchema = z.object({
-	market_cap: NullableNumber.optional(),
-	beta: NullableNumber.optional(),
-	fifty_two_week_price_change: NullableNumber.optional(),
-	moving_average_50d: NullableNumber.optional(),
-	moving_average_200d: NullableNumber.optional(),
-	rsi: NullableNumber.optional(),
-	average_volume_20d: NullableNumber.optional(),
-	pe: NullableNumber.optional(),
-	pe_forward: NullableNumber.optional(),
-	peg: NullableNumber.optional(),
-	roic: NullableNumber.optional(),
-	gross_margin: NullableNumber.optional(),
-	operating_margin: NullableNumber.optional(),
-	debt_to_equity: NullableNumber.optional(),
-	debt_to_ebitda: NullableNumber.optional(),
-	free_cash_flow: NullableNumber.optional(),
-	median_upside: NullableNumber.optional(),
-	ratings: z.array(RatingRowSchema).nullable().optional(),
-});
+const StatisticsSchema = z
+	.object({
+		market_cap: NullableNumber.optional().describe(
+			"Market Cap value from the Total Valuation section.",
+		),
+		beta: NullableNumber.optional().describe(
+			"Beta (5Y) value from the Stock Price Statistics section.",
+		),
+		fifty_two_week_price_change: NullableNumber.optional().describe(
+			"52-Week Price Change percentage from the Stock Price Statistics section.",
+		),
+		moving_average_50d: NullableNumber.optional().describe(
+			"50-Day Moving Average value from the Stock Price Statistics section.",
+		),
+		moving_average_200d: NullableNumber.optional().describe(
+			"200-Day Moving Average value from the Stock Price Statistics section.",
+		),
+		rsi: NullableNumber.optional().describe(
+			"Relative Strength Index (RSI) value from the Stock Price Statistics section.",
+		),
+		average_volume_20d: NullableNumber.optional().describe(
+			"Average Volume (20 Days) value from the Stock Price Statistics section.",
+		),
+		pe: NullableNumber.optional().describe(
+			"PE Ratio value from the Valuation Ratios section.",
+		),
+		pe_forward: NullableNumber.optional().describe(
+			"Forward PE value from the Valuation Ratios section.",
+		),
+		peg: NullableNumber.optional().describe(
+			"PEG Ratio value from the Valuation Ratios section.",
+		),
+		roic: NullableNumber.optional().describe(
+			"Return on Invested Capital (ROIC) value from the Financial Efficiency section.",
+		),
+		gross_margin: NullableNumber.optional().describe(
+			"Gross Margin value from the Margins section.",
+		),
+		operating_margin: NullableNumber.optional().describe(
+			"Operating Margin value from the Margins section.",
+		),
+		debt_to_equity: NullableNumber.optional().describe(
+			"Debt / Equity value from the Financial Position section.",
+		),
+		debt_to_ebitda: NullableNumber.optional().describe(
+			"Debt / EBITDA value from the Financial Position section.",
+		),
+		free_cash_flow: NullableNumber.optional().describe(
+			"Free Cash Flow value from the Cash Flow section.",
+		),
+		median_upside: NullableNumber.optional().describe(
+			"Price Target Difference percentage from the Analyst Forecast section.",
+		),
+		ratings: z
+			.array(RatingRowSchema)
+			.nullable()
+			.optional()
+			.describe("Consensus analyst forecast row, when visible."),
+	})
+	.describe("Fundamental and market statistics extracted from StockAnalysis.");
 
-const FinancialsSchema = z.object({
-	revenue_growth: NullableNumber.optional(),
-	eps_diluted: NullableNumber.optional(),
-	eps_growth: NullableNumber.optional(),
-	gross_margin: NullableNumber.optional(),
-	operating_margin: NullableNumber.optional(),
-});
+const FinancialsSchema = z
+	.object({
+		revenue_growth: NullableNumber.optional().describe(
+			"Revenue Growth (YoY) value from the first/current column.",
+		),
+		eps_diluted: NullableNumber.optional().describe(
+			"EPS (Diluted) value from the first/current column.",
+		),
+		eps_growth: NullableNumber.optional().describe(
+			"EPS Growth value from the first/current column.",
+		),
+		gross_margin: NullableNumber.optional().describe(
+			"Gross Margin value from the first/current column.",
+		),
+		operating_margin: NullableNumber.optional().describe(
+			"Operating Margin value from the first/current column.",
+		),
+	})
+	.describe(
+		"Income statement fields extracted from the StockAnalysis financials page.",
+	);
 
-const EtfHoldingSchema = z.object({
-	ticker: z.string(),
-	name: z.string().nullable().optional(),
-	weight: z.number(),
-});
+const EtfHoldingSchema = z
+	.object({
+		ticker: z.string().describe("ETF holding ticker symbol."),
+		name: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("ETF holding company name."),
+		weight: z.number().describe("ETF holding portfolio weight percentage."),
+	})
+	.describe("One ETF holding extracted from StockAnalysis.");
 
-const EtfHoldingsSchema = z.object({
-	holdings: z.array(EtfHoldingSchema).default([]),
-});
+const EtfHoldingsSchema = z
+	.object({
+		holdings: z
+			.array(EtfHoldingSchema)
+			.default([])
+			.describe("ETF holdings ranked by portfolio weight."),
+	})
+	.describe("ETF holdings payload extracted from StockAnalysis.");
 
-const EtfSectorSchema = z.object({
-	name: z.string(),
-	weight: z.number(),
-});
+const EtfSectorSchema = z
+	.object({
+		name: z.string().describe("ETF sector name."),
+		weight: z.number().describe("ETF sector portfolio weight percentage."),
+	})
+	.describe("One ETF sector exposure row extracted from StockAnalysis.");
 
-const EtfSectorsSchema = z.object({
-	sectors: z.array(EtfSectorSchema).default([]),
-});
+const EtfSectorsSchema = z
+	.object({
+		sectors: z
+			.array(EtfSectorSchema)
+			.default([])
+			.describe("ETF sector exposure rows."),
+	})
+	.describe("ETF sector exposure payload extracted from StockAnalysis.");
 
-const SectorRowSchema = z.object({
-	sector: z.string(),
-	stock_count: z.number(),
-	market_cap: NullableNumber,
-	pe: NullableNumber,
-	profit_margin: NullableNumber,
-	change_percent_1d: NullableNumber,
-	change_percent_1y: NullableNumber,
-});
+const SectorRowSchema = z
+	.object({
+		sector: z.string().describe("StockAnalysis sector name."),
+		stock_count: z.number().describe("Number of stocks in the sector."),
+		market_cap: NullableNumber.describe("Aggregate sector market cap."),
+		pe: NullableNumber.describe("Aggregate sector PE ratio."),
+		profit_margin: NullableNumber.describe("Aggregate sector profit margin."),
+		change_percent_1d: NullableNumber.describe(
+			"Sector one-day change percent.",
+		),
+		change_percent_1y: NullableNumber.describe(
+			"Sector one-year change percent.",
+		),
+	})
+	.describe("One StockAnalysis sector snapshot row.");
 
-const SectorSnapshotSchema = z.object({
-	sectors: z.array(SectorRowSchema).default([]),
-});
+const SectorSnapshotSchema = z
+	.object({
+		sectors: z
+			.array(SectorRowSchema)
+			.default([])
+			.describe("Current sector snapshot rows."),
+	})
+	.describe("Current StockAnalysis sector snapshot.");
 
-const SectorSnapshotCacheSchema = z.object({
-	fetched_at: z.string().nullable().default(null),
-	sectors: z.array(SectorRowSchema).default([]),
-});
+const SectorSnapshotCacheSchema = z
+	.object({
+		fetched_at: z
+			.string()
+			.nullable()
+			.default(null)
+			.describe("Timestamp when the sector snapshot cache was fetched."),
+		sectors: z
+			.array(SectorRowSchema)
+			.default([])
+			.describe("Cached sector snapshot rows."),
+	})
+	.describe("Cached StockAnalysis sector snapshot.");
 
-const SectorTopTickerCacheEntrySchema = z.object({
-	fetched_at: z.string(),
-	tickers: z.array(z.string()).default([]),
-});
+const SectorTopTickerCacheEntrySchema = z
+	.object({
+		fetched_at: z
+			.string()
+			.describe("Timestamp when the sector top-ticker list was fetched."),
+		tickers: z
+			.array(z.string())
+			.default([])
+			.describe("Representative top tickers for the sector."),
+	})
+	.describe("Cached top-ticker list for one StockAnalysis sector.");
 
-const SectorTopTickerCacheSchema = z.object({
-	entries: z.record(z.string(), SectorTopTickerCacheEntrySchema).default({}),
-});
+const SectorTopTickerCacheSchema = z
+	.object({
+		entries: z
+			.record(z.string(), SectorTopTickerCacheEntrySchema)
+			.default({})
+			.describe("Sector top-ticker cache entries keyed by sector name."),
+	})
+	.describe("Cached StockAnalysis sector top-ticker payload.");
 
 type SectorRow = z.output<typeof SectorRowSchema>;
 
@@ -512,11 +658,11 @@ async function enrichSectorsWithTopTickers(
 	}));
 }
 
-/** Load quote fields from a StockAnalysis statistics page. */
+/** Load quote fields from a StockAnalysis overview page. */
 export async function loadQuoteFields(
 	tickerLower: string,
 ): Promise<Required<QuoteFields>> {
-	const url = stockDataUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
+	const url = stockDataUrl(STOCKANALYSIS_OVERVIEW_URL, tickerLower);
 	const output = await loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: QuoteFieldsSchema,
@@ -526,8 +672,8 @@ export async function loadQuoteFields(
 			change_percent_1d: null,
 		},
 		instruction: [
-			`Extract current quote fields for ${tickerLower.toUpperCase()} from the supplied StockAnalysis statistics page.`,
-			"Return price, absolute change, and one-day change percentage if explicitly displayed.",
+			`Extract current quote header fields for ${tickerLower.toUpperCase()} from the supplied StockAnalysis overview page.`,
+			"Return the current price, absolute one-day change, and one-day change percentage if explicitly displayed.",
 		].join("\n"),
 	});
 	return {

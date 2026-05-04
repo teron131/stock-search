@@ -18,41 +18,51 @@ import { type TickerLabels, TickerLabelsSchema } from "./models/schemas.js";
 const INDUSTRY_LABEL_SET = new Set(INDUSTRY_LABELS);
 const MAX_LABELS = 5;
 
-const PillarSchema = z.object({
-	pillar: z.string().describe("Business pillar name."),
-	portion: z
-		.number()
-		.min(0)
-		.max(100)
-		.nullable()
-		.optional()
-		.describe(
-			"Estimated portion of company valuation / revenue represented by this pillar (0-100).",
-		),
-	description: z
-		.string()
-		.describe("Brief one-sentence description of what this pillar does."),
-});
+const PillarSchema = z
+	.object({
+		pillar: z.string().describe("Business pillar name."),
+		portion: z
+			.number()
+			.min(0)
+			.max(100)
+			.nullable()
+			.optional()
+			.describe(
+				"Estimated portion of company valuation / revenue represented by this pillar (0-100).",
+			),
+		description: z
+			.string()
+			.describe("Brief one-sentence description of what this pillar does."),
+	})
+	.describe("[STRUCTURED OUTPUTS] One current business pillar.");
 
-const PillarsSchema = z.object({
-	pillars: z
-		.array(PillarSchema)
-		.min(1)
-		.max(5)
-		.default([])
-		.describe("Top business pillars ranked by strategic importance."),
-});
+const PillarsSchema = z
+	.object({
+		pillars: z
+			.array(PillarSchema)
+			.min(1)
+			.max(5)
+			.default([])
+			.describe("Top business pillars ranked by strategic importance."),
+	})
+	.describe(
+		"[STRUCTURED OUTPUTS] Current business pillars returned by the pillar research step.",
+	);
 
-const OutlookSchema = z.object({
-	outlook: z
-		.string()
-		.describe(
-			"Outlook of the company's existing pillars and emerging businesses.",
-		),
-	impact: z
-		.string()
-		.describe("Expected impact on the company's sector / industry exposure."),
-});
+const OutlookSchema = z
+	.object({
+		outlook: z
+			.string()
+			.describe(
+				"Outlook of the company's existing pillars and emerging businesses.",
+			),
+		impact: z
+			.string()
+			.describe("Expected impact on the company's sector / industry exposure."),
+	})
+	.describe(
+		"[STRUCTURED OUTPUTS] Forward outlook returned by the outlook research step.",
+	);
 
 const labelGraphState = Annotation.Root({
 	ticker: Annotation<string>,

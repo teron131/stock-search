@@ -12,19 +12,17 @@ import {
 	daysAgo,
 	fetchJson,
 	formatDate,
-	NEWS_PROVIDER_MAX_RESULTS,
 	normalizeDomain,
 	parseDateString,
 	readJsonResponse,
 } from "./shared.js";
 
 const NEWSAPI_PROVIDER_MAX_RESULTS = 100;
-export const NEWSAPI_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
 export async function getNewsNewsApiAsync({
 	query,
 	nDays = 3,
-	maxResults = 25,
+	maxResults = NEWSAPI_PROVIDER_MAX_RESULTS,
 	client,
 }: {
 	query: string;
@@ -38,11 +36,7 @@ export async function getNewsNewsApiAsync({
 	};
 }): Promise<NewsArticle[]> {
 	const now = new Date();
-	const boundedMaxResults = Math.min(
-		maxResults,
-		NEWSAPI_MAX_RESULTS,
-		NEWSAPI_PROVIDER_MAX_RESULTS,
-	);
+	const boundedMaxResults = Math.min(maxResults, NEWSAPI_PROVIDER_MAX_RESULTS);
 	const fromDate = new Date(now.getTime() - nDays * DAY_IN_MS)
 		.toISOString()
 		.slice(0, 10);

@@ -1,14 +1,12 @@
 /** Store reusable prompts used across stock-search workflows. */
 
-export const NEWS_ANALYSIS_PROMPT = `Summarize with concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate. Prefer facts over opinions.
+export const NEWS_ANALYSIS_PROMPT = `Analyze the article for requested entity: {ticker_label}.
 
-Relevancy to {ticker}: high = primary subject; medium = indirect sector/competitors/macro; low = market noise or subjective opinions without new facts. High only if {ticker} is primary; market wraps default low unless {ticker} is a driver.
+Treat the ticker, company name, parent company, and obvious public brand names as the same requested entity when the article makes that relationship clear. Use the headline as a strong signal, then confirm with the article body. Do not mark an article high merely because the ticker, company name, or upstream snippet appears somewhere.
 
-Sentiment toward {ticker}: bullish/ bearish if clearly positive/negative; neutral if mixed/unclear (insider selling neutral unless unusually large/illegal/clearly adverse). Subjective opinion defaults neutral unless objective facts clearly support a direction.
+If the article is mainly about another company, keep relevancy low unless the requested entity has concrete, material facts in the final article text. Summarize the requested entity's facts, not the unrelated company's story.
 
-If {ticker} not mentioned: relevancy=low, sentiment=neutral, summary notes no relevant content.
-
-Category: company_news, earnings, analyst_rating, industry_news, market_news, macro_economics, analysis, other.
+Summarize with concrete facts, numbers, and named entities. No meta-language. Exclude ads/boilerplate. Prefer facts over opinions. Follow the structured output field descriptions for classification.
 
 {title}
 {content}`;

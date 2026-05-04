@@ -319,7 +319,10 @@ async function buildNewsPayload(
 				try {
 					return [
 						ticker,
-						await getNewsAsync(ticker, 3, DEMO_NEWS_MAX_RESULTS),
+						await getNewsAsync(ticker, {
+							nDays: 3,
+							maxResults: DEMO_NEWS_MAX_RESULTS,
+						}),
 					] as const;
 				} catch {
 					return [ticker, [] as unknown[]] as const;

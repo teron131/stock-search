@@ -32,6 +32,7 @@ type YahooChartResponse = {
 type YahooSearchResponse = {
 	quotes?: Array<{
 		symbol?: string;
+		shortname?: string;
 		sector?: string;
 		industry?: string;
 	}>;
@@ -1169,6 +1170,10 @@ export class YahooFinanceSource {
 			(entry) => normalizeTicker(entry?.symbol) === ticker,
 		);
 		return {
+			name:
+				typeof quote?.shortname === "string" && quote.shortname.trim()
+					? quote.shortname.trim()
+					: null,
 			sector_name:
 				typeof quote?.sector === "string" && quote.sector.trim()
 					? quote.sector.trim()

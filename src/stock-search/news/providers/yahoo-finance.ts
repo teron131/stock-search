@@ -8,26 +8,20 @@ import {
 	daysAgo,
 	fetchJson,
 	formatDate,
-	NEWS_PROVIDER_MAX_RESULTS,
 	normalizeDomain,
 	parseDate,
 } from "./shared.js";
 
 const YFINANCE_PROVIDER_MAX_RESULTS = 25;
-export const YFINANCE_MAX_RESULTS = NEWS_PROVIDER_MAX_RESULTS;
 
 export async function getNewsYahooFinance({
 	ticker,
-	maxResults = YFINANCE_MAX_RESULTS,
+	maxResults = YFINANCE_PROVIDER_MAX_RESULTS,
 }: {
 	ticker: string;
 	maxResults?: number;
 }): Promise<NewsArticle[]> {
-	const boundedMaxResults = Math.min(
-		maxResults,
-		YFINANCE_MAX_RESULTS,
-		YFINANCE_PROVIDER_MAX_RESULTS,
-	);
+	const boundedMaxResults = Math.min(maxResults, YFINANCE_PROVIDER_MAX_RESULTS);
 	const url = new URL("https://query1.finance.yahoo.com/v1/finance/search");
 	url.searchParams.set("q", ticker);
 	url.searchParams.set("quotesCount", "0");

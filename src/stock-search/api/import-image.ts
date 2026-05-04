@@ -7,16 +7,31 @@ import { savePortfolioPositionsAndForgetRemoved } from "../portfolio.js";
 import { normalizeTicker } from "../utils.js";
 import type { BackendStore, PositionRow } from "./data-store.js";
 
-const PortfolioImageExtractionSchema = z.object({
-	holdings: z
-		.array(
-			z.object({
-				ticker: z.string(),
-				quantity: z.number(),
-			}),
-		)
-		.default([]),
-});
+const PortfolioImageExtractionSchema = z
+	.object({
+		holdings: z
+			.array(
+				z
+					.object({
+						ticker: z
+							.string()
+							.describe("Uppercase stock ticker symbol read from the image."),
+						quantity: z
+							.number()
+							.describe(
+								"Numeric share quantity read from the same holding row.",
+							),
+					})
+					.describe("[STRUCTURED OUTPUTS] One extracted portfolio holding."),
+			)
+			.default([])
+			.describe(
+				"Readable portfolio holdings extracted from the image. Skip unreadable rows.",
+			),
+	})
+	.describe(
+		"[STRUCTURED OUTPUTS] Portfolio holdings extracted from an uploaded image.",
+	);
 
 async function extractPortfolioImage(
 	file: File,
@@ -124,15 +139,16 @@ export async function importPortfolioImage(
 			payload.strategy = strategy;
 		}
 
-		if (positionIndex.has(ticker)) {
+		const existingIndex = positionIndex.get(ticker);
+		if (existingIndex !== undefined) {
 			const existing: PositionRow = {
-				...positions[positionIndex.get(ticker)!],
+				...positions[existingIndex],
 				quantity,
 			};
 			if (strategy) {
 				existing.strategy = strategy;
 			}
-			positions[positionIndex.get(ticker)!] = existing;
+			positions[existingIndex] = existing;
 		} else {
 			positionIndex.set(ticker, positions.length);
 			positions.push(payload);

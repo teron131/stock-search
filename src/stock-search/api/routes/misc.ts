@@ -191,7 +191,11 @@ export function createMiscRouter(store: BackendStore): Hono {
 
 	router.get(STOCK_NEWS_ROUTE, async (c) => {
 		c.header("Cache-Control", "no-store");
-		return c.json(await newsOrchestrator.getNewsAsync(c.req.param("ticker")));
+		return c.json(
+			await newsOrchestrator.getNewsAsync(c.req.param("ticker"), {
+				resolveIdentity: true,
+			}),
+		);
 	});
 
 	return router;
