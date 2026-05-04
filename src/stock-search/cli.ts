@@ -1,6 +1,5 @@
 /** CLI for calling the Stock Search MCP tools in-process. */
 
-import { mcp } from "./mcp/index.js";
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
 
 type CliCommand = {
@@ -31,14 +30,6 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 		description: "Return the evaluation payload for a ticker.",
 	},
 ];
-
-const CLI_NAMESPACE_KEYS = new Set([
-	"command",
-	"_builtin",
-	"_tool_name",
-	"compact",
-	"pretty",
-]);
 
 const STOCK_STATS_FIELDS = [
 	"ticker",
@@ -157,14 +148,6 @@ export function resolveCliToolName(command: string): string | undefined {
 	return cliCommand?.toolName;
 }
 
-function getToolByCommand(
-	command: string,
-	tools: OpenApiTool[],
-): OpenApiTool | undefined {
-	const toolName = resolveCliToolName(command);
-	return toolName ? tools.find((tool) => tool.name === toolName) : undefined;
-}
-
 function printCommandList(): void {
 	for (const cliCommand of CLI_COMMANDS) {
 		console.log(`${cliCommand.command}\t${cliCommand.description}`);
@@ -195,7 +178,7 @@ function parseToolArguments(
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
-		if (!token || CLI_NAMESPACE_KEYS.has(token.replace(/^--/, ""))) {
+		if (!token || token === "--pretty") {
 			continue;
 		}
 		if (token.startsWith("--")) {
@@ -251,10 +234,6 @@ function parseToolArguments(
 	};
 }
 
-function printPayload(payload: JsonValue, pretty: boolean): void {
-	console.log(JSON.stringify(payload, null, pretty ? 2 : undefined));
-}
-
 function stockStatsPayload(row: JsonValue): JsonValue {
 	if (!row || typeof row !== "object" || Array.isArray(row)) {
 		return row;
@@ -280,7 +259,7 @@ function parseStocksArguments(argv: string[]): {
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
-		if (!token || CLI_NAMESPACE_KEYS.has(token.replace(/^--/, ""))) {
+		if (!token || token === "--pretty") {
 			continue;
 		}
 		if (token === "--source") {
@@ -309,60 +288,65 @@ function parseStocksArguments(argv: string[]): {
 	return { pretty, tickers, source };
 }
 
-async function callStocksCommand(argv: string[]): Promise<{
-	pretty: boolean;
-	payload: JsonValue;
-}> {
-	const { pretty, tickers, source } = parseStocksArguments(argv);
-	const entries = await Promise.all(
-		tickers.map(async (ticker) => {
-			const payload = await mcp.callTool("get_stock_stats", {
-				ticker,
-				...(source ? { source } : {}),
-			});
-			const content = payload.structuredContent;
-			const row =
-				content &&
-				typeof content === "object" &&
-				!Array.isArray(content) &&
-				"row" in content
-					? (content as Record<string, JsonValue>).row
-					: content;
-			return [String(ticker).toUpperCase(), stockStatsPayload(row)] as const;
-		}),
-	);
-
-	return { pretty, payload: Object.fromEntries(entries) as JsonValue };
-}
-
 export async function main(argv = process.argv.slice(2)): Promise<void> {
-	const tools = await mcp.listTools();
 	const [command, ...rest] = argv;
 	if (!command) {
-		throw new Error("A command is required. Use commands to inspect the CLI.");
+		throw new Error("A command is required. Use help to inspect the CLI.");
 	}
 
-	if (command === "commands") {
+	if (command === "help") {
 		printCommandList();
 		return;
 	}
 
+	const { mcp } = await import("./mcp/index.js");
+
 	if (command === "stocks") {
-		const { pretty, payload } = await callStocksCommand(rest);
-		printPayload(payload, pretty);
+		const { pretty, tickers, source } = parseStocksArguments(rest);
+		const entries = await Promise.all(
+			tickers.map(async (ticker) => {
+				const payload = await mcp.callTool("get_stock_stats", {
+					ticker,
+					...(source ? { source } : {}),
+				});
+				const content = payload.structuredContent;
+				const row =
+					content &&
+					typeof content === "object" &&
+					!Array.isArray(content) &&
+					"row" in content
+						? (content as Record<string, JsonValue>).row
+						: content;
+				return [String(ticker).toUpperCase(), stockStatsPayload(row)] as const;
+			}),
+		);
+		console.log(
+			JSON.stringify(
+				Object.fromEntries(entries) as JsonValue,
+				null,
+				pretty ? 2 : undefined,
+			),
+		);
 		return;
 	}
 
-	const tool = getToolByCommand(command, tools);
+	const tools = await mcp.listTools();
+	const toolName = resolveCliToolName(command);
+	const tool = toolName
+		? tools.find((candidate) => candidate.name === toolName)
+		: undefined;
 	if (!tool) {
 		throw new Error(`Unknown command: ${command}`);
 	}
 
 	const { pretty, arguments: toolArguments } = parseToolArguments(tool, rest);
 	const payload = await mcp.callTool(tool.name, toolArguments);
-	printPayload(
-		payload.structuredContent ?? asJsonValue(payload.content),
-		pretty,
+	console.log(
+		JSON.stringify(
+			payload.structuredContent ?? asJsonValue(payload.content),
+			null,
+			pretty ? 2 : undefined,
+		),
 	);
 }
 

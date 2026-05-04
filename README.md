@@ -164,7 +164,7 @@ The local CLI exposes only the useful human-facing endpoints. `stocks` returns c
 Run it with:
 
 ```bash
-pnpm run cli commands
+pnpm run cli help
 pnpm run cli stocks NVDA
 pnpm run cli stocks NVDA MSFT
 pnpm run cli stocks NVDA,MSFT --source live

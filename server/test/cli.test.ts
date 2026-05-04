@@ -29,6 +29,7 @@ describe("CLI command surface", () => {
 
 	it("does not resolve backend or route-shaped commands", () => {
 		const blockedCommands = [
+			"commands",
 			"list-tools",
 			"stock",
 			"eval",
