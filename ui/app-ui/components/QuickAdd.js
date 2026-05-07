@@ -47,6 +47,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
         value=${ticker}
         onInput=${(e) => setTicker(e.target.value)}
         disabled=${isSubmitting}
+        suppressHydrationWarning=${true}
       />
       <input
         type="number"
@@ -57,6 +58,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
         value=${qty}
         onInput=${(e) => setQty(e.target.value)}
         disabled=${isSubmitting}
+        suppressHydrationWarning=${true}
       />
       <button
         type="submit"
