@@ -27,12 +27,6 @@ export default function RootLayout({ children }) {
 					strategy="afterInteractive"
 					type="module"
 					crossOrigin="anonymous"
-					src="https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js"
-				/>
-				<Script
-					strategy="afterInteractive"
-					type="module"
-					crossOrigin="anonymous"
 					src="https://widgets.tradingview-widget.com/w/en/tv-ticker-tag.js"
 				/>
 			</head>

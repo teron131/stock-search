@@ -234,16 +234,9 @@ export function ClientApp({ initialView = "dashboard" }) {
 				</header>
 
 				<div className="ticker-tape-container" id="ticker-tape-view">
-					<tv-ticker-tape
-						suppressHydrationWarning={true}
-						id="ticker-tape-widget"
-						symbols=""
-						line-chart-type="Baseline"
-						item-size="compact"
-						show-hover=""
-						transparent=""
-						theme="dark"
-					/>
+					<div className="tradingview-widget-container" id="ticker-tape-widget">
+						<div className="tradingview-widget-container__widget" />
+					</div>
 				</div>
 
 				<div id="stats-strip" className="stats-strip">

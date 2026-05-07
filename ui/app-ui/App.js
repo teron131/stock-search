@@ -25,6 +25,20 @@ const VIEW_TITLES = {
 	[MARKETMAP_VIEW]: "MARKET MAP",
 	[CALENDAR_VIEW]: "ECONOMIC CALENDAR",
 };
+const TICKER_TAPE_SCRIPT_SRC =
+	"https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+const TICKER_TAPE_PLACEHOLDER_HTML =
+	'<div class="tradingview-widget-container__widget"></div>';
+const TICKER_TAPE_RETRY_DELAY_MS = 6_000;
+const TICKER_TAPE_OPTIONS = {
+	showSymbolLogo: true,
+	isTransparent: true,
+	displayMode: "adaptive",
+	colorTheme: "dark",
+	locale: "en",
+};
+
+let tickerTapeRetryId = null;
 
 function setText(id, value) {
 	const el = document.getElementById(id);
@@ -151,18 +165,58 @@ async function importImageFile(file, importImageRef) {
 }
 
 function updateTickerTape(tickers) {
-	const tape = document.getElementById("ticker-tape-widget");
-	if (!tape) return;
+	const container = document.getElementById("ticker-tape-widget");
+	if (!container) return;
 
-	if (!tickers.length) {
-		tape.setAttribute("symbols", "");
+	const symbols = tickers.filter(Boolean);
+	const symbolsKey = symbols.join(",");
+	if (hasLoadedTickerTape(container, symbolsKey)) {
 		return;
 	}
 
-	const symbols = tickers.filter(Boolean).join(",");
+	window.clearTimeout(tickerTapeRetryId);
+	container.dataset.symbols = symbolsKey;
+	container.innerHTML = TICKER_TAPE_PLACEHOLDER_HTML;
 
-	tape.setAttribute("symbols", symbols);
-	tape.style.height = "auto";
+	if (!symbols.length) {
+		return;
+	}
+
+	container.appendChild(createTickerTapeScript(symbols));
+	tickerTapeRetryId = window.setTimeout(() => {
+		if (!shouldRetryTickerTape(container, symbolsKey)) return;
+		container.dataset.symbols = "";
+		updateTickerTape(symbols);
+	}, TICKER_TAPE_RETRY_DELAY_MS);
+}
+
+function hasLoadedTickerTape(container, symbolsKey) {
+	return (
+		container.dataset.symbols === symbolsKey &&
+		Boolean(container.querySelector("iframe"))
+	);
+}
+
+function shouldRetryTickerTape(container, symbolsKey) {
+	return (
+		container.dataset.symbols === symbolsKey &&
+		!container.querySelector("iframe")
+	);
+}
+
+function createTickerTapeScript(symbols) {
+	const script = document.createElement("script");
+	script.type = "text/javascript";
+	script.src = TICKER_TAPE_SCRIPT_SRC;
+	script.async = true;
+	script.innerHTML = JSON.stringify({
+		symbols: symbols.map((symbol) => ({
+			proName: symbol.toUpperCase(),
+			title: symbol.toUpperCase(),
+		})),
+		...TICKER_TAPE_OPTIONS,
+	});
+	return script;
 }
 
 function syncViewLayout(view, { showPortfolioStats = false } = {}) {
