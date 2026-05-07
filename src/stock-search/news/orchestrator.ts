@@ -308,7 +308,7 @@ function cleanCompanyName(value: unknown): string | null {
 		return null;
 	}
 	const name = value.trim().replace(/\s+/g, " ");
-	return name && !/^[A-Z0-9.\-]+$/.test(name) ? name : null;
+	return name && !/^[A-Z0-9.-]+$/.test(name) ? name : null;
 }
 
 function addSearchTerm(terms: string[], seen: Set<string>, term: string): void {
@@ -375,7 +375,9 @@ export function buildNewsTickerIdentity(
 async function resolveTickerIdentityFromYahoo(
 	ticker: string,
 ): Promise<NewsTickerIdentity> {
-	const metadata = await new YahooFinanceSource(ticker).getSymbolMetadataSnapshot();
+	const metadata = await new YahooFinanceSource(
+		ticker,
+	).getSymbolMetadataSnapshot();
 	return buildNewsTickerIdentity(ticker, metadata.name);
 }
 

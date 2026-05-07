@@ -6,6 +6,7 @@ import type {
 	StockEntry,
 } from "./api/data-store.js";
 import { isCacheTimestampFresh } from "./cache.js";
+import { getOfficialEtfHoldingsSnapshot } from "./data-sources/etf-officials/index.js";
 import {
 	type StockAnalysisEtfSnapshot,
 	StockAnalysisSource,
@@ -219,13 +220,30 @@ export async function resolveEtfSnapshotCache(
 	};
 }
 
-/** Fetch one ETF holdings snapshot from StockAnalysis. */
+/** Fetch one ETF holdings snapshot from the best available source. */
 export async function getEtfSnapshot(tickerInput: string): Promise<{
 	holdings: EtfHolding[];
 	sectors: EtfSector[];
 	error: string | null;
 }> {
 	const ticker = normalizeTicker(tickerInput);
+	const officialSnapshot = await getOfficialEtfHoldingsSnapshot({ ticker });
+	if (officialSnapshot.holdings.length > 0) {
+		let sectors: EtfSector[] = [];
+		try {
+			const stockAnalysisSnapshot: StockAnalysisEtfSnapshot =
+				await new StockAnalysisSource(ticker).getEtfHoldingsSnapshot();
+			sectors = normalizeEtfSectors(stockAnalysisSnapshot.sectors);
+		} catch {
+			sectors = [];
+		}
+		return {
+			holdings: officialSnapshot.holdings,
+			sectors,
+			error: null,
+		};
+	}
+
 	const snapshot: StockAnalysisEtfSnapshot = await new StockAnalysisSource(
 		ticker,
 	).getEtfHoldingsSnapshot();
