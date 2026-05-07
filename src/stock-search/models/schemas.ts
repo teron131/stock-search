@@ -32,6 +32,29 @@ function isEtfIndicatorRow(row: Record<string, unknown>): boolean {
 	);
 }
 
+function normalizeEtfHoldings(value: unknown): Array<Record<string, unknown>> {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const holdings: Array<Record<string, unknown>> = [];
+	for (const item of value) {
+		if (typeof item !== "object" || item === null || Array.isArray(item)) {
+			continue;
+		}
+		const row = item as Record<string, unknown>;
+		const ticker =
+			typeof row.ticker === "string" ? row.ticker.trim().toUpperCase() : "";
+		const weight = Number(row.weight);
+		if (!ticker || !Number.isFinite(weight) || weight <= 0) {
+			continue;
+		}
+		const name =
+			typeof row.name === "string" && row.name.trim() ? row.name.trim() : null;
+		holdings.push({ ticker, name, weight });
+	}
+	return holdings;
+}
+
 /** Normalize indicator payloads before they are cached, persisted, or rendered. */
 export function normalizeStockIndicators(
 	value: unknown,
@@ -44,6 +67,9 @@ export function normalizeStockIndicators(
 		for (const field of ETF_MARKET_CAP_FIELDS) {
 			indicators[field] = null;
 		}
+	}
+	if (Array.isArray(indicators.etf_holdings)) {
+		indicators.etf_holdings = normalizeEtfHoldings(indicators.etf_holdings);
 	}
 	return indicators;
 }

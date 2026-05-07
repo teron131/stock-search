@@ -6,7 +6,10 @@ import type {
 	StockEntry,
 } from "./api/data-store.js";
 import { isCacheTimestampFresh } from "./cache.js";
-import { getOfficialEtfHoldingsSnapshot } from "./data-sources/etf-officials/index.js";
+import {
+	getOfficialEtfHoldingsSnapshot,
+	resolveOfficialEtfHoldingsProvider,
+} from "./data-sources/etf-officials/index.js";
 import {
 	type StockAnalysisEtfSnapshot,
 	StockAnalysisSource,
@@ -51,6 +54,7 @@ export type EtfSnapshotCacheResult = {
 };
 
 const ETF_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const FUND_FAMILY_KEYS = ["fund_family", "fundFamily"] as const;
 
 /** Normalize sector labels into the stable display values used by the app. */
 export function normalizeSectorName(value: string | null | undefined): string {
@@ -101,7 +105,10 @@ function loadEtfCache(
 					: null,
 			weight: Number(holding.weight),
 		}))
-		.filter((holding) => holding.ticker && Number.isFinite(holding.weight));
+		.filter(
+			(holding) =>
+				holding.ticker && Number.isFinite(holding.weight) && holding.weight > 0,
+		);
 	const sectors = Array.isArray(indicators.etf_sectors)
 		? normalizeEtfSectors(
 				indicators.etf_sectors
@@ -113,6 +120,9 @@ function loadEtfCache(
 					})),
 			)
 		: [];
+	if (holdings.length === 0 && sectors.length === 0) {
+		return null;
+	}
 
 	return { holdings, sectors };
 }
@@ -166,7 +176,15 @@ export async function resolveEtfSnapshotCache(
 	const ticker = normalizeTicker(tickerInput);
 	const indicators = stockEntry?.indicators ?? {};
 	const cachedSnapshot = loadEtfCache(indicators, now, true);
-	if (cachedSnapshot) {
+	if (
+		cachedSnapshot &&
+		shouldServeCachedEtfSnapshot(
+			cachedSnapshot,
+			ticker,
+			indicators,
+			allowLiveFetch,
+		)
+	) {
 		return {
 			snapshot: {
 				holdings: cachedSnapshot.holdings,
@@ -193,7 +211,7 @@ export async function resolveEtfSnapshotCache(
 		};
 	}
 
-	const snapshot = await getEtfSnapshot(ticker);
+	const snapshot = await getEtfSnapshot(ticker, indicators);
 	if (!snapshot.error) {
 		return {
 			snapshot,
@@ -220,14 +238,53 @@ export async function resolveEtfSnapshotCache(
 	};
 }
 
+function fundFamilyFromIndicators(
+	indicators: Record<string, unknown>,
+): unknown {
+	for (const key of FUND_FAMILY_KEYS) {
+		if (indicators[key]) {
+			return indicators[key];
+		}
+	}
+	return null;
+}
+
+function shouldServeCachedEtfSnapshot(
+	snapshot: { holdings: EtfHolding[]; sectors: EtfSector[] },
+	ticker: string,
+	indicators: Record<string, unknown>,
+	allowLiveFetch: boolean,
+): boolean {
+	if (snapshot.holdings.length > 0) {
+		return true;
+	}
+	if (!allowLiveFetch) {
+		return true;
+	}
+	return (
+		resolveOfficialEtfHoldingsProvider({
+			ticker,
+			fundFamily: fundFamilyFromIndicators(indicators),
+			name: indicators.name,
+		}) == null
+	);
+}
+
 /** Fetch one ETF holdings snapshot from the best available source. */
-export async function getEtfSnapshot(tickerInput: string): Promise<{
+export async function getEtfSnapshot(
+	tickerInput: string,
+	indicatorContext: Record<string, unknown> = {},
+): Promise<{
 	holdings: EtfHolding[];
 	sectors: EtfSector[];
 	error: string | null;
 }> {
 	const ticker = normalizeTicker(tickerInput);
-	const officialSnapshot = await getOfficialEtfHoldingsSnapshot({ ticker });
+	const officialSnapshot = await getOfficialEtfHoldingsSnapshot({
+		ticker,
+		fundFamily: fundFamilyFromIndicators(indicatorContext),
+		name: indicatorContext.name,
+	});
 	if (officialSnapshot.holdings.length > 0) {
 		let sectors: EtfSector[] = [];
 		try {

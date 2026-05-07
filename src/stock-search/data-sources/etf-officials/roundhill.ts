@@ -31,7 +31,7 @@ export function parseRenderedRoundhillHoldingsRows(
 		const name = typeof row[0] === "string" ? row[0].trim() : "";
 		const ticker = normalizeTicker(row[1]);
 		const weight = parseNumberText(row[2]);
-		if (!ticker || weight == null) {
+		if (!ticker || weight == null || weight <= 0) {
 			continue;
 		}
 

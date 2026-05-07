@@ -626,7 +626,9 @@ function buildNotionalByTicker(
 }
 
 function normalizeEtfHoldingTicker(value: unknown): string {
-	return normalizeTicker(value).replace(/\s*:\s*/g, ":");
+	return normalizeTicker(value)
+		.replace(/\s*:\s*/g, ":")
+		.replace(/^([A-Z0-9]{1,8})\s+([A-Z]{2,4})$/, "$1.$2");
 }
 
 function isStockLikeEtfRepresentativeTicker(ticker: string): boolean {

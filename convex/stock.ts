@@ -42,6 +42,32 @@ function normalizeObject(value: unknown): GenericRow {
 	return value as GenericRow;
 }
 
+function normalizeEtfHoldings(value: unknown): GenericRow[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	const holdings: GenericRow[] = [];
+	for (const item of value) {
+		if (typeof item !== "object" || item === null || Array.isArray(item)) {
+			continue;
+		}
+
+		const row = item as GenericRow;
+		const ticker =
+			typeof row.ticker === "string" ? row.ticker.toUpperCase().trim() : "";
+		const weight = Number(row.weight);
+		if (!ticker || !Number.isFinite(weight) || weight <= 0) {
+			continue;
+		}
+
+		const name =
+			typeof row.name === "string" && row.name.trim() ? row.name.trim() : null;
+		holdings.push({ ticker, name, weight });
+	}
+	return holdings;
+}
+
 function normalizeIndicators(value: unknown): GenericRow {
 	const indicators = { ...normalizeObject(value) };
 	const quoteType = String(
@@ -53,6 +79,9 @@ function normalizeIndicators(value: unknown): GenericRow {
 		for (const field of ETF_MARKET_CAP_FIELDS) {
 			indicators[field] = null;
 		}
+	}
+	if (Array.isArray(indicators.etf_holdings)) {
+		indicators.etf_holdings = normalizeEtfHoldings(indicators.etf_holdings);
 	}
 	return indicators;
 }
