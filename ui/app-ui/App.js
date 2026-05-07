@@ -33,7 +33,7 @@ const TICKER_TAPE_RETRY_DELAY_MS = 6_000;
 const TICKER_TAPE_OPTIONS = {
 	showSymbolLogo: true,
 	isTransparent: true,
-	displayMode: "adaptive",
+	displayMode: "compact",
 	colorTheme: "dark",
 	locale: "en",
 };
