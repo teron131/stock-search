@@ -20,7 +20,7 @@ import {
 } from "./evaluation/constants.js";
 import {
 	bucketFromEvaluation,
-	normalizeEvaluationRow,
+	normalizeEvaluationRowForIndicators,
 } from "./evaluation/normalization.js";
 import {
 	fetchYahooIndicators,
@@ -76,6 +76,13 @@ const EVAL_KEYS = [
 	"bear_probability",
 	"flat_probability",
 ] as const;
+const STAT_DERIVED_EVAL_KEYS = new Set<(typeof EVAL_KEYS)[number]>([
+	"overall_score",
+	"quality_score",
+	"valuation_score",
+	"upside_score",
+	"market_cap_score",
+]);
 
 function clearEtfMarketCapFields(row: Record<string, unknown>): void {
 	row.market_cap = null;
@@ -396,8 +403,12 @@ function pickEvalValue({
 	const hasLlmValue = [key, ...aliases].some(
 		(alias) => evaluation[alias] != null,
 	);
-	if (hasLlmValue && normalizedEvaluation[key] != null) {
-		return [Number(normalizedEvaluation[key]), true];
+	const normalizedValue = normalizedEvaluation[key];
+	if (normalizedValue != null && STAT_DERIVED_EVAL_KEYS.has(key)) {
+		return [Number(normalizedValue), false];
+	}
+	if (hasLlmValue && normalizedValue != null) {
+		return [Number(normalizedValue), true];
 	}
 	return [fallbackEvaluation[key], false];
 }
@@ -1110,7 +1121,10 @@ export function mergePortfolioRow(
 	const quantity = positionQuantity(position);
 	const price = asNumber(indicators.price);
 	const total = price == null ? 0 : quantity * price;
-	const normalizedEvaluation = normalizeEvaluationRow(evaluation);
+	const normalizedEvaluation = normalizeEvaluationRowForIndicators(
+		evaluation,
+		indicators,
+	);
 	const fallbackEvaluation = indicatorEvalFallback(indicators);
 	const selectedEvaluation: Record<string, number> = {};
 	let llmCount = 0;
@@ -1149,7 +1163,10 @@ export function mergePortfolioRow(
 		: Array.isArray(indicators.holdings)
 			? indicators.holdings
 			: [];
-	const strategy = resolveRowStrategy(ticker, indicators, evaluation);
+	const strategyEvaluation = hasOwnEvaluation(evaluation)
+		? selectedEvaluation
+		: evaluation;
+	const strategy = resolveRowStrategy(ticker, indicators, strategyEvaluation);
 
 	return {
 		...indicators,

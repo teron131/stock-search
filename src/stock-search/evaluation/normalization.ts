@@ -9,7 +9,13 @@ import {
 	ROUND_PROBABILITY_DIGITS,
 	SCORE_SCALE,
 } from "./constants.js";
-import { calculateStrategyIndices } from "./scores.js";
+import {
+	calculateCombinedUpsideScore,
+	calculateQualitySignalScore,
+	calculateStrategyIndices,
+	calculateValuationScore,
+	marketCapScore,
+} from "./scores.js";
 
 const BUCKET_LABELS: Record<string, string> = {
 	core: "Core",
@@ -18,6 +24,23 @@ const BUCKET_LABELS: Record<string, string> = {
 	diversifier: "Defense",
 };
 const DEFAULT_BUCKET = "Speculation";
+const SCORE_DIGITS = 2;
+
+function roundScore(value: number | null): number | null {
+	return value == null || !Number.isFinite(value)
+		? null
+		: Number(value.toFixed(SCORE_DIGITS));
+}
+
+function averageScore(values: Array<number | null | undefined>): number | null {
+	if (values.some((value) => value == null || !Number.isFinite(value))) {
+		return null;
+	}
+	const numericValues = values.map((value) => Number(value));
+	return roundScore(
+		numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length,
+	);
+}
 
 /** Normalize an eval.json entry to canonical keys used by the app. */
 export function normalizeEvalJson(
@@ -53,6 +76,57 @@ export function normalizeEvalJson(
 		bear_probability: bearProbability,
 		flat_probability: toFloat(data.flat_probability, computedFlatProbability),
 	};
+}
+
+/** Normalize evaluation while refreshing deterministic scores from current stats. */
+export function normalizeEvalJsonForIndicators(
+	data: Record<string, unknown> | null | undefined,
+	indicators: Record<string, unknown> | null | undefined,
+): Record<string, number> {
+	const normalized = normalizeEvalJson(data);
+	const indicatorRow = indicators ?? {};
+
+	const qualityScore = roundScore(calculateQualitySignalScore(indicatorRow));
+	if (qualityScore != null) {
+		normalized.quality_score = qualityScore;
+	}
+
+	const valuationScore = roundScore(calculateValuationScore(indicatorRow));
+	if (valuationScore != null) {
+		normalized.valuation_score = valuationScore;
+	}
+
+	const upsideScore = roundScore(
+		calculateCombinedUpsideScore(
+			typeof indicatorRow.median_upside === "number"
+				? indicatorRow.median_upside
+				: null,
+			Array.isArray(indicatorRow.ratings)
+				? (indicatorRow.ratings as Array<Record<string, unknown>>)
+				: null,
+			null,
+		),
+	);
+	if (upsideScore != null) {
+		normalized.upside_score = upsideScore;
+	}
+
+	const sizeScore = roundScore(marketCapScore(indicatorRow));
+	if (sizeScore != null) {
+		normalized.market_cap_score = sizeScore;
+	}
+
+	const overallScore = averageScore([
+		normalized.quality_score,
+		normalized.valuation_score,
+		normalized.moat_score,
+		normalized.upside_score,
+	]);
+	if (overallScore != null) {
+		normalized.overall_score = overallScore;
+	}
+
+	return normalized;
 }
 
 /** Build an `Evaluation` model from an `eval.json` entry. */
@@ -128,4 +202,6 @@ export function bucketFromEvalJson(
 
 // Backward-compatible aliases for the rest of the TS app.
 export const normalizeEvaluationRow = normalizeEvalJson;
+export const normalizeEvaluationRowForIndicators =
+	normalizeEvalJsonForIndicators;
 export const bucketFromEvaluation = bucketFromEvalJson;
