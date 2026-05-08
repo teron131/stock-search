@@ -444,7 +444,7 @@ export const COLS = {
 };
 
 export const DEFAULT_SORT_COLS = {
-	all: "weight_pct",
-	holdings: "weight_pct",
+	all: "notional_weight_pct",
+	holdings: "notional_weight_pct",
 	evaluations: "overall_score",
 };

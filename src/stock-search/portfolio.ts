@@ -606,13 +606,6 @@ function buildNotionalByTicker(
 		if (!ticker || total <= 0) {
 			continue;
 		}
-		if (
-			String(row.equity_type ?? "")
-				.trim()
-				.toUpperCase() === "ETF"
-		) {
-			continue;
-		}
 		getTickerNotional(notionalByTicker, ticker).addFromStocks(total);
 	}
 
