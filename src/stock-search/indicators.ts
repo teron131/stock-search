@@ -95,9 +95,18 @@ export async function fetchLiveIndicators(
 		...yahooFields,
 		...yahooSymbolMetadata,
 	};
-	const stockAnalysisPayload = {
+	const stockAnalysisPayload: Record<string, unknown> = {
 		...stockAnalysisStatistics,
 		...stockAnalysisFinancials,
+		gross_margin:
+			stockAnalysisFinancials.gross_margin ??
+			stockAnalysisStatistics.gross_margin ??
+			null,
+		operating_margin:
+			stockAnalysisFinancials.operating_margin ??
+			stockAnalysisStatistics.operating_margin ??
+			null,
+		debt_to_equity: stockAnalysisStatistics.debt_to_equity ?? null,
 	};
 
 	function resolveField(field: string): unknown {
