@@ -44,6 +44,7 @@ export const CalibrationConfig = {
 	ROIC_PCT_RANGE: [0.0, 12.0, 30.0],
 	DEBT_TO_EQUITY_PCT_RANGE: [0.0, 100.0, 300.0],
 	FCF_YIELD_PCT_RANGE: [-5.0, 2.0, 8.0],
+	SHAREHOLDER_YIELD_PCT_RANGE: [-5.0, 2.0, 8.0],
 	UPSIDE_RANGE: [-20.0, 15.0, 50.0],
 	PROBABILITY_RANGE: [0.5, 0.55, 0.6],
 	RATING_RANGE: [1.0, 3.5, 5.0],
@@ -56,6 +57,7 @@ export const ValuationMultipliers = {
 	PE_FORWARD: 0.75,
 	DEBT_TO_EQUITY: 0.5,
 	FCF_YIELD: 0.75,
+	SHAREHOLDER_YIELD: 0.5,
 	OPERATING_MARGIN: 1.25,
 	ROIC: 0.75,
 } as const;
@@ -66,6 +68,7 @@ export const QualitySignalMultipliers = {
 	GROSS_MARGIN: 1,
 	OPERATING_MARGIN: 1.4,
 	ROIC: 0.4,
+	SHAREHOLDER_YIELD: 0.6,
 } as const;
 
 /** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */

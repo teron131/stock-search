@@ -228,6 +228,12 @@ export function calculateValuationScore(
 			false,
 		],
 		[
+			getNumberField(indicator, "shareholder_yield"),
+			CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+			ValuationMultipliers.SHAREHOLDER_YIELD,
+			false,
+		],
+		[
 			getNumberField(indicator, "operating_margin"),
 			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
 			ValuationMultipliers.OPERATING_MARGIN,
@@ -269,6 +275,12 @@ export function calculateQualitySignalScore(
 			getNumberField(indicator, "roic"),
 			CalibrationConfig.ROIC_PCT_RANGE,
 			QualitySignalMultipliers.ROIC,
+			false,
+		],
+		[
+			getNumberField(indicator, "shareholder_yield"),
+			CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+			QualitySignalMultipliers.SHAREHOLDER_YIELD,
 			false,
 		],
 	];

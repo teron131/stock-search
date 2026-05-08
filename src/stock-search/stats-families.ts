@@ -40,6 +40,7 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"beta",
 		"roic",
 		"free_cash_flow",
+		"shareholder_yield",
 	],
 	financials: [
 		"revenue_growth",

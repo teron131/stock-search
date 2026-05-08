@@ -31,6 +31,7 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 	"peg",
 	"beta",
 	"free_cash_flow",
+	"shareholder_yield",
 	"rsi",
 ]);
 const FINANCIALS_PRIORITY_FIELDS = new Set([

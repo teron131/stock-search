@@ -168,6 +168,9 @@ const StatisticsSchema = z
 		free_cash_flow: NullableNumber.optional().describe(
 			"Free Cash Flow value from the Cash Flow section.",
 		),
+		shareholder_yield: NullableNumber.optional().describe(
+			"Shareholder Yield percentage, including dividends, buybacks, and dilution when displayed.",
+		),
 		median_upside: NullableNumber.optional().describe(
 			"Price Target Difference percentage from the Analyst Forecast section.",
 		),
@@ -697,7 +700,7 @@ export async function loadStatisticsSnapshot(
 			`Source URL: ${url}`,
 			"Use market_cap and free_cash_flow as absolute dollar values.",
 			"Use pe, pe_forward, peg, beta, roic, debt_to_equity, and debt_to_ebitda as displayed numeric ratios.",
-			"Use gross_margin, operating_margin, rsi, median_upside, and price-change fields as 0-100 numeric values.",
+			"Use gross_margin, operating_margin, shareholder_yield, rsi, median_upside, and price-change fields as 0-100 numeric values.",
 			"If analyst consensus and price-target fields are visible, return one ratings row with firm 'Consensus'.",
 		].join("\n"),
 	});

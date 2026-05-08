@@ -52,6 +52,7 @@ const STOCK_STATS_FIELDS = [
 	"operating_margin",
 	"debt_to_equity",
 	"free_cash_flow",
+	"shareholder_yield",
 ] as const;
 
 function parseBool(value: string): boolean {

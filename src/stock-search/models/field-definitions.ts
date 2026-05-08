@@ -40,6 +40,7 @@ export const INDICATOR_FIELD_DEFINITIONS: readonly FieldDefinition[] = [
 	{ name: "roic", category: "fundamental" },
 	{ name: "debt_to_equity", category: "fundamental" },
 	{ name: "free_cash_flow", category: "fundamental" },
+	{ name: "shareholder_yield", category: "fundamental" },
 	{ name: "rsi", category: "technical" },
 ];
 
@@ -59,6 +60,7 @@ export const MARKET_FIELDS = new Set<string>([
 	"iv",
 	"debt_to_equity",
 	"free_cash_flow",
+	"shareholder_yield",
 	"revenue_growth",
 	"gross_margin",
 	"operating_margin",

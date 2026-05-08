@@ -142,17 +142,18 @@ These are the **metrics that require anchors**.
 
 ## 5.2 Valuation anchors
 
-These are “lower is better” metrics (after inversion they become “higher is better” on the score curve).
+Valuation mixes lower-is-better multiples with higher-is-better yield and viability checks. Lower-is-better inputs are inverted before they reach the score curve.
 
 - **PEG**: 0.7 / 2.0 / 4.0
 - **Trailing P/E**: 12 / 30 / 80
 - **Forward P/E**: 10 / 28 / 65
 - **Debt/equity %**: 0 / 100 / 300
 - **FCF yield %**: -5 / 2 / 8
+- **Shareholder yield %**: -5 / 2 / 8
 - **Operating margin %**: -15 / 15 / 35
 - **ROIC %**: 0 / 12 / 30
 
-## 5.3 Growth anchor
+## 5.3 Growth / quality anchors
 
 “Higher is better”
 
@@ -161,6 +162,7 @@ These are “lower is better” metrics (after inversion they become “higher i
 - **Gross margin %**: 20 / 50 / 75
 - **Operating margin %**: -15 / 15 / 35
 - **ROIC %**: 0 / 12 / 30
+- **Shareholder yield %**: -5 / 2 / 8
 
 ## 5.4 Upside anchor (Analyst target upside)
 
@@ -281,6 +283,7 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - forward P/E score
 - EV/Sales score when earnings-based metrics are missing or misleading
 - FCF yield score when market cap and free cash flow are available
+- shareholder yield score when dividends, buybacks, and dilution are available
 - earnings growth score (small weight, to avoid punishing genuine growth)
 
 Suggested contribution multipliers (stable and interpretable):
@@ -290,6 +293,7 @@ Suggested contribution multipliers (stable and interpretable):
 - forward P/E 0.15
 - EV/Sales 0.10–0.20 when PE/PEG evidence is weak
 - FCF yield 0.15
+- shareholder yield 0.10 as a per-share owner return check
 - debt/equity 0.10
 - operating margin 0.25 as a valuation viability check
 - ROIC 0.15 as a valuation viability check
@@ -300,6 +304,7 @@ Implemented multipliers use `1.0` as normal strength while preserving the relati
 - trailing P/E 1.00
 - forward P/E 0.75
 - FCF yield 0.75
+- shareholder yield 0.50
 - debt/equity 0.50
 - operating margin 1.25
 - ROIC 0.75
@@ -310,6 +315,7 @@ Market-derived quality uses these contribution multipliers:
 - gross margin 0.25
 - operating margin 0.35
 - ROIC 0.10
+- shareholder yield 0.15
 
 Implemented multipliers:
 
@@ -317,6 +323,7 @@ Implemented multipliers:
 - gross margin 1.00
 - operating margin 1.40
 - ROIC 0.40
+- shareholder yield 0.60
 
 Each available stat is mapped as a **signed contribution** around a neutral base, optionally multiplied, then averaged:
 
@@ -472,8 +479,8 @@ The TypeScript implementation should be checked against this document after migr
 
 - The document describes a piecewise logistic anchor map where the “good” median maps around 6.5. The TS code currently uses a Normal-CDF S-curve (`zScoreMap`) where the median maps to 5.0.
 - Market cap max is documented as $4.5T in presets, while TS currently uses $4T.
-- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, FCF yield, operating margin, and ROIC. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
-- TS quality signal currently uses revenue growth, gross margin, operating margin, and ROIC before blending with research quality. It does not yet include interest coverage, dilution/shareholder yield, or Piotroski F-Score.
+- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, FCF yield, shareholder yield, operating margin, and ROIC. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
+- TS quality signal currently uses revenue growth, gross margin, operating margin, ROIC, and shareholder yield before blending with research quality. It does not yet include interest coverage or Piotroski F-Score.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
 - Dashboard row merging has a separate indicator fallback path for rows without stored evaluation. That fallback uses simpler linear maps over PE/FWD_PE, revenue growth, gross margin, and median upside, with a default moat of 5. It is not the full evaluation engine.
 
