@@ -5,6 +5,7 @@ import { asNumber } from "../utils.js";
 import {
 	CalibrationConfig,
 	CoreEngineWeights,
+	DEFAULT_SCORE,
 	DiversifierWeights,
 	EDGE_BASE,
 	EDGE_MULTIPLIER,
@@ -18,7 +19,11 @@ import {
 	ThresholdConfig,
 	ValuationWeights,
 } from "./constants.js";
-import { clampScore, mapToCurveScore } from "./math-utils.js";
+import {
+	clampScore,
+	mapToCurveScore,
+	SIGNED_STAT_CONTRIBUTION,
+} from "./math-utils.js";
 
 type WeightedFactorConfig = [
 	number | null,
@@ -109,8 +114,19 @@ function canonicalMarketCap(indicator: IndicatorLike): number | null {
 	return getNumberField(indicator, "market_cap");
 }
 
-function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
-	const weightedScores: number[] = [];
+function valuationMultipleField(
+	indicator: IndicatorLike,
+	fieldName: string,
+	[, , weakAnchor]: [number, number, number],
+): number | null {
+	const value = getNumberField(indicator, fieldName);
+	return value == null ? null : value <= 0 ? weakAnchor : value;
+}
+
+function weightedStatScore(factors: WeightedFactorConfig[]): number | null {
+	const weightedContributions: number[] = [];
+	const contributionMin = SIGNED_STAT_CONTRIBUTION.outMin ?? -SCORE_SCALE;
+	const contributionMax = SIGNED_STAT_CONTRIBUTION.outMax ?? SCORE_SCALE;
 	let totalWeight = 0;
 
 	for (const [value, inputRange, weight, inverse] of factors) {
@@ -118,15 +134,12 @@ function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 			continue;
 		}
 		const [rangeMin, rangeMedian, rangeMax] = inputRange;
-		const score = mapToCurveScore(
-			value,
-			rangeMin,
-			rangeMax,
-			rangeMedian,
-			inverse ? 10 : 0,
-			inverse ? 0 : 10,
-		);
-		weightedScores.push(score * weight);
+		const score = mapToCurveScore(value, rangeMin, rangeMax, rangeMedian, {
+			...SIGNED_STAT_CONTRIBUTION,
+			outMin: inverse ? contributionMax : contributionMin,
+			outMax: inverse ? contributionMin : contributionMax,
+		});
+		weightedContributions.push(score * weight);
 		totalWeight += weight;
 	}
 
@@ -134,7 +147,9 @@ function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 		return null;
 	}
 	return clampScore(
-		weightedScores.reduce((sum, value) => sum + value, 0) / totalWeight,
+		DEFAULT_SCORE +
+			weightedContributions.reduce((sum, value) => sum + value, 0) /
+				totalWeight,
 	);
 }
 
@@ -173,21 +188,29 @@ export function marketCapScore(
 export function calculateValuationScore(
 	indicator: IndicatorLike,
 ): number | null {
-	return weightedZscoreAverage([
+	return weightedStatScore([
 		[
-			getNumberField(indicator, "peg"),
+			valuationMultipleField(indicator, "peg", CalibrationConfig.PEG_RANGE),
 			CalibrationConfig.PEG_RANGE,
 			ValuationWeights.PEG,
 			true,
 		],
 		[
-			getNumberField(indicator, "pe"),
+			valuationMultipleField(
+				indicator,
+				"pe",
+				CalibrationConfig.TRAILING_PE_RANGE,
+			),
 			CalibrationConfig.TRAILING_PE_RANGE,
 			ValuationWeights.PE,
 			true,
 		],
 		[
-			getNumberField(indicator, "pe_forward"),
+			valuationMultipleField(
+				indicator,
+				"pe_forward",
+				CalibrationConfig.FORWARD_PE_RANGE,
+			),
 			CalibrationConfig.FORWARD_PE_RANGE,
 			ValuationWeights.PE_FORWARD,
 			true,
@@ -204,6 +227,18 @@ export function calculateValuationScore(
 			ValuationWeights.FCF_YIELD,
 			false,
 		],
+		[
+			getNumberField(indicator, "operating_margin"),
+			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
+			ValuationWeights.OPERATING_MARGIN,
+			false,
+		],
+		[
+			getNumberField(indicator, "roic"),
+			CalibrationConfig.ROIC_PCT_RANGE,
+			ValuationWeights.ROIC,
+			false,
+		],
 	]);
 }
 
@@ -211,7 +246,7 @@ export function calculateValuationScore(
 export function calculateQualitySignalScore(
 	indicator: IndicatorLike,
 ): number | null {
-	return weightedZscoreAverage([
+	const factors: WeightedFactorConfig[] = [
 		[
 			getNumberField(indicator, "revenue_growth"),
 			CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
@@ -230,7 +265,20 @@ export function calculateQualitySignalScore(
 			QualitySignalWeights.OPERATING_MARGIN,
 			false,
 		],
-	]);
+		[
+			getNumberField(indicator, "roic"),
+			CalibrationConfig.ROIC_PCT_RANGE,
+			QualitySignalWeights.ROIC,
+			false,
+		],
+	];
+	const availableFactorCount = factors.filter(
+		([value]) => value != null,
+	).length;
+	if (availableFactorCount < 2) {
+		return null;
+	}
+	return weightedStatScore(factors);
 }
 
 /** Blend analyst upside, current ratings, and LLM outlook into a single score. */

@@ -144,20 +144,29 @@ These are the **metrics that require anchors**.
 
 These are “lower is better” metrics (after inversion they become “higher is better” on the score curve).
 
-- **PEG**: 0.5 / 1.5 / 3.0
-- **P/E**: 10 / 28 / 50
+- **PEG**: 0.7 / 2.0 / 4.0
+- **Trailing P/E**: 12 / 30 / 80
+- **Forward P/E**: 10 / 28 / 65
+- **Debt/equity %**: 0 / 100 / 300
+- **FCF yield %**: -5 / 2 / 8
+- **Operating margin %**: -15 / 15 / 35
+- **ROIC %**: 0 / 12 / 30
 
 ## 5.3 Growth anchor
 
 “Higher is better”
 
-- **Earnings growth (YoY)**: 0.10 / 0.30 / 0.50
+- **Earnings growth (YoY)**: -0.10 / 0.20 / 0.50
+- **Revenue growth (YoY %)**: -10 / 12 / 35
+- **Gross margin %**: 20 / 50 / 75
+- **Operating margin %**: -15 / 15 / 35
+- **ROIC %**: 0 / 12 / 30
 
 ## 5.4 Upside anchor (Analyst target upside)
 
 “Higher is better”
 
-- **Target upside %**: 0.00 / 0.15 / 0.50
+- **Target upside %**: -0.20 / 0.15 / 0.50
 
 ## 5.5 Analyst rating anchor (1–5 scale)
 
@@ -184,10 +193,15 @@ Median reflects “good by high-conviction standards,” not market average.
 | Metric          |  Low | Median (good) |      High |
 | --------------- | ---: | ------------: | --------: |
 | Market cap      | $10B |         $800B | **$4.5T** |
-| PEG             |  0.6 |           1.6 |       3.5 |
-| P/E             |   12 |            26 |        55 |
-| Earnings growth | 0.10 |          0.25 |      0.50 |
-| Target upside   | 0.00 |          0.18 |      0.55 |
+| PEG             |  0.7 |           2.0 |       4.0 |
+| Trailing P/E    |   12 |            30 |        80 |
+| Forward P/E     |   10 |            28 |        65 |
+| Revenue growth  |  -10 |            12 |        35 |
+| Gross margin    |   20 |            50 |        75 |
+| Operating margin |  -15 |            15 |        35 |
+| Debt/equity     |    0 |           100 |       300 |
+| FCF yield       |   -5 |             2 |         8 |
+| Target upside   |  -20 |            15 |        50 |
 | Probability     | 0.50 |          0.56 |      0.62 |
 | Rating (1–5)    |  1.0 |           3.7 |       5.0 |
 
@@ -199,9 +213,14 @@ Median reflects a more index-like standard.
 | --------------- | ---: | -----: | --------: |
 | Market cap      |  $3B |  $200B | **$4.5T** |
 | PEG             |  0.7 |    1.8 |       4.0 |
-| P/E             |   10 |     22 |        45 |
-| Earnings growth | 0.05 |   0.15 |      0.35 |
-| Target upside   | 0.00 |   0.12 |      0.40 |
+| Trailing P/E    |   10 |     22 |        45 |
+| Forward P/E     |    9 |     20 |        40 |
+| Revenue growth  |   -5 |      8 |        25 |
+| Gross margin    |   15 |     40 |        65 |
+| Operating margin |  -10 |     10 |        25 |
+| Debt/equity     |    0 |    100 |       300 |
+| FCF yield       |   -6 |      2 |         8 |
+| Target upside   |  -15 |     12 |        40 |
 | Probability     | 0.50 |   0.55 |      0.60 |
 | Rating (1–5)    |  1.0 |    3.5 |       5.0 |
 
@@ -250,10 +269,12 @@ Interpretation rules:
 - Low debt/equity should not rescue poor interest coverage.
 - Growth should be discounted when it is bought with heavy dilution.
 - F-Score is not a thesis by itself; it is a useful red/yellow/green health check.
+- Negative revenue growth, negative operating margin, and negative FCF yield are real negative contributions, not merely low positive subscores.
+- If fewer than two comparable quality stats are available, the market-derived quality signal should stay unknown rather than letting one stat produce a false high-confidence score.
 
-## 7.3 Valuation (0–10) — weighted blend
+## 7.3 Valuation (0–10) — weighted signed blend
 
-Valuation is not a single metric. It is a blend of mapped sub-scores:
+Valuation is not a single metric. It is a blend of mapped stat contributions:
 
 - PEG score (largest weight)
 - trailing P/E score
@@ -264,14 +285,31 @@ Valuation is not a single metric. It is a blend of mapped sub-scores:
 
 Suggested weights (stable and interpretable):
 
-- PEG 0.45–0.55
+- PEG 0.40
 - trailing P/E 0.20
 - forward P/E 0.15
 - EV/Sales 0.10–0.20 when PE/PEG evidence is weak
-- FCF yield 0.10
-- growth 0.10 when the metric is clean and period-aligned
+- FCF yield 0.15
+- debt/equity 0.10
+- operating margin 0.25 as a valuation viability check
+- ROIC 0.15 as a valuation viability check
 
-If some inputs are missing, weights are re-normalized over available components.
+Market-derived quality uses:
+
+- revenue growth 0.30
+- gross margin 0.25
+- operating margin 0.35
+- ROIC 0.10
+
+Each available stat is mapped as a **signed contribution** around a neutral base, then blended:
+
+StatContribution = curve(metric, anchors) ∈ roughly [-10, +10]
+
+MetricScore = clamp(5 + weighted_average(StatContribution), 0, 10)
+
+The final score remains a normal 0–10 score, but weak components can now subtract from the base instead of merely landing at a harmless low positive score. Values beyond the weak anchor can extend further negative before the final clamp. This matters for expensive valuation, negative growth, negative operating margins, and negative free-cash-flow yield.
+
+If some inputs are missing, weights are re-normalized over available components. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
 Evidence quality matters. A great forward P/E alone should not create a high valuation score when trailing P/E, PEG, EV/FCF, or FCF yield are missing. In that case, valuation can still be positive, but confidence should be lower and EV/Sales should carry more weight.
 
@@ -417,8 +455,8 @@ The TypeScript implementation should be checked against this document after migr
 
 - The document describes a piecewise logistic anchor map where the “good” median maps around 6.5. The TS code currently uses a Normal-CDF S-curve (`zScoreMap`) where the median maps to 5.0.
 - Market cap max is documented as $4.5T in presets, while TS currently uses $4T.
-- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, and FCF yield. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
-- TS quality signal currently uses revenue growth, gross margin, and operating margin before blending with research quality. It does not yet include ROIC, interest coverage, dilution/shareholder yield, or Piotroski F-Score.
+- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, FCF yield, operating margin, and ROIC. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
+- TS quality signal currently uses revenue growth, gross margin, operating margin, and ROIC before blending with research quality. It does not yet include interest coverage, dilution/shareholder yield, or Piotroski F-Score.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
 - Dashboard row merging has a separate indicator fallback path for rows without stored evaluation. That fallback uses simpler linear maps over PE/FWD_PE, revenue growth, gross margin, and median upside, with a default moat of 5. It is not the full evaluation engine.
 

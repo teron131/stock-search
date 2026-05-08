@@ -25,97 +25,101 @@ export type StrategyBucket = {
 	edgeWeight: number;
 };
 
-export class MarketCapConfig {
-	/** Configuration for mapping market capitalization values (Log-S-curve). */
-	static readonly MIN = 10 * BILLION;
-	static readonly MEDIAN = 800 * BILLION;
-	static readonly MAX = 4 * TRILLION;
-}
+/** Configuration for mapping market capitalization values (Log-S-curve). */
+export const MarketCapConfig = {
+	MIN: 10 * BILLION,
+	MEDIAN: 800 * BILLION,
+	MAX: 4.5 * TRILLION,
+} as const;
 
-export class CalibrationConfig {
-	/** Calibration ranges for mapping various financial metrics to 0-10 scores. */
-	static readonly PEG_RANGE: MinMedMax = [0.5, 1.5, 3.0];
-	static readonly TRAILING_PE_RANGE: MinMedMax = [12.0, 40.0, 75.0];
-	static readonly FORWARD_PE_RANGE: MinMedMax = [12.0, 30.0, 60.0];
-	static readonly GROWTH_RANGE: MinMedMax = [0.1, 0.3, 0.5];
-	static readonly REVENUE_GROWTH_PCT_RANGE: MinMedMax = [0.0, 15.0, 30.0];
-	static readonly GROSS_MARGIN_PCT_RANGE: MinMedMax = [10.0, 45.0, 70.0];
-	static readonly OPERATING_MARGIN_PCT_RANGE: MinMedMax = [0.0, 20.0, 40.0];
-	static readonly DEBT_TO_EQUITY_PCT_RANGE: MinMedMax = [0.0, 60.0, 200.0];
-	static readonly FCF_YIELD_PCT_RANGE: MinMedMax = [-2.0, 3.0, 8.0];
-	static readonly UPSIDE_RANGE: MinMedMax = [0.0, 15.0, 50.0];
-	static readonly PROBABILITY_RANGE: MinMedMax = [0.5, 0.55, 0.6];
-	static readonly RATING_RANGE: MinMedMax = [1.0, 3.5, 5.0];
-}
+/** Calibration ranges for mapping various financial metrics to 0-10 scores. */
+export const CalibrationConfig = {
+	PEG_RANGE: [0.7, 2.0, 4.0],
+	TRAILING_PE_RANGE: [12.0, 30.0, 80.0],
+	FORWARD_PE_RANGE: [10.0, 28.0, 65.0],
+	GROWTH_RANGE: [0.1, 0.3, 0.5],
+	REVENUE_GROWTH_PCT_RANGE: [-10.0, 12.0, 35.0],
+	GROSS_MARGIN_PCT_RANGE: [20.0, 50.0, 75.0],
+	OPERATING_MARGIN_PCT_RANGE: [-15.0, 15.0, 35.0],
+	ROIC_PCT_RANGE: [0.0, 12.0, 30.0],
+	DEBT_TO_EQUITY_PCT_RANGE: [0.0, 100.0, 300.0],
+	FCF_YIELD_PCT_RANGE: [-5.0, 2.0, 8.0],
+	UPSIDE_RANGE: [-20.0, 15.0, 50.0],
+	PROBABILITY_RANGE: [0.5, 0.55, 0.6],
+	RATING_RANGE: [1.0, 3.5, 5.0],
+} as const satisfies Record<string, MinMedMax>;
 
-export class ValuationWeights {
-	/** Weights used for blending PEG, P/E, and Growth into a valuation score. */
-	static readonly PEG = 0.45;
-	static readonly PE = 0.2;
-	static readonly PE_FORWARD = 0.15;
-	static readonly DEBT_TO_EQUITY = 0.1;
-	static readonly FCF_YIELD = 0.1;
-}
+/** Weights used for blending PEG, P/E, and Growth into a valuation score. */
+export const ValuationWeights = {
+	PEG: 0.4,
+	PE: 0.2,
+	PE_FORWARD: 0.15,
+	DEBT_TO_EQUITY: 0.1,
+	FCF_YIELD: 0.15,
+	OPERATING_MARGIN: 0.25,
+	ROIC: 0.15,
+} as const;
 
-export class QualitySignalWeights {
-	/** Weights for market-derived quality overlays. */
-	static readonly REVENUE_GROWTH = 0.4;
-	static readonly GROSS_MARGIN = 0.3;
-	static readonly OPERATING_MARGIN = 0.3;
-}
+/** Weights for market-derived quality overlays. */
+export const QualitySignalWeights = {
+	REVENUE_GROWTH: 0.3,
+	GROSS_MARGIN: 0.25,
+	OPERATING_MARGIN: 0.35,
+	ROIC: 0.1,
+} as const;
 
-export class CoreEngineWeights {
-	/** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */
-	static readonly MOAT = 0.35;
-	static readonly QUALITY = 0.35;
-	static readonly VALUATION = 0.15;
-	static readonly SIZE = 0.1;
-	static readonly EDGE = 0.05;
-}
+/** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */
+export const CoreEngineWeights = {
+	MOAT: 0.35,
+	QUALITY: 0.35,
+	VALUATION: 0.15,
+	SIZE: 0.1,
+	EDGE: 0.05,
+} as const;
 
-export class SatelliteWeights {
-	/** Strategy weights for 'Satellite' portfolio bucket (Growth & Upside focused). */
-	static readonly MOAT = 0.3;
-	static readonly QUALITY = 0.25;
-	static readonly UPSIDE = 0.25;
-	static readonly VALUATION = 0.1;
-	static readonly EDGE = 0.1;
-}
+/** Strategy weights for 'Satellite' portfolio bucket (Growth & Upside focused). */
+export const SatelliteWeights = {
+	MOAT: 0.3,
+	QUALITY: 0.25,
+	UPSIDE: 0.25,
+	VALUATION: 0.1,
+	EDGE: 0.1,
+} as const;
 
-export class SpeculativeWeights {
-	/** Strategy weights for 'Speculative' portfolio bucket (High upside, lower core). */
-	static readonly UPSIDE = 0.45;
-	static readonly QUALITY = 0.2;
-	static readonly MOAT = 0.2;
-	static readonly VALUATION = 0.15;
-}
+/** Strategy weights for 'Speculative' portfolio bucket (High upside, lower core). */
+export const SpeculativeWeights = {
+	UPSIDE: 0.45,
+	QUALITY: 0.2,
+	MOAT: 0.2,
+	VALUATION: 0.15,
+} as const;
 
-export class DiversifierWeights {
-	/** Strategy weights for 'Diversifier' portfolio bucket (Balanced defensive). */
-	static readonly QUALITY = 0.45;
-	static readonly VALUATION = 0.25;
-	static readonly SIZE = 0.2;
-	static readonly UPSIDE = 0.1;
-}
+/** Strategy weights for 'Diversifier' portfolio bucket (Balanced defensive). */
+export const DiversifierWeights = {
+	QUALITY: 0.45,
+	VALUATION: 0.25,
+	SIZE: 0.2,
+	UPSIDE: 0.1,
+} as const;
 
-export class ThresholdConfig {
-	/** Various thresholds and parameters for signal detection and LLM behavior. */
-	static readonly UPSIDE_MAX_PCT = 50;
-	static readonly FOMO_VALUATION = 3;
-	static readonly FOMO_UPSIDE = 8;
-	static readonly FOMO_BULL = 5.8;
-	static readonly WEB_SEARCH_MAX_RESULTS = 5;
-	static readonly DIRECTION_CHANGE_DIVISOR = 10;
-	static readonly DIRECTION_BASE_SCORE = 5;
-}
+/** Various thresholds and parameters for signal detection and LLM behavior. */
+export const ThresholdConfig = {
+	UPSIDE_MAX_PCT: 50,
+	FOMO_VALUATION: 3,
+	FOMO_UPSIDE: 8,
+	FOMO_BULL: 5.8,
+	WEB_SEARCH_MAX_RESULTS: 5,
+	DIRECTION_CHANGE_DIVISOR: 10,
+	DIRECTION_BASE_SCORE: 5,
+} as const;
 
-export class GameTierThresholds {
-	/** Thresholds for categorizing the 'Edge' level (conviction) of a setup. */
-	static readonly RARE_DISLOCATION = 6.8;
-	static readonly SMURFING_MIN = 6.3;
-	static readonly SMURFING_MAX = 6.7;
-	static readonly VERY_HIGH_MIN = 5.9;
-	static readonly VERY_HIGH_MAX = 6.2;
-	static readonly HIGH_EDGE_MIN = 5.5;
-	static readonly HIGH_EDGE_MAX = 5.8;
-}
+/** Thresholds for categorizing the 'Edge' level (conviction) of a setup. */
+export const GameTierThresholds = {
+	RARE_DISLOCATION: 6.8,
+	SMURFING_MIN: 6.3,
+	SMURFING_MAX: 6.7,
+	VERY_HIGH_MIN: 5.9,
+	VERY_HIGH_MAX: 6.2,
+	HIGH_EDGE_MIN: 5.5,
+	HIGH_EDGE_MAX: 5.8,
+} as const;

@@ -38,6 +38,7 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"pe_forward",
 		"peg",
 		"beta",
+		"roic",
 		"free_cash_flow",
 	],
 	financials: [
