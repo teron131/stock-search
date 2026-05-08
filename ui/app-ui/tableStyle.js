@@ -58,7 +58,7 @@ export function getColumnWidthStyle(
 		return null;
 	}
 
-	const width = `calc((${charCount} * 1ch) + ${extraPx}px)`;
+	const width = `calc((${charCount} * 0.75ch) + ${extraPx}px)`;
 	return {
 		width,
 		minWidth: width,

@@ -116,27 +116,27 @@ const HOLDINGS_TAIL_CLUSTER = "holdings-tail";
 export const WIDTH_GROUP_OPTIONS = {
 	[WIDTH_GROUPS.changePercent]: {
 		paddingChars: 0,
-		extraPx: 6,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.abbrevCurrency]: {
 		paddingChars: 0,
-		extraPx: 6,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.marketNumber]: {
 		paddingChars: 0,
-		extraPx: 6,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.fundamentalPercent]: {
 		paddingChars: 0,
-		extraPx: 6,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.evaluationScore]: {
 		paddingChars: 0,
-		extraPx: 4,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.evaluationProbability]: {
 		paddingChars: 0,
-		extraPx: 4,
+		extraPx: 2,
 	},
 	[WIDTH_GROUPS.holdingStrategy]: {
 		paddingChars: 0,
@@ -148,7 +148,7 @@ export const WIDTH_GROUP_OPTIONS = {
 	},
 	[WIDTH_GROUPS.holdingPercent]: {
 		paddingChars: 0,
-		extraPx: 0,
+		extraPx: 2,
 	},
 };
 

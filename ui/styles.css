@@ -23,12 +23,12 @@
 	--table-header-height: 30px;
 	--table-visible-rows: 25;
 	--ticker-char-count: 6;
-	--table-cell-inline-padding: 10px;
-	--table-first-column-gap: 10px;
-	--table-holdings-inline-padding: 6px;
+	--table-cell-inline-padding: 5px;
+	--table-first-column-gap: 1px;
+	--table-holdings-inline-padding: 2px;
 	--ticker-column-width: calc(
 		(var(--ticker-char-count) * 0.82ch) +
-		38px +
+		52px +
 		var(--table-first-column-gap)
 	);
 
@@ -884,13 +884,14 @@ td:first-child {
 	overflow: hidden;
 	z-index: 85;
 	background-color: var(--bg-surface-high);
-	box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
+	border-right: 1px solid rgba(255, 255, 255, 0.05);
+	box-shadow: none;
 }
 th:first-child {
 	z-index: 95;
 	background: var(--bg-surface-high);
 	color: var(--accent);
-	box-shadow: 2px 0 4px rgba(0, 0, 0, 0.5);
+	box-shadow: none;
 }
 th:last-child,
 td:last-child {
@@ -1139,9 +1140,7 @@ tv-ticker-tag {
 
 .ticker-tag-compact {
 	height: 24px;
-	width: 128%;
-	transform: scale(0.78);
-	transform-origin: left center;
+	width: 100%;
 }
 
 /* Toast */
@@ -2094,6 +2093,9 @@ body {
 }
 
 #main-table {
+	width: max-content;
+	min-width: max-content;
+	table-layout: fixed;
 	margin-bottom: var(--row-height);
 }
 
@@ -2147,7 +2149,7 @@ th {
 	font-size: var(--text-xs);
 	font-weight: 600;
 	line-height: 1.2;
-	letter-spacing: 0.08em;
+	letter-spacing: 0.04em;
 	color: var(--ink-ghost);
 	transition: none;
 }
@@ -2161,7 +2163,7 @@ th {
 	height: 100%;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 5px;
+	gap: 1px;
 	cursor: pointer;
 	color: inherit;
 	text-align: inherit;
@@ -2236,9 +2238,9 @@ th:focus-within {
 
 .sort-indicator {
 	position: relative;
-	width: 7px;
-	height: 10px;
-	flex: 0 0 7px;
+	width: 3px;
+	height: 9px;
+	flex: 0 0 3px;
 	color: rgba(255, 255, 255, 0.24);
 }
 
@@ -2246,9 +2248,9 @@ th:focus-within {
 .sort-indicator::after {
 	content: "";
 	position: absolute;
-	left: 1px;
-	border-left: 3px solid transparent;
-	border-right: 3px solid transparent;
+	left: 0;
+	border-left: 1.5px solid transparent;
+	border-right: 1.5px solid transparent;
 }
 
 .sort-indicator::before {
@@ -2279,7 +2281,7 @@ th.sorted.desc .sort-indicator::before {
 
 th:first-child,
 td:first-child {
-	padding-left: 10px;
+	padding-left: var(--table-cell-inline-padding);
 	background: var(--bg-surface-high);
 }
 

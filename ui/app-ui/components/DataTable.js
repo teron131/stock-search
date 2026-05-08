@@ -238,8 +238,8 @@ function getColumnDisplayValues(rows, col) {
 	return rows.map((row) => formatCellValue(row, col));
 }
 
-function getWidthGroupCharCounts(rows, cols) {
-	const widthGroupCharCounts = {};
+function getColumnCharCounts(rows, cols) {
+	const columnCharCounts = {};
 
 	for (const col of cols) {
 		if (!col.widthGroup) {
@@ -252,13 +252,10 @@ function getWidthGroupCharCounts(rows, cols) {
 			WIDTH_GROUP_OPTIONS[col.widthGroup],
 		);
 
-		widthGroupCharCounts[col.widthGroup] = Math.max(
-			widthGroupCharCounts[col.widthGroup] || 0,
-			charCount,
-		);
+		columnCharCounts[col.key] = charCount;
 	}
 
-	return widthGroupCharCounts;
+	return columnCharCounts;
 }
 
 function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
@@ -500,7 +497,7 @@ export function DataTable({
 		sorted.map((row) => getTickerDisplayValue(row.ticker)),
 		"TICKER",
 	);
-	const widthGroupCharCounts = getWidthGroupCharCounts(sorted, cols);
+	const columnCharCounts = getColumnCharCounts(sorted, cols);
 	const colorMeta = calculateScoreColorMetadata(sorted, cols, {
 		colorBandFraction: CONFIG.colorBandFraction,
 		keyStandards: colorStandards,
@@ -624,10 +621,14 @@ export function DataTable({
 							return html`<col
 								key=${col.key}
 								className=${className}
-								style=${getColumnWidthStyle(
-									widthGroupCharCounts[col.widthGroup],
-									WIDTH_GROUP_OPTIONS[col.widthGroup],
-								)}
+								style=${
+									col.key === "ticker"
+										? null
+										: getColumnWidthStyle(
+												columnCharCounts[col.key],
+												WIDTH_GROUP_OPTIONS[col.widthGroup],
+											)
+								}
 							/>`;
 						})}
 					</colgroup>
