@@ -19,6 +19,8 @@ function getDemoAssetUrl(filename) {
 	return new URL(`demo/${filename}`, window.location.href).toString();
 }
 
+import { getFieldMetadata } from "../../src/stock-search/models/field-definitions.ts";
+
 export const CONFIG = {
 	isDemoMode,
 
@@ -111,47 +113,6 @@ const WIDTH_GROUPS = {
 
 const HOLDINGS_TAIL_CLUSTER = "holdings-tail";
 
-const COLUMN_TOOLTIPS = {
-	bear_probability: "Bear Probability",
-	beta: "Beta",
-	bull_probability: "Bull Probability",
-	change_percent_1d: "1D Change",
-	change_percent_1m: "1M Change",
-	change_percent_3m: "3M Change",
-	change_percent_6m: "6M Change",
-	change_percent_1y: "1Y Change",
-	debt_to_equity: "Debt / Equity",
-	flat_probability: "Flat Probability",
-	free_cash_flow: "Free Cash Flow",
-	gross_margin: "Gross Margin",
-	iv: "Implied Volatility",
-	market_cap: "Market Cap",
-	market_cap_score: "Size Score",
-	median_upside: "Median Upside",
-	moat_score: "Moat Score",
-	notional_value: "Notional Value",
-	notional_weight_pct: "Notional Weight",
-	operating_margin: "Operating Margin",
-	overall_score: "Overall Score",
-	pe: "P/E",
-	pe_forward: "Forward P/E",
-	peg: "PEG",
-	price: "Price",
-	quality_score: "Quality Score",
-	quantity: "Quantity",
-	rank: "Rank",
-	revenue_growth: "Revenue Growth",
-	roic: "ROIC",
-	rsi: "RSI",
-	shareholder_yield: "Shareholder Yield",
-	strategy: "Strategy",
-	ticker: "Ticker",
-	total: "Value",
-	upside_score: "Upside Score",
-	valuation_score: "Valuation Score",
-	weight_pct: "Weight",
-};
-
 export const WIDTH_GROUP_OPTIONS = {
 	[WIDTH_GROUPS.changePercent]: {
 		paddingChars: 0,
@@ -192,10 +153,12 @@ export const WIDTH_GROUP_OPTIONS = {
 };
 
 function createColumn(key, label, format, options = {}) {
+	const fieldMetadata = getFieldMetadata(key);
 	return {
 		key,
-		label,
-		tooltip: COLUMN_TOOLTIPS[key] || label,
+		label: label || fieldMetadata.shortLabel,
+		tooltip: fieldMetadata.label,
+		description: fieldMetadata.description,
 		...(format ? { format } : {}),
 		...options,
 	};

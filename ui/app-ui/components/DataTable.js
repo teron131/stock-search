@@ -654,10 +654,23 @@ export function DataTable({
 										type="button"
 										className="table-sort-btn"
 										data-tooltip=${c.tooltip || c.label}
+										data-description=${c.description || ""}
 										onClick=${() => onSort(c.key)}
 									>
 										<span>${c.label}</span>
 										<span className="sort-indicator" aria-hidden="true"></span>
+										<span className="table-header-tooltip" aria-hidden="true">
+											<span className="table-header-tooltip-title">
+												${c.tooltip || c.label}
+											</span>
+											${
+												c.description
+													? html`<span className="table-header-tooltip-description">
+															${c.description}
+														</span>`
+													: null
+											}
+										</span>
 									</button>
 								</th>`;
 							})}

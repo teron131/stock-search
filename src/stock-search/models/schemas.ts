@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { getFieldDescription } from "./field-definitions.js";
 import { INDUSTRY_LABELS } from "./labels.js";
 
 const relevancyValues = ["high", "medium", "low"] as const;
@@ -203,17 +204,17 @@ export const MetricsEvaluationSchema = z
 			.number()
 			.nullable()
 			.optional()
-			.describe("Score for market-cap size, liquidity, or scale."),
+			.describe(getFieldDescription("market_cap_score")),
 		valuation_score: z
 			.number()
 			.nullable()
 			.optional()
-			.describe("Score for valuation attractiveness."),
+			.describe(getFieldDescription("valuation_score")),
 		upside_score: z
 			.number()
 			.nullable()
 			.optional()
-			.describe("Score for expected upside potential."),
+			.describe(getFieldDescription("upside_score")),
 	})
 	.describe("Quantitative metrics evaluation fields.");
 
@@ -221,10 +222,10 @@ export const ResearchEvaluationSchema = z
 	.object({
 		moat_score: ScoredReasonSchema.nullable()
 			.optional()
-			.describe("Moat score and reasons, if available."),
+			.describe(getFieldDescription("moat_score")),
 		quality_score: ScoredReasonSchema.nullable()
 			.optional()
-			.describe("Quality score and reasons, if available."),
+			.describe(getFieldDescription("quality_score")),
 	})
 	.describe("Research-backed qualitative evaluation fields.");
 
@@ -233,12 +234,12 @@ export const FutureOutlookSchema = ScoredReasonSchema.extend({
 		.number()
 		.nullable()
 		.optional()
-		.describe("Estimated probability of a bullish outcome."),
+		.describe(getFieldDescription("bull_probability")),
 	bear_probability: z
 		.number()
 		.nullable()
 		.optional()
-		.describe("Estimated probability of a bearish outcome."),
+		.describe(getFieldDescription("bear_probability")),
 }).describe("Forward-looking score and outcome probabilities.");
 
 export const EvaluationSchema = MetricsEvaluationSchema.merge(
@@ -250,7 +251,7 @@ export const EvaluationSchema = MetricsEvaluationSchema.merge(
 			.number()
 			.nullable()
 			.optional()
-			.describe("Estimated probability of a flat or range-bound outcome."),
+			.describe(getFieldDescription("flat_probability")),
 	})
 	.describe("Complete ticker evaluation payload.");
 

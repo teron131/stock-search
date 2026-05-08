@@ -11,6 +11,7 @@ import {
 	loadJsonCache,
 	writeJsonCache,
 } from "../../cache.js";
+import { getFieldDescription } from "../../models/field-definitions.js";
 import { SECTOR_LABELS, SECTOR_PATTERN_RULES } from "../../models/labels.js";
 import { stockAnalysisStockPathForTicker } from "../provider-symbols.js";
 import type {
@@ -121,11 +122,9 @@ const RatingRowSchema = z
 const StatisticsSchema = z
 	.object({
 		market_cap: NullableNumber.optional().describe(
-			"Market Cap value from the Total Valuation section.",
+			getFieldDescription("market_cap"),
 		),
-		beta: NullableNumber.optional().describe(
-			"Beta (5Y) value from the Stock Price Statistics section.",
-		),
+		beta: NullableNumber.optional().describe(getFieldDescription("beta")),
 		fifty_two_week_price_change: NullableNumber.optional().describe(
 			"52-Week Price Change percentage from the Stock Price Statistics section.",
 		),
@@ -135,44 +134,36 @@ const StatisticsSchema = z
 		moving_average_200d: NullableNumber.optional().describe(
 			"200-Day Moving Average value from the Stock Price Statistics section.",
 		),
-		rsi: NullableNumber.optional().describe(
-			"Relative Strength Index (RSI) value from the Stock Price Statistics section.",
-		),
+		rsi: NullableNumber.optional().describe(getFieldDescription("rsi")),
 		average_volume_20d: NullableNumber.optional().describe(
 			"Average Volume (20 Days) value from the Stock Price Statistics section.",
 		),
-		pe: NullableNumber.optional().describe(
-			"PE Ratio value from the Valuation Ratios section.",
-		),
+		pe: NullableNumber.optional().describe(getFieldDescription("pe")),
 		pe_forward: NullableNumber.optional().describe(
-			"Forward PE value from the Valuation Ratios section.",
+			getFieldDescription("pe_forward"),
 		),
-		peg: NullableNumber.optional().describe(
-			"PEG Ratio value from the Valuation Ratios section.",
-		),
-		roic: NullableNumber.optional().describe(
-			"Return on Invested Capital (ROIC) value from the Financial Efficiency section.",
-		),
+		peg: NullableNumber.optional().describe(getFieldDescription("peg")),
+		roic: NullableNumber.optional().describe(getFieldDescription("roic")),
 		gross_margin: NullableNumber.optional().describe(
-			"Gross Margin value from the Margins section.",
+			getFieldDescription("gross_margin"),
 		),
 		operating_margin: NullableNumber.optional().describe(
-			"Operating Margin value from the Margins section.",
+			getFieldDescription("operating_margin"),
 		),
 		debt_to_equity: NullableNumber.optional().describe(
-			"Debt / Equity value from the Financial Position section.",
+			getFieldDescription("debt_to_equity"),
 		),
 		debt_to_ebitda: NullableNumber.optional().describe(
 			"Debt / EBITDA value from the Financial Position section.",
 		),
 		free_cash_flow: NullableNumber.optional().describe(
-			"Free Cash Flow value from the Cash Flow section.",
+			getFieldDescription("free_cash_flow"),
 		),
 		shareholder_yield: NullableNumber.optional().describe(
-			"Shareholder Yield percentage, including dividends, buybacks, and dilution when displayed.",
+			getFieldDescription("shareholder_yield"),
 		),
 		median_upside: NullableNumber.optional().describe(
-			"Price Target Difference percentage from the Analyst Forecast section.",
+			getFieldDescription("median_upside"),
 		),
 		ratings: z
 			.array(RatingRowSchema)
@@ -185,7 +176,7 @@ const StatisticsSchema = z
 const FinancialsSchema = z
 	.object({
 		revenue_growth: NullableNumber.optional().describe(
-			"Revenue Growth (YoY) value from the first/current column.",
+			getFieldDescription("revenue_growth"),
 		),
 		eps_diluted: NullableNumber.optional().describe(
 			"EPS (Diluted) value from the first/current column.",
@@ -194,10 +185,10 @@ const FinancialsSchema = z
 			"EPS Growth value from the first/current column.",
 		),
 		gross_margin: NullableNumber.optional().describe(
-			"Gross Margin value from the first/current column.",
+			getFieldDescription("gross_margin"),
 		),
 		operating_margin: NullableNumber.optional().describe(
-			"Operating Margin value from the first/current column.",
+			getFieldDescription("operating_margin"),
 		),
 	})
 	.describe(
