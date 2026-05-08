@@ -18,7 +18,7 @@ import {
 	ThresholdConfig,
 	ValuationWeights,
 } from "./constants.js";
-import { clampScore, zScoreMap } from "./math-utils.js";
+import { clampScore, mapToCurveScore } from "./math-utils.js";
 
 type WeightedFactorConfig = [
 	number | null,
@@ -118,7 +118,7 @@ function weightedZscoreAverage(factors: WeightedFactorConfig[]): number | null {
 			continue;
 		}
 		const [rangeMin, rangeMedian, rangeMax] = inputRange;
-		const score = zScoreMap(
+		const score = mapToCurveScore(
 			value,
 			rangeMin,
 			rangeMax,
@@ -161,7 +161,7 @@ export function marketCapScore(
 		return null;
 	}
 
-	return zScoreMap(
+	return mapToCurveScore(
 		Math.log10(marketCap),
 		Math.log10(MarketCapConfig.MIN),
 		Math.log10(MarketCapConfig.MAX),
@@ -243,7 +243,7 @@ export function calculateCombinedUpsideScore(
 	const analystUpsideScore =
 		medianUpside == null
 			? null
-			: zScoreMap(medianUpside, rangeMin, rangeMax, rangeMedian);
+			: mapToCurveScore(medianUpside, rangeMin, rangeMax, rangeMedian);
 	const ratingScore = calculateRatingScore(ratings);
 	const availableScores = [
 		analystUpsideScore,
@@ -283,7 +283,7 @@ export function calculateRatingScore(
 	}
 
 	const [rangeMin, rangeMedian, rangeMax] = CalibrationConfig.RATING_RANGE;
-	return zScoreMap(
+	return mapToCurveScore(
 		ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length,
 		rangeMin,
 		rangeMax,
@@ -320,7 +320,7 @@ function probabilityToScore(value: number | null): number | null {
 		return null;
 	}
 	const [rangeMin, rangeMedian, rangeMax] = CalibrationConfig.PROBABILITY_RANGE;
-	return zScoreMap(value, rangeMin, rangeMax, rangeMedian);
+	return mapToCurveScore(value, rangeMin, rangeMax, rangeMedian);
 }
 
 /** Derive calibrated bull/bear scores from LLM and/or historical momentum. */
