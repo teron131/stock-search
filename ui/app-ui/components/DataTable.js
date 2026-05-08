@@ -653,6 +653,7 @@ export function DataTable({
 									<button
 										type="button"
 										className="table-sort-btn"
+										data-tooltip=${c.tooltip || c.label}
 										onClick=${() => onSort(c.key)}
 									>
 										<span>${c.label}</span>

@@ -111,6 +111,47 @@ const WIDTH_GROUPS = {
 
 const HOLDINGS_TAIL_CLUSTER = "holdings-tail";
 
+const COLUMN_TOOLTIPS = {
+	bear_probability: "Bear Probability",
+	beta: "Beta",
+	bull_probability: "Bull Probability",
+	change_percent_1d: "1D Change",
+	change_percent_1m: "1M Change",
+	change_percent_3m: "3M Change",
+	change_percent_6m: "6M Change",
+	change_percent_1y: "1Y Change",
+	debt_to_equity: "Debt / Equity",
+	flat_probability: "Flat Probability",
+	free_cash_flow: "Free Cash Flow",
+	gross_margin: "Gross Margin",
+	iv: "Implied Volatility",
+	market_cap: "Market Cap",
+	market_cap_score: "Size Score",
+	median_upside: "Median Upside",
+	moat_score: "Moat Score",
+	notional_value: "Notional Value",
+	notional_weight_pct: "Notional Weight",
+	operating_margin: "Operating Margin",
+	overall_score: "Overall Score",
+	pe: "P/E",
+	pe_forward: "Forward P/E",
+	peg: "PEG",
+	price: "Price",
+	quality_score: "Quality Score",
+	quantity: "Quantity",
+	rank: "Rank",
+	revenue_growth: "Revenue Growth",
+	roic: "ROIC",
+	rsi: "RSI",
+	shareholder_yield: "Shareholder Yield",
+	strategy: "Strategy",
+	ticker: "Ticker",
+	total: "Value",
+	upside_score: "Upside Score",
+	valuation_score: "Valuation Score",
+	weight_pct: "Weight",
+};
+
 export const WIDTH_GROUP_OPTIONS = {
 	[WIDTH_GROUPS.changePercent]: {
 		paddingChars: 0,
@@ -154,6 +195,7 @@ function createColumn(key, label, format, options = {}) {
 	return {
 		key,
 		label,
+		tooltip: COLUMN_TOOLTIPS[key] || label,
 		...(format ? { format } : {}),
 		...options,
 	};
@@ -168,23 +210,18 @@ const BASE_COLUMNS = [
 	createColumn("price", "PRICE", "currency"),
 	createGroupedColumn(
 		"change_percent_1d",
-		"CHANGE%",
+		"CHG%",
 		"percent",
 		WIDTH_GROUPS.changePercent,
 	),
 	createGroupedColumn(
 		"market_cap",
-		"MKT_CAP",
+		"MCAP",
 		"market_cap",
 		WIDTH_GROUPS.abbrevCurrency,
 	),
 	createGroupedColumn("pe", "PE", "number", WIDTH_GROUPS.marketNumber),
-	createGroupedColumn(
-		"pe_forward",
-		"FWD_PE",
-		"number",
-		WIDTH_GROUPS.marketNumber,
-	),
+	createGroupedColumn("pe_forward", "FPE", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("peg", "PEG", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("beta", "BETA", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("iv", "IV", "percent_neutral", WIDTH_GROUPS.marketNumber),
@@ -218,7 +255,7 @@ const MOMENTUM_COLUMNS = [
 	),
 	createGroupedColumn(
 		"median_upside",
-		"UPSIDE%",
+		"UP%",
 		"percent",
 		WIDTH_GROUPS.changePercent,
 	),
@@ -227,19 +264,19 @@ const MOMENTUM_COLUMNS = [
 const FUNDAMENTAL_COLUMNS_ALL = [
 	createGroupedColumn(
 		"revenue_growth",
-		"GROWTH",
+		"REV%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
 		"gross_margin",
-		"GROSS",
+		"GM%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
 		"operating_margin",
-		"OP_MGN",
+		"OM%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -251,7 +288,7 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 	),
 	createGroupedColumn(
 		"debt_to_equity",
-		"DEBT",
+		"D/E",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -263,7 +300,7 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 	),
 	createGroupedColumn(
 		"shareholder_yield",
-		"SHR_YLD",
+		"YLD%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -272,19 +309,19 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	createGroupedColumn(
 		"revenue_growth",
-		"GROWTH",
+		"REV%",
 		"percent",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
 		"gross_margin",
-		"GROSS",
+		"GM%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
 		"operating_margin",
-		"OP_MGN",
+		"OM%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -296,7 +333,7 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	),
 	createGroupedColumn(
 		"debt_to_equity",
-		"DEBT",
+		"D/E",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -308,7 +345,7 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	),
 	createGroupedColumn(
 		"shareholder_yield",
-		"SHR_YLD",
+		"YLD%",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
@@ -324,13 +361,13 @@ const EVALUATION_COLUMNS = [
 	),
 	createGroupedColumn(
 		"quality_score",
-		"QUALITY",
+		"QUAL",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
 	),
 	createGroupedColumn(
 		"valuation_score",
-		"VALUE",
+		"VAL",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
 	),
@@ -342,7 +379,7 @@ const EVALUATION_COLUMNS = [
 	),
 	createGroupedColumn(
 		"upside_score",
-		"UPSIDE",
+		"UP",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
 	),
@@ -378,7 +415,7 @@ const EVALUATION_COLUMNS = [
 const HOLDING_ACTION_COLUMNS = [
 	createGroupedColumn(
 		"strategy",
-		"STRATEGY",
+		"STRAT",
 		undefined,
 		WIDTH_GROUPS.holdingStrategy,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
@@ -392,21 +429,21 @@ const HOLDING_ACTION_COLUMNS = [
 	),
 	createGroupedColumn(
 		"notional_value",
-		"NOTIONAL",
+		"NOTL",
 		"currency",
 		WIDTH_GROUPS.holdingCurrency,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
 	createGroupedColumn(
 		"weight_pct",
-		"WEIGHT",
+		"WGT%",
 		"percent_neutral",
 		WIDTH_GROUPS.holdingPercent,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
 	createGroupedColumn(
 		"notional_weight_pct",
-		"NOTIONAL",
+		"NOTL%",
 		"percent_neutral",
 		WIDTH_GROUPS.holdingPercent,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
@@ -434,7 +471,7 @@ export const COLS = {
 		...EVALUATION_COLUMNS,
 		createGroupedColumn(
 			"strategy",
-			"STRATEGY",
+			"STRAT",
 			undefined,
 			WIDTH_GROUPS.holdingStrategy,
 			{ cluster: HOLDINGS_TAIL_CLUSTER },
