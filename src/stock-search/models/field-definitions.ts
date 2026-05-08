@@ -33,27 +33,32 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	bear_probability: {
 		label: "Bear Probability",
 		shortLabel: "BEAR",
-		description: "0-100% odds of the downside case. 0 is unlikely; 100 is very likely.",
+		description:
+			"0-100% odds of the downside case. 0 is unlikely; 100 is very likely.",
 	},
 	beta: {
 		label: "Beta (5Y)",
 		shortLabel: "BETA",
-		description: "Five-year volatility vs market: 1 = market-like, >1 more volatile, <1 more defensive.",
+		description:
+			"Five-year volatility vs market: 1 = market-like, >1 more volatile, <1 more defensive.",
 	},
 	bull_probability: {
 		label: "Bull Probability",
 		shortLabel: "BULL",
-		description: "0-100% odds of the upside case. 0 is unlikely; 100 is very likely.",
+		description:
+			"0-100% odds of the upside case. 0 is unlikely; 100 is very likely.",
 	},
 	change: {
 		label: "Price Change",
 		shortLabel: "CHG",
-		description: "Price - previous close. Same currency units as the quoted share price.",
+		description:
+			"Price - previous close. Same currency units as the quoted share price.",
 	},
 	change_percent_1d: {
 		label: "1D Change",
 		shortLabel: "CHG%",
-		description: "(Price / previous close - 1). Positive is up on the day; negative is down.",
+		description:
+			"(Price / previous close - 1). Positive is up on the day; negative is down.",
 	},
 	change_percent_1m: {
 		label: "1M Change",
@@ -68,112 +73,134 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	change_percent_6m: {
 		label: "6M Change",
 		shortLabel: "6M%",
-		description: "(Price / price 6M ago - 1). Helps separate trend from one-off moves.",
+		description:
+			"(Price / price 6M ago - 1). Helps separate trend from one-off moves.",
 	},
 	change_percent_1y: {
 		label: "1Y Change",
 		shortLabel: "1Y%",
-		description: "(Price / price 1Y ago - 1). Longer-term market performance signal.",
+		description:
+			"(Price / price 1Y ago - 1). Longer-term market performance signal.",
 	},
 	change_percent_mtd: {
 		label: "MTD Change",
 		shortLabel: "MTD%",
-		description: "(Price / month-start price - 1). Resets at the start of each month.",
+		description:
+			"(Price / month-start price - 1). Resets at the start of each month.",
 	},
 	change_percent_ytd: {
 		label: "YTD Change",
 		shortLabel: "YTD%",
-		description: "(Price / year-start price - 1). Resets at the start of each year.",
+		description:
+			"(Price / year-start price - 1). Resets at the start of each year.",
 	},
 	debt_to_equity: {
 		label: "Debt / Equity",
 		shortLabel: "D/E",
-		description: "Debt / shareholder equity. 0 is ungeared; higher means more leverage.",
+		description:
+			"Debt / shareholder equity. 0 is ungeared; higher means more leverage.",
 	},
 	flat_probability: {
 		label: "Flat Probability",
 		shortLabel: "FLAT",
-		description: "0-100% odds of a sideways case. Higher means neither bull nor bear dominates.",
+		description:
+			"0-100% odds of a sideways case. Higher means neither bull nor bear dominates.",
 	},
 	free_cash_flow: {
 		label: "Free Cash Flow",
 		shortLabel: "FCF",
-		description: "Operating cash flow - capital expenditures. Cash left after maintaining the business.",
+		description:
+			"Operating cash flow - capital expenditures. Cash left after maintaining the business.",
 	},
 	gross_margin: {
 		label: "Gross Margin",
 		shortLabel: "GM%",
-		description: "Gross profit / revenue. Higher means more revenue left after direct costs.",
+		description:
+			"Gross profit / revenue. Higher means more revenue left after direct costs.",
 	},
 	iv: {
 		label: "Implied Volatility",
 		shortLabel: "IV",
-		description: "Options-implied annualized move range. Higher means options price in larger swings.",
+		description:
+			"Options-implied annualized move range. Higher means options price in larger swings.",
 	},
 	market_cap: {
 		label: "Market Cap",
 		shortLabel: "MCAP",
-		description: "Share price * shares outstanding. Total market value of common equity.",
+		description:
+			"Share price * shares outstanding. Total market value of common equity.",
 	},
 	market_cap_score: {
 		label: "Size Score",
 		shortLabel: "SIZE",
-		description: "0-10 score for scale and liquidity; 10 is best. Higher means larger and easier to trade.",
+		description:
+			"0-10 score for scale and liquidity; 10 is best. Higher means larger and easier to trade.",
 	},
 	median_upside: {
 		label: "Median Upside",
 		shortLabel: "UP%",
-		description: "(Analyst target / price - 1). Positive means targets sit above spot.",
+		description:
+			"(Analyst target / price - 1). Positive means targets sit above spot.",
 	},
 	moat_score: {
 		label: "Moat Score",
 		shortLabel: "MOAT",
-		description: "0-10 score for durable advantage; 10 is best. Favors pricing power, switching costs, or scale.",
+		description:
+			"0-10 score for durable advantage; 10 is best. Favors pricing power, switching costs, or scale.",
 	},
 	notional_value: {
 		label: "Notional Value",
 		shortLabel: "NOTL",
-		description: "Direct shares + indirect ETF exposure. Shows the effective dollars tied to a ticker.",
+		description:
+			"Direct shares + indirect ETF exposure. Shows the effective dollars tied to a ticker.",
 	},
 	notional_weight_pct: {
 		label: "Notional Weight",
 		shortLabel: "NOTL%",
-		description: "Notional value / portfolio value. Includes direct shares and indirect ETF exposure.",
+		description:
+			"Notional value / portfolio value. Includes direct shares and indirect ETF exposure.",
 	},
 	operating_margin: {
 		label: "Operating Margin",
 		shortLabel: "OM%",
-		description: "Operating income / revenue. Higher means stronger operating profitability.",
+		description:
+			"Operating income / revenue. Higher means stronger operating profitability.",
 	},
 	overall_score: {
 		label: "Overall Score",
 		shortLabel: "SCORE",
-		description: "0-10 composite score; 10 is best. Blends quality, value, moat, upside, and risk.",
+		description:
+			"0-10 composite score; 10 is best. Blends quality, value, moat, upside, and risk.",
 	},
 	pe: {
 		label: "Price / Earnings (P/E)",
 		shortLabel: "PE",
-		description: "Price / trailing earnings per share. Lower can be cheaper; losses make it unusable.",
+		description:
+			"Price / trailing earnings per share. Lower can be cheaper; losses make it unusable.",
 	},
 	pe_forward: {
 		label: "Forward P/E",
 		shortLabel: "FPE",
-		description: "Price / forecast earnings per share. Lower can signal cheaper expected profits.",
+		description:
+			"Price / forecast earnings per share. Lower can signal cheaper expected profits.",
 	},
 	peg: {
 		label: "P/E to Growth",
 		shortLabel: "PEG",
-		description: "P/E / expected earnings growth. Around 1 is neutral; lower is cheaper growth.",
+		description:
+			"P/E / expected earnings growth. Around 1 is neutral; lower is cheaper growth.",
 	},
 	price: {
 		label: "Price",
 		shortLabel: "PRICE",
-		description: "Latest quoted share price. Drives position value and valuation multiples.",
+		description:
+			"Latest quoted share price. Drives position value and valuation multiples.",
 	},
 	quality_score: {
 		label: "Quality Score",
 		shortLabel: "QUAL",
-		description: "0-10 score for business quality; 10 is best. Favors margins, returns, and resilience.",
+		description:
+			"0-10 score for business quality; 10 is best. Favors margins, returns, and resilience.",
 	},
 	quantity: {
 		label: "Quantity",
@@ -183,37 +210,44 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	rank: {
 		label: "Rank",
 		shortLabel: "RANK",
-		description: "Evaluation order. Rank 1 is highest priority; larger numbers are lower priority.",
+		description:
+			"Evaluation order. Rank 1 is highest priority; larger numbers are lower priority.",
 	},
 	revenue_growth: {
 		label: "Revenue Growth",
 		shortLabel: "REV%",
-		description: "(Revenue / prior revenue - 1). Shows top-line growth before margins.",
+		description:
+			"(Revenue / prior revenue - 1). Shows top-line growth before margins.",
 	},
 	roic: {
 		label: "Return on Invested Capital",
 		shortLabel: "ROIC",
-		description: "After-tax operating profit / invested capital. Above capital cost creates value.",
+		description:
+			"After-tax operating profit / invested capital. Above capital cost creates value.",
 	},
 	rsi: {
 		label: "Relative Strength Index (14D)",
 		shortLabel: "RSI",
-		description: "0-100 momentum oscillator. >70 often overbought; <30 often oversold.",
+		description:
+			"0-100 momentum oscillator. >70 often overbought; <30 often oversold.",
 	},
 	shareholder_yield: {
 		label: "Shareholder Yield",
 		shortLabel: "YLD%",
-		description: "Dividend yield + net buyback yield. Shows shareholder cash return after dilution.",
+		description:
+			"Dividend yield + net buyback yield. Shows shareholder cash return after dilution.",
 	},
 	strategy: {
 		label: "Strategy",
 		shortLabel: "STRAT",
-		description: "Holding stance such as Core, Satellite, or Speculation. Guides portfolio treatment.",
+		description:
+			"Holding stance such as Core, Satellite, or Speculation. Guides portfolio treatment.",
 	},
 	ticker: {
 		label: "Ticker",
 		shortLabel: "TICKER",
-		description: "Exchange ticker symbol. Primary key for quotes, stats, and news lookup.",
+		description:
+			"Exchange ticker symbol. Primary key for quotes, stats, and news lookup.",
 	},
 	total: {
 		label: "Position Value",
@@ -223,17 +257,20 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	upside_score: {
 		label: "Upside Score",
 		shortLabel: "UP",
-		description: "0-10 score for upside; 10 is best. Favors better reward versus current price.",
+		description:
+			"0-10 score for upside; 10 is best. Favors better reward versus current price.",
 	},
 	valuation_score: {
 		label: "Valuation Score",
 		shortLabel: "VAL",
-		description: "0-10 valuation score; 10 is best. Favors cheaper or better-supported multiples.",
+		description:
+			"0-10 valuation score; 10 is best. Favors cheaper or better-supported multiples.",
 	},
 	weight_pct: {
 		label: "Weight",
 		shortLabel: "WGT%",
-		description: "Direct value / portfolio value. Shows concentration from direct holdings.",
+		description:
+			"Direct value / portfolio value. Shows concentration from direct holdings.",
 	},
 };
 

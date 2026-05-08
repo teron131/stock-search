@@ -35,18 +35,9 @@ type CurveScoreOptions = {
 	outMax?: number;
 	clampMin?: number;
 	clampMax?: number;
-	extendBelowMin?: boolean;
 };
 
-export const SIGNED_STAT_CONTRIBUTION: CurveScoreOptions = {
-	outMin: -10,
-	outMax: 10,
-	clampMin: -10,
-	clampMax: 10,
-	extendBelowMin: true,
-};
-
-/** Map a value to a smooth score or signed contribution using min/median/max anchors and a Normal CDF curve. */
+/** Map a value to a smooth score using min/median/max anchors and a Normal CDF curve. */
 export function mapToCurveScore(
 	value: number,
 	inMin: number,
@@ -54,23 +45,9 @@ export function mapToCurveScore(
 	inMedian: number,
 	options: CurveScoreOptions = {},
 ): number {
-	const {
-		outMin = 0,
-		outMax = 10,
-		clampMin = 0,
-		clampMax = 10,
-		extendBelowMin = false,
-	} = options;
+	const { outMin = 0, outMax = 10, clampMin = 0, clampMax = 10 } = options;
 
 	if (value <= inMin) {
-		if (extendBelowMin && inMax !== inMin) {
-			const belowMinSlope = (outMax - outMin) / (inMax - inMin);
-			return clampScore(
-				outMin + (value - inMin) * belowMinSlope,
-				clampMin,
-				clampMax,
-			);
-		}
 		return clampScore(outMin, clampMin, clampMax);
 	}
 	if (value >= inMax) {

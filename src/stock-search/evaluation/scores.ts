@@ -5,7 +5,6 @@ import { asNumber } from "../utils.js";
 import {
 	CalibrationConfig,
 	CoreEngineWeights,
-	DEFAULT_SCORE,
 	DiversifierWeights,
 	EDGE_BASE,
 	EDGE_MULTIPLIER,
@@ -19,13 +18,9 @@ import {
 	ThresholdConfig,
 	ValuationMultipliers,
 } from "./constants.js";
-import {
-	clampScore,
-	mapToCurveScore,
-	SIGNED_STAT_CONTRIBUTION,
-} from "./math-utils.js";
+import { clampScore, mapToCurveScore } from "./math-utils.js";
 
-type MultipliedFactorConfig = [
+type WeightedFactorConfig = [
 	number | null,
 	[number, number, number],
 	number,
@@ -123,12 +118,9 @@ function valuationMultipleField(
 	return value == null ? null : value <= 0 ? weakAnchor : value;
 }
 
-function multipliedMeanStatScore(
-	factors: MultipliedFactorConfig[],
-): number | null {
-	const multipliedContributions: number[] = [];
-	const contributionMin = SIGNED_STAT_CONTRIBUTION.outMin ?? -SCORE_SCALE;
-	const contributionMax = SIGNED_STAT_CONTRIBUTION.outMax ?? SCORE_SCALE;
+function weightedMeanStatScore(factors: WeightedFactorConfig[]): number | null {
+	const weightedScores: number[] = [];
+	const weights: number[] = [];
 
 	for (const [value, inputRange, multiplier, inverse] of factors) {
 		if (value == null) {
@@ -136,20 +128,19 @@ function multipliedMeanStatScore(
 		}
 		const [rangeMin, rangeMedian, rangeMax] = inputRange;
 		const score = mapToCurveScore(value, rangeMin, rangeMax, rangeMedian, {
-			...SIGNED_STAT_CONTRIBUTION,
-			outMin: inverse ? contributionMax : contributionMin,
-			outMax: inverse ? contributionMin : contributionMax,
+			outMin: inverse ? SCORE_SCALE : 0,
+			outMax: inverse ? 0 : SCORE_SCALE,
 		});
-		multipliedContributions.push(score * multiplier);
+		weightedScores.push(score * multiplier);
+		weights.push(multiplier);
 	}
 
-	if (multipliedContributions.length === 0) {
+	const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+	if (weightedScores.length === 0 || totalWeight <= 0) {
 		return null;
 	}
 	return clampScore(
-		DEFAULT_SCORE +
-			multipliedContributions.reduce((sum, value) => sum + value, 0) /
-				multipliedContributions.length,
+		weightedScores.reduce((sum, value) => sum + value, 0) / totalWeight,
 	);
 }
 
@@ -160,6 +151,54 @@ function fcfYieldPercent(indicator: IndicatorLike): number | null {
 		return null;
 	}
 	return (freeCashFlow / marketCap) * 100;
+}
+
+function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
+	const revenueGrowth = getNumberField(indicator, "revenue_growth");
+	const operatingMargin = getNumberField(indicator, "operating_margin");
+	const roic = getNumberField(indicator, "roic");
+	const grossMargin = getNumberField(indicator, "gross_margin");
+	const freeCashFlowYield = fcfYieldPercent(indicator);
+
+	const positiveSignals = [
+		revenueGrowth != null && revenueGrowth > 0,
+		operatingMargin != null && operatingMargin > 0,
+		roic != null && roic > 0,
+		grossMargin != null && grossMargin > 0,
+		freeCashFlowYield != null && freeCashFlowYield > 0,
+	].filter(Boolean).length;
+
+	if (positiveSignals < 3) {
+		return null;
+	}
+
+	if ((roic ?? 0) >= 25 && (operatingMargin ?? 0) > 0) {
+		return 4;
+	}
+	if ((revenueGrowth ?? 0) >= 15 && (operatingMargin ?? 0) > 0) {
+		return 3.5;
+	}
+	return 3;
+}
+
+function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
+	const forwardPe = getNumberField(indicator, "pe_forward");
+	const debtToEquity = getNumberField(indicator, "debt_to_equity");
+	const freeCashFlowYield = fcfYieldPercent(indicator);
+
+	if (
+		forwardPe != null &&
+		forwardPe > 0 &&
+		forwardPe <= CalibrationConfig.FORWARD_PE_RANGE[2] &&
+		(debtToEquity == null ||
+			debtToEquity <= CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE[1]) &&
+		freeCashFlowYield != null &&
+		freeCashFlowYield > 0
+	) {
+		return 2;
+	}
+
+	return null;
 }
 
 /** Map market cap to 1-10 using a Log-S-curve. */
@@ -188,7 +227,7 @@ export function marketCapScore(
 export function calculateValuationScore(
 	indicator: IndicatorLike,
 ): number | null {
-	return multipliedMeanStatScore([
+	const rawScore = weightedMeanStatScore([
 		[
 			valuationMultipleField(indicator, "peg", CalibrationConfig.PEG_RANGE),
 			CalibrationConfig.PEG_RANGE,
@@ -246,13 +285,15 @@ export function calculateValuationScore(
 			false,
 		],
 	]);
+	const floor = viableBusinessValuationFloor(indicator);
+	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 
 /** Compute market-derived quality score from growth and margin. */
 export function calculateQualitySignalScore(
 	indicator: IndicatorLike,
 ): number | null {
-	const factors: MultipliedFactorConfig[] = [
+	const factors: WeightedFactorConfig[] = [
 		[
 			getNumberField(indicator, "revenue_growth"),
 			CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
@@ -290,7 +331,9 @@ export function calculateQualitySignalScore(
 	if (availableFactorCount < 2) {
 		return null;
 	}
-	return multipliedMeanStatScore(factors);
+	const rawScore = weightedMeanStatScore(factors);
+	const floor = viableBusinessQualityFloor(indicator);
+	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 
 /** Blend analyst upside, current ratings, and LLM outlook into a single score. */

@@ -12,10 +12,7 @@ import {
 	type EtfResolutionResult,
 	normalizeSectorName,
 } from "./etf.js";
-import {
-	CalibrationConfig,
-	DEFAULT_SCORE,
-} from "./evaluation/constants.js";
+import { CalibrationConfig, DEFAULT_SCORE } from "./evaluation/constants.js";
 import {
 	bucketFromEvaluation,
 	normalizeEvaluationRowForIndicators,
