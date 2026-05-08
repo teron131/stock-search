@@ -14,6 +14,7 @@ export type ConvexStockRow = {
 export type ConvexPortfolioPosition = {
 	ticker: string;
 	quantity: number;
+	strategy?: string;
 };
 
 export type ConvexPortfolioRow = {
@@ -56,6 +57,9 @@ export function normalizePortfolioPositions(
 		normalized.push({
 			ticker,
 			quantity: Number(row.quantity ?? 0),
+			...(typeof row.strategy === "string" && row.strategy.trim()
+				? { strategy: row.strategy.trim() }
+				: {}),
 		});
 	}
 	return normalized;

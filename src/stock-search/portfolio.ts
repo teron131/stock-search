@@ -74,6 +74,7 @@ const EVAL_KEYS = [
 	"market_cap_score",
 	"bull_probability",
 	"bear_probability",
+	"flat_probability",
 ] as const;
 
 function clearEtfMarketCapFields(row: Record<string, unknown>): void {
@@ -364,6 +365,7 @@ function indicatorEvalFallback(
 		bull = Math.max(0, Math.min(1, 0.5 + avgMomentum / 100));
 		bear = Math.max(0, Math.min(1, 0.2 - avgMomentum / 200));
 	}
+	const flat = Math.max(0, 1 - bull - bear);
 
 	return {
 		overall_score: Number(overall.toFixed(2)),
@@ -374,6 +376,7 @@ function indicatorEvalFallback(
 		market_cap_score: DEFAULT_SCORE,
 		bull_probability: Number(bull.toFixed(4)),
 		bear_probability: Number(bear.toFixed(4)),
+		flat_probability: Number(flat.toFixed(4)),
 	};
 }
 
@@ -1117,6 +1120,10 @@ export function mergePortfolioRow(
 			normalizedEvaluation,
 			fallbackEvaluation,
 			key: field,
+			aliases:
+				field === "flat_probability"
+					? ["bull_probability", "bear_probability"]
+					: [],
 		});
 		selectedEvaluation[field] = value;
 		if (isFromLlm) {

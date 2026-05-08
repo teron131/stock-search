@@ -6,6 +6,7 @@ import {
 	DEFAULT_BEAR_PROBABILITY,
 	DEFAULT_BULL_PROBABILITY,
 	DEFAULT_SCORE,
+	ROUND_PROBABILITY_DIGITS,
 	SCORE_SCALE,
 } from "./constants.js";
 import { calculateStrategyIndices } from "./scores.js";
@@ -26,6 +27,21 @@ export function normalizeEvalJson(
 		return {};
 	}
 
+	const bullProbability = toFloat(
+		data.bull_probability,
+		DEFAULT_BULL_PROBABILITY,
+	);
+	const bearProbability = toFloat(
+		data.bear_probability,
+		DEFAULT_BEAR_PROBABILITY,
+	);
+	const computedFlatProbability = Math.max(
+		0,
+		Number(
+			(1 - bullProbability - bearProbability).toFixed(ROUND_PROBABILITY_DIGITS),
+		),
+	);
+
 	return {
 		overall_score: toFloat(data.overall_score, DEFAULT_SCORE),
 		quality_score: toFloat(data.quality_score, DEFAULT_SCORE),
@@ -33,8 +49,9 @@ export function normalizeEvalJson(
 		valuation_score: toFloat(data.valuation_score, DEFAULT_SCORE),
 		upside_score: toFloat(data.upside_score, DEFAULT_SCORE),
 		market_cap_score: toFloat(data.market_cap_score, DEFAULT_SCORE),
-		bull_probability: toFloat(data.bull_probability, DEFAULT_BULL_PROBABILITY),
-		bear_probability: toFloat(data.bear_probability, DEFAULT_BEAR_PROBABILITY),
+		bull_probability: bullProbability,
+		bear_probability: bearProbability,
+		flat_probability: toFloat(data.flat_probability, computedFlatProbability),
 	};
 }
 
@@ -56,6 +73,7 @@ export function evalFromJson(
 		upside_score: normalized.upside_score,
 		bull_probability: normalized.bull_probability,
 		bear_probability: normalized.bear_probability,
+		flat_probability: normalized.flat_probability,
 		moat_score: {
 			score: normalized.moat_score,
 			reasons: emptyReasons,

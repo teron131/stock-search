@@ -42,6 +42,23 @@ function normalizeObject(value: unknown): GenericRow {
 	return value as GenericRow;
 }
 
+function normalizeEvaluation(value: unknown): GenericRow {
+	const evaluation = { ...normalizeObject(value) };
+	const bullProbability = Number(evaluation.bull_probability);
+	const bearProbability = Number(evaluation.bear_probability);
+	if (
+		evaluation.flat_probability === undefined &&
+		Number.isFinite(bullProbability) &&
+		Number.isFinite(bearProbability)
+	) {
+		evaluation.flat_probability = Math.max(
+			0,
+			Number((1 - bullProbability - bearProbability).toFixed(4)),
+		);
+	}
+	return evaluation;
+}
+
 function normalizeEtfHoldings(value: unknown): GenericRow[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -121,8 +138,8 @@ function buildStockPayload(
 				: normalizeIndicators(entry.indicators),
 		evaluation:
 			entry.evaluation === undefined
-				? normalizeObject(existing?.evaluation)
-				: normalizeObject(entry.evaluation),
+				? normalizeEvaluation(existing?.evaluation)
+				: normalizeEvaluation(entry.evaluation),
 		labels:
 			entry.labels === undefined
 				? normalizeLabels(existing?.labels)
@@ -216,7 +233,7 @@ function toStockPayload(row: {
 	return {
 		ticker: row.ticker,
 		indicators: normalizeIndicators(row.indicators),
-		evaluation: normalizeObject(row.evaluation),
+		evaluation: normalizeEvaluation(row.evaluation),
 		labels: normalizeLabels(row.labels),
 		updatedAt: row.updatedAt,
 	};

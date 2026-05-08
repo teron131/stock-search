@@ -23,7 +23,6 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"sector_name",
 		"industry_name",
 		"iv",
-		"rsi",
 		"change_percent_1m",
 		"change_percent_3m",
 		"change_percent_6m",
@@ -39,15 +38,12 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"peg",
 		"beta",
 		"roic",
+		"debt_to_equity",
 		"free_cash_flow",
 		"shareholder_yield",
+		"rsi",
 	],
-	financials: [
-		"revenue_growth",
-		"gross_margin",
-		"operating_margin",
-		"debt_to_equity",
-	],
+	financials: ["revenue_growth", "gross_margin", "operating_margin"],
 	ratings: ["median_upside", "ratings"],
 };
 

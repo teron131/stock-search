@@ -50,6 +50,7 @@ const STOCK_STATS_FIELDS = [
 	"revenue_growth",
 	"gross_margin",
 	"operating_margin",
+	"roic",
 	"debt_to_equity",
 	"free_cash_flow",
 	"shareholder_yield",

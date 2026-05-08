@@ -14,6 +14,7 @@ const EVAL_KEYS = [
 	"market_cap_score",
 	"bull_probability",
 	"bear_probability",
+	"flat_probability",
 	"rank",
 ];
 

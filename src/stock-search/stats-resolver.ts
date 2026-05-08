@@ -270,7 +270,6 @@ async function refreshFamilyRow(
 					financials.gross_margin ?? statistics.gross_margin ?? null,
 				operating_margin:
 					financials.operating_margin ?? statistics.operating_margin ?? null,
-				debt_to_equity: statistics.debt_to_equity ?? null,
 			},
 			family,
 		);
@@ -497,18 +496,12 @@ export async function resolveTickerStats(
 			persistedRow,
 			stockEntry,
 		);
-		if (
-			families[family].timestamp != null &&
-			Object.keys(families[family].row).length > 0
-		) {
+		const resolvedFamily = families[family];
+		const timestamp = resolvedFamily.timestamp;
+		if (timestamp != null && Object.keys(resolvedFamily.row).length > 0) {
 			Object.assign(
 				persistedRow,
-				mergeFamilyRow(
-					persistedRow,
-					family,
-					families[family].row,
-					families[family].timestamp!,
-				),
+				mergeFamilyRow(persistedRow, family, resolvedFamily.row, timestamp),
 			);
 		}
 	}

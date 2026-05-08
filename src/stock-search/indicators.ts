@@ -30,6 +30,8 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 	"pe_forward",
 	"peg",
 	"beta",
+	"roic",
+	"debt_to_equity",
 	"free_cash_flow",
 	"shareholder_yield",
 	"rsi",
@@ -38,7 +40,6 @@ const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"revenue_growth",
 	"gross_margin",
 	"operating_margin",
-	"debt_to_equity",
 ]);
 const FX_SOURCE_FIELDS = new Set(["market_cap", "free_cash_flow"]);
 

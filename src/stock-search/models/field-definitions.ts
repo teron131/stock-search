@@ -17,70 +17,83 @@ export type EvalFieldDefinition = {
 	aliases?: readonly string[];
 };
 
-export const INDICATOR_FIELD_DEFINITIONS: readonly FieldDefinition[] = [
-	{ name: "price", category: "market" },
-	{ name: "change_percent_1d", category: "market" },
-	{ name: "change", category: "market" },
-	{ name: "market_cap", category: "fundamental" },
-	{ name: "pe", category: "fundamental" },
-	{ name: "pe_forward", category: "fundamental" },
-	{ name: "peg", category: "fundamental" },
-	{ name: "beta", category: "fundamental" },
-	{ name: "iv", category: "technical" },
-	{ name: "change_percent_1m", category: "market" },
-	{ name: "change_percent_3m", category: "market" },
-	{ name: "change_percent_6m", category: "market" },
-	{ name: "change_percent_1y", category: "market" },
-	{ name: "change_percent_mtd", category: "market" },
-	{ name: "change_percent_ytd", category: "market" },
-	{ name: "median_upside", category: "evaluation" },
-	{ name: "revenue_growth", category: "fundamental" },
-	{ name: "gross_margin", category: "fundamental" },
-	{ name: "operating_margin", category: "fundamental" },
-	{ name: "roic", category: "fundamental" },
-	{ name: "debt_to_equity", category: "fundamental" },
-	{ name: "free_cash_flow", category: "fundamental" },
-	{ name: "shareholder_yield", category: "fundamental" },
-	{ name: "rsi", category: "technical" },
-];
+type IndicatorFieldGroup = {
+	category: FieldCategory;
+	fields: readonly string[];
+};
+
+export const INDICATOR_FIELD_GROUPS = {
+	marketData: {
+		category: "market",
+		fields: ["price", "change_percent_1d", "change"],
+	},
+	valuation: {
+		category: "fundamental",
+		fields: ["market_cap", "pe", "pe_forward", "peg", "beta"],
+	},
+	technicalSnapshot: {
+		category: "technical",
+		fields: ["iv"],
+	},
+	momentum: {
+		category: "market",
+		fields: [
+			"change_percent_1m",
+			"change_percent_3m",
+			"change_percent_6m",
+			"change_percent_1y",
+			"change_percent_mtd",
+			"change_percent_ytd",
+		],
+	},
+	analyst: {
+		category: "evaluation",
+		fields: ["median_upside"],
+	},
+	operatingQuality: {
+		category: "fundamental",
+		fields: ["revenue_growth", "gross_margin", "operating_margin", "roic"],
+	},
+	capitalReturns: {
+		category: "fundamental",
+		fields: ["debt_to_equity", "free_cash_flow", "shareholder_yield"],
+	},
+	technicalMomentum: {
+		category: "technical",
+		fields: ["rsi"],
+	},
+} as const satisfies Record<string, IndicatorFieldGroup>;
+
+function fieldDefinitionsFromGroups(
+	groups: Record<string, IndicatorFieldGroup>,
+): FieldDefinition[] {
+	return Object.values(groups).flatMap((group) =>
+		group.fields.map((name) => ({ name, category: group.category })),
+	);
+}
+
+export const INDICATOR_FIELD_DEFINITIONS: readonly FieldDefinition[] =
+	fieldDefinitionsFromGroups(INDICATOR_FIELD_GROUPS);
 
 export const INDICATOR_FIELDS = INDICATOR_FIELD_DEFINITIONS.map(
 	(field) => field.name,
 );
 
-export const MARKET_FIELDS = new Set<string>([
-	"price",
-	"change",
-	"change_percent_1d",
-	"market_cap",
-	"pe",
-	"pe_forward",
-	"peg",
-	"beta",
-	"iv",
-	"debt_to_equity",
-	"free_cash_flow",
-	"shareholder_yield",
-	"revenue_growth",
-	"gross_margin",
-	"operating_margin",
-	"roic",
-	"rsi",
-	"change_percent_1m",
-	"change_percent_3m",
-	"change_percent_6m",
-	"change_percent_1y",
-	"change_percent_mtd",
-	"change_percent_ytd",
-	"median_upside",
-]);
+export const MARKET_FIELDS = new Set<string>(INDICATOR_FIELDS);
 
-export const EVAL_FIELD_DEFINITIONS: readonly EvalFieldDefinition[] = [
-	{ key: "overall_score" },
-	{ key: "quality_score" },
-	{ key: "valuation_score" },
-	{ key: "moat_score" },
-	{ key: "upside_score" },
-	{ key: "bull_probability" },
-	{ key: "bear_probability" },
-];
+export const EVAL_FIELD_GROUPS = {
+	scores: [
+		"overall_score",
+		"quality_score",
+		"valuation_score",
+		"moat_score",
+		"upside_score",
+		"market_cap_score",
+	],
+	probabilities: ["bull_probability", "bear_probability", "flat_probability"],
+} as const satisfies Record<string, readonly string[]>;
+
+export const EVAL_FIELD_DEFINITIONS: readonly EvalFieldDefinition[] =
+	Object.values(EVAL_FIELD_GROUPS)
+		.flat()
+		.map((key) => ({ key }));

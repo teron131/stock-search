@@ -244,6 +244,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
+		"roic",
+		"ROIC",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
 		"debt_to_equity",
 		"DEBT",
 		"percent_neutral",
@@ -254,6 +260,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 		"FCF",
 		"market_cap",
 		WIDTH_GROUPS.abbrevCurrency,
+	),
+	createGroupedColumn(
+		"shareholder_yield",
+		"SHR_YLD",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
 	),
 ];
 
@@ -277,6 +289,12 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
+		"roic",
+		"ROIC",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
 		"debt_to_equity",
 		"DEBT",
 		"percent_neutral",
@@ -287,6 +305,12 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 		"FCF",
 		"market_cap",
 		WIDTH_GROUPS.abbrevCurrency,
+	),
+	createGroupedColumn(
+		"shareholder_yield",
+		"SHR_YLD",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
 	),
 ];
 
@@ -323,6 +347,12 @@ const EVALUATION_COLUMNS = [
 		WIDTH_GROUPS.evaluationScore,
 	),
 	createGroupedColumn(
+		"market_cap_score",
+		"SIZE",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
 		"bull_probability",
 		"BULL",
 		"prob",
@@ -332,6 +362,13 @@ const EVALUATION_COLUMNS = [
 	createGroupedColumn(
 		"bear_probability",
 		"BEAR",
+		"prob",
+		WIDTH_GROUPS.evaluationProbability,
+		{ cluster: HOLDINGS_TAIL_CLUSTER },
+	),
+	createGroupedColumn(
+		"flat_probability",
+		"FLAT",
 		"prob",
 		WIDTH_GROUPS.evaluationProbability,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
