@@ -49,23 +49,23 @@ export const CalibrationConfig = {
 	RATING_RANGE: [1.0, 3.5, 5.0],
 } as const satisfies Record<string, MinMedMax>;
 
-/** Weights used for blending PEG, P/E, and Growth into a valuation score. */
-export const ValuationWeights = {
-	PEG: 0.4,
-	PE: 0.2,
-	PE_FORWARD: 0.15,
-	DEBT_TO_EQUITY: 0.1,
-	FCF_YIELD: 0.15,
-	OPERATING_MARGIN: 0.25,
-	ROIC: 0.15,
+/** Multipliers tune stat contribution strength before averaging available valuation stats. */
+export const ValuationMultipliers = {
+	PEG: 2,
+	PE: 1,
+	PE_FORWARD: 0.75,
+	DEBT_TO_EQUITY: 0.5,
+	FCF_YIELD: 0.75,
+	OPERATING_MARGIN: 1.25,
+	ROIC: 0.75,
 } as const;
 
-/** Weights for market-derived quality overlays. */
-export const QualitySignalWeights = {
-	REVENUE_GROWTH: 0.3,
-	GROSS_MARGIN: 0.25,
-	OPERATING_MARGIN: 0.35,
-	ROIC: 0.1,
+/** Multipliers tune stat contribution strength before averaging available quality stats. */
+export const QualitySignalMultipliers = {
+	REVENUE_GROWTH: 1.2,
+	GROSS_MARGIN: 1,
+	OPERATING_MARGIN: 1.4,
+	ROIC: 0.4,
 } as const;
 
 /** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */

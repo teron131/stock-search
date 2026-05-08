@@ -11,13 +11,13 @@ import {
 	EDGE_MULTIPLIER,
 	GameTierThresholds,
 	MarketCapConfig,
-	QualitySignalWeights,
+	QualitySignalMultipliers,
 	SatelliteWeights,
 	SCORE_SCALE,
 	SpeculativeWeights,
 	type StrategyBucket,
 	ThresholdConfig,
-	ValuationWeights,
+	ValuationMultipliers,
 } from "./constants.js";
 import {
 	clampScore,
@@ -25,7 +25,7 @@ import {
 	SIGNED_STAT_CONTRIBUTION,
 } from "./math-utils.js";
 
-type WeightedFactorConfig = [
+type MultipliedFactorConfig = [
 	number | null,
 	[number, number, number],
 	number,
@@ -123,13 +123,14 @@ function valuationMultipleField(
 	return value == null ? null : value <= 0 ? weakAnchor : value;
 }
 
-function weightedStatScore(factors: WeightedFactorConfig[]): number | null {
-	const weightedContributions: number[] = [];
+function multipliedMeanStatScore(
+	factors: MultipliedFactorConfig[],
+): number | null {
+	const multipliedContributions: number[] = [];
 	const contributionMin = SIGNED_STAT_CONTRIBUTION.outMin ?? -SCORE_SCALE;
 	const contributionMax = SIGNED_STAT_CONTRIBUTION.outMax ?? SCORE_SCALE;
-	let totalWeight = 0;
 
-	for (const [value, inputRange, weight, inverse] of factors) {
+	for (const [value, inputRange, multiplier, inverse] of factors) {
 		if (value == null) {
 			continue;
 		}
@@ -139,17 +140,16 @@ function weightedStatScore(factors: WeightedFactorConfig[]): number | null {
 			outMin: inverse ? contributionMax : contributionMin,
 			outMax: inverse ? contributionMin : contributionMax,
 		});
-		weightedContributions.push(score * weight);
-		totalWeight += weight;
+		multipliedContributions.push(score * multiplier);
 	}
 
-	if (totalWeight === 0) {
+	if (multipliedContributions.length === 0) {
 		return null;
 	}
 	return clampScore(
 		DEFAULT_SCORE +
-			weightedContributions.reduce((sum, value) => sum + value, 0) /
-				totalWeight,
+			multipliedContributions.reduce((sum, value) => sum + value, 0) /
+				multipliedContributions.length,
 	);
 }
 
@@ -188,11 +188,11 @@ export function marketCapScore(
 export function calculateValuationScore(
 	indicator: IndicatorLike,
 ): number | null {
-	return weightedStatScore([
+	return multipliedMeanStatScore([
 		[
 			valuationMultipleField(indicator, "peg", CalibrationConfig.PEG_RANGE),
 			CalibrationConfig.PEG_RANGE,
-			ValuationWeights.PEG,
+			ValuationMultipliers.PEG,
 			true,
 		],
 		[
@@ -202,7 +202,7 @@ export function calculateValuationScore(
 				CalibrationConfig.TRAILING_PE_RANGE,
 			),
 			CalibrationConfig.TRAILING_PE_RANGE,
-			ValuationWeights.PE,
+			ValuationMultipliers.PE,
 			true,
 		],
 		[
@@ -212,31 +212,31 @@ export function calculateValuationScore(
 				CalibrationConfig.FORWARD_PE_RANGE,
 			),
 			CalibrationConfig.FORWARD_PE_RANGE,
-			ValuationWeights.PE_FORWARD,
+			ValuationMultipliers.PE_FORWARD,
 			true,
 		],
 		[
 			getNumberField(indicator, "debt_to_equity"),
 			CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
-			ValuationWeights.DEBT_TO_EQUITY,
+			ValuationMultipliers.DEBT_TO_EQUITY,
 			true,
 		],
 		[
 			fcfYieldPercent(indicator),
 			CalibrationConfig.FCF_YIELD_PCT_RANGE,
-			ValuationWeights.FCF_YIELD,
+			ValuationMultipliers.FCF_YIELD,
 			false,
 		],
 		[
 			getNumberField(indicator, "operating_margin"),
 			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
-			ValuationWeights.OPERATING_MARGIN,
+			ValuationMultipliers.OPERATING_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "roic"),
 			CalibrationConfig.ROIC_PCT_RANGE,
-			ValuationWeights.ROIC,
+			ValuationMultipliers.ROIC,
 			false,
 		],
 	]);
@@ -246,29 +246,29 @@ export function calculateValuationScore(
 export function calculateQualitySignalScore(
 	indicator: IndicatorLike,
 ): number | null {
-	const factors: WeightedFactorConfig[] = [
+	const factors: MultipliedFactorConfig[] = [
 		[
 			getNumberField(indicator, "revenue_growth"),
 			CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
-			QualitySignalWeights.REVENUE_GROWTH,
+			QualitySignalMultipliers.REVENUE_GROWTH,
 			false,
 		],
 		[
 			getNumberField(indicator, "gross_margin"),
 			CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
-			QualitySignalWeights.GROSS_MARGIN,
+			QualitySignalMultipliers.GROSS_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "operating_margin"),
 			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
-			QualitySignalWeights.OPERATING_MARGIN,
+			QualitySignalMultipliers.OPERATING_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "roic"),
 			CalibrationConfig.ROIC_PCT_RANGE,
-			QualitySignalWeights.ROIC,
+			QualitySignalMultipliers.ROIC,
 			false,
 		],
 	];
@@ -278,7 +278,7 @@ export function calculateQualitySignalScore(
 	if (availableFactorCount < 2) {
 		return null;
 	}
-	return weightedStatScore(factors);
+	return multipliedMeanStatScore(factors);
 }
 
 /** Blend analyst upside, current ratings, and LLM outlook into a single score. */

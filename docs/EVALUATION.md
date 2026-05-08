@@ -283,7 +283,7 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - FCF yield score when market cap and free cash flow are available
 - earnings growth score (small weight, to avoid punishing genuine growth)
 
-Suggested weights (stable and interpretable):
+Suggested contribution multipliers (stable and interpretable):
 
 - PEG 0.40
 - trailing P/E 0.20
@@ -294,22 +294,39 @@ Suggested weights (stable and interpretable):
 - operating margin 0.25 as a valuation viability check
 - ROIC 0.15 as a valuation viability check
 
-Market-derived quality uses:
+Implemented multipliers use `1.0` as normal strength while preserving the relative priorities above:
+
+- PEG 2.00
+- trailing P/E 1.00
+- forward P/E 0.75
+- FCF yield 0.75
+- debt/equity 0.50
+- operating margin 1.25
+- ROIC 0.75
+
+Market-derived quality uses these contribution multipliers:
 
 - revenue growth 0.30
 - gross margin 0.25
 - operating margin 0.35
 - ROIC 0.10
 
-Each available stat is mapped as a **signed contribution** around a neutral base, then blended:
+Implemented multipliers:
+
+- revenue growth 1.20
+- gross margin 1.00
+- operating margin 1.40
+- ROIC 0.40
+
+Each available stat is mapped as a **signed contribution** around a neutral base, optionally multiplied, then averaged:
 
 StatContribution = curve(metric, anchors) ∈ roughly [-10, +10]
 
-MetricScore = clamp(5 + weighted_average(StatContribution), 0, 10)
+MetricScore = clamp(5 + mean(StatContribution × multiplier), 0, 10)
 
 The final score remains a normal 0–10 score, but weak components can now subtract from the base instead of merely landing at a harmless low positive score. Values beyond the weak anchor can extend further negative before the final clamp. This matters for expensive valuation, negative growth, negative operating margins, and negative free-cash-flow yield.
 
-If some inputs are missing, weights are re-normalized over available components. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
+If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
 Evidence quality matters. A great forward P/E alone should not create a high valuation score when trailing P/E, PEG, EV/FCF, or FCF yield are missing. In that case, valuation can still be positive, but confidence should be lower and EV/Sales should carry more weight.
 
