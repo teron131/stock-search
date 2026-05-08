@@ -42,6 +42,14 @@ function averageScore(values: Array<number | null | undefined>): number | null {
 	);
 }
 
+function scoreFromEvaluationField(value: unknown): number | null {
+	if (typeof value === "object" && value !== null && "score" in value) {
+		return scoreFromEvaluationField((value as { score?: unknown }).score);
+	}
+	const converted = Number(value);
+	return Number.isFinite(converted) ? converted : null;
+}
+
 /** Normalize an eval.json entry to canonical keys used by the app. */
 export function normalizeEvalJson(
 	data: Record<string, unknown> | null | undefined,
@@ -88,7 +96,16 @@ export function normalizeEvalJsonForIndicators(
 
 	const qualityScore = roundScore(calculateQualitySignalScore(indicatorRow));
 	if (qualityScore != null) {
-		normalized.quality_score = qualityScore;
+		const evaluationQualityScore = scoreFromEvaluationField(
+			data?.quality_score,
+		);
+		normalized.quality_score =
+			evaluationQualityScore == null
+				? qualityScore
+				: Math.max(
+						roundScore(evaluationQualityScore) ?? qualityScore,
+						qualityScore,
+					);
 	}
 
 	const valuationScore = roundScore(calculateValuationScore(indicatorRow));

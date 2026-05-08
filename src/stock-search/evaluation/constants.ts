@@ -34,19 +34,19 @@ export const MarketCapConfig = {
 
 /** Calibration ranges for mapping various financial metrics to 0-10 scores. */
 export const CalibrationConfig = {
-	PEG_RANGE: [0.7, 2.0, 4.0],
-	TRAILING_PE_RANGE: [12.0, 30.0, 80.0],
-	FORWARD_PE_RANGE: [10.0, 28.0, 65.0],
+	PEG_RANGE: [0.6, 2.0, 5.0],
+	TRAILING_PE_RANGE: [10.0, 30.0, 85.0],
+	FORWARD_PE_RANGE: [8.0, 28.0, 65.0],
 	GROWTH_RANGE: [0.1, 0.3, 0.5],
-	REVENUE_GROWTH_PCT_RANGE: [-10.0, 12.0, 35.0],
-	GROSS_MARGIN_PCT_RANGE: [20.0, 50.0, 75.0],
-	OPERATING_MARGIN_PCT_RANGE: [-15.0, 15.0, 35.0],
-	ROIC_PCT_RANGE: [0.0, 12.0, 30.0],
-	DEBT_TO_EQUITY_PCT_RANGE: [0.0, 100.0, 300.0],
-	FCF_YIELD_PCT_RANGE: [-5.0, 2.0, 8.0],
-	SHAREHOLDER_YIELD_PCT_RANGE: [-5.0, 2.0, 8.0],
-	UPSIDE_RANGE: [-20.0, 15.0, 50.0],
-	PROBABILITY_RANGE: [0.5, 0.55, 0.6],
+	REVENUE_GROWTH_PCT_RANGE: [-15.0, 15.0, 70.0],
+	GROSS_MARGIN_PCT_RANGE: [10.0, 60.0, 90.0],
+	OPERATING_MARGIN_PCT_RANGE: [-10.0, 30.0, 55.0],
+	ROIC_PCT_RANGE: [0.0, 25.0, 80.0],
+	DEBT_TO_EQUITY_PCT_RANGE: [0.0, 0.8, 3.0],
+	FCF_YIELD_PCT_RANGE: [-5.0, 4.0, 12.0],
+	SHAREHOLDER_YIELD_PCT_RANGE: [-5.0, 3.0, 10.0],
+	UPSIDE_RANGE: [-25.0, 15.0, 60.0],
+	PROBABILITY_RANGE: [0.35, 0.55, 0.75],
 	RATING_RANGE: [1.0, 3.5, 5.0],
 } as const satisfies Record<string, MinMedMax>;
 
