@@ -14,8 +14,6 @@ import {
 } from "./etf.js";
 import {
 	CalibrationConfig,
-	DEFAULT_BEAR_PROBABILITY,
-	DEFAULT_BULL_PROBABILITY,
 	DEFAULT_SCORE,
 } from "./evaluation/constants.js";
 import {
@@ -277,7 +275,7 @@ function mapLinear(
 
 function indicatorEvalFallback(
 	indicators: Record<string, unknown>,
-): Record<(typeof EVAL_KEYS)[number], number> {
+): Record<(typeof EVAL_KEYS)[number], number | null> {
 	const peForward = safeFloat(indicators.pe_forward);
 	const pe = safeFloat(indicators.pe);
 	const revenueGrowth = safeFloat(indicators.revenue_growth);
@@ -353,27 +351,6 @@ function indicatorEvalFallback(
 	const moat = DEFAULT_SCORE;
 	const overall = clamp((moat + quality + valuation + upside) / 4, 0, 10);
 
-	const momentumFields = [
-		"change_percent_1d",
-		"change_percent_1m",
-		"change_percent_3m",
-		"change_percent_6m",
-		"change_percent_1y",
-	] as const;
-	const momentumValues = momentumFields
-		.map((field) => safeFloat(indicators[field]))
-		.filter((value): value is number => value != null);
-	let bull = DEFAULT_BULL_PROBABILITY;
-	let bear = DEFAULT_BEAR_PROBABILITY;
-	if (momentumValues.length > 0) {
-		const avgMomentum =
-			momentumValues.reduce((sum, value) => sum + value, 0) /
-			momentumValues.length;
-		bull = Math.max(0, Math.min(1, 0.5 + avgMomentum / 100));
-		bear = Math.max(0, Math.min(1, 0.2 - avgMomentum / 200));
-	}
-	const flat = Math.max(0, 1 - bull - bear);
-
 	return {
 		overall_score: Number(overall.toFixed(2)),
 		quality_score: Number(quality.toFixed(2)),
@@ -381,9 +358,9 @@ function indicatorEvalFallback(
 		moat_score: Number(moat.toFixed(2)),
 		upside_score: Number(upside.toFixed(2)),
 		market_cap_score: DEFAULT_SCORE,
-		bull_probability: Number(bull.toFixed(4)),
-		bear_probability: Number(bear.toFixed(4)),
-		flat_probability: Number(flat.toFixed(4)),
+		bull_probability: null,
+		bear_probability: null,
+		flat_probability: null,
 	};
 }
 
@@ -396,10 +373,10 @@ function pickEvalValue({
 }: {
 	evaluation: Record<string, unknown>;
 	normalizedEvaluation: Record<string, number>;
-	fallbackEvaluation: Record<(typeof EVAL_KEYS)[number], number>;
+	fallbackEvaluation: Record<(typeof EVAL_KEYS)[number], number | null>;
 	key: (typeof EVAL_KEYS)[number];
 	aliases?: readonly string[];
-}): [number, boolean] {
+}): [number | null, boolean] {
 	const hasLlmValue = [key, ...aliases].some(
 		(alias) => evaluation[alias] != null,
 	);
@@ -1119,7 +1096,7 @@ export function mergePortfolioRow(
 		indicators,
 	);
 	const fallbackEvaluation = indicatorEvalFallback(indicators);
-	const selectedEvaluation: Record<string, number> = {};
+	const selectedEvaluation: Record<string, number | null> = {};
 	let llmCount = 0;
 	for (const field of EVAL_KEYS) {
 		const [value, isFromLlm] = pickEvalValue({
