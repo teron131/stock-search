@@ -36,6 +36,7 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"revenue_growth",
 	"gross_margin",
+	"operating_margin",
 	"debt_to_equity",
 ]);
 const FX_SOURCE_FIELDS = new Set(["market_cap", "free_cash_flow"]);

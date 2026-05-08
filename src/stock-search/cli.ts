@@ -49,6 +49,7 @@ const STOCK_STATS_FIELDS = [
 	"median_upside",
 	"revenue_growth",
 	"gross_margin",
+	"operating_margin",
 	"debt_to_equity",
 	"free_cash_flow",
 ] as const;

@@ -234,6 +234,23 @@ This yields sensible ordering like gold > silver on “role,” while still ackn
 - balance sheet strength
 - execution reliability (delivery, safety, compliance where relevant)
 
+Quality should not be reduced to a single growth or gross-margin number. Keep the first-pass stats understandable: gross margin says whether the product economics are attractive, while operating margin says whether the core business still works after normal company operating costs. Net/profit margin can stay behind the scenes because taxes, interest, accounting marks, and one-time items can make it noisy.
+
+- **Revenue growth**: whether the business is expanding.
+- **Gross margin**: whether the product/service has attractive unit economics.
+- **Operating margin**: whether gross profit survives normal operating expenses.
+- **ROIC**: whether capital is actually producing returns.
+- **Interest coverage**: whether debt service is covered by operating economics.
+- **Shareholder yield / dilution**: whether per-share owners are being rewarded or diluted.
+- **Piotroski F-Score**: compact financial-health sanity check.
+
+Interpretation rules:
+
+- High gross margin should not rescue deeply negative operating margin.
+- Low debt/equity should not rescue poor interest coverage.
+- Growth should be discounted when it is bought with heavy dilution.
+- F-Score is not a thesis by itself; it is a useful red/yellow/green health check.
+
 ## 7.3 Valuation (0–10) — weighted blend
 
 Valuation is not a single metric. It is a blend of mapped sub-scores:
@@ -241,16 +258,22 @@ Valuation is not a single metric. It is a blend of mapped sub-scores:
 - PEG score (largest weight)
 - trailing P/E score
 - forward P/E score
+- EV/Sales score when earnings-based metrics are missing or misleading
+- FCF yield score when market cap and free cash flow are available
 - earnings growth score (small weight, to avoid punishing genuine growth)
 
 Suggested weights (stable and interpretable):
 
-- PEG 0.55
+- PEG 0.45–0.55
 - trailing P/E 0.20
 - forward P/E 0.15
-- growth 0.10
+- EV/Sales 0.10–0.20 when PE/PEG evidence is weak
+- FCF yield 0.10
+- growth 0.10 when the metric is clean and period-aligned
 
 If some inputs are missing, weights are re-normalized over available components.
+
+Evidence quality matters. A great forward P/E alone should not create a high valuation score when trailing P/E, PEG, EV/FCF, or FCF yield are missing. In that case, valuation can still be positive, but confidence should be lower and EV/Sales should carry more weight.
 
 ## 7.4 Upside (0–10) — three-channel blend
 
@@ -297,6 +320,8 @@ Convert:
 Overall = (Moat + Quality + Valuation + Upside) / 4
 
 Size and Bull/Bear are intentionally excluded from Overall to avoid mixing “intrinsic strength” with “timing” and “scale”.
+
+Stats should improve the four underlying scores rather than becoming a separate top-rank penalty system. If a name has extreme upside but poor ROIC, operating margin, interest coverage, dilution, or F-Score, those facts should lower Quality and/or Valuation directly. The role system can still label it speculative, but the raw fundamental inputs should already reflect the weaker evidence.
 
 ---
 
@@ -372,3 +397,29 @@ Anchors are not “statistics.” Anchors are **definitions**:
 - the logistic mapping ensures robustness and saturation without needing any assumed distribution
 
 That makes the framework stable, interpretable, and aligned with a game-like view where **small edges matter and giant edges are rare**.
+
+---
+
+# 13) Implementation alignment notes 🔍
+
+The TypeScript implementation should be checked against this document after migrations. As of the current TS port, these are the important alignment points:
+
+## Correctly aligned
+
+- Overall is computed as the average of Moat, Quality, Valuation, and Upside.
+- Size and Bull/Bear are excluded from Overall.
+- Role indices are computed after scoring from Core / Satellite / Speculative / Diversifier formulas.
+- Core and Satellite include EdgeComp; Speculative and Diversifier do not.
+- Quality blends research quality with market-derived quality.
+- Upside blends analyst target upside, analyst rating, and forward outlook when available.
+
+## Known drift / cleanup targets
+
+- The document describes a piecewise logistic anchor map where the “good” median maps around 6.5. The TS code currently uses a Normal-CDF S-curve (`zScoreMap`) where the median maps to 5.0.
+- Market cap max is documented as $4.5T in presets, while TS currently uses $4T.
+- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, and FCF yield. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
+- TS quality signal currently uses revenue growth, gross margin, and operating margin before blending with research quality. It does not yet include ROIC, interest coverage, dilution/shareholder yield, or Piotroski F-Score.
+- Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
+- Dashboard row merging has a separate indicator fallback path for rows without stored evaluation. That fallback uses simpler linear maps over PE/FWD_PE, revenue growth, gross margin, and median upside, with a default moat of 5. It is not the full evaluation engine.
+
+These are not all bugs. Some are intentional simplifications from the migration period. But the next scoring enhancement should make the implementation explicit: either adopt the documented logistic anchor behavior or update this document to bless the Normal-CDF behavior.

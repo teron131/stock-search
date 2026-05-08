@@ -274,6 +274,7 @@ function indicatorEvalFallback(
 	const pe = safeFloat(indicators.pe);
 	const revenueGrowth = safeFloat(indicators.revenue_growth);
 	const grossMargin = safeFloat(indicators.gross_margin);
+	const operatingMargin = safeFloat(indicators.operating_margin);
 	const medianUpside = safeFloat(indicators.median_upside);
 	const [peFwdMin, , peFwdMax] = CalibrationConfig.FORWARD_PE_RANGE;
 	const [peMin, , peMax] = CalibrationConfig.TRAILING_PE_RANGE;
@@ -314,6 +315,12 @@ function indicatorEvalFallback(
 		mapLinear(grossMargin, {
 			inMin: marginMin,
 			inMax: marginMax,
+			outMin: 2,
+			outMax: 10,
+		}),
+		mapLinear(operatingMargin, {
+			inMin: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE[0],
+			inMax: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE[2],
 			outMin: 2,
 			outMax: 10,
 		}),

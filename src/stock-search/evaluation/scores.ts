@@ -224,6 +224,12 @@ export function calculateQualitySignalScore(
 			QualitySignalWeights.GROSS_MARGIN,
 			false,
 		],
+		[
+			getNumberField(indicator, "operating_margin"),
+			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
+			QualitySignalWeights.OPERATING_MARGIN,
+			false,
+		],
 	]);
 }
 

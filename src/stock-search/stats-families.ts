@@ -40,7 +40,12 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"beta",
 		"free_cash_flow",
 	],
-	financials: ["revenue_growth", "gross_margin", "debt_to_equity"],
+	financials: [
+		"revenue_growth",
+		"gross_margin",
+		"operating_margin",
+		"debt_to_equity",
+	],
 	ratings: ["median_upside", "ratings"],
 };
 

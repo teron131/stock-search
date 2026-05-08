@@ -9,6 +9,7 @@ export function buildColorStandardsPayload(): {
 			peg: { min: 0.5, max: 3.0 },
 			revenue_growth: { min: 0.0, max: 30.0 },
 			gross_margin: { min: 10.0, max: 70.0 },
+			operating_margin: { min: 0.0, max: 40.0 },
 			debt_to_equity: { min: 0.0, max: 200.0 },
 			median_upside: { min: 0.0, max: 50.0 },
 			bull_probability: { min: 0.5, max: 0.6 },

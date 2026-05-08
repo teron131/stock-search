@@ -40,6 +40,7 @@ export class CalibrationConfig {
 	static readonly GROWTH_RANGE: MinMedMax = [0.1, 0.3, 0.5];
 	static readonly REVENUE_GROWTH_PCT_RANGE: MinMedMax = [0.0, 15.0, 30.0];
 	static readonly GROSS_MARGIN_PCT_RANGE: MinMedMax = [10.0, 45.0, 70.0];
+	static readonly OPERATING_MARGIN_PCT_RANGE: MinMedMax = [0.0, 20.0, 40.0];
 	static readonly DEBT_TO_EQUITY_PCT_RANGE: MinMedMax = [0.0, 60.0, 200.0];
 	static readonly FCF_YIELD_PCT_RANGE: MinMedMax = [-2.0, 3.0, 8.0];
 	static readonly UPSIDE_RANGE: MinMedMax = [0.0, 15.0, 50.0];
@@ -58,8 +59,9 @@ export class ValuationWeights {
 
 export class QualitySignalWeights {
 	/** Weights for market-derived quality overlays. */
-	static readonly REVENUE_GROWTH = 0.6;
-	static readonly GROSS_MARGIN = 0.4;
+	static readonly REVENUE_GROWTH = 0.4;
+	static readonly GROSS_MARGIN = 0.3;
+	static readonly OPERATING_MARGIN = 0.3;
 }
 
 export class CoreEngineWeights {

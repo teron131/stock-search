@@ -136,6 +136,8 @@ export class StockAnalysisSource {
 			...statistics,
 			...financials,
 			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
+			operating_margin:
+				financials.operating_margin ?? statistics.operating_margin ?? null,
 			debt_to_equity: statistics.debt_to_equity ?? null,
 		};
 		return this.indicatorsSnapshot;

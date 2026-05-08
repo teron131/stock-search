@@ -238,6 +238,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
+		"operating_margin",
+		"OP_MGN",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
 		"debt_to_equity",
 		"DEBT",
 		"percent_neutral",
@@ -261,6 +267,12 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	createGroupedColumn(
 		"gross_margin",
 		"GROSS",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"operating_margin",
+		"OP_MGN",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),
