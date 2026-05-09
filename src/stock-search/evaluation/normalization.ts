@@ -76,6 +76,7 @@ export function normalizeEvalJson(
 	const normalized: Record<string, number> = {
 		overall_score: toFloat(data.overall_score, DEFAULT_SCORE),
 		moat_score: toFloat(data.moat_score, DEFAULT_SCORE),
+		quality_score: toFloat(data.quality_score, DEFAULT_SCORE),
 		valuation_score: toFloat(data.valuation_score, DEFAULT_SCORE),
 		upside_score: toFloat(data.upside_score, DEFAULT_SCORE),
 		market_cap_score: toFloat(data.market_cap_score, DEFAULT_SCORE),
@@ -88,7 +89,6 @@ export function normalizeEvalJson(
 	);
 	if (llmQualityScore != null) {
 		normalized.llm_quality_score = llmQualityScore;
-		normalized.quality_score = llmQualityScore;
 	}
 	return normalized;
 }
@@ -108,16 +108,17 @@ export function normalizeEvalJsonForIndicators(
 	if (llmQualityScore != null) {
 		normalized.llm_quality_score = llmQualityScore;
 	}
-	if (qualityScore != null || llmQualityScore != null) {
-		normalized.quality_score = Math.max(
-			qualityScore ?? Number.NEGATIVE_INFINITY,
-			llmQualityScore ?? Number.NEGATIVE_INFINITY,
-		);
+	if (qualityScore != null) {
+		normalized.quality_score = qualityScore;
+	} else {
+		delete normalized.quality_score;
 	}
 
 	const valuationScore = roundScore(calculateValuationScore(indicatorRow));
 	if (valuationScore != null) {
 		normalized.valuation_score = valuationScore;
+	} else {
+		delete normalized.valuation_score;
 	}
 
 	const upsideScore = roundScore(
@@ -133,11 +134,15 @@ export function normalizeEvalJsonForIndicators(
 	);
 	if (upsideScore != null) {
 		normalized.upside_score = upsideScore;
+	} else {
+		delete normalized.upside_score;
 	}
 
 	const sizeScore = roundScore(marketCapScore(indicatorRow));
 	if (sizeScore != null) {
 		normalized.market_cap_score = sizeScore;
+	} else {
+		delete normalized.market_cap_score;
 	}
 
 	const overallScore = averageScore([
@@ -148,6 +153,8 @@ export function normalizeEvalJsonForIndicators(
 	]);
 	if (overallScore != null) {
 		normalized.overall_score = overallScore;
+	} else {
+		delete normalized.overall_score;
 	}
 
 	return normalized;

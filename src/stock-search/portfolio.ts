@@ -6,13 +6,12 @@ import type {
 	StockEntry,
 } from "./api/data-store.js";
 import { isCacheTimestampFresh } from "./cache.js";
-import { clamp, safeFloat } from "./common-utils.js";
+import { safeFloat } from "./common-utils.js";
 import {
 	classifyAndResolveEtfs,
 	type EtfResolutionResult,
 	normalizeSectorName,
 } from "./etf.js";
-import { CalibrationConfig, DEFAULT_SCORE } from "./evaluation/constants.js";
 import {
 	bucketFromEvaluation,
 	normalizeEvaluationRowForIndicators,
@@ -250,129 +249,14 @@ function hasOwnEvaluation(
 	);
 }
 
-function mapLinear(
-	value: number | null,
-	{
-		inMin,
-		inMax,
-		outMin,
-		outMax,
-	}: {
-		inMin: number;
-		inMax: number;
-		outMin: number;
-		outMax: number;
-	},
-): number | null {
-	if (value == null || inMax === inMin) {
-		return null;
-	}
-	const ratio = (value - inMin) / (inMax - inMin);
-	return outMin + ratio * (outMax - outMin);
-}
-
-function indicatorEvalFallback(
-	indicators: Record<string, unknown>,
-): Record<(typeof EVAL_KEYS)[number], number | null> {
-	const peForward = safeFloat(indicators.pe_forward);
-	const pe = safeFloat(indicators.pe);
-	const revenueGrowth = safeFloat(indicators.revenue_growth);
-	const grossMargin = safeFloat(indicators.gross_margin);
-	const operatingMargin = safeFloat(indicators.operating_margin);
-	const medianUpside = safeFloat(indicators.median_upside);
-	const [peFwdMin, , peFwdMax] = CalibrationConfig.FORWARD_PE_RANGE;
-	const [peMin, , peMax] = CalibrationConfig.TRAILING_PE_RANGE;
-	const [revGMin, , revGMax] = CalibrationConfig.REVENUE_GROWTH_PCT_RANGE;
-	const [marginMin, , marginMax] = CalibrationConfig.GROSS_MARGIN_PCT_RANGE;
-	const [upsideMin, , upsideMax] = CalibrationConfig.UPSIDE_RANGE;
-
-	const valuationParts = [
-		mapLinear(peForward, {
-			inMin: peFwdMin,
-			inMax: peFwdMax,
-			outMin: 10,
-			outMax: 2,
-		}),
-		mapLinear(pe, {
-			inMin: peMin,
-			inMax: peMax,
-			outMin: 10,
-			outMax: 2,
-		}),
-	].filter((value): value is number => value != null);
-	const valuation = valuationParts.length
-		? clamp(
-				valuationParts.reduce((sum, value) => sum + value, 0) /
-					valuationParts.length,
-				0,
-				10,
-			)
-		: DEFAULT_SCORE;
-
-	const qualityParts = [
-		mapLinear(revenueGrowth, {
-			inMin: revGMin,
-			inMax: revGMax,
-			outMin: 2,
-			outMax: 10,
-		}),
-		mapLinear(grossMargin, {
-			inMin: marginMin,
-			inMax: marginMax,
-			outMin: 2,
-			outMax: 10,
-		}),
-		mapLinear(operatingMargin, {
-			inMin: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE[0],
-			inMax: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE[2],
-			outMin: 2,
-			outMax: 10,
-		}),
-	].filter((value): value is number => value != null);
-	const quality = qualityParts.length
-		? clamp(
-				qualityParts.reduce((sum, value) => sum + value, 0) /
-					qualityParts.length,
-				0,
-				10,
-			)
-		: DEFAULT_SCORE;
-
-	const upsideValue = mapLinear(medianUpside, {
-		inMin: upsideMin,
-		inMax: upsideMax,
-		outMin: 2,
-		outMax: 10,
-	});
-	const upside =
-		upsideValue == null ? DEFAULT_SCORE : clamp(upsideValue, 0, 10);
-	const moat = DEFAULT_SCORE;
-	const overall = clamp((moat + quality + valuation + upside) / 4, 0, 10);
-
-	return {
-		overall_score: Number(overall.toFixed(2)),
-		quality_score: Number(quality.toFixed(2)),
-		llm_quality_score: null,
-		valuation_score: Number(valuation.toFixed(2)),
-		moat_score: Number(moat.toFixed(2)),
-		upside_score: Number(upside.toFixed(2)),
-		market_cap_score: DEFAULT_SCORE,
-		bull_probability: null,
-		bear_probability: null,
-		flat_probability: null,
-	};
-}
-
 function pickEvalValue({
 	evaluation,
 	normalizedEvaluation,
-	fallbackEvaluation,
 	key,
 	aliases = [],
 }: {
 	evaluation: Record<string, unknown>;
 	normalizedEvaluation: Record<string, number>;
-	fallbackEvaluation: Record<(typeof EVAL_KEYS)[number], number | null>;
 	key: (typeof EVAL_KEYS)[number];
 	aliases?: readonly string[];
 }): [number | null, boolean] {
@@ -386,7 +270,7 @@ function pickEvalValue({
 	if (hasLlmValue && normalizedValue != null) {
 		return [Number(normalizedValue), true];
 	}
-	return [fallbackEvaluation[key], false];
+	return [null, false];
 }
 
 function positionQuantity(position: PositionRow): number {
@@ -1094,14 +978,13 @@ export function mergePortfolioRow(
 		evaluation,
 		indicators,
 	);
-	const fallbackEvaluation = indicatorEvalFallback(indicators);
 	const selectedEvaluation: Record<string, number | null> = {};
 	let llmCount = 0;
+	let selectedCount = 0;
 	for (const field of EVAL_KEYS) {
 		const [value, isFromLlm] = pickEvalValue({
 			evaluation,
 			normalizedEvaluation,
-			fallbackEvaluation,
 			key: field,
 			aliases:
 				field === "flat_probability"
@@ -1109,16 +992,21 @@ export function mergePortfolioRow(
 					: [],
 		});
 		selectedEvaluation[field] = value;
+		if (value != null) {
+			selectedCount += 1;
+		}
 		if (isFromLlm) {
 			llmCount += 1;
 		}
 	}
 	const evalSource =
-		llmCount === EVAL_KEYS.length
-			? "llm"
-			: llmCount === 0
-				? "indicator_fallback"
-				: "hybrid";
+		selectedCount === 0
+			? "none"
+			: llmCount === selectedCount
+				? "llm"
+				: llmCount === 0
+					? "stats"
+					: "hybrid";
 	const industryLabels = mergeIndicatorLabels(
 		position,
 		indicators,

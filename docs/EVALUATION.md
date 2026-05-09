@@ -1,18 +1,18 @@
-## Evaluation Framework v4 — Anchor-Calibrated Logistic Scorecard ⚓️📈
+## Evaluation Framework v4 — Current Normal-CDF Scorecard
 
 This framework turns messy investing judgments into a **consistent scorecard**: core fundamentals (moat/quality/valuation/upside/size), **game-like directional odds** (bull/bear), and **roles** (core/satellite/speculative/diversifier) that are assigned **after** scoring.
 
-The key upgrade here is the mapping: instead of linear scaling or Normal-CDF “sigma” thinking, the system uses an **anchor-calibrated logistic function** so the score behavior is **explicitly defined** by remembered examples and a “good standard” median.
+The current TypeScript implementation maps numeric stats through a **three-anchor Normal-CDF curve**. Anchors define the low, median, and high points for a metric; the median maps to a neutral `5.0`, and the curve saturates toward `0` or `10` near the outer anchors.
 
 ---
 
-# 1) What the framework produces ✅
+# 1) What the framework produces
 
 For each asset:
 
 ### A) Fundamental scores (0–10)
 
-- **Moat**: replaceability under real constraints
+- **Moat**: replaceability under real constraints; currently stored/research-driven and treated as a placeholder in stats-only scoring work
 - **Quality**: durability of economics / execution
 - **Valuation**: attractiveness of price relative to growth/quality
 - **Upside**: payoff size if the thesis plays out
@@ -32,6 +32,7 @@ Derived:
 ### C) Ranking + roles
 
 - **Overall score** = average of (Moat, Quality, Valuation, Upside)
+- Dashboard Overall is only recomputed when all four inputs are available after deterministic stat refresh.
 - **Role indices**: Core / Satellite / Speculative / Diversifier
 - **Label** = argmax(role indices)
 - **FOMO flag** (overlay)
@@ -39,7 +40,7 @@ Derived:
 
 ---
 
-# 2) Anchors: the explicit definitions ⚓️
+# 2) Anchors: the explicit definitions
 
 Every mapped metric has **three anchors**:
 
@@ -51,88 +52,69 @@ Because the mapping is S-curved, the **median anchor dominates** how most names 
 
 ---
 
-# 3) Mapping function: logistic CDF from anchors 📐
+# 3) Mapping function: Normal-CDF curve from anchors
 
-### 3.1 Logistic CDF (the squashing function)
+### 3.1 Normal-CDF score curve
 
-The logistic CDF is:
+The implementation uses an Abramowitz-Stegun approximation of the error function to compute a Normal-CDF-like percentile:
 
-( \sigma(z) = \frac{1}{1 + e^{-z}} )
+Score(x) = outMin + (outMax - outMin) * NormalCDF(curvePosition)
 
-A score is simply:
+The median anchor maps to the midpoint between `outMin` and `outMax`. With default output bounds, that means:
 
-Score(x) = 10 · p(x), where p(x) ∈ [0,1]
+- Low anchor -> `0`
+- Median anchor -> `5`
+- High anchor -> `10`
 
-### 3.2 The anchor-fit idea (no “sigma” needed)
+For lower-is-better metrics such as P/E, PEG, and debt/equity, the output bounds are inverted:
 
-Instead of pretending metrics are Normal with a standard deviation, anchors are treated as **calibration targets**:
+- Low anchor -> `10`
+- Median anchor -> `5`
+- High anchor -> `0`
 
-- Low anchor (x_L) maps to target percentile/probability (p_L)
-- Median anchor (x_M) maps to (p_M)
-- High anchor (x_H) maps to (p_H)
+### 3.2 Piecewise scale
 
-“Probability” here means “position on the 0–1 score curve”, not a market probability.
+The code uses the distance from low-to-median and median-to-high separately. Each side is divided by `3` to create the curve scale:
 
-A convenient inverse is the **logit**:
+- If `x <= median`: `curveScale = (median - low) / 3`
+- If `x > median`: `curveScale = (high - median) / 3`
 
-logit(p) = ln(p/(1−p))
+Then:
 
-### 3.3 Piecewise logistic (recommended) ✅
+curvePosition = (x - median) / curveScale
 
-A single logistic has only 2 parameters, so it cannot perfectly match 3 anchors. The clean solution is **piecewise logistic**: one slope left of the median and another slope right of the median—exactly matching all three anchors.
+This makes the median neutral and the outer anchors near saturation.
 
-Let:
-
-- g(p) = logit(p)
-- z_M = g(p_M)
-
-Left scale: ( s_L = \frac{x_M - x_L}{z_M - g(p_L)} )
-
-Right scale: ( s_R = \frac{x_H - x_M}{g(p_H) - z_M} )
-
-Then for any x:
-
-- If x ≤ x_M: ( z = z_M + \frac{x - x_M}{s_L} )
-- If x ≥ x_M: ( z = z_M + \frac{x - x_M}{s_R} )
-
-Finally:
-
-- p = σ(z)
-- Score = 10·p, clamped to [0,10]
-
-### 3.4 Monotonic direction (good-is-high vs good-is-low)
+### 3.3 Monotonic direction
 
 Some metrics are “higher is better” (growth, upside). Others are “lower is better” (P/E, PEG).
 
-Two equivalent ways to handle “lower is better”:
-
-- Negate the input: score(−x) using the same anchors, or
-- Swap anchors / flip target p’s so “cheap” maps to higher p.
+The current code handles lower-is-better metrics by flipping the output bounds (`outMin = 10`, `outMax = 0`).
 
 ---
 
-# 4) Target score levels at anchors (synthetic percentiles) 🎯
+# 4) Score aggregation
 
-To make the median represent a “good standard” (not a neutral 5/10), set:
+Each available metric is mapped to a `0-10` factor score, multiplied by its configured multiplier, and averaged by total available multiplier weight:
 
-### Default target mapping (sensible, stable)
+MetricScore = clamp(mean(mappedFactorScore * multiplier), 0, 10)
 
-- **Low (notably good)**: p_L = 0.85 → score 8.5
-- **Median (good standard)**: p_M = 0.65 → score 6.5
-- **High (stretched/weak)**: p_H = 0.25 → score 2.5
+Missing inputs are skipped. They do not count as zero, and they do not directly lower confidence in the output beyond reducing the evidence available to compute it.
 
-This creates a practical behavior:
+Non-positive valuation multiples are not treated as cheap. They are mapped to the weak anchor for that component.
 
-- names around the “good” median cluster around 6–7
-- extremes saturate without dominating the entire ranking
+Quality has an explicit evidence gate: if fewer than two quality factors are available, the market-derived quality score is `null`.
 
-For metrics where “higher is worse” (P/E), those p targets are applied after inversion so “cheap” still maps to 8.5.
+The implementation also includes small viability floors:
+
+- Quality can floor to `3`, `3.5`, or `4` when enough positive business signals exist.
+- Valuation can floor to `2` when forward P/E, balance sheet, and FCF-yield checks indicate a viable business.
 
 ---
 
-# 5) Full anchor list (complete) ✅
+# 5) Full anchor list
 
-These are the **metrics that require anchors**.
+These are the current code anchors in `src/stock-search/evaluation/constants.ts`.
 
 ## 5.1 Size anchors (Market cap, USD)
 
@@ -142,33 +124,32 @@ These are the **metrics that require anchors**.
 
 ## 5.2 Valuation anchors
 
-Valuation mixes lower-is-better multiples with higher-is-better yield and viability checks. Lower-is-better inputs are inverted before they reach the score curve.
+Valuation mixes lower-is-better multiples with higher-is-better yield and viability checks. Lower-is-better inputs use inverted output bounds.
 
-- **PEG**: 0.7 / 2.0 / 4.0
-- **Trailing P/E**: 12 / 30 / 80
-- **Forward P/E**: 10 / 28 / 65
-- **Debt/equity %**: 0 / 100 / 300
-- **FCF yield %**: -5 / 2 / 8
-- **Shareholder yield %**: -5 / 2 / 8
-- **Operating margin %**: -15 / 15 / 35
-- **ROIC %**: 0 / 12 / 30
+- **PEG**: 0.6 / 2.0 / 5.0
+- **Trailing P/E**: 10 / 30 / 85
+- **Forward P/E**: 8 / 28 / 65
+- **Debt/equity ratio**: 0 / 0.8 / 3.0
+- **FCF yield %**: -5 / 4 / 12
+- **Shareholder yield %**: -5 / 3 / 10
+- **Operating margin %**: -10 / 30 / 55
+- **ROIC %**: 0 / 25 / 80
 
 ## 5.3 Growth / quality anchors
 
 “Higher is better”
 
-- **Earnings growth (YoY)**: -0.10 / 0.20 / 0.50
-- **Revenue growth (YoY %)**: -10 / 12 / 35
-- **Gross margin %**: 20 / 50 / 75
-- **Operating margin %**: -15 / 15 / 35
-- **ROIC %**: 0 / 12 / 30
-- **Shareholder yield %**: -5 / 2 / 8
+- **Revenue growth (YoY %)**: -15 / 15 / 70
+- **Gross margin %**: 10 / 60 / 90
+- **Operating margin %**: -10 / 30 / 55
+- **ROIC %**: 0 / 25 / 80
+- **Shareholder yield %**: -5 / 3 / 10
 
 ## 5.4 Upside anchor (Analyst target upside)
 
 “Higher is better”
 
-- **Target upside %**: -0.20 / 0.15 / 0.50
+- **Target upside %**: -25 / 15 / 60
 
 ## 5.5 Analyst rating anchor (1–5 scale)
 
@@ -180,66 +161,45 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 
 These are intentionally tight because markets are noisy.
 
-- **Probability**: 0.50 / 0.55 / 0.60
+- **Probability**: 0.35 / 0.55 / 0.75
 
 ---
 
-# 6) Suggested anchor presets (sensible values) ⚙️
-
-Two complete presets, matching two different philosophies.
-
-## Preset A — Quality-bar / Mega-cap-friendly (recommended)
-
-Median reflects “good by high-conviction standards,” not market average.
+# 6) Current anchor preset
 
 | Metric          |  Low | Median (good) |      High |
 | --------------- | ---: | ------------: | --------: |
 | Market cap      | $10B |         $800B | **$4.5T** |
-| PEG             |  0.7 |           2.0 |       4.0 |
-| Trailing P/E    |   12 |            30 |        80 |
-| Forward P/E     |   10 |            28 |        65 |
-| Revenue growth  |  -10 |            12 |        35 |
-| Gross margin    |   20 |            50 |        75 |
-| Operating margin |  -15 |            15 |        35 |
-| Debt/equity     |    0 |           100 |       300 |
-| FCF yield       |   -5 |             2 |         8 |
-| Target upside   |  -20 |            15 |        50 |
-| Probability     | 0.50 |          0.56 |      0.62 |
-| Rating (1–5)    |  1.0 |           3.7 |       5.0 |
-
-## Preset B — Broad-market neutral
-
-Median reflects a more index-like standard.
-
-| Metric          |  Low | Median |      High |
-| --------------- | ---: | -----: | --------: |
-| Market cap      |  $3B |  $200B | **$4.5T** |
-| PEG             |  0.7 |    1.8 |       4.0 |
-| Trailing P/E    |   10 |     22 |        45 |
-| Forward P/E     |    9 |     20 |        40 |
-| Revenue growth  |   -5 |      8 |        25 |
-| Gross margin    |   15 |     40 |        65 |
-| Operating margin |  -10 |     10 |        25 |
-| Debt/equity     |    0 |    100 |       300 |
-| FCF yield       |   -6 |      2 |         8 |
-| Target upside   |  -15 |     12 |        40 |
-| Probability     | 0.50 |   0.55 |      0.60 |
+| PEG             |  0.6 |           2.0 |       5.0 |
+| Trailing P/E    |   10 |            30 |        85 |
+| Forward P/E     |    8 |            28 |        65 |
+| Revenue growth  |  -15 |            15 |        70 |
+| Gross margin    |   10 |            60 |        90 |
+| Operating margin |  -10 |            30 |        55 |
+| Debt/equity ratio |  0 |           0.8 |       3.0 |
+| FCF yield       |   -5 |             4 |        12 |
+| Shareholder yield | -5 |             3 |        10 |
+| ROIC            |    0 |            25 |        80 |
+| Target upside   |  -25 |            15 |        60 |
+| Probability     | 0.35 |          0.55 |      0.75 |
 | Rating (1–5)    |  1.0 |    3.5 |       5.0 |
 
 ---
 
-# 7) Score definitions (what each score means) 🧠
+# 7) Score definitions
 
 ## 7.1 Moat (0–10)
 
 “How hard is it to replace this under real constraints?”
+
+Current implementation status: `moat_score` comes from stored evaluation / research output. It is not computed from market stats yet, so it should be treated as a placeholder when iterating on stats-derived scores.
 
 - switching costs, integration depth, ecosystem lock-in
 - regulatory/security/procurement barriers
 - data/feedback loops (when not easily replicated)
 - physics bottlenecks / supply chain choke points
 
-### Commodities: moat is scarcity + role (not competition) 🪙
+### Commodities: moat is scarcity + role (not competition)
 
 CommodityMoat can be defined as:
 
@@ -261,42 +221,27 @@ Quality should not be reduced to a single growth or gross-margin number. Keep th
 - **Gross margin**: whether the product/service has attractive unit economics.
 - **Operating margin**: whether gross profit survives normal operating expenses.
 - **ROIC**: whether capital is actually producing returns.
-- **Interest coverage**: whether debt service is covered by operating economics.
 - **Shareholder yield / dilution**: whether per-share owners are being rewarded or diluted.
-- **Piotroski F-Score**: compact financial-health sanity check.
 
 Interpretation rules:
 
 - High gross margin should not rescue deeply negative operating margin.
-- Low debt/equity should not rescue poor interest coverage.
 - Growth should be discounted when it is bought with heavy dilution.
-- F-Score is not a thesis by itself; it is a useful red/yellow/green health check.
-- Negative revenue growth, negative operating margin, and negative FCF yield are real negative contributions, not merely low positive subscores.
 - If fewer than two comparable quality stats are available, the market-derived quality signal should stay unknown rather than letting one stat produce a false high-confidence score.
+- Interest coverage and Piotroski F-Score are not part of the current scoring implementation.
 
-## 7.3 Valuation (0–10) — weighted signed blend
+## 7.3 Valuation (0–10) — weighted mapped blend
 
 Valuation is not a single metric. It is a blend of mapped stat contributions:
 
 - PEG score (largest weight)
 - trailing P/E score
 - forward P/E score
-- EV/Sales score when earnings-based metrics are missing or misleading
+- debt/equity score
 - FCF yield score when market cap and free cash flow are available
 - shareholder yield score when dividends, buybacks, and dilution are available
-- earnings growth score (small weight, to avoid punishing genuine growth)
-
-Suggested contribution multipliers (stable and interpretable):
-
-- PEG 0.40
-- trailing P/E 0.20
-- forward P/E 0.15
-- EV/Sales 0.10–0.20 when PE/PEG evidence is weak
-- FCF yield 0.15
-- shareholder yield 0.10 as a per-share owner return check
-- debt/equity 0.10
-- operating margin 0.25 as a valuation viability check
-- ROIC 0.15 as a valuation viability check
+- operating margin score as a valuation viability check
+- ROIC score as a valuation viability check
 
 Implemented multipliers use `1.0` as normal strength while preserving the relative priorities above:
 
@@ -311,31 +256,15 @@ Implemented multipliers use `1.0` as normal strength while preserving the relati
 
 Market-derived quality uses these contribution multipliers:
 
-- revenue growth 0.30
-- gross margin 0.25
-- operating margin 0.35
-- ROIC 0.10
-- shareholder yield 0.15
-
-Implemented multipliers:
-
 - revenue growth 1.20
 - gross margin 1.00
 - operating margin 1.40
 - ROIC 0.40
 - shareholder yield 0.60
 
-Each available stat is mapped as a **signed contribution** around a neutral base, optionally multiplied, then averaged:
-
-StatContribution = curve(metric, anchors) ∈ roughly [-10, +10]
-
-MetricScore = clamp(5 + mean(StatContribution × multiplier), 0, 10)
-
-The final score remains a normal 0–10 score, but weak components can now subtract from the base instead of merely landing at a harmless low positive score. Values beyond the weak anchor can extend further negative before the final clamp. This matters for expensive valuation, negative growth, negative operating margins, and negative free-cash-flow yield.
-
 If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
-Evidence quality matters. A great forward P/E alone should not create a high valuation score when trailing P/E, PEG, EV/FCF, or FCF yield are missing. In that case, valuation can still be positive, but confidence should be lower and EV/Sales should carry more weight.
+EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not currently part of the score engine.
 
 ## 7.4 Upside (0–10) — three-channel blend
 
@@ -343,9 +272,9 @@ Upside merges:
 
 1. **Analyst target upside** (mapped via upside anchors)
 2. **Analyst consensus rating** (mapped via rating anchors)
-3. **Forward outlook score** (structured subjective/LLM score on 0–10)
+3. **Forward outlook score** (structured subjective/LLM score on 0–10; placeholder in stats-only dashboard normalization)
 
-Combine by averaging available channels (or explicit weights if desired).
+The full evaluation path averages available channels. Dashboard normalization uses only analyst target upside and ratings, so it does not let LLM outlook change the displayed stats-derived upside score.
 
 ## 7.5 Size (0–10)
 
@@ -353,14 +282,16 @@ Size maps market cap on a log-like perception scale (because $4T is not “4×�
 
 ---
 
-# 8) Bull/Bear pseudo-probabilities (12-month “win-rate”) 🎮
+# 8) Bull/Bear pseudo-probabilities (12-month win-rate)
 
 Bull and Bear are produced from two sources:
 
 - **Market behavior signal** (momentum-like input normalized to a 0–1 probability proxy)
-- **Forward outlook bull/bear probabilities** (subjective/LLM or structured)
+- **Forward outlook bull/bear probabilities** (subjective/LLM or structured; placeholder for stats-only dashboard scoring)
 
 Then mapped using the **Probability anchors**.
+
+Dashboard rows currently display stored bull/bear probabilities when present. They are not recomputed from stats during dashboard normalization.
 
 Convert:
 
@@ -377,17 +308,17 @@ Convert:
 
 ---
 
-# 9) Overall ranking metric 🏁
+# 9) Overall ranking metric
 
 Overall = (Moat + Quality + Valuation + Upside) / 4
 
 Size and Bull/Bear are intentionally excluded from Overall to avoid mixing “intrinsic strength” with “timing” and “scale”.
 
-Stats should improve the four underlying scores rather than becoming a separate top-rank penalty system. If a name has extreme upside but poor ROIC, operating margin, interest coverage, dilution, or F-Score, those facts should lower Quality and/or Valuation directly. The role system can still label it speculative, but the raw fundamental inputs should already reflect the weaker evidence.
+Stats improve the four underlying scores rather than becoming a separate top-rank penalty system. If a name has extreme upside but poor ROIC, operating margin, dilution, or free-cash-flow yield, those facts should lower Quality and/or Valuation directly. The role system can still label it speculative, but the raw fundamental inputs should already reflect the weaker evidence.
 
 ---
 
-# 10) Labels come after scores (role indices) 🏷️
+# 10) Labels come after scores (role indices)
 
 Roles are not opinions. They are derived mechanically from scores.
 
@@ -422,7 +353,7 @@ Label = argmax(CoreIndex, SatelliteIndex, SpecIndex, DivIndex)
 
 ---
 
-# 11) FOMO flag (overlay) 🫠
+# 11) FOMO flag (overlay)
 
 A behavior-risk overlay triggers when:
 
@@ -434,7 +365,7 @@ Interpretation: compelling story + expensive pricing + odds not exceptional.
 
 ---
 
-# 12) Optional Elo-style normalization (additive comparison) 🎮📈
+# 12) Optional Elo-style normalization (additive comparison)
 
 For a probability p:
 
@@ -450,38 +381,33 @@ This turns “slight win-rate edges” into a clean additive scale.
 
 ---
 
-## Practical anchor philosophy (the guiding principle) 🧭
+## Practical anchor philosophy
 
 Anchors are not “statistics.” Anchors are **definitions**:
 
-- the median is what “good” means
+- the median is the current neutral center of the implemented curve
 - extremes are what “notable” means
-- the logistic mapping ensures robustness and saturation without needing any assumed distribution
+- the Normal-CDF mapping ensures robustness and saturation with a simple curve
 
 That makes the framework stable, interpretable, and aligned with a game-like view where **small edges matter and giant edges are rare**.
 
 ---
 
-# 13) Implementation alignment notes 🔍
+# 13) Implementation notes
 
-The TypeScript implementation should be checked against this document after migrations. As of the current TS port, these are the important alignment points:
+This document follows the current TypeScript implementation.
 
-## Correctly aligned
+## Current behavior
 
 - Overall is computed as the average of Moat, Quality, Valuation, and Upside.
 - Size and Bull/Bear are excluded from Overall.
 - Role indices are computed after scoring from Core / Satellite / Speculative / Diversifier formulas.
 - Core and Satellite include EdgeComp; Speculative and Diversifier do not.
-- Quality blends research quality with market-derived quality.
-- Upside blends analyst target upside, analyst rating, and forward outlook when available.
-
-## Known drift / cleanup targets
-
-- The document describes a piecewise logistic anchor map where the “good” median maps around 6.5. The TS code currently uses a Normal-CDF S-curve (`zScoreMap`) where the median maps to 5.0.
-- Market cap max is documented as $4.5T in presets, while TS currently uses $4T.
-- TS valuation currently uses PEG, trailing P/E, forward P/E, debt/equity, FCF yield, shareholder yield, operating margin, and ROIC. The older doc wording mentioned earnings growth instead of the current debt/FCF additions.
-- TS quality signal currently uses revenue growth, gross margin, operating margin, ROIC, and shareholder yield before blending with research quality. It does not yet include interest coverage or Piotroski F-Score.
+- Dashboard normalization recomputes deterministic quality, valuation, upside, and size from current stats when possible.
+- Stored LLM quality is retained as `llm_quality_score` only. Displayed `quality_score` is market-stat-derived when enough quality stats exist.
+- Stored/default valuation, upside, market-cap score, and overall values are not used as dashboard fallbacks when current stats cannot derive them.
+- Moat remains research/stored-evaluation driven and should be treated as a placeholder for stats-only scoring. There is no stats-derived moat engine yet.
+- Upside blends analyst target upside, analyst rating, and forward outlook in the full evaluation path. Dashboard normalization uses analyst target upside and ratings, with no LLM outlook score.
+- Stored bull/bear probabilities are placeholders in the dashboard score table. They are not recomputed from stats during normalization.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
-- Dashboard row merging has a separate indicator fallback path for rows without stored evaluation. That fallback uses simpler linear maps over PE/FWD_PE, revenue growth, gross margin, and median upside, with a default moat of 5. It is not the full evaluation engine.
-
-These are not all bugs. Some are intentional simplifications from the migration period. But the next scoring enhancement should make the implementation explicit: either adopt the documented logistic anchor behavior or update this document to bless the Normal-CDF behavior.
+- Rows without stored evaluation and without enough derived stats now keep evaluation fields empty rather than inventing default fallback scores.
