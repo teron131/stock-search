@@ -734,13 +734,12 @@ export function usePortfolioData() {
 	);
 
 	const importFromImage = useCallback(
-		async ({ file, replace = true, strategy } = {}) => {
+		async ({ file, strategy } = {}) => {
 			if (isUsingDemoData) return { ok: false, reason: "demo" };
 			if (!(file instanceof File)) return { ok: false, reason: "invalid" };
 
 			const formData = new FormData();
 			formData.append("file", file);
-			formData.append("replace", String(Boolean(replace)));
 			if (strategy) {
 				formData.append("strategy", strategy);
 			}

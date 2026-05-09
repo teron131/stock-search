@@ -25,18 +25,6 @@ const PortfolioScopeSchema = z
 	.enum(["priority", "all_cached", "portfolio_live", "all"])
 	.catch("all");
 
-function parseBooleanFormValue(value: FormDataEntryValue | null): boolean {
-	const normalized =
-		typeof value === "string" ? value.trim().toLowerCase() : "";
-	return (
-		normalized === "" ||
-		normalized === "true" ||
-		normalized === "1" ||
-		normalized === "yes" ||
-		normalized === "on"
-	);
-}
-
 function parseOptionalFormText(
 	value: FormDataEntryValue | null,
 ): string | null {
@@ -92,7 +80,6 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 			return c.json(
 				await importPortfolioImage(store, {
 					file,
-					replace: parseBooleanFormValue(formData.get("replace")),
 					strategy: parseOptionalFormText(formData.get("strategy")),
 					model: parseOptionalFormText(formData.get("model")),
 				}),

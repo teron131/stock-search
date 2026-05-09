@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ChatOpenAI, MediaMessage } from "llm-harness-js/clients";
 import { z } from "zod";
-import { savePortfolioPositionsAndForgetRemoved } from "../portfolio.js";
 import { normalizeTicker } from "../utils.js";
 import type { BackendStore, PositionRow } from "./data-store.js";
 
@@ -24,10 +23,80 @@ const PortfolioImageExtractionSchema = z
 		"[STRUCTURED OUTPUTS] Portfolio holdings extracted from an uploaded image.",
 	);
 
+type PortfolioImageExtraction = z.infer<typeof PortfolioImageExtractionSchema>;
+type ImportedHolding = { ticker: string; quantity: number };
+
+type ImageImportOptions = {
+	file: File;
+	strategy: string | null;
+	model: string | null;
+};
+
+type ImageImportResult = {
+	status: string;
+	applied_count: number;
+	applied: ImportedHolding[];
+};
+
+function validatePortfolioImageFile(file: File): void {
+	if (!file.name) {
+		throw new Error("Image filename is required.");
+	}
+	if (file.type && !file.type.startsWith("image/")) {
+		throw new Error("Uploaded file must be an image.");
+	}
+	if (file.size <= 0) {
+		throw new Error("Uploaded image is empty.");
+	}
+}
+
+function mergeExtractedHoldings(
+	positions: PositionRow[],
+	holdings: PortfolioImageExtraction["holdings"],
+	strategy: string | null,
+): { positions: PositionRow[]; applied: ImportedHolding[] } {
+	const nextPositions = [...positions];
+	const positionIndex = new Map<string, number>();
+	for (const [index, position] of nextPositions.entries()) {
+		const ticker = normalizeTicker(position.ticker);
+		if (ticker) {
+			positionIndex.set(ticker, index);
+		}
+	}
+
+	const applied: ImportedHolding[] = [];
+	for (const holding of holdings) {
+		const ticker = normalizeTicker(holding.ticker);
+		const quantity = Number(holding.quantity);
+		if (!ticker || quantity <= 0) {
+			continue;
+		}
+
+		const existingIndex = positionIndex.get(ticker);
+		if (existingIndex !== undefined) {
+			nextPositions[existingIndex] = {
+				...nextPositions[existingIndex],
+				quantity,
+				...(strategy ? { strategy } : {}),
+			};
+		} else {
+			positionIndex.set(ticker, nextPositions.length);
+			nextPositions.push({
+				ticker,
+				quantity,
+				...(strategy ? { strategy } : {}),
+			});
+		}
+		applied.push({ ticker, quantity });
+	}
+
+	return { positions: nextPositions, applied };
+}
+
 async function extractPortfolioImage(
 	file: File,
 	modelOverride: string | null,
-): Promise<z.infer<typeof PortfolioImageExtractionSchema>> {
+): Promise<PortfolioImageExtraction> {
 	const model =
 		modelOverride || process.env.QUALITY_LLM || process.env.FAST_LLM;
 	if (!model) {
@@ -70,92 +139,24 @@ async function extractPortfolioImage(
 
 export async function importPortfolioImage(
 	store: BackendStore,
-	{
-		file,
-		replace,
-		strategy,
-		model,
-	}: {
-		file: File;
-		replace: boolean;
-		strategy: string | null;
-		model: string | null;
-	},
-): Promise<{
-	status: string;
-	applied_count: number;
-	applied: Array<{ ticker: string; quantity: number }>;
-	replace: boolean;
-}> {
-	if (!file.name) {
-		throw new Error("Image filename is required.");
-	}
-	if (file.type && !file.type.startsWith("image/")) {
-		throw new Error("Uploaded file must be an image.");
-	}
-	if (file.size <= 0) {
-		throw new Error("Uploaded image is empty.");
-	}
+	{ file, strategy, model }: ImageImportOptions,
+): Promise<ImageImportResult> {
+	validatePortfolioImageFile(file);
 
-	const previousPositionsPromise = store.loadPositions();
-	const positionsPromise: Promise<PositionRow[]> = replace
-		? Promise.resolve([])
-		: previousPositionsPromise;
-	const [extraction, positions, previousPositions] = await Promise.all([
+	const [extraction, positions] = await Promise.all([
 		extractPortfolioImage(file, model),
-		positionsPromise,
-		previousPositionsPromise,
+		store.loadPositions(),
 	]);
-	const previousTickers = previousPositions
-		.map((position) => normalizeTicker(position.ticker))
-		.filter(Boolean);
-	const positionIndex = new Map<string, number>();
-	for (const [index, position] of positions.entries()) {
-		const ticker = normalizeTicker(position.ticker);
-		if (ticker) {
-			positionIndex.set(ticker, index);
-		}
-	}
-
-	const applied: Array<{ ticker: string; quantity: number }> = [];
-	for (const holding of extraction.holdings) {
-		const ticker = normalizeTicker(holding.ticker);
-		const quantity = Number(holding.quantity);
-		if (!ticker || quantity <= 0) {
-			continue;
-		}
-
-		const payload: PositionRow = { ticker, quantity };
-		if (strategy) {
-			payload.strategy = strategy;
-		}
-
-		const existingIndex = positionIndex.get(ticker);
-		if (existingIndex !== undefined) {
-			const existing: PositionRow = {
-				...positions[existingIndex],
-				quantity,
-			};
-			if (strategy) {
-				existing.strategy = strategy;
-			}
-			positions[existingIndex] = existing;
-		} else {
-			positionIndex.set(ticker, positions.length);
-			positions.push(payload);
-		}
-		applied.push({ ticker, quantity });
-	}
-
-	await savePortfolioPositionsAndForgetRemoved(
-		store,
+	const merged = mergeExtractedHoldings(
 		positions,
-		previousTickers,
+		extraction.holdings,
+		strategy,
 	);
+
+	await store.savePositions(merged.positions);
 	return {
 		status: "ok",
-		applied_count: applied.length,
-		applied,
-		replace,
+		applied_count: merged.applied.length,
+		applied: merged.applied,
 	};
 }

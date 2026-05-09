@@ -143,21 +143,16 @@ async function importImageFile(file, importImageRef) {
 	setText("import-status", "IMPORTING...");
 	const res = await importImageRef.current?.({
 		file,
-		replace: true,
 	});
 	if (!res?.ok) {
 		showActionError(res?.reason, res?.detail);
 		setText("import-status", "IMPORT FAILED");
 		return;
 	}
-	const isReplace = Boolean(res?.payload?.replace);
 	const appliedCount = Number(res?.payload?.applied_count || 0);
 	if (appliedCount > 0) {
-		showToast(`IMPORTED ${appliedCount}`);
-		setText(
-			"import-status",
-			isReplace ? `REPLACED ${appliedCount}` : `IMPORTED ${appliedCount}`,
-		);
+		showToast(`UPDATED ${appliedCount}`);
+		setText("import-status", `UPDATED ${appliedCount}`);
 	} else {
 		showToast("NO HOLDINGS FOUND");
 		setText("import-status", "NO HOLDINGS");
