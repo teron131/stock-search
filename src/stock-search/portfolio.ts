@@ -63,6 +63,7 @@ type EtfRepresentativePosition = PositionRow & {
 const EVAL_KEYS = [
 	"overall_score",
 	"quality_score",
+	"llm_quality_score",
 	"valuation_score",
 	"moat_score",
 	"upside_score",
@@ -351,6 +352,7 @@ function indicatorEvalFallback(
 	return {
 		overall_score: Number(overall.toFixed(2)),
 		quality_score: Number(quality.toFixed(2)),
+		llm_quality_score: null,
 		valuation_score: Number(valuation.toFixed(2)),
 		moat_score: Number(moat.toFixed(2)),
 		upside_score: Number(upside.toFixed(2)),

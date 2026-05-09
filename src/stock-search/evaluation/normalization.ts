@@ -73,9 +73,8 @@ export function normalizeEvalJson(
 		),
 	);
 
-	return {
+	const normalized: Record<string, number> = {
 		overall_score: toFloat(data.overall_score, DEFAULT_SCORE),
-		quality_score: toFloat(data.quality_score, DEFAULT_SCORE),
 		moat_score: toFloat(data.moat_score, DEFAULT_SCORE),
 		valuation_score: toFloat(data.valuation_score, DEFAULT_SCORE),
 		upside_score: toFloat(data.upside_score, DEFAULT_SCORE),
@@ -84,6 +83,14 @@ export function normalizeEvalJson(
 		bear_probability: bearProbability,
 		flat_probability: toFloat(data.flat_probability, computedFlatProbability),
 	};
+	const llmQualityScore = roundScore(
+		scoreFromEvaluationField(data.llm_quality_score),
+	);
+	if (llmQualityScore != null) {
+		normalized.llm_quality_score = llmQualityScore;
+		normalized.quality_score = llmQualityScore;
+	}
+	return normalized;
 }
 
 /** Normalize evaluation while refreshing deterministic scores from current stats. */
@@ -95,17 +102,17 @@ export function normalizeEvalJsonForIndicators(
 	const indicatorRow = indicators ?? {};
 
 	const qualityScore = roundScore(calculateQualitySignalScore(indicatorRow));
-	if (qualityScore != null) {
-		const evaluationQualityScore = scoreFromEvaluationField(
-			data?.quality_score,
+	const llmQualityScore = roundScore(
+		scoreFromEvaluationField(data?.llm_quality_score),
+	);
+	if (llmQualityScore != null) {
+		normalized.llm_quality_score = llmQualityScore;
+	}
+	if (qualityScore != null || llmQualityScore != null) {
+		normalized.quality_score = Math.max(
+			qualityScore ?? Number.NEGATIVE_INFINITY,
+			llmQualityScore ?? Number.NEGATIVE_INFINITY,
 		);
-		normalized.quality_score =
-			evaluationQualityScore == null
-				? qualityScore
-				: Math.max(
-						roundScore(evaluationQualityScore) ?? qualityScore,
-						qualityScore,
-					);
 	}
 
 	const valuationScore = roundScore(calculateValuationScore(indicatorRow));
