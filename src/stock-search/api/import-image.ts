@@ -9,25 +9,16 @@ import type { BackendStore, PositionRow } from "./data-store.js";
 
 const PortfolioImageExtractionSchema = z
 	.object({
-		holdings: z
-			.array(
-				z
-					.object({
-						ticker: z
-							.string()
-							.describe("Uppercase stock ticker symbol read from the image."),
-						quantity: z
-							.number()
-							.describe(
-								"Numeric share quantity read from the same holding row.",
-							),
-					})
-					.describe("[STRUCTURED OUTPUTS] One extracted portfolio holding."),
-			)
-			.default([])
-			.describe(
-				"Readable portfolio holdings extracted from the image. Skip unreadable rows.",
-			),
+		holdings: z.array(
+			z.object({
+				ticker: z
+					.string()
+					.describe("Uppercase stock ticker symbol read from the image."),
+				quantity: z
+					.number()
+					.describe("Numeric share quantity read from the same holding row."),
+			}),
+		),
 	})
 	.describe(
 		"[STRUCTURED OUTPUTS] Portfolio holdings extracted from an uploaded image.",
