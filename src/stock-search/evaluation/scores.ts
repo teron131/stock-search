@@ -2,6 +2,7 @@
 
 import type { FutureOutlook } from "../models/schemas.js";
 import { asNumber } from "../utils.js";
+import { getScoreAnchors, type ScoreAnchorKey } from "./anchors.js";
 import {
 	CalibrationConfig,
 	CoreEngineWeights,
@@ -9,7 +10,6 @@ import {
 	EDGE_BASE,
 	EDGE_MULTIPLIER,
 	GameTierThresholds,
-	MarketCapConfig,
 	QualitySignalMultipliers,
 	SatelliteWeights,
 	SCORE_SCALE,
@@ -118,6 +118,10 @@ function valuationMultipleField(
 	return value == null ? null : value <= 0 ? weakAnchor : value;
 }
 
+function anchorRange(anchorKey: ScoreAnchorKey): [number, number, number] {
+	return getScoreAnchors()[anchorKey];
+}
+
 function weightedMeanStatScore(factors: WeightedFactorConfig[]): number | null {
 	const weightedScores: number[] = [];
 	const weights: number[] = [];
@@ -189,9 +193,9 @@ function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
 	if (
 		forwardPe != null &&
 		forwardPe > 0 &&
-		forwardPe <= CalibrationConfig.FORWARD_PE_RANGE[2] &&
+		forwardPe <= anchorRange("pe_forward")[2] &&
 		(debtToEquity == null ||
-			debtToEquity <= CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE[1]) &&
+			debtToEquity <= anchorRange("debt_to_equity")[1]) &&
 		freeCashFlowYield != null &&
 		freeCashFlowYield > 0
 	) {
@@ -217,9 +221,9 @@ export function marketCapScore(
 
 	return mapToCurveScore(
 		Math.log10(marketCap),
-		Math.log10(MarketCapConfig.MIN),
-		Math.log10(MarketCapConfig.MAX),
-		Math.log10(MarketCapConfig.MEDIAN),
+		Math.log10(anchorRange("market_cap")[0]),
+		Math.log10(anchorRange("market_cap")[2]),
+		Math.log10(anchorRange("market_cap")[1]),
 	);
 }
 
@@ -229,18 +233,14 @@ export function calculateValuationScore(
 ): number | null {
 	const rawScore = weightedMeanStatScore([
 		[
-			valuationMultipleField(indicator, "peg", CalibrationConfig.PEG_RANGE),
-			CalibrationConfig.PEG_RANGE,
+			valuationMultipleField(indicator, "peg", anchorRange("peg")),
+			anchorRange("peg"),
 			ValuationMultipliers.PEG,
 			true,
 		],
 		[
-			valuationMultipleField(
-				indicator,
-				"pe",
-				CalibrationConfig.TRAILING_PE_RANGE,
-			),
-			CalibrationConfig.TRAILING_PE_RANGE,
+			valuationMultipleField(indicator, "pe", anchorRange("pe")),
+			anchorRange("pe"),
 			ValuationMultipliers.PE,
 			true,
 		],
@@ -248,39 +248,39 @@ export function calculateValuationScore(
 			valuationMultipleField(
 				indicator,
 				"pe_forward",
-				CalibrationConfig.FORWARD_PE_RANGE,
+				anchorRange("pe_forward"),
 			),
-			CalibrationConfig.FORWARD_PE_RANGE,
+			anchorRange("pe_forward"),
 			ValuationMultipliers.PE_FORWARD,
 			true,
 		],
 		[
 			getNumberField(indicator, "debt_to_equity"),
-			CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
+			anchorRange("debt_to_equity"),
 			ValuationMultipliers.DEBT_TO_EQUITY,
 			true,
 		],
 		[
 			fcfYieldPercent(indicator),
-			CalibrationConfig.FCF_YIELD_PCT_RANGE,
+			anchorRange("fcf_yield"),
 			ValuationMultipliers.FCF_YIELD,
 			false,
 		],
 		[
 			getNumberField(indicator, "shareholder_yield"),
-			CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+			anchorRange("shareholder_yield"),
 			ValuationMultipliers.SHAREHOLDER_YIELD,
 			false,
 		],
 		[
 			getNumberField(indicator, "operating_margin"),
-			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
+			anchorRange("operating_margin"),
 			ValuationMultipliers.OPERATING_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "roic"),
-			CalibrationConfig.ROIC_PCT_RANGE,
+			anchorRange("roic"),
 			ValuationMultipliers.ROIC,
 			false,
 		],
@@ -296,31 +296,31 @@ export function calculateQualitySignalScore(
 	const factors: WeightedFactorConfig[] = [
 		[
 			getNumberField(indicator, "revenue_growth"),
-			CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
+			anchorRange("revenue_growth"),
 			QualitySignalMultipliers.REVENUE_GROWTH,
 			false,
 		],
 		[
 			getNumberField(indicator, "gross_margin"),
-			CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
+			anchorRange("gross_margin"),
 			QualitySignalMultipliers.GROSS_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "operating_margin"),
-			CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
+			anchorRange("operating_margin"),
 			QualitySignalMultipliers.OPERATING_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "roic"),
-			CalibrationConfig.ROIC_PCT_RANGE,
+			anchorRange("roic"),
 			QualitySignalMultipliers.ROIC,
 			false,
 		],
 		[
 			getNumberField(indicator, "shareholder_yield"),
-			CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+			anchorRange("shareholder_yield"),
 			QualitySignalMultipliers.SHAREHOLDER_YIELD,
 			false,
 		],
@@ -342,7 +342,7 @@ export function calculateCombinedUpsideScore(
 	ratings: Array<Record<string, unknown>> | null | undefined,
 	outlookScore: number | null,
 ): number | null {
-	const [rangeMin, rangeMedian, rangeMax] = CalibrationConfig.UPSIDE_RANGE;
+	const [rangeMin, rangeMedian, rangeMax] = anchorRange("median_upside");
 	const analystUpsideScore =
 		medianUpside == null
 			? null
