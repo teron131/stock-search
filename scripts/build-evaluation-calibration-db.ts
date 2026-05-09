@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { ExaLoadAgent } from "llm-harness-js/agents";
 
+import { fetchStockAnalysisStatistics } from "../src/stock-search/indicators.js";
 import { SQLiteStore } from "../src/stock-search/sqlite-store.js";
 import {
 	resolveTickerStats,
@@ -20,6 +21,8 @@ const SCORE_FIELD_NAMES = [
 	"peg",
 	"pe",
 	"pe_forward",
+	"ps",
+	"ps_forward",
 	"debt_to_equity",
 	"free_cash_flow",
 	"shareholder_yield",
@@ -39,6 +42,7 @@ type ScriptOptions = {
 	mode: StatsResolutionMode;
 	schemaOnly: boolean;
 	tickers: string[];
+	stockAnalysisPsOnly: boolean;
 };
 
 type TickerList = {
@@ -63,6 +67,7 @@ function parseArgs(argv: string[]): ScriptOptions {
 		mode: "auto",
 		schemaOnly: false,
 		tickers: [],
+		stockAnalysisPsOnly: false,
 	};
 
 	for (let index = 0; index < argv.length; index += 1) {
@@ -92,6 +97,10 @@ function parseArgs(argv: string[]): ScriptOptions {
 		}
 		if (arg === "--schema-only") {
 			options.schemaOnly = true;
+			continue;
+		}
+		if (arg === "--stockanalysis-ps-only") {
+			options.stockAnalysisPsOnly = true;
 			continue;
 		}
 		if (arg === "--mode" && next) {
@@ -328,6 +337,8 @@ function createCalibrationStatsTable(dbPath: string): {
 			peg REAL,
 			pe REAL,
 			pe_forward REAL,
+			ps REAL,
+			ps_forward REAL,
 			debt_to_equity REAL,
 			free_cash_flow REAL,
 			shareholder_yield REAL,
@@ -375,6 +386,8 @@ function createCalibrationStatsTable(dbPath: string): {
 			peg,
 			pe,
 			pe_forward,
+			ps,
+			ps_forward,
 			debt_to_equity,
 			free_cash_flow,
 			shareholder_yield,
@@ -391,7 +404,7 @@ function createCalibrationStatsTable(dbPath: string): {
 			statistics_fetched_at,
 			financials_fetched_at,
 			ratings_fetched_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`);
 	const fieldCounts = Object.fromEntries(
 		SCORE_FIELD_NAMES.map((fieldName) => [fieldName, 0]),
@@ -432,6 +445,8 @@ function createCalibrationStatsTable(dbPath: string): {
 				asNumber(indicators.peg),
 				asNumber(indicators.pe),
 				asNumber(indicators.pe_forward),
+				asNumber(indicators.ps),
+				asNumber(indicators.ps_forward),
 				asNumber(indicators.debt_to_equity),
 				asNumber(indicators.free_cash_flow),
 				asNumber(indicators.shareholder_yield),
@@ -475,8 +490,94 @@ function dropCalibrationAuxiliaryTables(dbPath: string): void {
 	database.close();
 }
 
+async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
+	const store = new SQLiteStore(options.dbPath);
+	const existingStocks = await store.loadStocks();
+	const existingTickers = Object.keys(existingStocks).sort();
+	const requestedTickers =
+		options.tickers.length > 0 ? options.tickers : existingTickers;
+	const candidateTickers =
+		options.limit == null
+			? requestedTickers
+			: requestedTickers.slice(0, options.limit);
+	const selectedTickers = options.missingOnly
+		? candidateTickers.filter(
+				(ticker) =>
+					existingStocks[ticker]?.indicators.ps == null ||
+					existingStocks[ticker]?.indicators.ps_forward == null,
+			)
+		: candidateTickers;
+
+	let completed = 0;
+	let updated = 0;
+	let missing = 0;
+	for (const batch of chunks(selectedTickers, options.batchSize)) {
+		await Promise.all(
+			batch.map(async (ticker) => {
+				const existing = existingStocks[ticker] ?? {
+					indicators: {},
+					evaluation: {},
+					labels: [],
+				};
+				const statistics = await fetchStockAnalysisStatistics(ticker);
+				const ps = asNumber(statistics.ps);
+				const psForward = asNumber(statistics.ps_forward);
+				completed += 1;
+				if (ps == null && psForward == null) {
+					missing += 1;
+					console.log(
+						`[${completed}/${selectedTickers.length}] ${ticker} no PS`,
+					);
+					return;
+				}
+				await store.upsertStocks([
+					{
+						ticker,
+						indicators: {
+							...existing.indicators,
+							ps: ps ?? existing.indicators.ps,
+							ps_forward: psForward ?? existing.indicators.ps_forward,
+						},
+						evaluation: existing.evaluation,
+						labels: existing.labels,
+					},
+				]);
+				updated += 1;
+				console.log(
+					`[${completed}/${selectedTickers.length}] ${ticker} PS ${ps ?? "-"} FPS ${psForward ?? "-"}`,
+				);
+			}),
+		);
+	}
+
+	const flatTable = createCalibrationStatsTable(options.dbPath);
+	dropCalibrationAuxiliaryTables(options.dbPath);
+	console.log(
+		JSON.stringify(
+			{
+				dbPath: options.dbPath,
+				mode: "stockanalysis-ps-only",
+				candidateCount: candidateTickers.length,
+				selectedCount: selectedTickers.length,
+				skippedCompleteCount: candidateTickers.length - selectedTickers.length,
+				updatedCount: updated,
+				missingCount: missing,
+				flatTable: "calibration_stats",
+				...flatTable,
+			},
+			null,
+			2,
+		),
+	);
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
+	if (options.stockAnalysisPsOnly) {
+		await backfillStockAnalysisPs(options);
+		return;
+	}
+
 	if (options.schemaOnly) {
 		const flatTable = createCalibrationStatsTable(options.dbPath);
 		dropCalibrationAuxiliaryTables(options.dbPath);

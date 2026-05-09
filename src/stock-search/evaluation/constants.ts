@@ -35,8 +35,10 @@ export const MarketCapConfig = {
 /** Calibration ranges for mapping various financial metrics to 0-10 scores. */
 export const CalibrationConfig = {
 	PEG_RANGE: [0.6, 2.0, 5.0],
-	TRAILING_PE_RANGE: [10.0, 30.0, 85.0],
-	FORWARD_PE_RANGE: [8.0, 28.0, 65.0],
+	PE_RANGE: [10.0, 30.0, 85.0],
+	PE_FORWARD_RANGE: [8.0, 28.0, 65.0],
+	PS_RANGE: [1.0, 6.0, 25.0],
+	PS_FORWARD_RANGE: [1.0, 5.0, 22.0],
 	GROWTH_RANGE: [0.1, 0.3, 0.5],
 	REVENUE_GROWTH_PCT_RANGE: [-15.0, 15.0, 70.0],
 	GROSS_MARGIN_PCT_RANGE: [10.0, 60.0, 90.0],
@@ -55,6 +57,8 @@ export const ValuationMultipliers = {
 	PEG: 2,
 	PE: 1,
 	PE_FORWARD: 0.75,
+	PS: 0.8,
+	PS_FORWARD: 0.6,
 	DEBT_TO_EQUITY: 0.5,
 	FCF_YIELD: 0.75,
 	SHAREHOLDER_YIELD: 0.5,

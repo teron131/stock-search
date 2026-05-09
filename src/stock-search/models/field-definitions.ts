@@ -184,6 +184,18 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"Price / forecast earnings per share. Lower can signal cheaper expected profits.",
 	},
+	ps: {
+		label: "Price / Sales",
+		shortLabel: "P/S",
+		description:
+			"Market cap / trailing revenue. Lower can be cheaper; high-growth firms often sustain higher multiples.",
+	},
+	ps_forward: {
+		label: "Forward Price / Sales",
+		shortLabel: "FPS",
+		description:
+			"Forward P/S or Forward Price / Sales ratio. Use only when explicitly displayed.",
+	},
 	peg: {
 		label: "P/E to Growth",
 		shortLabel: "PEG",
@@ -300,7 +312,15 @@ export const INDICATOR_FIELD_GROUPS = {
 	},
 	valuation: {
 		category: "fundamental",
-		fields: ["market_cap", "pe", "pe_forward", "peg", "beta"],
+		fields: [
+			"market_cap",
+			"pe",
+			"pe_forward",
+			"ps",
+			"ps_forward",
+			"peg",
+			"beta",
+		],
 	},
 	technicalSnapshot: {
 		category: "technical",

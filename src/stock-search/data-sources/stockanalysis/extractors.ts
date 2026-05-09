@@ -142,6 +142,10 @@ const StatisticsSchema = z
 		pe_forward: NullableNumber.optional().describe(
 			getFieldDescription("pe_forward"),
 		),
+		ps: NullableNumber.optional().describe(getFieldDescription("ps")),
+		ps_forward: NullableNumber.optional().describe(
+			getFieldDescription("ps_forward"),
+		),
 		peg: NullableNumber.optional().describe(getFieldDescription("peg")),
 		roic: NullableNumber.optional().describe(getFieldDescription("roic")),
 		gross_margin: NullableNumber.optional().describe(
@@ -690,7 +694,8 @@ export async function loadStatisticsSnapshot(
 			`Extract the StockAnalysis statistics schema for ${tickerLower.toUpperCase()}.`,
 			`Source URL: ${url}`,
 			"Use market_cap and free_cash_flow as absolute dollar values.",
-			"Use pe, pe_forward, peg, beta, roic, debt_to_equity, and debt_to_ebitda as displayed numeric ratios.",
+			"Use pe, pe_forward, ps, peg, beta, roic, debt_to_equity, and debt_to_ebitda as displayed numeric ratios.",
+			"Use ps_forward only for an explicitly displayed Forward P/S or Forward Price/Sales ratio; otherwise return null.",
 			"Use gross_margin, operating_margin, shareholder_yield, rsi, median_upside, and price-change fields as 0-100 numeric values.",
 			"If analyst consensus and price-target fields are visible, return one ratings row with firm 'Consensus'.",
 		].join("\n"),

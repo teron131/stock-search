@@ -11,6 +11,7 @@ import {
 
 const POSITIVE_PERCENTILES = [0.1, 0.5, 0.97] as const;
 const INVERSE_PERCENTILES = [0.03, 0.5, 0.9] as const;
+const MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE = 50;
 const DEFAULT_CALIBRATION_DB_PATH = path.resolve(
 	"data/evaluation_calibration.db",
 );
@@ -20,6 +21,8 @@ export type ScoreAnchorKey =
 	| "peg"
 	| "pe"
 	| "pe_forward"
+	| "ps"
+	| "ps_forward"
 	| "debt_to_equity"
 	| "fcf_yield"
 	| "shareholder_yield"
@@ -38,8 +41,10 @@ export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 		MarketCapConfig.MAX,
 	],
 	peg: CalibrationConfig.PEG_RANGE,
-	pe: CalibrationConfig.TRAILING_PE_RANGE,
-	pe_forward: CalibrationConfig.FORWARD_PE_RANGE,
+	pe: CalibrationConfig.PE_RANGE,
+	pe_forward: CalibrationConfig.PE_FORWARD_RANGE,
+	ps: CalibrationConfig.PS_RANGE,
+	ps_forward: CalibrationConfig.PS_FORWARD_RANGE,
 	debt_to_equity: CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
 	fcf_yield: CalibrationConfig.FCF_YIELD_PCT_RANGE,
 	shareholder_yield: CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
@@ -55,6 +60,8 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	peg: "inverse",
 	pe: "inverse",
 	pe_forward: "inverse",
+	ps: "inverse",
+	ps_forward: "inverse",
 	debt_to_equity: "inverse",
 	fcf_yield: "positive",
 	shareholder_yield: "positive",
@@ -136,6 +143,9 @@ function dynamicAnchor(
 	}
 	try {
 		const values = calibrationValues(database, anchorKey);
+		if (values.length < MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE) {
+			return fallback;
+		}
 		const percentileSet =
 			ANCHOR_DIRECTIONS[anchorKey] === "inverse"
 				? INVERSE_PERCENTILES
@@ -162,6 +172,8 @@ function loadDynamicAnchors(): ScoreAnchors {
 			peg: dynamicAnchor(database, "peg"),
 			pe: dynamicAnchor(database, "pe"),
 			pe_forward: dynamicAnchor(database, "pe_forward"),
+			ps: dynamicAnchor(database, "ps"),
+			ps_forward: dynamicAnchor(database, "ps_forward"),
 			debt_to_equity: dynamicAnchor(database, "debt_to_equity"),
 			fcf_yield: dynamicAnchor(database, "fcf_yield"),
 			shareholder_yield: dynamicAnchor(database, "shareholder_yield"),

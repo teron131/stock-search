@@ -255,6 +255,22 @@ export function calculateValuationScore(
 			true,
 		],
 		[
+			valuationMultipleField(indicator, "ps", anchorRange("ps")),
+			anchorRange("ps"),
+			ValuationMultipliers.PS,
+			true,
+		],
+		[
+			valuationMultipleField(
+				indicator,
+				"ps_forward",
+				anchorRange("ps_forward"),
+			),
+			anchorRange("ps_forward"),
+			ValuationMultipliers.PS_FORWARD,
+			true,
+		],
+		[
 			getNumberField(indicator, "debt_to_equity"),
 			anchorRange("debt_to_equity"),
 			ValuationMultipliers.DEBT_TO_EQUITY,

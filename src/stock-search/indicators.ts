@@ -28,6 +28,8 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 	"fx",
 	"pe",
 	"pe_forward",
+	"ps",
+	"ps_forward",
 	"peg",
 	"beta",
 	"roic",
