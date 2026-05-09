@@ -24,6 +24,7 @@
 		"server:dev": "tsx watch src/node.ts",
 		"preserver:start": "pnpm run llm-harness:build",
 		"server:start": "tsx src/node.ts",
+		"calibration:build": "tsx scripts/build-evaluation-calibration-db.ts",
 		"premcp:start": "pnpm run llm-harness:build",
 		"mcp:start": "tsx src/stock-search/mcp/main.ts",
 		"precli": "pnpm run llm-harness:build",
