@@ -67,9 +67,6 @@ const EVAL_KEYS = [
 	"moat_score",
 	"upside_score",
 	"market_cap_score",
-	"bull_probability",
-	"bear_probability",
-	"flat_probability",
 ] as const;
 const STAT_DERIVED_EVAL_KEYS = new Set<(typeof EVAL_KEYS)[number]>([
 	"overall_score",
@@ -986,10 +983,6 @@ export function mergePortfolioRow(
 			evaluation,
 			normalizedEvaluation,
 			key: field,
-			aliases:
-				field === "flat_probability"
-					? ["bull_probability", "bear_probability"]
-					: [],
 		});
 		selectedEvaluation[field] = value;
 		if (value != null) {

@@ -72,5 +72,5 @@ ${MOAT_DEFINITION}
 ${QUALITY_DEFINITION}`;
 
 export const FUTURE_OUTLOOK_DEFINITION = `Future outlook (0-10): based on foreseeable company guidance and credible near-term signals.
-Score how strong the forward setup looks over ~12 months. Estimate bull/bear probabilities (0-1) for up/down in 12 months.
+Score how strong the forward setup looks over ~12 months.
 Reason should be a short bullet list.`;

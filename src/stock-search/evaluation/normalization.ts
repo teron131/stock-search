@@ -2,13 +2,7 @@
 
 import { toFloat } from "../common-utils.js";
 import type { Evaluation, ScoredReason } from "../models/schemas.js";
-import {
-	DEFAULT_BEAR_PROBABILITY,
-	DEFAULT_BULL_PROBABILITY,
-	DEFAULT_SCORE,
-	ROUND_PROBABILITY_DIGITS,
-	SCORE_SCALE,
-} from "./constants.js";
+import { DEFAULT_SCORE } from "./constants.js";
 import {
 	calculateCombinedUpsideScore,
 	calculateQualitySignalScore,
@@ -58,21 +52,6 @@ export function normalizeEvalJson(
 		return {};
 	}
 
-	const bullProbability = toFloat(
-		data.bull_probability,
-		DEFAULT_BULL_PROBABILITY,
-	);
-	const bearProbability = toFloat(
-		data.bear_probability,
-		DEFAULT_BEAR_PROBABILITY,
-	);
-	const computedFlatProbability = Math.max(
-		0,
-		Number(
-			(1 - bullProbability - bearProbability).toFixed(ROUND_PROBABILITY_DIGITS),
-		),
-	);
-
 	const normalized: Record<string, number> = {
 		overall_score: toFloat(data.overall_score, DEFAULT_SCORE),
 		moat_score: toFloat(data.moat_score, DEFAULT_SCORE),
@@ -80,9 +59,6 @@ export function normalizeEvalJson(
 		valuation_score: toFloat(data.valuation_score, DEFAULT_SCORE),
 		upside_score: toFloat(data.upside_score, DEFAULT_SCORE),
 		market_cap_score: toFloat(data.market_cap_score, DEFAULT_SCORE),
-		bull_probability: bullProbability,
-		bear_probability: bearProbability,
-		flat_probability: toFloat(data.flat_probability, computedFlatProbability),
 	};
 	const llmQualityScore = roundScore(
 		scoreFromEvaluationField(data.llm_quality_score),
@@ -176,9 +152,6 @@ export function evalFromJson(
 		market_cap_score: normalized.market_cap_score,
 		valuation_score: normalized.valuation_score,
 		upside_score: normalized.upside_score,
-		bull_probability: normalized.bull_probability,
-		bear_probability: normalized.bear_probability,
-		flat_probability: normalized.flat_probability,
 		moat_score: {
 			score: normalized.moat_score,
 			reasons: emptyReasons,
@@ -221,14 +194,7 @@ export function bucketFromEvalJson(
 		size_score: normalized.market_cap_score,
 	};
 
-	const bull = normalized.bull_probability;
-	const bear = normalized.bear_probability;
-	const edge =
-		bull != null && bear != null
-			? bull * SCORE_SCALE - bear * SCORE_SCALE
-			: null;
-
-	return strategyLabel(calculateStrategyIndices(scores, edge));
+	return strategyLabel(calculateStrategyIndices(scores));
 }
 
 // Backward-compatible aliases for the rest of the TS app.

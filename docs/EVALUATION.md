@@ -1,6 +1,6 @@
 ## Evaluation Framework v4 — Current Normal-CDF Scorecard
 
-This framework turns messy investing judgments into a **consistent scorecard**: core fundamentals (moat/quality/valuation/upside/size), **game-like directional odds** (bull/bear), and **roles** (core/satellite/speculative/diversifier) that are assigned **after** scoring.
+This framework turns messy investing judgments into a **consistent scorecard**: core fundamentals (moat/quality/valuation/upside/size) and **roles** (core/satellite/speculative/diversifier) that are assigned **after** scoring.
 
 The current TypeScript implementation maps numeric stats through a **three-anchor Normal-CDF curve**. Anchors define the low, median, and high points for a metric; the median maps to a neutral `5.0`, and the curve saturates toward `0` or `10` near the outer anchors.
 
@@ -41,25 +41,12 @@ For each asset:
 - **Upside**: payoff size if the thesis plays out
 - **Size**: market-cap scale (robustness proxy)
 
-### B) Directional odds (game-like)
-
-- **Bull score (0–10)** ≈ pseudo-probability of being **up** in 12 months
-- **Bear score (0–10)** ≈ pseudo-probability of being **down** in 12 months
-- **Flat probability** is implicit
-
-Derived:
-
-- **Edge** = Bull − Bear
-- **Confidence** = |Bull − Bear|
-
-### C) Ranking + roles
+### B) Ranking + roles
 
 - **Overall score** = average of (Moat, Quality, Valuation, Upside)
 - Dashboard Overall is only recomputed when all four inputs are available after deterministic stat refresh.
 - **Role indices**: Core / Satellite / Speculative / Diversifier
 - **Label** = argmax(role indices)
-- **FOMO flag** (overlay)
-- Optional **Elo-style normalization** (additive rating deltas)
 
 ---
 
@@ -182,14 +169,6 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 
 - **Rating**: 1.0 / 3.5 / 5.0
 
-## 5.6 Game-probability anchors (market direction)
-
-These are intentionally tight because markets are noisy.
-
-- **Probability**: 0.35 / 0.55 / 0.75
-
----
-
 # 6) Current anchor preset
 
 | Metric          |  Low | Median (good) |      High |
@@ -208,7 +187,6 @@ These are intentionally tight because markets are noisy.
 | Shareholder yield | -5 |             3 |        10 |
 | ROIC            |    0 |            25 |        80 |
 | Target upside   |  -25 |            15 |        60 |
-| Probability     | 0.35 |          0.55 |      0.75 |
 | Rating (1–5)    |  1.0 |    3.5 |       5.0 |
 
 ---
@@ -309,60 +287,29 @@ Size maps market cap on a log-like perception scale (because $4T is not “4×�
 
 ---
 
-# 8) Bull/Bear pseudo-probabilities (12-month win-rate)
-
-Bull and Bear are produced from two sources:
-
-- **Market behavior signal** (momentum-like input normalized to a 0–1 probability proxy)
-- **Forward outlook bull/bear probabilities** (subjective/LLM or structured; placeholder for stats-only dashboard scoring)
-
-Then mapped using the **Probability anchors**.
-
-Dashboard rows currently display stored bull/bear probabilities when present. They are not recomputed from stats during dashboard normalization.
-
-Convert:
-
-- p_up = Bull/10
-- p_down = Bear/10
-- p_flat = max(0, 1 − p_up − p_down)
-
-### Game tiers (for Bull score)
-
-- **5.5–5.8**: already high edge
-- **5.9–6.2**: very high
-- **6.3–6.7**: smurfing
-- **6.8+**: rare / dislocation-level
-
----
-
-# 9) Overall ranking metric
+# 8) Overall ranking metric
 
 Overall = (Moat + Quality + Valuation + Upside) / 4
 
-Size and Bull/Bear are intentionally excluded from Overall to avoid mixing “intrinsic strength” with “timing” and “scale”.
+Size is intentionally excluded from Overall to avoid mixing “intrinsic strength” with “scale”.
 
 Stats improve the four underlying scores rather than becoming a separate top-rank penalty system. If a name has extreme upside but poor ROIC, operating margin, dilution, or free-cash-flow yield, those facts should lower Quality and/or Valuation directly. The role system can still label it speculative, but the raw fundamental inputs should already reflect the weaker evidence.
 
 ---
 
-# 10) Labels come after scores (role indices)
+# 9) Labels come after scores (role indices)
 
 Roles are not opinions. They are derived mechanically from scores.
 
-First compute:
-
-- Edge = Bull − Bear
-- EdgeComp = 5 + 0.5·Edge (a 0–10-ish tilt term)
-
-Then compute indices:
+Compute indices:
 
 ### Core index (durability + scale + reasonable price)
 
-CoreIndex = 0.35·Moat + 0.35·Quality + 0.15·Valuation + 0.10·Size + 0.05·EdgeComp
+CoreIndex = 0.35·Moat + 0.35·Quality + 0.10·Valuation + 0.20·Size
 
 ### Satellite index (theme + upside, still quality-aware)
 
-SatelliteIndex = 0.30·Moat + 0.25·Quality + 0.10·Valuation + 0.25·Upside + 0.10·EdgeComp
+SatelliteIndex = 0.30·Moat + 0.25·Quality + 0.20·Valuation + 0.25·Upside
 
 ### Speculative index (convexity + fragility)
 
@@ -380,34 +327,6 @@ Label = argmax(CoreIndex, SatelliteIndex, SpecIndex, DivIndex)
 
 ---
 
-# 11) FOMO flag (overlay)
-
-A behavior-risk overlay triggers when:
-
-- Valuation ≤ 3.0
-- Upside ≥ 8.0
-- Bull ≤ 5.8
-
-Interpretation: compelling story + expensive pricing + odds not exceptional.
-
----
-
-# 12) Optional Elo-style normalization (additive comparison)
-
-For a probability p:
-
-ΔElo = 400 · log10(p/(1−p))
-
-Variants:
-
-- **Classic**: p = p_up
-- **Directional**: p = p_up vs p_down → 400·log10(p_up/p_down)
-- **Draw-aware**: expected score S = p_up + 0.5·p_flat, then ΔElo(S)
-
-This turns “slight win-rate edges” into a clean additive scale.
-
----
-
 ## Practical anchor philosophy
 
 Anchors are not “statistics.” Anchors are **definitions**:
@@ -416,25 +335,23 @@ Anchors are not “statistics.” Anchors are **definitions**:
 - extremes are what “notable” means
 - the Normal-CDF mapping ensures robustness and saturation with a simple curve
 
-That makes the framework stable, interpretable, and aligned with a game-like view where **small edges matter and giant edges are rare**.
+That makes the framework stable, interpretable, and anchored to explicit definitions instead of over-precise directional odds.
 
 ---
 
-# 13) Implementation notes
+# 10) Implementation notes
 
 This document follows the current TypeScript implementation.
 
 ## Current behavior
 
 - Overall is computed as the average of Moat, Quality, Valuation, and Upside.
-- Size and Bull/Bear are excluded from Overall.
+- Size is excluded from Overall.
 - Role indices are computed after scoring from Core / Satellite / Speculative / Diversifier formulas.
-- Core and Satellite include EdgeComp; Speculative and Diversifier do not.
 - Dashboard normalization recomputes deterministic quality, valuation, upside, and size from current stats when possible.
 - Stored LLM quality is retained as `llm_quality_score` only. Displayed `quality_score` is market-stat-derived when enough quality stats exist.
 - Stored/default valuation, upside, market-cap score, and overall values are not used as dashboard fallbacks when current stats cannot derive them.
 - Moat remains research/stored-evaluation driven and should be treated as a placeholder for stats-only scoring. There is no stats-derived moat engine yet.
 - Upside blends analyst target upside, analyst rating, and forward outlook in the full evaluation path. Dashboard normalization uses analyst target upside and ratings, with no LLM outlook score.
-- Stored bull/bear probabilities are placeholders in the dashboard score table. They are not recomputed from stats during normalization.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
 - Rows without stored evaluation and without enough derived stats now keep evaluation fields empty rather than inventing default fallback scores.

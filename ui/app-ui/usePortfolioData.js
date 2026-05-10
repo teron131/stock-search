@@ -12,9 +12,6 @@ const EVAL_KEYS = [
 	"moat_score",
 	"upside_score",
 	"market_cap_score",
-	"bull_probability",
-	"bear_probability",
-	"flat_probability",
 	"rank",
 ];
 

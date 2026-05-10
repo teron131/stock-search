@@ -426,9 +426,7 @@ function renderCell({
 	const colorKey = col.key;
 	const isColorizable =
 		!PLAIN_ALLOCATION_COLUMNS.has(colorKey) &&
-		(["score", "prob", "percent_neutral", "number", "market_cap"].includes(
-			format,
-		) ||
+		(["score", "percent_neutral", "number", "market_cap"].includes(format) ||
 			["rank", "rsi", "market_cap"].includes(colorKey));
 
 	if (isColorizable && colorMeta?.[colorKey]) {

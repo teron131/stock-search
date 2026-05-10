@@ -30,23 +30,11 @@ export type FieldMetadata = {
 };
 
 export const FIELD_METADATA: Record<string, FieldMetadata> = {
-	bear_probability: {
-		label: "Bear Probability",
-		shortLabel: "BEAR",
-		description:
-			"0-100% odds of the downside case. 0 is unlikely; 100 is very likely.",
-	},
 	beta: {
 		label: "Beta (5Y)",
 		shortLabel: "BETA",
 		description:
 			"Five-year volatility vs market: 1 = market-like, >1 more volatile, <1 more defensive.",
-	},
-	bull_probability: {
-		label: "Bull Probability",
-		shortLabel: "BULL",
-		description:
-			"0-100% odds of the upside case. 0 is unlikely; 100 is very likely.",
 	},
 	change: {
 		label: "Price Change",
@@ -99,12 +87,6 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		shortLabel: "D/E",
 		description:
 			"Debt / shareholder equity. 0 is ungeared; higher means more leverage.",
-	},
-	flat_probability: {
-		label: "Flat Probability",
-		shortLabel: "FLAT",
-		description:
-			"0-100% odds of a sideways case. Higher means neither bull nor bear dominates.",
 	},
 	free_cash_flow: {
 		label: "Free Cash Flow",
@@ -385,7 +367,6 @@ export const EVAL_FIELD_GROUPS = {
 		"upside_score",
 		"market_cap_score",
 	],
-	probabilities: ["bull_probability", "bear_probability", "flat_probability"],
 } as const satisfies Record<string, readonly string[]>;
 
 export const EVAL_FIELD_DEFINITIONS: readonly EvalFieldDefinition[] =

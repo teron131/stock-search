@@ -229,30 +229,14 @@ export const ResearchEvaluationSchema = z
 	})
 	.describe("Research-backed qualitative evaluation fields.");
 
-export const FutureOutlookSchema = ScoredReasonSchema.extend({
-	bull_probability: z
-		.number()
-		.nullable()
-		.optional()
-		.describe(getFieldDescription("bull_probability")),
-	bear_probability: z
-		.number()
-		.nullable()
-		.optional()
-		.describe(getFieldDescription("bear_probability")),
-}).describe("Forward-looking score and outcome probabilities.");
+export const FutureOutlookSchema = ScoredReasonSchema.describe(
+	"Forward-looking upside score with supporting reasons.",
+);
 
 export const EvaluationSchema = MetricsEvaluationSchema.merge(
 	ResearchEvaluationSchema,
 )
 	.merge(FutureOutlookSchema)
-	.extend({
-		flat_probability: z
-			.number()
-			.nullable()
-			.optional()
-			.describe(getFieldDescription("flat_probability")),
-	})
 	.describe("Complete ticker evaluation payload.");
 
 export const TickerLabelsSchema = z

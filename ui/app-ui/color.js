@@ -3,7 +3,6 @@ import { parseMarketCap } from "./format.js";
 const BACKEND_MEDIAN_SCORE = 5.0;
 const TARGET_FORMATS = new Set([
 	"score",
-	"prob",
 	"percent_neutral",
 	"number",
 	"market_cap",
@@ -11,7 +10,6 @@ const TARGET_FORMATS = new Set([
 const TARGET_KEYS = new Set(["rank", "rsi", "market_cap"]);
 const INVERT_KEYS = new Set([
 	"rank",
-	"bear_probability",
 	"pe",
 	"pe_forward",
 	"peg",

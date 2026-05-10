@@ -43,20 +43,7 @@ function normalizeObject(value: unknown): GenericRow {
 }
 
 function normalizeEvaluation(value: unknown): GenericRow {
-	const evaluation = { ...normalizeObject(value) };
-	const bullProbability = Number(evaluation.bull_probability);
-	const bearProbability = Number(evaluation.bear_probability);
-	if (
-		evaluation.flat_probability === undefined &&
-		Number.isFinite(bullProbability) &&
-		Number.isFinite(bearProbability)
-	) {
-		evaluation.flat_probability = Math.max(
-			0,
-			Number((1 - bullProbability - bearProbability).toFixed(4)),
-		);
-	}
-	return evaluation;
+	return { ...normalizeObject(value) };
 }
 
 function normalizeEtfHoldings(value: unknown): GenericRow[] {

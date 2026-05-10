@@ -6,23 +6,15 @@ export const TRILLION = 1e12;
 export type MinMedMax = [number, number, number];
 
 export const DEFAULT_SCORE = 5;
-export const DEFAULT_BULL_PROBABILITY = 0.5;
-export const DEFAULT_BEAR_PROBABILITY = 0.2;
 
 export const SCORE_SCALE = 10;
-export const ROUND_PROBABILITY_DIGITS = 4;
 export const QUALITY_RESEARCH_WEIGHT = 0.7;
 export const QUALITY_SIGNAL_WEIGHT = 0.3;
-export const ELO_K_FACTOR = 400;
-export const EXPECTED_DRAW_WEIGHT = 0.5;
-export const EDGE_BASE = 5;
-export const EDGE_MULTIPLIER = 0.5;
 
 export type StrategyBucket = {
 	scoreKeys: [string, string, string, string];
 	weights: [number, number, number, number];
 	invertFlags: [boolean, boolean, boolean, boolean];
-	edgeWeight: number;
 };
 
 /** Configuration for mapping market capitalization values (Log-S-curve). */
@@ -48,7 +40,6 @@ export const CalibrationConfig = {
 	FCF_YIELD_PCT_RANGE: [-5.0, 4.0, 12.0],
 	SHAREHOLDER_YIELD_PCT_RANGE: [-5.0, 3.0, 10.0],
 	UPSIDE_RANGE: [-25.0, 15.0, 60.0],
-	PROBABILITY_RANGE: [0.35, 0.55, 0.75],
 	RATING_RANGE: [1.0, 3.5, 5.0],
 } as const satisfies Record<string, MinMedMax>;
 
@@ -79,9 +70,8 @@ export const QualitySignalMultipliers = {
 export const CoreEngineWeights = {
 	MOAT: 0.35,
 	QUALITY: 0.35,
-	VALUATION: 0.15,
-	SIZE: 0.1,
-	EDGE: 0.05,
+	VALUATION: 0.1,
+	SIZE: 0.2,
 } as const;
 
 /** Strategy weights for 'Satellite' portfolio bucket (Growth & Upside focused). */
@@ -89,8 +79,7 @@ export const SatelliteWeights = {
 	MOAT: 0.3,
 	QUALITY: 0.25,
 	UPSIDE: 0.25,
-	VALUATION: 0.1,
-	EDGE: 0.1,
+	VALUATION: 0.2,
 } as const;
 
 /** Strategy weights for 'Speculative' portfolio bucket (High upside, lower core). */
@@ -112,21 +101,5 @@ export const DiversifierWeights = {
 /** Various thresholds and parameters for signal detection and LLM behavior. */
 export const ThresholdConfig = {
 	UPSIDE_MAX_PCT: 50,
-	FOMO_VALUATION: 3,
-	FOMO_UPSIDE: 8,
-	FOMO_BULL: 5.8,
 	WEB_SEARCH_MAX_RESULTS: 5,
-	DIRECTION_CHANGE_DIVISOR: 10,
-	DIRECTION_BASE_SCORE: 5,
-} as const;
-
-/** Thresholds for categorizing the 'Edge' level (conviction) of a setup. */
-export const GameTierThresholds = {
-	RARE_DISLOCATION: 6.8,
-	SMURFING_MIN: 6.3,
-	SMURFING_MAX: 6.7,
-	VERY_HIGH_MIN: 5.9,
-	VERY_HIGH_MAX: 6.2,
-	HIGH_EDGE_MIN: 5.5,
-	HIGH_EDGE_MAX: 5.8,
 } as const;

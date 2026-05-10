@@ -105,7 +105,6 @@ const WIDTH_GROUPS = {
 	marketNumber: "market-number",
 	fundamentalPercent: "fundamental-percent",
 	evaluationScore: "evaluation-score",
-	evaluationProbability: "evaluation-probability",
 	holdingStrategy: "holding-strategy",
 	holdingCurrency: "holding-currency",
 	holdingPercent: "holding-percent",
@@ -131,10 +130,6 @@ export const WIDTH_GROUP_OPTIONS = {
 		extraPx: 2,
 	},
 	[WIDTH_GROUPS.evaluationScore]: {
-		paddingChars: 0,
-		extraPx: 2,
-	},
-	[WIDTH_GROUPS.evaluationProbability]: {
 		paddingChars: 0,
 		extraPx: 2,
 	},
@@ -351,27 +346,6 @@ const EVALUATION_COLUMNS = [
 		"SIZE",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
-	),
-	createGroupedColumn(
-		"bull_probability",
-		"BULL",
-		"prob",
-		WIDTH_GROUPS.evaluationProbability,
-		{ cluster: HOLDINGS_TAIL_CLUSTER },
-	),
-	createGroupedColumn(
-		"bear_probability",
-		"BEAR",
-		"prob",
-		WIDTH_GROUPS.evaluationProbability,
-		{ cluster: HOLDINGS_TAIL_CLUSTER },
-	),
-	createGroupedColumn(
-		"flat_probability",
-		"FLAT",
-		"prob",
-		WIDTH_GROUPS.evaluationProbability,
-		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
 ];
 

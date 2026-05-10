@@ -1,21 +1,16 @@
 /** Compute normalized factor scores from stock indicators. */
 
-import type { FutureOutlook } from "../models/schemas.js";
 import { asNumber } from "../utils.js";
 import { getScoreAnchors, type ScoreAnchorKey } from "./anchors.js";
 import {
 	CalibrationConfig,
 	CoreEngineWeights,
 	DiversifierWeights,
-	EDGE_BASE,
-	EDGE_MULTIPLIER,
-	GameTierThresholds,
 	QualitySignalMultipliers,
 	SatelliteWeights,
 	SCORE_SCALE,
 	SpeculativeWeights,
 	type StrategyBucket,
-	ThresholdConfig,
 	ValuationMultipliers,
 } from "./constants.js";
 import { clampScore, mapToCurveScore } from "./math-utils.js";
@@ -28,14 +23,6 @@ type WeightedFactorConfig = [
 ];
 type IndicatorLike = Record<string, unknown>;
 
-const MOMENTUM_INPUTS = [
-	"change_percent_1d",
-	"change_percent_1m",
-	"change_percent_3m",
-	"change_percent_6m",
-	"change_percent_1y",
-] as const;
-
 const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 	core: {
 		scoreKeys: ["moat_score", "quality_score", "valuation_score", "size_score"],
@@ -46,7 +33,6 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 			CoreEngineWeights.SIZE,
 		],
 		invertFlags: [false, false, false, false],
-		edgeWeight: CoreEngineWeights.EDGE,
 	},
 	satellite: {
 		scoreKeys: [
@@ -62,7 +48,6 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 			SatelliteWeights.UPSIDE,
 		],
 		invertFlags: [false, false, false, false],
-		edgeWeight: SatelliteWeights.EDGE,
 	},
 	speculative: {
 		scoreKeys: [
@@ -78,7 +63,6 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 			SpeculativeWeights.VALUATION,
 		],
 		invertFlags: [false, true, true, true],
-		edgeWeight: 0,
 	},
 	diversifier: {
 		scoreKeys: [
@@ -94,7 +78,6 @@ const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 			DiversifierWeights.UPSIDE,
 		],
 		invertFlags: [false, false, false, true],
-		edgeWeight: 0,
 	},
 };
 
@@ -434,88 +417,15 @@ function parseRatingGrade(text: string): number | null {
 	return null;
 }
 
-function probabilityToScore(value: number | null): number | null {
-	if (value == null) {
-		return null;
-	}
-	const [rangeMin, rangeMedian, rangeMax] = CalibrationConfig.PROBABILITY_RANGE;
-	return mapToCurveScore(value, rangeMin, rangeMax, rangeMedian);
-}
-
-/** Derive calibrated bull/bear scores from LLM and/or historical momentum. */
-export function modelProbabilities(
-	indicator: IndicatorLike,
-	outlook: FutureOutlook | null | undefined,
-): [number | null, number | null] {
-	const [bullMomentumScore, bearMomentumScore] =
-		calculateHistoricalMomentumScores(indicator);
-	const bullMomentumProbability = probabilityToScore(
-		bullMomentumScore == null ? null : bullMomentumScore / SCORE_SCALE,
-	);
-	const bearMomentumProbability = probabilityToScore(
-		bearMomentumScore == null ? null : bearMomentumScore / SCORE_SCALE,
-	);
-
-	let bullLlmProbability: number | null = null;
-	let bearLlmProbability: number | null = null;
-	if (outlook?.bull_probability != null && outlook.bear_probability != null) {
-		bullLlmProbability = probabilityToScore(outlook.bull_probability);
-		bearLlmProbability = probabilityToScore(outlook.bear_probability);
-	}
-
-	if (bullLlmProbability == null || bearLlmProbability == null) {
-		return [bullMomentumProbability, bearMomentumProbability];
-	}
-	if (bullMomentumProbability == null || bearMomentumProbability == null) {
-		return [bullLlmProbability, bearLlmProbability];
-	}
-	return [
-		(bullLlmProbability + bullMomentumProbability) / 2,
-		(bearLlmProbability + bearMomentumProbability) / 2,
-	];
-}
-
-/** Average recent price changes into a 0-10 momentum score. */
-export function calculateHistoricalMomentumScores(
-	indicator: IndicatorLike,
-): [number | null, number | null] {
-	const validChanges = MOMENTUM_INPUTS.map((fieldName) =>
-		getNumberField(indicator, fieldName),
-	).filter((value): value is number => value != null);
-
-	if (validChanges.length === 0) {
-		return [null, null];
-	}
-
-	const averageChange =
-		validChanges.reduce((sum, value) => sum + value, 0) / validChanges.length;
-	return [
-		clampScore(
-			ThresholdConfig.DIRECTION_BASE_SCORE +
-				averageChange / ThresholdConfig.DIRECTION_CHANGE_DIVISOR,
-		),
-		clampScore(
-			ThresholdConfig.DIRECTION_BASE_SCORE -
-				averageChange / ThresholdConfig.DIRECTION_CHANGE_DIVISOR,
-		),
-	];
-}
-
 /** Apply strategy weights to core scores to find suitable portfolio buckets. */
 export function calculateStrategyIndices(
 	scores: Record<string, number | null | undefined>,
-	edge: number | null,
 ): Record<string, number | null> {
-	const edgeComponent =
-		edge == null ? null : EDGE_BASE + EDGE_MULTIPLIER * edge;
 	const indices: Record<string, number | null> = {};
 
 	for (const [name, bucket] of Object.entries(STRATEGY_BUCKETS)) {
 		const bucketScores = bucket.scoreKeys.map((key) => scores[key] ?? null);
-		if (
-			bucketScores.some((score) => score == null) ||
-			(bucket.edgeWeight !== 0 && edgeComponent == null)
-		) {
+		if (bucketScores.some((score) => score == null)) {
 			indices[name] = null;
 			continue;
 		}
@@ -527,61 +437,7 @@ export function calculateStrategyIndices(
 			(sum, score, index) => sum + score * bucket.weights[index],
 			0,
 		);
-		indices[name] = weightedScore + bucket.edgeWeight * (edgeComponent ?? 0);
+		indices[name] = weightedScore;
 	}
 	return indices;
-}
-
-/** Return true if an asset looks like a 'chase' opportunity. */
-export function checkFomoConditions(
-	scores: Record<string, number | null | undefined>,
-	bullScore: number | null,
-): boolean {
-	const valuationScore = scores.valuation_score;
-	const upsideScore = scores.upside_score;
-	if (valuationScore == null || upsideScore == null || bullScore == null) {
-		return false;
-	}
-	return (
-		valuationScore <= ThresholdConfig.FOMO_VALUATION &&
-		upsideScore >= ThresholdConfig.FOMO_UPSIDE &&
-		bullScore <= ThresholdConfig.FOMO_BULL
-	);
-}
-
-/** Calculate Elo delta based on success probability. */
-export function calculateEloDelta(probability: number | null): number | null {
-	if (probability == null || !(probability > 0 && probability < 1)) {
-		return null;
-	}
-	return 400 * Math.log10(probability / (1 - probability));
-}
-
-/** Categorize the 'edge' level of the setup. */
-export function getGameTier(bullScore: number | null): string {
-	if (bullScore == null) {
-		return "normal";
-	}
-	if (bullScore >= GameTierThresholds.RARE_DISLOCATION) {
-		return "rare dislocation-level";
-	}
-	if (
-		bullScore >= GameTierThresholds.SMURFING_MIN &&
-		bullScore <= GameTierThresholds.SMURFING_MAX
-	) {
-		return "smurfing";
-	}
-	if (
-		bullScore >= GameTierThresholds.VERY_HIGH_MIN &&
-		bullScore <= GameTierThresholds.VERY_HIGH_MAX
-	) {
-		return "very high";
-	}
-	if (
-		bullScore >= GameTierThresholds.HIGH_EDGE_MIN &&
-		bullScore <= GameTierThresholds.HIGH_EDGE_MAX
-	) {
-		return "already high edge";
-	}
-	return "normal";
 }
