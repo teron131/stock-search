@@ -11,6 +11,7 @@ import {
 	SCORE_SCALE,
 	SpeculativeWeights,
 	type StrategyBucket,
+	UpsideMultipliers,
 	ValuationMultipliers,
 } from "./constants.js";
 import { clampScore, mapToCurveScore } from "./math-utils.js";
@@ -128,6 +129,25 @@ function weightedMeanStatScore(factors: WeightedFactorConfig[]): number | null {
 	}
 	return clampScore(
 		weightedScores.reduce((sum, value) => sum + value, 0) / totalWeight,
+	);
+}
+
+function weightedMeanScore(
+	factors: Array<[number | null, number]>,
+): number | null {
+	const availableFactors = factors.filter(
+		(factor): factor is [number, number] => factor[0] != null,
+	);
+	const totalWeight = availableFactors.reduce(
+		(sum, [, weight]) => sum + weight,
+		0,
+	);
+	if (availableFactors.length === 0 || totalWeight <= 0) {
+		return null;
+	}
+	return clampScore(
+		availableFactors.reduce((sum, [score, weight]) => sum + score * weight, 0) /
+			totalWeight,
 	);
 }
 
@@ -318,6 +338,12 @@ export function calculateQualitySignalScore(
 			false,
 		],
 		[
+			valuationMultipleField(indicator, "ps", anchorRange("ps")),
+			anchorRange("ps"),
+			QualitySignalMultipliers.PS,
+			true,
+		],
+		[
 			getNumberField(indicator, "shareholder_yield"),
 			anchorRange("shareholder_yield"),
 			QualitySignalMultipliers.SHAREHOLDER_YIELD,
@@ -347,17 +373,11 @@ export function calculateCombinedUpsideScore(
 			? null
 			: mapToCurveScore(medianUpside, rangeMin, rangeMax, rangeMedian);
 	const ratingScore = calculateRatingScore(ratings);
-	const availableScores = [
-		analystUpsideScore,
-		ratingScore,
-		outlookScore,
-	].filter((value): value is number => value != null);
-	return availableScores.length > 0
-		? clampScore(
-				availableScores.reduce((sum, value) => sum + value, 0) /
-					availableScores.length,
-			)
-		: null;
+	return weightedMeanScore([
+		[analystUpsideScore, UpsideMultipliers.MEDIAN_UPSIDE],
+		[ratingScore, UpsideMultipliers.RATING],
+		[outlookScore, UpsideMultipliers.OUTLOOK],
+	]);
 }
 
 /** Map list of analyst ratings to 0-10 engine score. */

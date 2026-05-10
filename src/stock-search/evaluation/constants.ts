@@ -45,25 +45,33 @@ export const CalibrationConfig = {
 
 /** Multipliers tune stat contribution strength before averaging available valuation stats. */
 export const ValuationMultipliers = {
-	PEG: 2,
+	PEG: 1.6,
 	PE: 1,
-	PE_FORWARD: 0.75,
-	PS: 0.8,
-	PS_FORWARD: 0.6,
-	DEBT_TO_EQUITY: 0.5,
-	FCF_YIELD: 0.75,
-	SHAREHOLDER_YIELD: 0.5,
-	OPERATING_MARGIN: 1.25,
-	ROIC: 0.75,
+	PE_FORWARD: 1,
+	PS: 0.9,
+	PS_FORWARD: 0.7,
+	FCF_YIELD: 1,
+	SHAREHOLDER_YIELD: 0.4,
+	DEBT_TO_EQUITY: 0.4,
+	OPERATING_MARGIN: 0.6,
+	ROIC: 0.4,
 } as const;
 
 /** Multipliers tune stat contribution strength before averaging available quality stats. */
 export const QualitySignalMultipliers = {
 	REVENUE_GROWTH: 1.2,
 	GROSS_MARGIN: 1,
-	OPERATING_MARGIN: 1.4,
-	ROIC: 0.4,
-	SHAREHOLDER_YIELD: 0.6,
+	OPERATING_MARGIN: 1,
+	ROIC: 0.9,
+	PS: 0.4,
+	SHAREHOLDER_YIELD: 0.3,
+} as const;
+
+/** Multipliers tune upside channels before averaging available upside signals. */
+export const UpsideMultipliers = {
+	MEDIAN_UPSIDE: 1.4,
+	RATING: 0.6,
+	OUTLOOK: 1,
 } as const;
 
 /** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */

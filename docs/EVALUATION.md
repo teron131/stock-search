@@ -226,6 +226,7 @@ Quality should not be reduced to a single growth or gross-margin number. Keep th
 - **Gross margin**: whether the product/service has attractive unit economics.
 - **Operating margin**: whether gross profit survives normal operating expenses.
 - **ROIC**: whether capital is actually producing returns.
+- **P/S**: revenue scale proxy relative to market value; lower P/S means more revenue per market-cap dollar.
 - **Shareholder yield / dilution**: whether per-share owners are being rewarded or diluted.
 
 Interpretation rules:
@@ -242,32 +243,37 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - PEG score (largest weight)
 - trailing P/E score
 - forward P/E score
+- P/S score
+- forward P/S score
 - debt/equity score
 - FCF yield score when market cap and free cash flow are available
 - shareholder yield score when dividends, buybacks, and dilution are available
 - operating margin score as a valuation viability check
 - ROIC score as a valuation viability check
 
-Implemented multipliers use `1.0` as normal strength while preserving the relative priorities above:
+Implemented multipliers use `1.0` as normal strength. Valuation is mostly price-paid inputs, with profitability and returns included as lighter support so expensive multiples backed by better economics are not treated the same as unsupported expensive multiples.
 
-- PEG 2.00
+- PEG 1.60
 - trailing P/E 1.00
-- forward P/E 0.75
-- FCF yield 0.75
-- shareholder yield 0.50
-- debt/equity 0.50
-- operating margin 1.25
-- ROIC 0.75
+- forward P/E 1.00
+- P/S 0.90
+- forward P/S 0.70
+- FCF yield 1.00
+- shareholder yield 0.40
+- debt/equity 0.40
+- operating margin 0.60
+- ROIC 0.40
 
 Market-derived quality uses these contribution multipliers:
 
 - revenue growth 1.20
 - gross margin 1.00
-- operating margin 1.40
-- ROIC 0.40
-- shareholder yield 0.60
+- operating margin 1.00
+- ROIC 0.90
+- P/S 0.40
+- shareholder yield 0.30
 
-If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
+If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E, PEG, or P/S values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
 EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not currently part of the score engine.
 
@@ -275,11 +281,11 @@ EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not curr
 
 Upside merges:
 
-1. **Analyst target upside** (mapped via upside anchors)
-2. **Analyst consensus rating** (mapped via rating anchors)
-3. **Forward outlook score** (structured subjective/LLM score on 0–10; placeholder in stats-only dashboard normalization)
+1. **Analyst target upside** (mapped via upside anchors), weight 1.40
+2. **Analyst consensus rating** (mapped via rating anchors), weight 0.60
+3. **Forward outlook score** (structured subjective/LLM score on 0–10; placeholder in stats-only dashboard normalization), weight 1.00
 
-The full evaluation path averages available channels. Dashboard normalization uses only analyst target upside and ratings, so it does not let LLM outlook change the displayed stats-derived upside score.
+The full evaluation path averages available channels by weight. Dashboard normalization uses only analyst target upside and ratings, so it does not let LLM outlook change the displayed stats-derived upside score.
 
 ## 7.5 Size (0–10)
 
