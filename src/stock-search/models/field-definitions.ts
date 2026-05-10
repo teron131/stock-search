@@ -213,6 +213,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"(Revenue / prior revenue - 1). Shows top-line growth before margins.",
 	},
+	roe: {
+		label: "Return on Equity",
+		shortLabel: "ROE",
+		description:
+			"Net income / shareholder equity. Higher can signal strong owner returns, but leverage and buybacks can distort it.",
+	},
 	roic: {
 		label: "Return on Invested Capital",
 		shortLabel: "ROIC",
@@ -325,7 +331,13 @@ export const INDICATOR_FIELD_GROUPS = {
 	},
 	operatingQuality: {
 		category: "fundamental",
-		fields: ["revenue_growth", "gross_margin", "operating_margin", "roic"],
+		fields: [
+			"revenue_growth",
+			"gross_margin",
+			"operating_margin",
+			"roe",
+			"roic",
+		],
 	},
 	capitalReturns: {
 		category: "fundamental",

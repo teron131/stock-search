@@ -29,6 +29,7 @@ const SCORE_FIELD_NAMES = [
 	"revenue_growth",
 	"gross_margin",
 	"operating_margin",
+	"roe",
 	"roic",
 	"median_upside",
 ] as const;
@@ -345,6 +346,7 @@ function createCalibrationStatsTable(dbPath: string): {
 			revenue_growth REAL,
 			gross_margin REAL,
 			operating_margin REAL,
+			roe REAL,
 			roic REAL,
 			median_upside REAL,
 			is_complete INTEGER NOT NULL,
@@ -394,6 +396,7 @@ function createCalibrationStatsTable(dbPath: string): {
 			revenue_growth,
 			gross_margin,
 			operating_margin,
+			roe,
 			roic,
 			median_upside,
 			is_complete,
@@ -404,7 +407,7 @@ function createCalibrationStatsTable(dbPath: string): {
 			statistics_fetched_at,
 			financials_fetched_at,
 			ratings_fetched_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`);
 	const fieldCounts = Object.fromEntries(
 		SCORE_FIELD_NAMES.map((fieldName) => [fieldName, 0]),
@@ -453,6 +456,7 @@ function createCalibrationStatsTable(dbPath: string): {
 				asNumber(indicators.revenue_growth),
 				asNumber(indicators.gross_margin),
 				asNumber(indicators.operating_margin),
+				asNumber(indicators.roe),
 				asNumber(indicators.roic),
 				asNumber(indicators.median_upside),
 				isComplete ? 1 : 0,

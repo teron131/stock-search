@@ -32,6 +32,7 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 	"ps_forward",
 	"peg",
 	"beta",
+	"roe",
 	"roic",
 	"debt_to_equity",
 	"free_cash_flow",

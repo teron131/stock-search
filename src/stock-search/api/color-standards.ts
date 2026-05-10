@@ -10,6 +10,7 @@ export function buildColorStandardsPayload(): {
 			revenue_growth: { min: 0.0, max: 30.0 },
 			gross_margin: { min: 10.0, max: 70.0 },
 			operating_margin: { min: 0.0, max: 40.0 },
+			roe: { min: 0.0, max: 30.0 },
 			roic: { min: 0.0, max: 30.0 },
 			debt_to_equity: { min: 0.0, max: 200.0 },
 			shareholder_yield: { min: -5.0, max: 8.0 },

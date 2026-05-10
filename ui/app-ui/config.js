@@ -239,6 +239,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
+		"roe",
+		"ROE",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
 		"roic",
 		"ROIC",
 		"percent_neutral",
@@ -280,6 +286,12 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	createGroupedColumn(
 		"operating_margin",
 		"OM%",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"roe",
+		"ROE",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	),

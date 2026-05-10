@@ -163,6 +163,7 @@ function fcfYieldPercent(indicator: IndicatorLike): number | null {
 function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
 	const revenueGrowth = getNumberField(indicator, "revenue_growth");
 	const operatingMargin = getNumberField(indicator, "operating_margin");
+	const roe = getNumberField(indicator, "roe");
 	const roic = getNumberField(indicator, "roic");
 	const grossMargin = getNumberField(indicator, "gross_margin");
 	const freeCashFlowYield = fcfYieldPercent(indicator);
@@ -170,6 +171,7 @@ function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
 	const positiveSignals = [
 		revenueGrowth != null && revenueGrowth > 0,
 		operatingMargin != null && operatingMargin > 0,
+		roe != null && roe > 0,
 		roic != null && roic > 0,
 		grossMargin != null && grossMargin > 0,
 		freeCashFlowYield != null && freeCashFlowYield > 0,
@@ -329,6 +331,12 @@ export function calculateQualitySignalScore(
 			getNumberField(indicator, "operating_margin"),
 			anchorRange("operating_margin"),
 			QualitySignalMultipliers.OPERATING_MARGIN,
+			false,
+		],
+		[
+			getNumberField(indicator, "roe"),
+			anchorRange("roe"),
+			QualitySignalMultipliers.ROE,
 			false,
 		],
 		[

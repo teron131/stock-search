@@ -29,6 +29,7 @@ export type ScoreAnchorKey =
 	| "revenue_growth"
 	| "gross_margin"
 	| "operating_margin"
+	| "roe"
 	| "roic"
 	| "median_upside";
 
@@ -51,6 +52,7 @@ export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 	revenue_growth: CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
 	gross_margin: CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
 	operating_margin: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
+	roe: CalibrationConfig.ROE_PCT_RANGE,
 	roic: CalibrationConfig.ROIC_PCT_RANGE,
 	median_upside: CalibrationConfig.UPSIDE_RANGE,
 };
@@ -68,6 +70,7 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	revenue_growth: "positive",
 	gross_margin: "positive",
 	operating_margin: "positive",
+	roe: "positive",
 	roic: "positive",
 	median_upside: "positive",
 };
@@ -180,6 +183,7 @@ function loadDynamicAnchors(): ScoreAnchors {
 			revenue_growth: dynamicAnchor(database, "revenue_growth"),
 			gross_margin: dynamicAnchor(database, "gross_margin"),
 			operating_margin: dynamicAnchor(database, "operating_margin"),
+			roe: dynamicAnchor(database, "roe"),
 			roic: dynamicAnchor(database, "roic"),
 			median_upside: dynamicAnchor(database, "median_upside"),
 		};

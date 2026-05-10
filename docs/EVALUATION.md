@@ -145,6 +145,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 - **FCF yield %**: -5 / 4 / 12
 - **Shareholder yield %**: -5 / 3 / 10
 - **Operating margin %**: -10 / 30 / 55
+- **ROE %**: 0 / 25 / 80
 - **ROIC %**: 0 / 25 / 80
 
 ## 5.3 Growth / quality anchors
@@ -154,6 +155,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 - **Revenue growth (YoY %)**: -15 / 15 / 70
 - **Gross margin %**: 10 / 60 / 90
 - **Operating margin %**: -10 / 30 / 55
+- **ROE %**: 0 / 25 / 80
 - **ROIC %**: 0 / 25 / 80
 - **Shareholder yield %**: -5 / 3 / 10
 
@@ -185,6 +187,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 | Debt/equity ratio |  0 |           0.8 |       3.0 |
 | FCF yield       |   -5 |             4 |        12 |
 | Shareholder yield | -5 |             3 |        10 |
+| ROE             |    0 |            25 |        80 |
 | ROIC            |    0 |            25 |        80 |
 | Target upside   |  -25 |            15 |        60 |
 | Rating (1–5)    |  1.0 |    3.5 |       5.0 |
@@ -225,6 +228,7 @@ Quality should not be reduced to a single growth or gross-margin number. Keep th
 - **Revenue growth**: whether the business is expanding.
 - **Gross margin**: whether the product/service has attractive unit economics.
 - **Operating margin**: whether gross profit survives normal operating expenses.
+- **ROE**: whether common equity produces returns; useful as a companion to ROIC, but more leverage-sensitive.
 - **ROIC**: whether capital is actually producing returns.
 - **P/S**: revenue scale proxy relative to market value; lower P/S means more revenue per market-cap dollar.
 - **Shareholder yield / dilution**: whether per-share owners are being rewarded or diluted.
@@ -240,7 +244,7 @@ Interpretation rules:
 
 Valuation is not a single metric. It is a blend of mapped stat contributions:
 
-- PEG score (largest weight)
+- PEG score
 - trailing P/E score
 - forward P/E score
 - P/S score
@@ -251,27 +255,28 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - operating margin score as a valuation viability check
 - ROIC score as a valuation viability check
 
-Implemented multipliers use `1.0` as normal strength. Valuation is mostly price-paid inputs, with profitability and returns included as lighter support so expensive multiples backed by better economics are not treated the same as unsupported expensive multiples.
+Implemented multipliers use `1.0` as full strength and `0.5` as support strength. Valuation is mostly price-paid inputs, with profitability, balance sheet, and shareholder returns included as support so expensive multiples backed by better economics are not treated the same as unsupported expensive multiples.
 
-- PEG 1.60
+- PEG 2.00
 - trailing P/E 1.00
-- forward P/E 1.00
-- P/S 0.90
-- forward P/S 0.70
+- forward P/E 1.50
+- P/S 1.00
+- forward P/S 1.00
 - FCF yield 1.00
-- shareholder yield 0.40
-- debt/equity 0.40
-- operating margin 0.60
-- ROIC 0.40
+- shareholder yield 0.50
+- debt/equity 0.50
+- operating margin 0.50
+- ROIC 0.50
 
 Market-derived quality uses these contribution multipliers:
 
 - revenue growth 1.20
 - gross margin 1.00
 - operating margin 1.00
-- ROIC 0.90
-- P/S 0.40
-- shareholder yield 0.30
+- ROE 1.00
+- ROIC 1.00
+- P/S 1.00
+- shareholder yield 0.50
 
 If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E, PEG, or P/S values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
@@ -281,8 +286,8 @@ EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not curr
 
 Upside merges:
 
-1. **Analyst target upside** (mapped via upside anchors), weight 1.40
-2. **Analyst consensus rating** (mapped via rating anchors), weight 0.60
+1. **Analyst target upside** (mapped via upside anchors), weight 1.00
+2. **Analyst consensus rating** (mapped via rating anchors), weight 0.50
 3. **Forward outlook score** (structured subjective/LLM score on 0–10; placeholder in stats-only dashboard normalization), weight 1.00
 
 The full evaluation path averages available channels by weight. Dashboard normalization uses only analyst target upside and ratings, so it does not let LLM outlook change the displayed stats-derived upside score.
@@ -311,19 +316,19 @@ Compute indices:
 
 ### Core index (durability + scale + reasonable price)
 
-CoreIndex = 0.35·Moat + 0.35·Quality + 0.10·Valuation + 0.20·Size
+CoreIndex = 0.30·Moat + 0.30·Quality + 0.10·Valuation + 0.30·Size
 
 ### Satellite index (theme + upside, still quality-aware)
 
-SatelliteIndex = 0.30·Moat + 0.25·Quality + 0.20·Valuation + 0.25·Upside
+SatelliteIndex = 0.25·Moat + 0.25·Quality + 0.25·Valuation + 0.25·Upside
 
 ### Speculative index (convexity + fragility)
 
-SpecIndex = 0.45·Upside + 0.20·(10−Quality) + 0.20·(10−Moat) + 0.15·(10−Valuation)
+SpecIndex = 0.50·Upside + 0.20·(10−Quality) + 0.20·(10−Moat) + 0.10·(10−Valuation)
 
 ### Diversifier index (stability / hedge behavior)
 
-DivIndex = 0.45·Quality + 0.25·Valuation + 0.20·Size + 0.10·(10−Upside)
+DivIndex = 0.40·Quality + 0.30·Valuation + 0.20·Size + 0.10·(10−Upside)
 
 ### Label rule
 
