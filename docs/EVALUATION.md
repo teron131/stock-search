@@ -6,6 +6,29 @@ The current TypeScript implementation maps numeric stats through a **three-ancho
 
 ---
 
+# 0) Data Source Policy For Scoring Stats
+
+Stats-derived scores should prefer StockAnalysis / public web-source values for fundamental fields. Yahoo/yfinance is useful for market data and selected fallback fields, but it is not authoritative for sensitive fundamentals.
+
+Observed Yahoo/yfinance caveats in this repo:
+
+- Stock `PE` / `forward PE` can diverge from website-displayed values.
+- Stock `revenueGrowth` and `earningsGrowth` can be definition/period mismatched for TTM-style comparisons.
+- Yahoo `priceToSalesTrailing12Months` can be wrong for ADRs / foreign listings; TSM returned an unusable P/S value in this path.
+- ETF `forward PE` may be stale or inaccurate.
+- ETF holdings can be incomplete and may not match issuer holdings pages.
+- Values may not consistently match Yahoo website views across all tickers/endpoints.
+
+Policy implication:
+
+- Treat Yahoo/yfinance as fallback only for sensitive valuation and holdings fields.
+- Do not source `revenue_growth`, `debt_to_equity`, `ps`, or `ps_forward` from Yahoo/yfinance.
+- Prefer StockAnalysis period-aligned values for `revenue_growth` and `eps_growth`.
+- Use `ps_forward` only when an explicit Forward P/S or Forward Price/Sales ratio is displayed; otherwise keep it empty.
+- Missing fundamental inputs should stay missing rather than poisoning scores with low-confidence fallback values.
+
+---
+
 # 1) What the framework produces
 
 For each asset:
@@ -127,8 +150,10 @@ These are the current code anchors in `src/stock-search/evaluation/constants.ts`
 Valuation mixes lower-is-better multiples with higher-is-better yield and viability checks. Lower-is-better inputs use inverted output bounds.
 
 - **PEG**: 0.6 / 2.0 / 5.0
-- **Trailing P/E**: 10 / 30 / 85
+- **P/E**: 10 / 30 / 85
 - **Forward P/E**: 8 / 28 / 65
+- **P/S**: 1 / 6 / 25
+- **Forward P/S**: 1 / 5 / 22
 - **Debt/equity ratio**: 0 / 0.8 / 3.0
 - **FCF yield %**: -5 / 4 / 12
 - **Shareholder yield %**: -5 / 3 / 10
@@ -171,8 +196,10 @@ These are intentionally tight because markets are noisy.
 | --------------- | ---: | ------------: | --------: |
 | Market cap      | $10B |         $800B | **$4.5T** |
 | PEG             |  0.6 |           2.0 |       5.0 |
-| Trailing P/E    |   10 |            30 |        85 |
+| P/E             |   10 |            30 |        85 |
 | Forward P/E     |    8 |            28 |        65 |
+| P/S             |    1 |             6 |        25 |
+| Forward P/S     |    1 |             5 |        22 |
 | Revenue growth  |  -15 |            15 |        70 |
 | Gross margin    |   10 |            60 |        90 |
 | Operating margin |  -10 |            30 |        55 |

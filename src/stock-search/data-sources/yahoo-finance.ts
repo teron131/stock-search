@@ -141,10 +141,6 @@ const YAHOO_FUNDAMENTALS_FIELDS = [
 	"annualOperatingIncome",
 	"quarterlyFreeCashFlow",
 	"annualFreeCashFlow",
-	"quarterlyTotalDebt",
-	"annualTotalDebt",
-	"quarterlyStockholdersEquity",
-	"annualStockholdersEquity",
 	"quarterlyDilutedAverageShares",
 	"annualDilutedAverageShares",
 ] as const;
@@ -217,16 +213,6 @@ function percentChange(
 		return null;
 	}
 	return ((current - previous) / previous) * 100;
-}
-
-function percentGrowth(
-	current: number | null,
-	previous: number | null,
-): number | null {
-	if (current == null || previous == null || previous === 0) {
-		return null;
-	}
-	return (current / previous - 1) * 100;
 }
 
 function getSetCookieHeaders(headers: Headers): string[] {
@@ -852,30 +838,12 @@ function buildFundamentalsSnapshot(
 	const annualDilutedEps = pointsForType(payload, "annualDilutedEPS");
 	const quarterlyFreeCashFlow = pointsForType(payload, "quarterlyFreeCashFlow");
 	const annualFreeCashFlow = pointsForType(payload, "annualFreeCashFlow");
-	const quarterlyTotalDebt = pointsForType(payload, "quarterlyTotalDebt");
-	const annualTotalDebt = pointsForType(payload, "annualTotalDebt");
-	const quarterlyEquity = pointsForType(payload, "quarterlyStockholdersEquity");
-	const annualEquity = pointsForType(payload, "annualStockholdersEquity");
 	const quarterlyShares = pointsForType(
 		payload,
 		"quarterlyDilutedAverageShares",
 	);
 	const annualShares = pointsForType(payload, "annualDilutedAverageShares");
 	const epsDiluted = computeDilutedEps(quarterlyDilutedEps, annualDilutedEps);
-	const annualRevenueLatest = latestPointValue(annualRevenue);
-	const annualRevenuePrevious =
-		annualRevenue.length >= 2
-			? pointValue(annualRevenue[annualRevenue.length - 2])
-			: null;
-	const quarterlyRevenueLatest = latestPointValue(quarterlyRevenue);
-	const quarterlyRevenuePriorYear =
-		quarterlyRevenue.length >= 5
-			? pointValue(quarterlyRevenue[quarterlyRevenue.length - 5])
-			: null;
-	const debt =
-		latestPointValue(quarterlyTotalDebt) ?? latestPointValue(annualTotalDebt);
-	const equity =
-		latestPointValue(quarterlyEquity) ?? latestPointValue(annualEquity);
 	const dilutedShares =
 		latestPointValue(quarterlyShares) ?? latestPointValue(annualShares);
 	const trailingFreeCashFlow =
@@ -944,21 +912,8 @@ function buildFundamentalsSnapshot(
 				2,
 			) ??
 			computeBeta(series, benchmarkSeries),
-		revenue_growth: roundOptional(
-			quoteSummaryNumberField([financialDataModule], "revenueGrowth") != null
-				? quoteSummaryNumberField([financialDataModule], "revenueGrowth")! * 100
-				: percentGrowth(
-						quarterlyRevenueLatest ?? annualRevenueLatest,
-						quarterlyRevenuePriorYear ?? annualRevenuePrevious,
-					),
-		),
 		gross_margin: grossMargin,
 		operating_margin: operatingMargin,
-		debt_to_equity:
-			quoteSummaryNumberField([financialDataModule], "debtToEquity") ??
-			(debt != null && equity != null && equity !== 0
-				? roundOptional((debt / equity) * 100)
-				: null),
 		free_cash_flow: trailingFreeCashFlow,
 		eps_diluted: epsDiluted,
 	};
