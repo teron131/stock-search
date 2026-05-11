@@ -3,6 +3,10 @@
 import { asNumber } from "./utils.js";
 
 const FX_MONETARY_FIELDS = ["market_cap", "free_cash_flow"] as const;
+const STOCKANALYSIS_STATEMENT_FALLBACK_FIELDS = [
+	"revenue",
+	"free_cash_flow",
+] as const;
 
 function isEtfRow(fields: Record<string, unknown>): boolean {
 	return (
@@ -74,5 +78,22 @@ export function mergeAndNormalizeMonetaryFields(
 		}
 	}
 	output.fx = convertedFallbackField ? fallbackFx : null;
+	return output;
+}
+
+/** Merge StockAnalysis snapshots while keeping cross-source dollar fields canonical. */
+export function mergeStockAnalysisSnapshots(
+	statistics: Record<string, unknown>,
+	financials: Record<string, unknown>,
+): Record<string, unknown> {
+	const output = {
+		...statistics,
+		...financials,
+	};
+	for (const field of STOCKANALYSIS_STATEMENT_FALLBACK_FIELDS) {
+		const statisticsValue = asNumber(statistics[field]);
+		const financialsValue = asNumber(financials[field]);
+		output[field] = statisticsValue ?? financialsValue ?? null;
+	}
 	return output;
 }

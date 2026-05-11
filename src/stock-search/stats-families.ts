@@ -48,10 +48,12 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"rsi",
 	],
 	financials: [
+		"revenue",
 		"revenue_growth",
 		"eps_growth",
 		"gross_margin",
 		"operating_margin",
+		"free_cash_flow",
 	],
 	ratings: ["median_upside", "ratings"],
 };

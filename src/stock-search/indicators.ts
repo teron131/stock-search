@@ -2,7 +2,10 @@
 
 import { StockAnalysisSource } from "./data-sources/stockanalysis/index.js";
 import { YahooFinanceSource } from "./data-sources/yahoo-finance.js";
-import { normalizeMonetaryFields } from "./monetary-fields.js";
+import {
+	mergeStockAnalysisSnapshots,
+	normalizeMonetaryFields,
+} from "./monetary-fields.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -103,9 +106,10 @@ export async function fetchLiveIndicators(
 		...yahooSymbolMetadata,
 	};
 	const stockAnalysisPayload: Record<string, unknown> = {
-		...stockAnalysisStatistics,
-		...stockAnalysisFinancials,
-		revenue: stockAnalysisStatistics.revenue ?? null,
+		...mergeStockAnalysisSnapshots(
+			stockAnalysisStatistics,
+			stockAnalysisFinancials,
+		),
 		gross_margin:
 			stockAnalysisFinancials.gross_margin ??
 			stockAnalysisStatistics.gross_margin ??

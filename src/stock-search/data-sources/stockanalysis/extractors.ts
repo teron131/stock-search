@@ -58,6 +58,25 @@ const SECTOR_TOP_TICKER_CACHE_PATH = path.join(
 	path.dirname(appConfig.dataSqlitePath),
 	"stockanalysis-sector-top-tickers.json",
 );
+const NULL_NUMBER_TEXTS = new Set(["-", "--", "n/a", "na", "none"]);
+const NUMBER_SUFFIX_MULTIPLIERS: Record<string, number> = {
+	K: 1e3,
+	M: 1e6,
+	B: 1e9,
+	T: 1e12,
+};
+const PARSED_STATISTICS_REQUIRED_FIELDS = [
+	"market_cap",
+	"revenue",
+	"pe",
+	"pe_forward",
+	"ps",
+	"peg",
+] as const satisfies readonly StatisticsFieldName[];
+const FINANCIALS_MONETARY_FIELDS = new Set<FinancialsFieldName>([
+	"revenue",
+	"free_cash_flow",
+]);
 
 const NullableNumber = z
 	.number()
@@ -181,6 +200,9 @@ const StatisticsSchema = z
 
 const FinancialsSchema = z
 	.object({
+		revenue: NullableNumber.optional().describe(
+			"Revenue from the first/current column, converted to absolute dollars using the page unit label.",
+		),
 		revenue_growth: NullableNumber.optional().describe(
 			getFieldDescription("revenue_growth"),
 		),
@@ -195,6 +217,9 @@ const FinancialsSchema = z
 		),
 		operating_margin: NullableNumber.optional().describe(
 			getFieldDescription("operating_margin"),
+		),
+		free_cash_flow: NullableNumber.optional().describe(
+			"Free cash flow from the first/current column, converted to absolute dollars using the page unit label.",
 		),
 	})
 	.describe(
@@ -299,18 +324,72 @@ const SectorTopTickerCacheSchema = z
 	.describe("Cached StockAnalysis sector top-ticker payload.");
 
 type FinancialsFieldName =
+	| "revenue"
 	| "revenue_growth"
 	| "eps_diluted"
 	| "eps_growth"
 	| "gross_margin"
-	| "operating_margin";
+	| "operating_margin"
+	| "free_cash_flow";
+type StatisticsFieldName =
+	| "market_cap"
+	| "revenue"
+	| "beta"
+	| "fifty_two_week_price_change"
+	| "moving_average_50d"
+	| "moving_average_200d"
+	| "rsi"
+	| "average_volume_20d"
+	| "pe"
+	| "pe_forward"
+	| "ps"
+	| "ps_forward"
+	| "peg"
+	| "roe"
+	| "roic"
+	| "gross_margin"
+	| "operating_margin"
+	| "debt_to_equity"
+	| "debt_to_ebitda"
+	| "free_cash_flow"
+	| "shareholder_yield"
+	| "median_upside";
 
 const FINANCIALS_ROW_FIELDS: Record<string, FinancialsFieldName> = {
+	Revenue: "revenue",
+	"Total Revenue": "revenue",
+	"Revenues Before Loan Losses": "revenue",
 	"Revenue Growth (YoY)": "revenue_growth",
 	"EPS (Diluted)": "eps_diluted",
 	"EPS Growth": "eps_growth",
 	"Gross Margin": "gross_margin",
 	"Operating Margin": "operating_margin",
+	"Free Cash Flow": "free_cash_flow",
+};
+const STATISTICS_ROW_FIELDS: Record<string, StatisticsFieldName> = {
+	"Market Cap": "market_cap",
+	"Revenue (ttm)": "revenue",
+	Revenue: "revenue",
+	Beta: "beta",
+	"52-Week Price Change": "fifty_two_week_price_change",
+	"50-Day Moving Average": "moving_average_50d",
+	"200-Day Moving Average": "moving_average_200d",
+	"Relative Strength Index (RSI)": "rsi",
+	"Average Volume (20 Days)": "average_volume_20d",
+	"PE Ratio": "pe",
+	"Forward PE": "pe_forward",
+	"PS Ratio": "ps",
+	"Forward PS": "ps_forward",
+	"PEG Ratio": "peg",
+	"Return on Equity (ROE)": "roe",
+	"Return on Invested Capital (ROIC)": "roic",
+	"Gross Margin": "gross_margin",
+	"Operating Margin": "operating_margin",
+	"Debt / Equity": "debt_to_equity",
+	"Debt / EBITDA": "debt_to_ebitda",
+	"Free Cash Flow": "free_cash_flow",
+	"Shareholder Yield": "shareholder_yield",
+	"Price Target Difference": "median_upside",
 };
 
 type SectorRow = z.output<typeof SectorRowSchema>;
@@ -494,23 +573,166 @@ function normalizeSectorName(value: string): string {
 	return SECTOR_LABELS.other;
 }
 
-function parseStockAnalysisNumber(value: string): number | null {
+function parseStockAnalysisNumber(
+	value: string,
+	defaultMultiplier = 1,
+): number | null {
 	const normalized = value.trim();
-	if (!normalized || normalized === "-") {
+	if (!normalized || NULL_NUMBER_TEXTS.has(normalized.toLowerCase())) {
 		return null;
 	}
-	const numberValue = Number(
-		normalized.replace(/[$,%]/g, "").replace(/,/g, ""),
-	);
-	return Number.isFinite(numberValue) ? numberValue : null;
+	const valueMatch = normalized
+		.replace(/\u2212/g, "-")
+		.match(/\(?\s*[$€£¥]?\s*(-?[\d,.]+(?:\.\d+)?)\s*([KMBT])?\s*%?\s*\)?/i);
+	if (!valueMatch?.[1]) {
+		return null;
+	}
+	const numberValue = Number(valueMatch[1].replace(/,/g, ""));
+	if (!Number.isFinite(numberValue)) {
+		return null;
+	}
+	const multiplier =
+		NUMBER_SUFFIX_MULTIPLIERS[valueMatch[2]?.toUpperCase() ?? ""] ??
+		defaultMultiplier;
+	const sign =
+		normalized.trim().startsWith("(") && normalized.trim().endsWith(")")
+			? -1
+			: 1;
+	return sign * numberValue * multiplier;
 }
 
-function firstMarkdownTableCell(row: string): string | null {
-	const cells = row
+function markdownTableCells(row: string): string[] {
+	return row
 		.split("|")
 		.map((cell) => cell.trim())
 		.filter(Boolean);
+}
+
+function normalizeStatisticLabel(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
+function statisticFieldForLabel(label: string): StatisticsFieldName | null {
+	const normalizedLabel = normalizeStatisticLabel(label);
+	if (STATISTICS_ROW_FIELDS[normalizedLabel]) {
+		return STATISTICS_ROW_FIELDS[normalizedLabel];
+	}
+	const lowerLabel = normalizedLabel.toLowerCase();
+	for (const [rowLabel, fieldName] of Object.entries(STATISTICS_ROW_FIELDS)) {
+		const normalizedRowLabel = rowLabel.toLowerCase();
+		if (lowerLabel === normalizedRowLabel) {
+			return fieldName;
+		}
+	}
+	return null;
+}
+
+function parseStatisticLine(
+	line: string,
+): [StatisticsFieldName, number] | null {
+	const trimmedLine = line.trim();
+	if (!trimmedLine || /^#+\s/.test(trimmedLine)) {
+		return null;
+	}
+
+	if (trimmedLine.startsWith("|")) {
+		const [label, value] = markdownTableCells(trimmedLine);
+		const fieldName = label == null ? null : statisticFieldForLabel(label);
+		const parsedValue = value == null ? null : parseStockAnalysisNumber(value);
+		return fieldName != null && parsedValue != null
+			? [fieldName, parsedValue]
+			: null;
+	}
+
+	for (const label of Object.keys(STATISTICS_ROW_FIELDS)) {
+		const pattern = new RegExp(
+			`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(.+)$`,
+			"i",
+		);
+		const match = trimmedLine.match(pattern);
+		const fieldName = STATISTICS_ROW_FIELDS[label];
+		const parsedValue = match?.[1] ? parseStockAnalysisNumber(match[1]) : null;
+		if (fieldName != null && parsedValue != null) {
+			return [fieldName, parsedValue];
+		}
+	}
+
+	return null;
+}
+
+function parseStatisticsSnapshotFromText(
+	text: string,
+): Record<string, unknown> {
+	const output: Record<string, unknown> = {};
+	for (const line of text.split(/\r?\n/)) {
+		const parsedLine = parseStatisticLine(line);
+		if (parsedLine == null) {
+			continue;
+		}
+		const [fieldName, value] = parsedLine;
+		output[fieldName] ??= value;
+	}
+	return output;
+}
+
+function firstMarkdownTableCell(row: string): string | null {
+	const cells = markdownTableCells(row);
 	return cells[0] ?? null;
+}
+
+function mergeParsedFields<T extends Record<string, unknown>>(
+	parsedFields: Record<string, unknown>,
+	fallbackFields: T,
+): T {
+	return {
+		...fallbackFields,
+		...parsedFields,
+	};
+}
+
+function hasParsedStatisticsFields(fields: Record<string, unknown>): boolean {
+	return PARSED_STATISTICS_REQUIRED_FIELDS.some(
+		(fieldName) => fields[fieldName] != null,
+	);
+}
+
+function financialsUnitMultiplier(text: string): number {
+	const unitLine =
+		text.split(/\r?\n/).find((line) => /Financials in .*USD/i.test(line)) ?? "";
+	if (/thousands?\s+USD/i.test(unitLine)) {
+		return 1e3;
+	}
+	if (/millions?\s+USD/i.test(unitLine)) {
+		return 1e6;
+	}
+	if (/billions?\s+USD/i.test(unitLine)) {
+		return 1e9;
+	}
+	return 1;
+}
+
+function financialsFieldMultiplier(
+	fieldName: FinancialsFieldName,
+	unitMultiplier: number,
+): number {
+	if (FINANCIALS_MONETARY_FIELDS.has(fieldName)) {
+		return unitMultiplier;
+	}
+	return 1;
+}
+
+function financialsRowLabels(labelLines: string[]): string[] {
+	const labels = ["Period Ending"];
+	for (const line of labelLines) {
+		if (
+			line === "Revenue Growth (YoY)" &&
+			labels[labels.length - 1] !== "Revenue"
+		) {
+			labels.push("Revenue");
+		}
+		labels.push(line);
+	}
+	return labels;
 }
 
 function firstFinancialsTableHeaderIndex(
@@ -528,6 +750,7 @@ function firstFinancialsTableHeaderIndex(
 function parseFinancialsSnapshotFromText(
 	text: string,
 ): Record<string, unknown> {
+	const unitMultiplier = financialsUnitMultiplier(text);
 	const lines = text
 		.split(/\r?\n/)
 		.map((line) => line.trim())
@@ -545,11 +768,9 @@ function parseFinancialsSnapshotFromText(
 		return {};
 	}
 
-	const rowLabels = [
-		"Period Ending",
-		"Revenue",
-		...lines.slice(periodEndingIndex + 1, tableHeaderIndex),
-	];
+	const rowLabels = financialsRowLabels(
+		lines.slice(periodEndingIndex + 1, tableHeaderIndex),
+	);
 	const tableRows = lines
 		.slice(tableHeaderIndex + 2)
 		.filter((line) => line.startsWith("|"));
@@ -566,7 +787,10 @@ function parseFinancialsSnapshotFromText(
 		if (currentColumnValue == null) {
 			continue;
 		}
-		output[fieldName] = parseStockAnalysisNumber(currentColumnValue);
+		output[fieldName] = parseStockAnalysisNumber(
+			currentColumnValue,
+			financialsFieldMultiplier(fieldName, unitMultiplier),
+		);
 	}
 
 	return output;
@@ -799,7 +1023,16 @@ export async function loadStatisticsSnapshot(
 	tickerLower: string,
 ): Promise<Record<string, unknown>> {
 	const url = stockDataUrl(STOCKANALYSIS_STATISTICS_URL, tickerLower);
-	return loadStockAnalysisPageOrDefault({
+	const statisticsText = await loadStockAnalysisText(url);
+	const parsedStatistics =
+		statisticsText == null
+			? {}
+			: parseStatisticsSnapshotFromText(statisticsText);
+	if (hasParsedStatisticsFields(parsedStatistics)) {
+		return parsedStatistics;
+	}
+
+	const fallbackStatistics = await loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: StatisticsSchema,
 		defaultValue: {},
@@ -813,6 +1046,7 @@ export async function loadStatisticsSnapshot(
 			"If analyst consensus and price-target fields are visible, return one ratings row with firm 'Consensus'.",
 		].join("\n"),
 	});
+	return mergeParsedFields(parsedStatistics, fallbackStatistics);
 }
 
 /** Load the StockAnalysis financials page into the app financials shape. */

@@ -9,7 +9,10 @@ import {
 	fetchYahooIndicators,
 	fetchYahooSymbolMetadata,
 } from "./indicators.js";
-import { mergeAndNormalizeMonetaryFields } from "./monetary-fields.js";
+import {
+	mergeAndNormalizeMonetaryFields,
+	mergeStockAnalysisSnapshots,
+} from "./monetary-fields.js";
 import {
 	BLOCKING_AUTO_FAMILIES,
 	FAMILY_FIELDS,
@@ -263,8 +266,7 @@ async function refreshFamilyRow(
 			bundle.getStatistics(),
 		]);
 		const merged = {
-			...statistics,
-			...financials,
+			...mergeStockAnalysisSnapshots(statistics, financials),
 			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
 			operating_margin:
 				financials.operating_margin ?? statistics.operating_margin ?? null,
