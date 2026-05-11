@@ -1014,9 +1014,10 @@ export function mergePortfolioRow(
 		: Array.isArray(indicators.holdings)
 			? indicators.holdings
 			: [];
-	const strategyEvaluation = hasOwnEvaluation(evaluation)
-		? selectedEvaluation
-		: evaluation;
+	const strategyEvaluation =
+		selectedCount > 0 || hasOwnEvaluation(evaluation)
+			? selectedEvaluation
+			: evaluation;
 	const strategy = resolveRowStrategy(ticker, indicators, strategyEvaluation);
 
 	return {

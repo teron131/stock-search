@@ -90,6 +90,22 @@ const familyCaches: Record<StatsFamily, Map<string, FamilyCacheEntry>> = {
 	ratings: new Map(),
 };
 const runningRefreshes = new Set<string>();
+const REQUIRED_STATISTICS_FIELDS = [
+	"beta",
+	"rsi",
+	"revenue",
+	"pe",
+	"pe_forward",
+	"ps",
+	"ps_forward",
+	"peg",
+	"roe",
+	"roic",
+	"debt_to_equity",
+	"free_cash_flow",
+	"shareholder_yield",
+] as const;
+const REQUIRED_FINANCIALS_FIELDS = ["revenue_growth", "eps_growth"] as const;
 
 function resolutionKey(ticker: string, family: StatsFamily): string {
 	return `${ticker}:${family}`;
@@ -115,6 +131,18 @@ function familyRow(
 	return output;
 }
 
+function completeKnownFamilyRow(
+	row: Record<string, unknown>,
+	family: StatsFamily,
+): Record<string, unknown> {
+	return Object.fromEntries(
+		FAMILY_FIELDS[family].map((field) => [
+			field,
+			row[field] === undefined ? null : row[field],
+		]),
+	);
+}
+
 function hasMeaningfulPayload(value: unknown): boolean {
 	if (value == null) {
 		return false;
@@ -132,6 +160,17 @@ function hasMeaningfulPayload(value: unknown): boolean {
 	return true;
 }
 
+function hasKnownField(row: Record<string, unknown>, field: string): boolean {
+	return field in row && row[field] !== undefined;
+}
+
+function hasKnownFields(
+	row: Record<string, unknown>,
+	fields: readonly string[],
+): boolean {
+	return fields.every((field) => hasKnownField(row, field));
+}
+
 function hasFamilyPayload(
 	row: Record<string, unknown>,
 	family: StatsFamily,
@@ -139,6 +178,32 @@ function hasFamilyPayload(
 	return FAMILY_FIELDS[family].some((field) =>
 		hasMeaningfulPayload(row[field]),
 	);
+}
+
+function isStockLikeRow(row: Record<string, unknown>): boolean {
+	const quoteType = String(row.quote_type ?? "")
+		.trim()
+		.toUpperCase();
+	return quoteType !== "ETF" && quoteType !== "MUTUALFUND";
+}
+
+function hasRequiredFamilyFields(
+	row: Record<string, unknown>,
+	family: StatsFamily,
+): boolean {
+	if (!isStockLikeRow(row)) {
+		return true;
+	}
+	if (family === "statistics") {
+		return hasKnownFields(row, REQUIRED_STATISTICS_FIELDS);
+	}
+	if (family === "financials") {
+		return (
+			hasMeaningfulPayload(row.revenue) &&
+			hasKnownFields(row, REQUIRED_FINANCIALS_FIELDS)
+		);
+	}
+	return true;
 }
 
 function chooseCachedSnapshot(
@@ -187,12 +252,13 @@ function chooseCachedSnapshot(
 	}
 
 	const policy = FAMILY_POLICIES[family];
+	const hasRequiredFields = hasRequiredFamilyFields(persistedRow, family);
 	return {
 		sourceTier,
 		row: chosenRow,
 		timestamp: chosenTimestamp,
-		isFresh: chosenTimestamp >= now - policy.freshWindowMs,
-		isStale: chosenTimestamp >= now - policy.staleWindowMs,
+		isFresh: hasRequiredFields && chosenTimestamp >= now - policy.freshWindowMs,
+		isStale: hasRequiredFields && chosenTimestamp >= now - policy.staleWindowMs,
 		present: Object.keys(chosenRow).length > 0,
 	};
 }
@@ -255,7 +321,7 @@ async function refreshFamilyRow(
 			bundle.getStatistics(),
 			bundle.getYahooIndicators(),
 		]);
-		return familyRow(
+		return completeKnownFamilyRow(
 			mergeAndNormalizeMonetaryFields(statistics, yahoo),
 			family,
 		);
@@ -267,11 +333,13 @@ async function refreshFamilyRow(
 		]);
 		const merged = {
 			...mergeStockAnalysisSnapshots(statistics, financials),
+			revenue_growth: financials.revenue_growth ?? null,
+			eps_growth: financials.eps_growth ?? null,
 			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
 			operating_margin:
 				financials.operating_margin ?? statistics.operating_margin ?? null,
 		};
-		return familyRow(merged, family);
+		return completeKnownFamilyRow(merged, family);
 	}
 	return familyRow(await bundle.getYahooIndicators(), family);
 }

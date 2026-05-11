@@ -110,6 +110,8 @@ export async function fetchLiveIndicators(
 			stockAnalysisStatistics,
 			stockAnalysisFinancials,
 		),
+		revenue_growth: stockAnalysisFinancials.revenue_growth ?? null,
+		eps_growth: stockAnalysisFinancials.eps_growth ?? null,
 		gross_margin:
 			stockAnalysisFinancials.gross_margin ??
 			stockAnalysisStatistics.gross_margin ??
