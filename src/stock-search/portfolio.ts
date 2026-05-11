@@ -72,6 +72,7 @@ const STAT_DERIVED_EVAL_KEYS = new Set<(typeof EVAL_KEYS)[number]>([
 	"overall_score",
 	"quality_score",
 	"valuation_score",
+	"moat_score",
 	"upside_score",
 	"market_cap_score",
 ]);
