@@ -8,7 +8,12 @@ import type {
 } from "../models/schemas.js";
 import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
 import { normalizeTicker } from "../utils.js";
-import { QUALITY_RESEARCH_WEIGHT, QUALITY_SIGNAL_WEIGHT } from "./constants.js";
+import {
+	MOAT_RESEARCH_WEIGHT,
+	MOAT_SIGNAL_WEIGHT,
+	QUALITY_RESEARCH_WEIGHT,
+	QUALITY_SIGNAL_WEIGHT,
+} from "./constants.js";
 import {
 	bucketFromEvalJson,
 	evalFromJson,
@@ -17,6 +22,7 @@ import {
 import { runLlmEvaluation } from "./research.js";
 import {
 	calculateCombinedUpsideScore,
+	calculateMoatSignalScore,
 	calculateQualitySignalScore,
 	calculateStrategyIndices,
 	calculateValuationScore,
@@ -62,6 +68,48 @@ function blendedQuality(
 	};
 }
 
+function blendedMoat(
+	research: ResearchEvaluation | null,
+	moatSignalScore: number | null,
+): ScoredReason | null {
+	const researchMoatScore = research?.moat_score?.score ?? null;
+	if (researchMoatScore == null && moatSignalScore == null) {
+		return null;
+	}
+
+	let score: number;
+	if (researchMoatScore != null && moatSignalScore != null) {
+		score = Number(
+			(
+				MOAT_RESEARCH_WEIGHT * researchMoatScore +
+				MOAT_SIGNAL_WEIGHT * moatSignalScore
+			).toFixed(2),
+		);
+	} else if (researchMoatScore != null) {
+		score = Number(researchMoatScore.toFixed(2));
+	} else {
+		score = Number((moatSignalScore ?? 0).toFixed(2));
+	}
+
+	return {
+		score,
+		reasons: research?.moat_score?.reasons ?? [],
+	};
+}
+
+function averageAvailableScores(values: Array<number | null>): number | null {
+	const availableScores = values.filter(
+		(value): value is number => value != null && Number.isFinite(value),
+	);
+	if (availableScores.length === 0) {
+		return null;
+	}
+	return (
+		availableScores.reduce((sum, value) => sum + value, 0) /
+		availableScores.length
+	);
+}
+
 /** Fetch metrics and run LLM evaluations to build the Evaluation input model. */
 export async function buildInputs(ticker: string): Promise<Evaluation> {
 	const normalizedTicker = normalizeTicker(ticker);
@@ -88,6 +136,7 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 	});
 	const valuationScore = calculateValuationScore(indicator);
 	const qualitySignalScore = calculateQualitySignalScore(indicator);
+	const moatSignalScore = calculateMoatSignalScore(indicator);
 	const upsideScore = calculateCombinedUpsideScore(
 		typeof indicator.median_upside === "number"
 			? indicator.median_upside
@@ -99,6 +148,7 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 	);
 
 	const quality = blendedQuality(research, qualitySignalScore);
+	const moat = blendedMoat(research, moatSignalScore);
 
 	return {
 		score: outlook?.score ?? null,
@@ -106,7 +156,7 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 		market_cap_score: marketCapValue,
 		valuation_score: valuationScore,
 		upside_score: upsideScore,
-		moat_score: research?.moat_score ?? null,
+		moat_score: moat,
 		quality_score: quality,
 	};
 }
@@ -130,9 +180,7 @@ export function evaluateAsset(
 		scores.valuation_score,
 		scores.upside_score,
 	];
-	const overall = coreMetrics.every((value) => value != null)
-		? coreMetrics.reduce((sum, value) => sum + Number(value), 0) / 4
-		: null;
+	const overall = averageAvailableScores(coreMetrics);
 
 	const indices = calculateStrategyIndices(scores);
 

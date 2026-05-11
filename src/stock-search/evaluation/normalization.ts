@@ -5,6 +5,7 @@ import type { Evaluation, ScoredReason } from "../models/schemas.js";
 import { DEFAULT_SCORE } from "./constants.js";
 import {
 	calculateCombinedUpsideScore,
+	calculateMoatSignalScore,
 	calculateQualitySignalScore,
 	calculateStrategyIndices,
 	calculateValuationScore,
@@ -27,10 +28,12 @@ function roundScore(value: number | null): number | null {
 }
 
 function averageScore(values: Array<number | null | undefined>): number | null {
-	if (values.some((value) => value == null || !Number.isFinite(value))) {
+	const numericValues = values.filter(
+		(value): value is number => value != null && Number.isFinite(value),
+	);
+	if (numericValues.length === 0) {
 		return null;
 	}
-	const numericValues = values.map((value) => Number(value));
 	return roundScore(
 		numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length,
 	);
@@ -78,6 +81,7 @@ export function normalizeEvalJsonForIndicators(
 	const indicatorRow = indicators ?? {};
 
 	const qualityScore = roundScore(calculateQualitySignalScore(indicatorRow));
+	const moatScore = roundScore(calculateMoatSignalScore(indicatorRow));
 	const llmQualityScore = roundScore(
 		scoreFromEvaluationField(data?.llm_quality_score),
 	);
@@ -88,6 +92,11 @@ export function normalizeEvalJsonForIndicators(
 		normalized.quality_score = qualityScore;
 	} else {
 		delete normalized.quality_score;
+	}
+	if (moatScore != null) {
+		normalized.moat_score = moatScore;
+	} else {
+		delete normalized.moat_score;
 	}
 
 	const valuationScore = roundScore(calculateValuationScore(indicatorRow));

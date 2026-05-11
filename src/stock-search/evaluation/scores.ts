@@ -6,6 +6,7 @@ import {
 	CalibrationConfig,
 	CoreEngineWeights,
 	DiversifierWeights,
+	MoatSignalMultipliers,
 	QualitySignalMultipliers,
 	SatelliteWeights,
 	SCORE_SCALE,
@@ -244,6 +245,30 @@ function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
 	return null;
 }
 
+function forwardPeForValuation(indicator: IndicatorLike): number | null {
+	const forwardPeRange = anchorRange("pe_forward");
+	const forwardPe = valuationMultipleField(
+		indicator,
+		"pe_forward",
+		forwardPeRange,
+	);
+	const operatingMargin = getNumberField(indicator, "operating_margin");
+	const roic = getNumberField(indicator, "roic");
+	const freeCashFlowYield = fcfYieldPercent(indicator);
+	if (
+		forwardPe != null &&
+		operatingMargin != null &&
+		operatingMargin <= 0 &&
+		roic != null &&
+		roic <= 0 &&
+		freeCashFlowYield != null &&
+		freeCashFlowYield <= 0
+	) {
+		return forwardPeRange[2];
+	}
+	return forwardPe;
+}
+
 /** Map market cap to 1-10 using a Log-S-curve. */
 export function marketCapScore(
 	info: Record<string, unknown> | null | undefined = null,
@@ -284,11 +309,7 @@ export function calculateValuationScore(
 			true,
 		],
 		[
-			valuationMultipleField(
-				indicator,
-				"pe_forward",
-				anchorRange("pe_forward"),
-			),
+			forwardPeForValuation(indicator),
 			anchorRange("pe_forward"),
 			ValuationMultipliers.PE_FORWARD,
 			true,
@@ -326,6 +347,49 @@ export function calculateValuationScore(
 	]);
 	const floor = viableBusinessValuationFloor(indicator);
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
+}
+
+/** Compute market-derived moat from scale, durable margins, returns, and balance sheet. */
+export function calculateMoatSignalScore(
+	indicator: IndicatorLike,
+): number | null {
+	return weightedMeanScore([
+		[
+			scaleScore(getNumberField(indicator, "revenue"), "revenue"),
+			MoatSignalMultipliers.REVENUE_SCALE,
+		],
+		[
+			scaleScore(getNumberField(indicator, "free_cash_flow"), "free_cash_flow"),
+			MoatSignalMultipliers.FCF_SCALE,
+		],
+		[
+			statCurveScore(getNumberField(indicator, "gross_margin"), "gross_margin"),
+			MoatSignalMultipliers.GROSS_MARGIN,
+		],
+		[
+			statCurveScore(
+				getNumberField(indicator, "operating_margin"),
+				"operating_margin",
+			),
+			MoatSignalMultipliers.OPERATING_MARGIN,
+		],
+		[
+			statCurveScore(getNumberField(indicator, "roe"), "roe"),
+			MoatSignalMultipliers.ROE,
+		],
+		[
+			statCurveScore(getNumberField(indicator, "roic"), "roic"),
+			MoatSignalMultipliers.ROIC,
+		],
+		[
+			statCurveScore(
+				getNumberField(indicator, "debt_to_equity"),
+				"debt_to_equity",
+				true,
+			),
+			MoatSignalMultipliers.DEBT_TO_EQUITY,
+		],
+	]);
 }
 
 /** Compute market-derived quality from scale, growth, margins, returns, and owner yield. */

@@ -8,6 +8,8 @@ export type MinMedMax = [number, number, number];
 export const DEFAULT_SCORE = 5;
 
 export const SCORE_SCALE = 10;
+export const MOAT_RESEARCH_WEIGHT = 0.7;
+export const MOAT_SIGNAL_WEIGHT = 0.3;
 export const QUALITY_RESEARCH_WEIGHT = 0.7;
 export const QUALITY_SIGNAL_WEIGHT = 0.3;
 
@@ -68,6 +70,17 @@ export const QualitySignalMultipliers = {
 	ROE: 1,
 	ROIC: 1,
 	SHAREHOLDER_YIELD: 0.5,
+} as const;
+
+/** Multipliers tune stat contribution strength before averaging available moat stats. */
+export const MoatSignalMultipliers = {
+	REVENUE_SCALE: 1,
+	FCF_SCALE: 0.75,
+	GROSS_MARGIN: 1.5,
+	OPERATING_MARGIN: 1.5,
+	ROE: 0.5,
+	ROIC: 1.5,
+	DEBT_TO_EQUITY: 0.5,
 } as const;
 
 /** Multipliers tune upside channels before averaging available upside signals. */
