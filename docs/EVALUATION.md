@@ -160,6 +160,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 “Higher is better”
 
 - **Revenue growth (YoY %)**: -15 / 15 / 70
+- **EPS growth %**: -30 / 15 / 100
 - **Gross margin %**: 10 / 60 / 90
 - **Operating margin %**: -10 / 30 / 55
 - **ROE %**: 0 / 25 / 80
@@ -189,6 +190,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 | P/S             |    1 |             6 |        25 |
 | Forward P/S     |    1 |             5 |        22 |
 | Revenue growth  |  -15 |            15 |        70 |
+| EPS growth      |  -30 |            15 |       100 |
 | Gross margin    |   10 |            60 |        90 |
 | Operating margin |  -10 |            30 |        55 |
 | Debt/equity ratio |  0 |           0.8 |       3.0 |
@@ -246,6 +248,7 @@ This yields sensible ordering like gold > silver on “role,” while still ackn
 Quality should not be reduced to a single growth or gross-margin number. Keep the first-pass stats understandable: gross margin says whether the product economics are attractive, while operating margin says whether the core business still works after normal company operating costs. Net/profit margin can stay behind the scenes because taxes, interest, accounting marks, and one-time items can make it noisy.
 
 - **Revenue growth**: whether the business is expanding.
+- **EPS growth**: whether growth is reaching per-share earnings.
 - **Gross margin**: whether the product/service has attractive unit economics.
 - **Operating margin**: whether gross profit survives normal operating expenses.
 - **ROE**: whether common equity produces returns; useful as a companion to ROIC, but more leverage-sensitive.
@@ -273,6 +276,7 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - ROIC score as a valuation viability check
 - size score as a market validation / scale support check
 - revenue scale score as operating scale support
+- EPS growth score as per-share earnings growth support
 
 Valuation anchors are sector-relative when possible. This keeps a bank, utility,
 semiconductor, and internet platform from being judged against one universal
@@ -286,6 +290,7 @@ Implemented multipliers use `1.0` as full strength and `0.5` as support strength
 - forward P/E 1.50
 - FCF yield 1.00
 - shareholder yield 0.50
+- EPS growth 0.50
 - debt/equity 0.50
 - operating margin 0.50
 - ROIC 0.50
@@ -296,6 +301,7 @@ Market-derived quality uses these contribution multipliers:
 
 - revenue scale 1.00
 - revenue growth 1.20
+- EPS growth 1.00
 - gross margin 1.00
 - operating margin 1.00
 - ROE 1.00

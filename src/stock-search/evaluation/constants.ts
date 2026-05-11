@@ -36,6 +36,7 @@ export const CalibrationConfig = {
 	GROWTH_RANGE: [0.1, 0.3, 0.5],
 	REVENUE_RANGE: [5 * BILLION, 100 * BILLION, 700 * BILLION],
 	REVENUE_GROWTH_PCT_RANGE: [-15.0, 15.0, 70.0],
+	EPS_GROWTH_PCT_RANGE: [-30.0, 15.0, 100.0],
 	GROSS_MARGIN_PCT_RANGE: [10.0, 60.0, 90.0],
 	OPERATING_MARGIN_PCT_RANGE: [-10.0, 30.0, 55.0],
 	ROE_PCT_RANGE: [0.0, 25.0, 80.0],
@@ -60,12 +61,14 @@ export const ValuationMultipliers = {
 	ROIC: 0.5,
 	SIZE: 1,
 	REVENUE_SCALE: 0.5,
+	EPS_GROWTH: 0.5,
 } as const;
 
 /** Multipliers tune stat contribution strength before averaging available quality stats. */
 export const QualitySignalMultipliers = {
 	REVENUE_SCALE: 1,
 	REVENUE_GROWTH: 1.2,
+	EPS_GROWTH: 1,
 	FCF_SCALE: 1,
 	GROSS_MARGIN: 1,
 	OPERATING_MARGIN: 1,

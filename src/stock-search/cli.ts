@@ -49,6 +49,7 @@ const STOCK_STATS_FIELDS = [
 	"median_upside",
 	"revenue",
 	"revenue_growth",
+	"eps_growth",
 	"gross_margin",
 	"operating_margin",
 	"roe",

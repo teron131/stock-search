@@ -211,6 +211,7 @@ function fcfYieldPercent(indicator: IndicatorLike): number | null {
 
 function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
 	const revenueGrowth = getNumberField(indicator, "revenue_growth");
+	const epsGrowth = getNumberField(indicator, "eps_growth");
 	const operatingMargin = getNumberField(indicator, "operating_margin");
 	const roe = getNumberField(indicator, "roe");
 	const roic = getNumberField(indicator, "roic");
@@ -219,6 +220,7 @@ function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
 
 	const positiveSignals = [
 		revenueGrowth != null && revenueGrowth > 0,
+		epsGrowth != null && epsGrowth > 0,
 		operatingMargin != null && operatingMargin > 0,
 		roe != null && roe > 0,
 		roic != null && roic > 0,
@@ -325,6 +327,7 @@ export function calculateValuationScore(
 		"shareholder_yield",
 		valuationAnchors,
 	);
+	const epsGrowthRange = anchorRange("eps_growth", valuationAnchors);
 	const operatingMarginRange = anchorRange(
 		"operating_margin",
 		valuationAnchors,
@@ -366,6 +369,12 @@ export function calculateValuationScore(
 			getNumberField(indicator, "shareholder_yield"),
 			shareholderYieldRange,
 			ValuationMultipliers.SHAREHOLDER_YIELD,
+			false,
+		],
+		[
+			getNumberField(indicator, "eps_growth"),
+			epsGrowthRange,
+			ValuationMultipliers.EPS_GROWTH,
 			false,
 		],
 		[
@@ -455,6 +464,10 @@ export function calculateQualitySignalScore(
 				"revenue_growth",
 			),
 			QualitySignalMultipliers.REVENUE_GROWTH,
+		],
+		[
+			statCurveScore(getNumberField(indicator, "eps_growth"), "eps_growth"),
+			QualitySignalMultipliers.EPS_GROWTH,
 		],
 		[
 			scaleScore(getNumberField(indicator, "free_cash_flow"), "free_cash_flow"),

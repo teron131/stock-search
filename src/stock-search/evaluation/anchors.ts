@@ -39,6 +39,7 @@ export type ScoreAnchorKey =
 	| "shareholder_yield"
 	| "revenue"
 	| "revenue_growth"
+	| "eps_growth"
 	| "gross_margin"
 	| "operating_margin"
 	| "roe"
@@ -65,6 +66,7 @@ export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 	shareholder_yield: CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
 	revenue: CalibrationConfig.REVENUE_RANGE,
 	revenue_growth: CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
+	eps_growth: CalibrationConfig.EPS_GROWTH_PCT_RANGE,
 	gross_margin: CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
 	operating_margin: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
 	roe: CalibrationConfig.ROE_PCT_RANGE,
@@ -85,6 +87,7 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	shareholder_yield: "positive",
 	revenue: "positive",
 	revenue_growth: "positive",
+	eps_growth: "positive",
 	gross_margin: "positive",
 	operating_margin: "positive",
 	roe: "positive",
@@ -99,6 +102,7 @@ const SECTOR_VALUATION_ANCHOR_KEYS = [
 	"debt_to_equity",
 	"fcf_yield",
 	"shareholder_yield",
+	"eps_growth",
 	"operating_margin",
 	"roic",
 ] as const satisfies readonly ScoreAnchorKey[];
@@ -242,6 +246,7 @@ function loadDynamicAnchors(): ScoreAnchors {
 			shareholder_yield: dynamicAnchor(database, "shareholder_yield"),
 			revenue: dynamicAnchor(database, "revenue"),
 			revenue_growth: dynamicAnchor(database, "revenue_growth"),
+			eps_growth: dynamicAnchor(database, "eps_growth"),
 			gross_margin: dynamicAnchor(database, "gross_margin"),
 			operating_margin: dynamicAnchor(database, "operating_margin"),
 			roe: dynamicAnchor(database, "roe"),

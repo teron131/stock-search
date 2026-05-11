@@ -47,7 +47,12 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"shareholder_yield",
 		"rsi",
 	],
-	financials: ["revenue_growth", "gross_margin", "operating_margin"],
+	financials: [
+		"revenue_growth",
+		"eps_growth",
+		"gross_margin",
+		"operating_margin",
+	],
 	ratings: ["median_upside", "ratings"],
 };
 

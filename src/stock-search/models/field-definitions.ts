@@ -219,6 +219,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"(Revenue / prior revenue - 1). Shows top-line growth before margins.",
 	},
+	eps_growth: {
+		label: "EPS Growth",
+		shortLabel: "EPS%",
+		description:
+			"(EPS / prior EPS - 1). Shows per-share earnings growth after margins, interest, tax, and dilution.",
+	},
 	roe: {
 		label: "Return on Equity",
 		shortLabel: "ROE",
@@ -340,6 +346,7 @@ export const INDICATOR_FIELD_GROUPS = {
 		fields: [
 			"revenue",
 			"revenue_growth",
+			"eps_growth",
 			"gross_margin",
 			"operating_margin",
 			"roe",

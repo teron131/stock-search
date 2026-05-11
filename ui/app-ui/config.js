@@ -233,6 +233,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 		WIDTH_GROUPS.fundamentalPercent,
 	),
 	createGroupedColumn(
+		"eps_growth",
+		"EPS%",
+		"percent_neutral",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
 		"gross_margin",
 		"GM%",
 		"percent_neutral",
@@ -286,6 +292,12 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = [
 	createGroupedColumn(
 		"revenue_growth",
 		"REV%",
+		"percent",
+		WIDTH_GROUPS.fundamentalPercent,
+	),
+	createGroupedColumn(
+		"eps_growth",
+		"EPS%",
 		"percent",
 		WIDTH_GROUPS.fundamentalPercent,
 	),

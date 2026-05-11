@@ -188,7 +188,7 @@ const FinancialsSchema = z
 			"EPS (Diluted) value from the first/current column.",
 		),
 		eps_growth: NullableNumber.optional().describe(
-			"EPS Growth value from the first/current column.",
+			"EPS Growth percentage from the EPS Growth row in the first/current column. Do not use EPS (Diluted) or Shares Change (YoY).",
 		),
 		gross_margin: NullableNumber.optional().describe(
 			getFieldDescription("gross_margin"),
@@ -297,6 +297,21 @@ const SectorTopTickerCacheSchema = z
 			.describe("Sector top-ticker cache entries keyed by sector name."),
 	})
 	.describe("Cached StockAnalysis sector top-ticker payload.");
+
+type FinancialsFieldName =
+	| "revenue_growth"
+	| "eps_diluted"
+	| "eps_growth"
+	| "gross_margin"
+	| "operating_margin";
+
+const FINANCIALS_ROW_FIELDS: Record<string, FinancialsFieldName> = {
+	"Revenue Growth (YoY)": "revenue_growth",
+	"EPS (Diluted)": "eps_diluted",
+	"EPS Growth": "eps_growth",
+	"Gross Margin": "gross_margin",
+	"Operating Margin": "operating_margin",
+};
 
 type SectorRow = z.output<typeof SectorRowSchema>;
 
@@ -479,6 +494,84 @@ function normalizeSectorName(value: string): string {
 	return SECTOR_LABELS.other;
 }
 
+function parseStockAnalysisNumber(value: string): number | null {
+	const normalized = value.trim();
+	if (!normalized || normalized === "-") {
+		return null;
+	}
+	const numberValue = Number(
+		normalized.replace(/[$,%]/g, "").replace(/,/g, ""),
+	);
+	return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function firstMarkdownTableCell(row: string): string | null {
+	const cells = row
+		.split("|")
+		.map((cell) => cell.trim())
+		.filter(Boolean);
+	return cells[0] ?? null;
+}
+
+function firstFinancialsTableHeaderIndex(
+	lines: string[],
+	periodEndingIndex: number,
+): number {
+	return lines.findIndex(
+		(line, index) =>
+			index > periodEndingIndex &&
+			line.startsWith("|") &&
+			(lines[index + 1] ?? "").startsWith("| ---"),
+	);
+}
+
+function parseFinancialsSnapshotFromText(
+	text: string,
+): Record<string, unknown> {
+	const lines = text
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter(Boolean);
+	const periodEndingIndex = lines.indexOf("Period Ending");
+	const tableHeaderIndex = firstFinancialsTableHeaderIndex(
+		lines,
+		periodEndingIndex,
+	);
+	if (
+		periodEndingIndex < 0 ||
+		tableHeaderIndex < 0 ||
+		tableHeaderIndex <= periodEndingIndex
+	) {
+		return {};
+	}
+
+	const rowLabels = [
+		"Period Ending",
+		"Revenue",
+		...lines.slice(periodEndingIndex + 1, tableHeaderIndex),
+	];
+	const tableRows = lines
+		.slice(tableHeaderIndex + 2)
+		.filter((line) => line.startsWith("|"));
+	const output: Record<string, unknown> = {};
+
+	for (const [rowIndex, label] of rowLabels.entries()) {
+		const fieldName = FINANCIALS_ROW_FIELDS[label];
+		if (fieldName == null) {
+			continue;
+		}
+		const currentColumnValue = firstMarkdownTableCell(
+			tableRows[rowIndex] ?? "",
+		);
+		if (currentColumnValue == null) {
+			continue;
+		}
+		output[fieldName] = parseStockAnalysisNumber(currentColumnValue);
+	}
+
+	return output;
+}
+
 async function loadStockAnalysisPage<T extends ZodType>({
 	urls,
 	outputSchema,
@@ -523,6 +616,24 @@ async function loadStockAnalysisPageOrDefault<T extends ZodType>({
 		});
 	} catch {
 		return defaultValue;
+	}
+}
+
+async function loadStockAnalysisText(
+	url: string,
+	maxCharacters = DEFAULT_CONTENT_OPTIONS.maxCharacters,
+): Promise<string | null> {
+	try {
+		const agent = new ExaLoadAgent({
+			contentOptions: {
+				...DEFAULT_CONTENT_OPTIONS,
+				maxCharacters,
+			},
+		});
+		const { pages } = await agent.load(url);
+		return pages[0]?.text ?? null;
+	} catch {
+		return null;
 	}
 }
 
@@ -709,6 +820,14 @@ export async function loadFinancialsSnapshot(
 	tickerLower: string,
 ): Promise<Record<string, unknown>> {
 	const url = stockDataUrl(STOCKANALYSIS_FINANCIALS_URL, tickerLower);
+	const financialsText = await loadStockAnalysisText(url);
+	const parsedFinancials =
+		financialsText == null
+			? {}
+			: parseFinancialsSnapshotFromText(financialsText);
+	if (Object.keys(parsedFinancials).length > 0) {
+		return parsedFinancials;
+	}
 	return loadStockAnalysisPageOrDefault({
 		urls: url,
 		outputSchema: FinancialsSchema,
@@ -719,6 +838,7 @@ export async function loadFinancialsSnapshot(
 			"Use only the first/current data column in the table.",
 			"Ignore older columns to the right.",
 			"Use revenue_growth, eps_growth, gross_margin, and operating_margin as 0-100 numeric values.",
+			"eps_growth must come from the EPS Growth row only; do not use EPS (Diluted), EPS (Basic), or Shares Change (YoY).",
 		].join("\n"),
 	});
 }
