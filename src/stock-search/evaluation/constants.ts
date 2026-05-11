@@ -32,12 +32,14 @@ export const CalibrationConfig = {
 	PS_RANGE: [1.0, 6.0, 25.0],
 	PS_FORWARD_RANGE: [1.0, 5.0, 22.0],
 	GROWTH_RANGE: [0.1, 0.3, 0.5],
+	REVENUE_RANGE: [5 * BILLION, 100 * BILLION, 700 * BILLION],
 	REVENUE_GROWTH_PCT_RANGE: [-15.0, 15.0, 70.0],
 	GROSS_MARGIN_PCT_RANGE: [10.0, 60.0, 90.0],
 	OPERATING_MARGIN_PCT_RANGE: [-10.0, 30.0, 55.0],
 	ROE_PCT_RANGE: [0.0, 25.0, 80.0],
 	ROIC_PCT_RANGE: [0.0, 25.0, 80.0],
 	DEBT_TO_EQUITY_PCT_RANGE: [0.0, 0.8, 3.0],
+	FREE_CASH_FLOW_RANGE: [0.0, 10 * BILLION, 120 * BILLION],
 	FCF_YIELD_PCT_RANGE: [-5.0, 4.0, 12.0],
 	SHAREHOLDER_YIELD_PCT_RANGE: [-5.0, 3.0, 10.0],
 	UPSIDE_RANGE: [-25.0, 15.0, 60.0],
@@ -49,8 +51,6 @@ export const ValuationMultipliers = {
 	PEG: 2,
 	PE: 1,
 	PE_FORWARD: 1.5,
-	PS: 1,
-	PS_FORWARD: 1,
 	FCF_YIELD: 1,
 	SHAREHOLDER_YIELD: 0.5,
 	DEBT_TO_EQUITY: 0.5,
@@ -60,12 +60,13 @@ export const ValuationMultipliers = {
 
 /** Multipliers tune stat contribution strength before averaging available quality stats. */
 export const QualitySignalMultipliers = {
+	REVENUE_SCALE: 1,
 	REVENUE_GROWTH: 1.2,
+	FCF_SCALE: 1,
 	GROSS_MARGIN: 1,
 	OPERATING_MARGIN: 1,
 	ROE: 1,
 	ROIC: 1,
-	PS: 1,
 	SHAREHOLDER_YIELD: 0.5,
 } as const;
 

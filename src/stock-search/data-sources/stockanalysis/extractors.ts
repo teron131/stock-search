@@ -124,6 +124,7 @@ const StatisticsSchema = z
 		market_cap: NullableNumber.optional().describe(
 			getFieldDescription("market_cap"),
 		),
+		revenue: NullableNumber.optional().describe(getFieldDescription("revenue")),
 		beta: NullableNumber.optional().describe(getFieldDescription("beta")),
 		fifty_two_week_price_change: NullableNumber.optional().describe(
 			"52-Week Price Change percentage from the Stock Price Statistics section.",
@@ -694,7 +695,7 @@ export async function loadStatisticsSnapshot(
 		instruction: [
 			`Extract the StockAnalysis statistics schema for ${tickerLower.toUpperCase()}.`,
 			`Source URL: ${url}`,
-			"Use market_cap and free_cash_flow as absolute dollar values.",
+			"Use market_cap, revenue, and free_cash_flow as absolute dollar values.",
 			"Use pe, pe_forward, ps, peg, beta, roe, roic, debt_to_equity, and debt_to_ebitda as displayed numeric ratios.",
 			"Use ps_forward only for an explicitly displayed Forward P/S or Forward Price/Sales ratio; otherwise return null.",
 			"Use gross_margin, operating_margin, shareholder_yield, rsi, median_upside, and price-change fields as 0-100 numeric values.",

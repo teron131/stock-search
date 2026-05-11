@@ -230,7 +230,6 @@ Quality should not be reduced to a single growth or gross-margin number. Keep th
 - **Operating margin**: whether gross profit survives normal operating expenses.
 - **ROE**: whether common equity produces returns; useful as a companion to ROIC, but more leverage-sensitive.
 - **ROIC**: whether capital is actually producing returns.
-- **P/S**: revenue scale proxy relative to market value; lower P/S means more revenue per market-cap dollar.
 - **Shareholder yield / dilution**: whether per-share owners are being rewarded or diluted.
 
 Interpretation rules:
@@ -247,8 +246,6 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - PEG score
 - trailing P/E score
 - forward P/E score
-- P/S score
-- forward P/S score
 - debt/equity score
 - FCF yield score when market cap and free cash flow are available
 - shareholder yield score when dividends, buybacks, and dilution are available
@@ -260,8 +257,6 @@ Implemented multipliers use `1.0` as full strength and `0.5` as support strength
 - PEG 2.00
 - trailing P/E 1.00
 - forward P/E 1.50
-- P/S 1.00
-- forward P/S 1.00
 - FCF yield 1.00
 - shareholder yield 0.50
 - debt/equity 0.50
@@ -270,13 +265,16 @@ Implemented multipliers use `1.0` as full strength and `0.5` as support strength
 
 Market-derived quality uses these contribution multipliers:
 
+- revenue scale 1.00
 - revenue growth 1.20
 - gross margin 1.00
 - operating margin 1.00
 - ROE 1.00
 - ROIC 1.00
-- P/S 1.00
+- FCF scale 1.00
 - shareholder yield 0.50
+
+Revenue scale uses directly extracted trailing revenue. FCF scale uses absolute free cash flow. FCF yield remains a valuation component because it measures cash generation relative to price paid.
 
 If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E, PEG, or P/S values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 

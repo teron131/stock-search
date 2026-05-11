@@ -262,17 +262,14 @@ async function refreshFamilyRow(
 			bundle.getFinancials(),
 			bundle.getStatistics(),
 		]);
-		return familyRow(
-			{
-				...statistics,
-				...financials,
-				gross_margin:
-					financials.gross_margin ?? statistics.gross_margin ?? null,
-				operating_margin:
-					financials.operating_margin ?? statistics.operating_margin ?? null,
-			},
-			family,
-		);
+		const merged = {
+			...statistics,
+			...financials,
+			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
+			operating_margin:
+				financials.operating_margin ?? statistics.operating_margin ?? null,
+		};
+		return familyRow(merged, family);
 	}
 	return familyRow(await bundle.getYahooIndicators(), family);
 }

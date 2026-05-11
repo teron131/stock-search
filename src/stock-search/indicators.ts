@@ -26,6 +26,7 @@ const YAHOO_PRIORITY_FIELDS = new Set([
 const STATISTICS_PRIORITY_FIELDS = new Set([
 	"market_cap",
 	"fx",
+	"revenue",
 	"pe",
 	"pe_forward",
 	"ps",
@@ -103,6 +104,7 @@ export async function fetchLiveIndicators(
 	const stockAnalysisPayload: Record<string, unknown> = {
 		...stockAnalysisStatistics,
 		...stockAnalysisFinancials,
+		revenue: stockAnalysisStatistics.revenue ?? null,
 		gross_margin:
 			stockAnalysisFinancials.gross_margin ??
 			stockAnalysisStatistics.gross_margin ??
@@ -114,20 +116,30 @@ export async function fetchLiveIndicators(
 		debt_to_equity: stockAnalysisStatistics.debt_to_equity ?? null,
 	};
 
+	function sourcesForField(field: string): Array<Record<string, unknown>> {
+		if (field === "revenue") {
+			return [stockAnalysisPayload, cachedIndicators];
+		}
+		if (YAHOO_PRIORITY_FIELDS.has(field)) {
+			return [yahooPayload, stockAnalysisPayload, cachedIndicators];
+		}
+		if (
+			STATISTICS_PRIORITY_FIELDS.has(field) ||
+			FINANCIALS_PRIORITY_FIELDS.has(field)
+		) {
+			return [stockAnalysisPayload, cachedIndicators, yahooPayload];
+		}
+		return [cachedIndicators, stockAnalysisPayload, yahooPayload];
+	}
+
 	function resolveField(field: string): unknown {
 		const hasYahooFx =
 			yahooPayload.fx !== null && yahooPayload.fx !== undefined;
 		if (hasYahooFx && FX_SOURCE_FIELDS.has(field)) {
 			return yahooPayload[field] ?? null;
 		}
-		const priorities = YAHOO_PRIORITY_FIELDS.has(field)
-			? [yahooPayload, stockAnalysisPayload, cachedIndicators]
-			: STATISTICS_PRIORITY_FIELDS.has(field) ||
-					FINANCIALS_PRIORITY_FIELDS.has(field)
-				? [stockAnalysisPayload, cachedIndicators, yahooPayload]
-				: [cachedIndicators, stockAnalysisPayload, yahooPayload];
 
-		for (const source of priorities) {
+		for (const source of sourcesForField(field)) {
 			const value = source[field];
 			if (value !== null && value !== undefined) {
 				return value;

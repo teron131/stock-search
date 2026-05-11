@@ -24,8 +24,10 @@ export type ScoreAnchorKey =
 	| "ps"
 	| "ps_forward"
 	| "debt_to_equity"
+	| "free_cash_flow"
 	| "fcf_yield"
 	| "shareholder_yield"
+	| "revenue"
 	| "revenue_growth"
 	| "gross_margin"
 	| "operating_margin"
@@ -47,8 +49,10 @@ export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 	ps: CalibrationConfig.PS_RANGE,
 	ps_forward: CalibrationConfig.PS_FORWARD_RANGE,
 	debt_to_equity: CalibrationConfig.DEBT_TO_EQUITY_PCT_RANGE,
+	free_cash_flow: CalibrationConfig.FREE_CASH_FLOW_RANGE,
 	fcf_yield: CalibrationConfig.FCF_YIELD_PCT_RANGE,
 	shareholder_yield: CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+	revenue: CalibrationConfig.REVENUE_RANGE,
 	revenue_growth: CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
 	gross_margin: CalibrationConfig.GROSS_MARGIN_PCT_RANGE,
 	operating_margin: CalibrationConfig.OPERATING_MARGIN_PCT_RANGE,
@@ -65,8 +69,10 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	ps: "inverse",
 	ps_forward: "inverse",
 	debt_to_equity: "inverse",
+	free_cash_flow: "positive",
 	fcf_yield: "positive",
 	shareholder_yield: "positive",
+	revenue: "positive",
 	revenue_growth: "positive",
 	gross_margin: "positive",
 	operating_margin: "positive",
@@ -111,6 +117,12 @@ function calibrationQuery(anchorKey: ScoreAnchorKey): {
 			expression: "free_cash_flow / market_cap * 100",
 			whereClause:
 				"market_cap IS NOT NULL AND market_cap > 0 AND free_cash_flow IS NOT NULL",
+		};
+	}
+	if (anchorKey === "free_cash_flow") {
+		return {
+			expression: "free_cash_flow",
+			whereClause: "free_cash_flow IS NOT NULL",
 		};
 	}
 	return {
@@ -178,8 +190,10 @@ function loadDynamicAnchors(): ScoreAnchors {
 			ps: dynamicAnchor(database, "ps"),
 			ps_forward: dynamicAnchor(database, "ps_forward"),
 			debt_to_equity: dynamicAnchor(database, "debt_to_equity"),
+			free_cash_flow: dynamicAnchor(database, "free_cash_flow"),
 			fcf_yield: dynamicAnchor(database, "fcf_yield"),
 			shareholder_yield: dynamicAnchor(database, "shareholder_yield"),
+			revenue: dynamicAnchor(database, "revenue"),
 			revenue_growth: dynamicAnchor(database, "revenue_growth"),
 			gross_margin: dynamicAnchor(database, "gross_margin"),
 			operating_margin: dynamicAnchor(database, "operating_margin"),

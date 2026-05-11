@@ -47,6 +47,7 @@ const STOCK_STATS_FIELDS = [
 	"change_percent_6m",
 	"change_percent_1y",
 	"median_upside",
+	"revenue",
 	"revenue_growth",
 	"gross_margin",
 	"operating_margin",

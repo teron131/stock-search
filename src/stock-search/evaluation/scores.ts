@@ -106,6 +106,40 @@ function anchorRange(anchorKey: ScoreAnchorKey): [number, number, number] {
 	return getScoreAnchors()[anchorKey];
 }
 
+function statCurveScore(
+	value: number | null,
+	anchorKey: ScoreAnchorKey,
+	inverse = false,
+): number | null {
+	if (value == null) {
+		return null;
+	}
+	const [rangeMin, rangeMedian, rangeMax] = anchorRange(anchorKey);
+	return mapToCurveScore(value, rangeMin, rangeMax, rangeMedian, {
+		outMin: inverse ? SCORE_SCALE : 0,
+		outMax: inverse ? 0 : SCORE_SCALE,
+	});
+}
+
+function scaleScore(
+	value: number | null,
+	anchorKey: ScoreAnchorKey,
+): number | null {
+	if (value == null) {
+		return null;
+	}
+	if (value <= 0) {
+		return 0;
+	}
+	const [rangeMin, rangeMedian, rangeMax] = anchorRange(anchorKey);
+	return mapToCurveScore(
+		Math.log10(value),
+		Math.log10(rangeMin),
+		Math.log10(rangeMax),
+		Math.log10(rangeMedian),
+	);
+}
+
 function weightedMeanStatScore(factors: WeightedFactorConfig[]): number | null {
 	const weightedScores: number[] = [];
 	const weights: number[] = [];
@@ -260,22 +294,6 @@ export function calculateValuationScore(
 			true,
 		],
 		[
-			valuationMultipleField(indicator, "ps", anchorRange("ps")),
-			anchorRange("ps"),
-			ValuationMultipliers.PS,
-			true,
-		],
-		[
-			valuationMultipleField(
-				indicator,
-				"ps_forward",
-				anchorRange("ps_forward"),
-			),
-			anchorRange("ps_forward"),
-			ValuationMultipliers.PS_FORWARD,
-			true,
-		],
-		[
 			getNumberField(indicator, "debt_to_equity"),
 			anchorRange("debt_to_equity"),
 			ValuationMultipliers.DEBT_TO_EQUITY,
@@ -310,61 +328,60 @@ export function calculateValuationScore(
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 
-/** Compute market-derived quality score from growth and margin. */
+/** Compute market-derived quality from scale, growth, margins, returns, and owner yield. */
 export function calculateQualitySignalScore(
 	indicator: IndicatorLike,
 ): number | null {
-	const factors: WeightedFactorConfig[] = [
+	const factors: Array<[number | null, number]> = [
 		[
-			getNumberField(indicator, "revenue_growth"),
-			anchorRange("revenue_growth"),
+			scaleScore(getNumberField(indicator, "revenue"), "revenue"),
+			QualitySignalMultipliers.REVENUE_SCALE,
+		],
+		[
+			statCurveScore(
+				getNumberField(indicator, "revenue_growth"),
+				"revenue_growth",
+			),
 			QualitySignalMultipliers.REVENUE_GROWTH,
-			false,
 		],
 		[
-			getNumberField(indicator, "gross_margin"),
-			anchorRange("gross_margin"),
+			scaleScore(getNumberField(indicator, "free_cash_flow"), "free_cash_flow"),
+			QualitySignalMultipliers.FCF_SCALE,
+		],
+		[
+			statCurveScore(getNumberField(indicator, "gross_margin"), "gross_margin"),
 			QualitySignalMultipliers.GROSS_MARGIN,
-			false,
 		],
 		[
-			getNumberField(indicator, "operating_margin"),
-			anchorRange("operating_margin"),
+			statCurveScore(
+				getNumberField(indicator, "operating_margin"),
+				"operating_margin",
+			),
 			QualitySignalMultipliers.OPERATING_MARGIN,
-			false,
 		],
 		[
-			getNumberField(indicator, "roe"),
-			anchorRange("roe"),
+			statCurveScore(getNumberField(indicator, "roe"), "roe"),
 			QualitySignalMultipliers.ROE,
-			false,
 		],
 		[
-			getNumberField(indicator, "roic"),
-			anchorRange("roic"),
+			statCurveScore(getNumberField(indicator, "roic"), "roic"),
 			QualitySignalMultipliers.ROIC,
-			false,
 		],
 		[
-			valuationMultipleField(indicator, "ps", anchorRange("ps")),
-			anchorRange("ps"),
-			QualitySignalMultipliers.PS,
-			true,
-		],
-		[
-			getNumberField(indicator, "shareholder_yield"),
-			anchorRange("shareholder_yield"),
+			statCurveScore(
+				getNumberField(indicator, "shareholder_yield"),
+				"shareholder_yield",
+			),
 			QualitySignalMultipliers.SHAREHOLDER_YIELD,
-			false,
 		],
 	];
 	const availableFactorCount = factors.filter(
-		([value]) => value != null,
+		([score]) => score != null,
 	).length;
 	if (availableFactorCount < 2) {
 		return null;
 	}
-	const rawScore = weightedMeanStatScore(factors);
+	const rawScore = weightedMeanScore(factors);
 	const floor = viableBusinessQualityFloor(indicator);
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }

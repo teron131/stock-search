@@ -201,6 +201,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		shortLabel: "QTY",
 		description: "Shares held. Direct value = price * quantity.",
 	},
+	revenue: {
+		label: "Revenue",
+		shortLabel: "REV",
+		description:
+			"Trailing revenue. Absolute business scale before margins and capital intensity.",
+	},
 	rank: {
 		label: "Rank",
 		shortLabel: "RANK",
@@ -332,6 +338,7 @@ export const INDICATOR_FIELD_GROUPS = {
 	operatingQuality: {
 		category: "fundamental",
 		fields: [
+			"revenue",
 			"revenue_growth",
 			"gross_margin",
 			"operating_margin",

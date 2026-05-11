@@ -221,6 +221,12 @@ const MOMENTUM_COLUMNS = [
 
 const FUNDAMENTAL_COLUMNS_ALL = [
 	createGroupedColumn(
+		"revenue",
+		"REV",
+		"market_cap",
+		WIDTH_GROUPS.abbrevCurrency,
+	),
+	createGroupedColumn(
 		"revenue_growth",
 		"REV%",
 		"percent_neutral",
@@ -271,6 +277,12 @@ const FUNDAMENTAL_COLUMNS_ALL = [
 ];
 
 const FUNDAMENTAL_COLUMNS_HOLDINGS = [
+	createGroupedColumn(
+		"revenue",
+		"REV",
+		"market_cap",
+		WIDTH_GROUPS.abbrevCurrency,
+	),
 	createGroupedColumn(
 		"revenue_growth",
 		"REV%",

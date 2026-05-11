@@ -850,6 +850,10 @@ function buildFundamentalsSnapshot(
 		quoteSummaryNumberField([financialDataModule], "freeCashflow") ??
 		sumTrailingValues(quarterlyFreeCashFlow, 4) ??
 		latestPointValue(annualFreeCashFlow);
+	const trailingRevenue =
+		quoteSummaryNumberField([financialDataModule], "totalRevenue") ??
+		sumTrailingValues(quarterlyRevenue, 4) ??
+		latestPointValue(annualRevenue);
 	const forwardEps = quoteSummaryNumberField(
 		[defaultKeyStatisticsModule],
 		"forwardEps",
@@ -912,6 +916,7 @@ function buildFundamentalsSnapshot(
 				2,
 			) ??
 			computeBeta(series, benchmarkSeries),
+		revenue: trailingRevenue,
 		gross_margin: grossMargin,
 		operating_margin: operatingMargin,
 		free_cash_flow: trailingFreeCashFlow,
