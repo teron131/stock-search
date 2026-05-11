@@ -27,7 +27,9 @@ function roundScore(value: number | null): number | null {
 		: Number(value.toFixed(SCORE_DIGITS));
 }
 
-function averageScore(values: Array<number | null | undefined>): number | null {
+function averageWithNeutralMissing(
+	values: Array<number | null | undefined>,
+): number | null {
 	const numericValues = values.filter(
 		(value): value is number => value != null && Number.isFinite(value),
 	);
@@ -35,7 +37,9 @@ function averageScore(values: Array<number | null | undefined>): number | null {
 		return null;
 	}
 	return roundScore(
-		numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length,
+		(numericValues.reduce((sum, value) => sum + value, 0) +
+			(values.length - numericValues.length) * DEFAULT_SCORE) /
+			values.length,
 	);
 }
 
@@ -130,7 +134,7 @@ export function normalizeEvalJsonForIndicators(
 		delete normalized.market_cap_score;
 	}
 
-	const overallScore = averageScore([
+	const overallScore = averageWithNeutralMissing([
 		normalized.quality_score,
 		normalized.valuation_score,
 		normalized.moat_score,

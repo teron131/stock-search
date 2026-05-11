@@ -58,6 +58,8 @@ export const ValuationMultipliers = {
 	DEBT_TO_EQUITY: 0.5,
 	OPERATING_MARGIN: 0.5,
 	ROIC: 0.5,
+	SIZE: 1,
+	REVENUE_SCALE: 0.5,
 } as const;
 
 /** Multipliers tune stat contribution strength before averaging available quality stats. */

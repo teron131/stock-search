@@ -1,7 +1,12 @@
 /** Compute normalized factor scores from stock indicators. */
 
 import { asNumber } from "../utils.js";
-import { getScoreAnchors, type ScoreAnchorKey } from "./anchors.js";
+import {
+	getScoreAnchors,
+	getValuationScoreAnchors,
+	type ScoreAnchorKey,
+	type ScoreAnchors,
+} from "./anchors.js";
 import {
 	CalibrationConfig,
 	CoreEngineWeights,
@@ -24,6 +29,12 @@ type WeightedFactorConfig = [
 	boolean,
 ];
 type IndicatorLike = Record<string, unknown>;
+
+const NORMALIZED_SCORE_RANGE: [number, number, number] = [
+	0,
+	SCORE_SCALE / 2,
+	SCORE_SCALE,
+];
 
 const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 	core: {
@@ -103,8 +114,11 @@ function valuationMultipleField(
 	return value == null ? null : value <= 0 ? weakAnchor : value;
 }
 
-function anchorRange(anchorKey: ScoreAnchorKey): [number, number, number] {
-	return getScoreAnchors()[anchorKey];
+function anchorRange(
+	anchorKey: ScoreAnchorKey,
+	anchors: ScoreAnchors = getScoreAnchors(),
+): [number, number, number] {
+	return anchors[anchorKey];
 }
 
 function statCurveScore(
@@ -225,7 +239,10 @@ function viableBusinessQualityFloor(indicator: IndicatorLike): number | null {
 	return 3;
 }
 
-function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
+function viableBusinessValuationFloor(
+	indicator: IndicatorLike,
+	anchors: ScoreAnchors,
+): number | null {
 	const forwardPe = getNumberField(indicator, "pe_forward");
 	const debtToEquity = getNumberField(indicator, "debt_to_equity");
 	const freeCashFlowYield = fcfYieldPercent(indicator);
@@ -233,9 +250,9 @@ function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
 	if (
 		forwardPe != null &&
 		forwardPe > 0 &&
-		forwardPe <= anchorRange("pe_forward")[2] &&
+		forwardPe <= anchorRange("pe_forward", anchors)[2] &&
 		(debtToEquity == null ||
-			debtToEquity <= anchorRange("debt_to_equity")[1]) &&
+			debtToEquity <= anchorRange("debt_to_equity", anchors)[1]) &&
 		freeCashFlowYield != null &&
 		freeCashFlowYield > 0
 	) {
@@ -245,8 +262,11 @@ function viableBusinessValuationFloor(indicator: IndicatorLike): number | null {
 	return null;
 }
 
-function forwardPeForValuation(indicator: IndicatorLike): number | null {
-	const forwardPeRange = anchorRange("pe_forward");
+function forwardPeForValuation(
+	indicator: IndicatorLike,
+	anchors: ScoreAnchors,
+): number | null {
+	const forwardPeRange = anchorRange("pe_forward", anchors);
 	const forwardPe = valuationMultipleField(
 		indicator,
 		"pe_forward",
@@ -295,57 +315,85 @@ export function marketCapScore(
 export function calculateValuationScore(
 	indicator: IndicatorLike,
 ): number | null {
+	const valuationAnchors = getValuationScoreAnchors(indicator);
+	const pegRange = anchorRange("peg", valuationAnchors);
+	const peRange = anchorRange("pe", valuationAnchors);
+	const forwardPeRange = anchorRange("pe_forward", valuationAnchors);
+	const debtToEquityRange = anchorRange("debt_to_equity", valuationAnchors);
+	const fcfYieldRange = anchorRange("fcf_yield", valuationAnchors);
+	const shareholderYieldRange = anchorRange(
+		"shareholder_yield",
+		valuationAnchors,
+	);
+	const operatingMarginRange = anchorRange(
+		"operating_margin",
+		valuationAnchors,
+	);
+	const roicRange = anchorRange("roic", valuationAnchors);
+
 	const rawScore = weightedMeanStatScore([
 		[
-			valuationMultipleField(indicator, "peg", anchorRange("peg")),
-			anchorRange("peg"),
+			valuationMultipleField(indicator, "peg", pegRange),
+			pegRange,
 			ValuationMultipliers.PEG,
 			true,
 		],
 		[
-			valuationMultipleField(indicator, "pe", anchorRange("pe")),
-			anchorRange("pe"),
+			valuationMultipleField(indicator, "pe", peRange),
+			peRange,
 			ValuationMultipliers.PE,
 			true,
 		],
 		[
-			forwardPeForValuation(indicator),
-			anchorRange("pe_forward"),
+			forwardPeForValuation(indicator, valuationAnchors),
+			forwardPeRange,
 			ValuationMultipliers.PE_FORWARD,
 			true,
 		],
 		[
 			getNumberField(indicator, "debt_to_equity"),
-			anchorRange("debt_to_equity"),
+			debtToEquityRange,
 			ValuationMultipliers.DEBT_TO_EQUITY,
 			true,
 		],
 		[
 			fcfYieldPercent(indicator),
-			anchorRange("fcf_yield"),
+			fcfYieldRange,
 			ValuationMultipliers.FCF_YIELD,
 			false,
 		],
 		[
 			getNumberField(indicator, "shareholder_yield"),
-			anchorRange("shareholder_yield"),
+			shareholderYieldRange,
 			ValuationMultipliers.SHAREHOLDER_YIELD,
 			false,
 		],
 		[
 			getNumberField(indicator, "operating_margin"),
-			anchorRange("operating_margin"),
+			operatingMarginRange,
 			ValuationMultipliers.OPERATING_MARGIN,
 			false,
 		],
 		[
 			getNumberField(indicator, "roic"),
-			anchorRange("roic"),
+			roicRange,
 			ValuationMultipliers.ROIC,
 			false,
 		],
+		[
+			marketCapScore(indicator),
+			NORMALIZED_SCORE_RANGE,
+			ValuationMultipliers.SIZE,
+			false,
+		],
+		[
+			scaleScore(getNumberField(indicator, "revenue"), "revenue"),
+			NORMALIZED_SCORE_RANGE,
+			ValuationMultipliers.REVENUE_SCALE,
+			false,
+		],
 	]);
-	const floor = viableBusinessValuationFloor(indicator);
+	const floor = viableBusinessValuationFloor(indicator, valuationAnchors);
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 

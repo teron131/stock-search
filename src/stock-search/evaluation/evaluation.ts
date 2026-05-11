@@ -9,6 +9,7 @@ import type {
 import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
 import { normalizeTicker } from "../utils.js";
 import {
+	DEFAULT_SCORE,
 	MOAT_RESEARCH_WEIGHT,
 	MOAT_SIGNAL_WEIGHT,
 	QUALITY_RESEARCH_WEIGHT,
@@ -97,7 +98,9 @@ function blendedMoat(
 	};
 }
 
-function averageAvailableScores(values: Array<number | null>): number | null {
+function averageWithNeutralMissing(
+	values: Array<number | null>,
+): number | null {
 	const availableScores = values.filter(
 		(value): value is number => value != null && Number.isFinite(value),
 	);
@@ -105,8 +108,9 @@ function averageAvailableScores(values: Array<number | null>): number | null {
 		return null;
 	}
 	return (
-		availableScores.reduce((sum, value) => sum + value, 0) /
-		availableScores.length
+		(availableScores.reduce((sum, value) => sum + value, 0) +
+			(values.length - availableScores.length) * DEFAULT_SCORE) /
+		values.length
 	);
 }
 
@@ -180,7 +184,7 @@ export function evaluateAsset(
 		scores.valuation_score,
 		scores.upside_score,
 	];
-	const overall = averageAvailableScores(coreMetrics);
+	const overall = averageWithNeutralMissing(coreMetrics);
 
 	const indices = calculateStrategyIndices(scores);
 

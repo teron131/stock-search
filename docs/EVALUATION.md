@@ -35,7 +35,7 @@ For each asset:
 
 ### A) Fundamental scores (0–10)
 
-- **Moat**: replaceability under real constraints; currently stored/research-driven and treated as a placeholder in stats-only scoring work
+- **Moat**: replaceability under real constraints; currently blends stored/research output with a stats-derived economic moat signal when both exist
 - **Quality**: durability of economics / execution
 - **Valuation**: attractiveness of price relative to growth/quality
 - **Upside**: payoff size if the thesis plays out
@@ -43,8 +43,8 @@ For each asset:
 
 ### B) Ranking + roles
 
-- **Overall score** = average of (Moat, Quality, Valuation, Upside)
-- Dashboard Overall is only recomputed when all four inputs are available after deterministic stat refresh.
+- **Overall score** = average of Moat, Quality, Valuation, and Upside, with missing components treated as neutral `5`
+- If all score inputs are missing, Overall stays empty.
 - **Role indices**: Core / Satellite / Speculative / Diversifier
 - **Label** = argmax(role indices)
 
@@ -124,7 +124,14 @@ The implementation also includes small viability floors:
 
 # 5) Full anchor list
 
-These are the current code anchors in `src/stock-search/evaluation/constants.ts`.
+These are the static fallback anchors in `src/stock-search/evaluation/constants.ts`.
+At runtime, most stat anchors are loaded from the local calibration SQLite DB
+when enough samples exist. Global positive metrics use p10 / p50 / p97, while
+global inverse metrics use p3 / p50 / p90. Valuation scoring uses
+sector-specific calibration anchors when the row has `sector_name` and the
+sector has enough samples for that metric; sector valuation anchors use
+p10 / p50 / p90 for both positive and inverse metrics. If a sector field is too
+sparse, it falls back to the global dynamic anchor, then the static constants.
 
 ## 5.1 Size anchors (Market cap, USD)
 
@@ -200,12 +207,25 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 
 “How hard is it to replace this under real constraints?”
 
-Current implementation status: `moat_score` comes from stored evaluation / research output. It is not computed from market stats yet, so it should be treated as a placeholder when iterating on stats-derived scores.
+Current implementation status: `moat_score` can be blended from stored/research
+output plus market-derived economic moat stats. The research/LLM side is still
+a placeholder until real research generation is wired, but the deterministic
+stats side is active.
 
 - switching costs, integration depth, ecosystem lock-in
 - regulatory/security/procurement barriers
 - data/feedback loops (when not easily replicated)
 - physics bottlenecks / supply chain choke points
+
+Market-derived moat uses these contribution multipliers:
+
+- revenue scale 1.00
+- FCF scale 0.75
+- gross margin 1.50
+- operating margin 1.50
+- ROE 0.50
+- ROIC 1.50
+- debt/equity 0.50
 
 ### Commodities: moat is scarcity + role (not competition)
 
@@ -251,6 +271,13 @@ Valuation is not a single metric. It is a blend of mapped stat contributions:
 - shareholder yield score when dividends, buybacks, and dilution are available
 - operating margin score as a valuation viability check
 - ROIC score as a valuation viability check
+- size score as a market validation / scale support check
+- revenue scale score as operating scale support
+
+Valuation anchors are sector-relative when possible. This keeps a bank, utility,
+semiconductor, and internet platform from being judged against one universal
+multiple distribution. If a sector field has too few samples, that field uses
+the global calibration anchor instead.
 
 Implemented multipliers use `1.0` as full strength and `0.5` as support strength. Valuation is mostly price-paid inputs, with profitability, balance sheet, and shareholder returns included as support so expensive multiples backed by better economics are not treated the same as unsupported expensive multiples.
 
@@ -262,6 +289,8 @@ Implemented multipliers use `1.0` as full strength and `0.5` as support strength
 - debt/equity 0.50
 - operating margin 0.50
 - ROIC 0.50
+- size 1.00
+- revenue scale 0.50
 
 Market-derived quality uses these contribution multipliers:
 
@@ -276,7 +305,7 @@ Market-derived quality uses these contribution multipliers:
 
 Revenue scale uses directly extracted trailing revenue. FCF scale uses absolute free cash flow. FCF yield remains a valuation component because it measures cash generation relative to price paid.
 
-If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E, PEG, or P/S values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
+If some inputs are missing, the mean is taken over the available components only. Missing data should reduce confidence, not automatically count as a zero contribution. Non-positive P/E or PEG values are not cheap; they represent loss-making or non-meaningful multiples and should map to the weak side of that component.
 
 EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not currently part of the score engine.
 
@@ -298,7 +327,7 @@ Size maps market cap on a log-like perception scale (because $4T is not “4×�
 
 # 8) Overall ranking metric
 
-Overall = (Moat + Quality + Valuation + Upside) / 4
+Overall = average(Moat, Quality, Valuation, Upside), with missing components contributing neutral `5`
 
 Size is intentionally excluded from Overall to avoid mixing “intrinsic strength” with “scale”.
 
@@ -354,13 +383,13 @@ This document follows the current TypeScript implementation.
 
 ## Current behavior
 
-- Overall is computed as the average of Moat, Quality, Valuation, and Upside.
+- Overall is computed across Moat, Quality, Valuation, and Upside; missing components contribute neutral `5` so incomplete rows do not get inflated by a high two-factor average.
 - Size is excluded from Overall.
 - Role indices are computed after scoring from Core / Satellite / Speculative / Diversifier formulas.
-- Dashboard normalization recomputes deterministic quality, valuation, upside, and size from current stats when possible.
+- Dashboard normalization recomputes deterministic moat, quality, valuation, upside, and size from current stats when possible.
 - Stored LLM quality is retained as `llm_quality_score` only. Displayed `quality_score` is market-stat-derived when enough quality stats exist.
 - Stored/default valuation, upside, market-cap score, and overall values are not used as dashboard fallbacks when current stats cannot derive them.
-- Moat remains research/stored-evaluation driven and should be treated as a placeholder for stats-only scoring. There is no stats-derived moat engine yet.
+- Moat blends stored/research output with a deterministic stats-derived economic moat signal when both are available.
 - Upside blends analyst target upside, analyst rating, and forward outlook in the full evaluation path. Dashboard normalization uses analyst target upside and ratings, with no LLM outlook score.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
 - Rows without stored evaluation and without enough derived stats now keep evaluation fields empty rather than inventing default fallback scores.

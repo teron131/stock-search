@@ -11,10 +11,20 @@ import {
 
 const POSITIVE_PERCENTILES = [0.1, 0.5, 0.97] as const;
 const INVERSE_PERCENTILES = [0.03, 0.5, 0.9] as const;
+const SECTOR_POSITIVE_PERCENTILES = [0.1, 0.5, 0.9] as const;
+const SECTOR_INVERSE_PERCENTILES = [0.1, 0.5, 0.9] as const;
 const MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE = 50;
+const MIN_SECTOR_ANCHOR_SAMPLE_SIZE = 15;
 const DEFAULT_CALIBRATION_DB_PATH = path.resolve(
 	"data/evaluation_calibration.db",
 );
+
+type PercentileSet = readonly [number, number, number];
+type DynamicAnchorOptions = {
+	fallback?: MinMedMax;
+	minSampleSize?: number;
+	sectorName?: string | null;
+};
 
 export type ScoreAnchorKey =
 	| "market_cap"
@@ -36,6 +46,7 @@ export type ScoreAnchorKey =
 	| "median_upside";
 
 export type ScoreAnchors = Record<ScoreAnchorKey, MinMedMax>;
+export type AnchorContext = Record<string, unknown> | null | undefined;
 
 export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 	market_cap: [
@@ -81,7 +92,19 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	median_upside: "positive",
 };
 
+const SECTOR_VALUATION_ANCHOR_KEYS = [
+	"peg",
+	"pe",
+	"pe_forward",
+	"debt_to_equity",
+	"fcf_yield",
+	"shareholder_yield",
+	"operating_margin",
+	"roic",
+] as const satisfies readonly ScoreAnchorKey[];
+
 let cachedAnchors: ScoreAnchors | null = null;
+let cachedSectorValuationAnchors = new Map<string, ScoreAnchors>();
 
 function calibrationDbPath(): string {
 	return path.resolve(
@@ -134,13 +157,16 @@ function calibrationQuery(anchorKey: ScoreAnchorKey): {
 function calibrationValues(
 	database: DatabaseSync,
 	anchorKey: ScoreAnchorKey,
+	sectorName: string | null = null,
 ): number[] {
 	const { expression, whereClause } = calibrationQuery(anchorKey);
+	const sectorClause = sectorName == null ? "" : " AND sector_name = ?";
+	const parameters = sectorName == null ? [] : [sectorName];
 	return database
 		.prepare(
-			`SELECT ${expression} AS value FROM calibration_stats WHERE ${whereClause} ORDER BY value`,
+			`SELECT ${expression} AS value FROM calibration_stats WHERE ${whereClause}${sectorClause} ORDER BY value`,
 		)
-		.all()
+		.all(...parameters)
 		.map((row) => (row as { value: unknown }).value)
 		.filter(
 			(value): value is number =>
@@ -151,20 +177,20 @@ function calibrationValues(
 function dynamicAnchor(
 	database: DatabaseSync,
 	anchorKey: ScoreAnchorKey,
+	options: DynamicAnchorOptions = {},
 ): MinMedMax {
-	const fallback = STATIC_SCORE_ANCHORS[anchorKey];
-	if (anchorKey === "market_cap") {
+	const fallback = options.fallback ?? STATIC_SCORE_ANCHORS[anchorKey];
+	if (anchorKey === "market_cap" && options.sectorName == null) {
 		return fallback;
 	}
 	try {
-		const values = calibrationValues(database, anchorKey);
-		if (values.length < MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE) {
+		const values = calibrationValues(database, anchorKey, options.sectorName);
+		if (
+			values.length < (options.minSampleSize ?? MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE)
+		) {
 			return fallback;
 		}
-		const percentileSet =
-			ANCHOR_DIRECTIONS[anchorKey] === "inverse"
-				? INVERSE_PERCENTILES
-				: POSITIVE_PERCENTILES;
+		const percentileSet = anchorPercentiles(anchorKey, options.sectorName);
 		const anchors = percentileSet.map((percentileValue) =>
 			percentile(values, percentileValue),
 		);
@@ -176,6 +202,27 @@ function dynamicAnchor(
 	} catch {
 		return fallback;
 	}
+}
+
+function anchorPercentiles(
+	anchorKey: ScoreAnchorKey,
+	sectorName: string | null | undefined,
+): PercentileSet {
+	if (ANCHOR_DIRECTIONS[anchorKey] === "inverse") {
+		return sectorName == null
+			? INVERSE_PERCENTILES
+			: SECTOR_INVERSE_PERCENTILES;
+	}
+	return sectorName == null
+		? POSITIVE_PERCENTILES
+		: SECTOR_POSITIVE_PERCENTILES;
+}
+
+function sectorNameFromContext(context: AnchorContext): string | null {
+	const sectorName = context?.sector_name ?? context?.sectorName;
+	return typeof sectorName === "string" && sectorName.trim()
+		? sectorName.trim()
+		: null;
 }
 
 function loadDynamicAnchors(): ScoreAnchors {
@@ -213,6 +260,41 @@ export function getScoreAnchors(): ScoreAnchors {
 	return cachedAnchors;
 }
 
+function loadSectorValuationAnchors(sectorName: string): ScoreAnchors {
+	const globalAnchors = getScoreAnchors();
+	let database: DatabaseSync | null = null;
+	try {
+		database = new DatabaseSync(calibrationDbPath(), { readOnly: true });
+		const anchors: ScoreAnchors = { ...globalAnchors };
+		for (const anchorKey of SECTOR_VALUATION_ANCHOR_KEYS) {
+			anchors[anchorKey] = dynamicAnchor(database, anchorKey, {
+				fallback: globalAnchors[anchorKey],
+				minSampleSize: MIN_SECTOR_ANCHOR_SAMPLE_SIZE,
+				sectorName,
+			});
+		}
+		return anchors;
+	} catch {
+		return globalAnchors;
+	} finally {
+		database?.close();
+	}
+}
+
+export function getValuationScoreAnchors(context: AnchorContext): ScoreAnchors {
+	const sectorName = sectorNameFromContext(context);
+	if (sectorName == null) {
+		return getScoreAnchors();
+	}
+	let anchors = cachedSectorValuationAnchors.get(sectorName);
+	if (anchors == null) {
+		anchors = loadSectorValuationAnchors(sectorName);
+		cachedSectorValuationAnchors.set(sectorName, anchors);
+	}
+	return anchors;
+}
+
 export function resetScoreAnchorsForTest(): void {
 	cachedAnchors = null;
+	cachedSectorValuationAnchors = new Map();
 }
