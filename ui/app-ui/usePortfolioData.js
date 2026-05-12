@@ -98,8 +98,14 @@ function isEtfLikeRow(row) {
 	return equityType === "ETF" || quoteType === "ETF";
 }
 
+function isProxiedStatCell(row, key) {
+	return row?.proxied_stat_fields?.includes?.(key) === true;
+}
+
 function clearEtfMarketCap(row) {
-	row.market_cap = null;
+	if (!isProxiedStatCell(row, "market_cap")) {
+		row.market_cap = null;
+	}
 	row.fx = null;
 }
 

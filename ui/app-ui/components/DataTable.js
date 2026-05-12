@@ -123,8 +123,19 @@ function stripCurrencySymbol(value) {
 	return String(value).replace(/^\$/, "");
 }
 
+function isProxiedStatCell(row, key) {
+	return (
+		Array.isArray(row?.proxied_stat_fields) &&
+		row.proxied_stat_fields.includes(key)
+	);
+}
+
 function formatCellValue(row, col) {
-	if (col.key === "market_cap" && isEtfLikeRow(row)) {
+	if (
+		col.key === "market_cap" &&
+		isEtfLikeRow(row) &&
+		!isProxiedStatCell(row, col.key)
+	) {
 		return "--";
 	}
 	const formatter = fmt[col.format] || fmt.default;
@@ -420,6 +431,14 @@ function renderCell({
     >`;
 	} else {
 		content = formatCellValue(row, col);
+	}
+
+	if (isProxiedStatCell(row, key)) {
+		content = html`<span
+			className="cell-proxied-stat"
+			title="Proxied from ETF top holdings"
+			>${content}</span
+		>`;
 	}
 
 	// Apply conditional coloring

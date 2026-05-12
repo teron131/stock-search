@@ -960,6 +960,12 @@ td:first-child {
 	font-variant-numeric: tabular-nums;
 }
 
+.cell-proxied-stat {
+	font-style: italic;
+	color: inherit;
+	opacity: 0.82;
+}
+
 .badge {
 	display: inline-flex;
 	align-items: center;
