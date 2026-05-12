@@ -6,7 +6,7 @@ The current TypeScript implementation maps numeric stats through a **three-ancho
 
 ---
 
-# 0) Data Source Policy For Scoring Stats
+# 0. Data Source Policy For Scoring Stats
 
 Stats-derived scores should prefer StockAnalysis / public web-source values for fundamental fields. Yahoo/yfinance is useful for market data and selected fallback fields, but it is not authoritative for sensitive fundamentals.
 
@@ -29,11 +29,11 @@ Policy implication:
 
 ---
 
-# 1) What the framework produces
+# 1. What the framework produces
 
 For each asset:
 
-### A) Fundamental scores (0–10)
+### A. Fundamental scores (0–10)
 
 - **Moat**: replaceability under real constraints; currently blends stored/research output with a stats-derived economic moat signal when both exist
 - **Quality**: durability of economics / execution
@@ -41,7 +41,7 @@ For each asset:
 - **Upside**: growth-driven forward return setup, capped by weak business support
 - **Size**: market-cap scale (robustness proxy)
 
-### B) Ranking + roles
+### B. Ranking + roles
 
 - **Overall score** = average of Moat, Quality, Valuation, and Upside, with missing components treated as neutral `5`
 - If all score inputs are missing, Overall stays empty.
@@ -50,7 +50,7 @@ For each asset:
 
 ---
 
-# 2) Anchors: the explicit definitions
+# 2. Anchors: the explicit definitions
 
 Every mapped metric has **three anchors**:
 
@@ -62,7 +62,7 @@ Because the mapping is S-curved, the **median anchor dominates** how most names 
 
 ---
 
-# 3) Mapping function: Normal-CDF curve from anchors
+# 3. Mapping function: Normal-CDF curve from anchors
 
 ### 3.1 Normal-CDF score curve
 
@@ -103,7 +103,7 @@ The current code handles lower-is-better metrics by flipping the output bounds (
 
 ---
 
-# 4) Score aggregation
+# 4. Score aggregation
 
 Each available metric is mapped to a `0-10` factor score, multiplied by its configured multiplier, and averaged by total available multiplier weight:
 
@@ -122,7 +122,7 @@ The implementation also includes small viability floors:
 
 ---
 
-# 5) Full anchor list
+# 5. Full anchor list
 
 These are the static fallback anchors in `src/stock-search/evaluation/constants.ts`.
 At runtime, most stat anchors are loaded from the local calibration SQLite DB
@@ -179,7 +179,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 
 - **Rating**: 1.0 / 3.5 / 5.0
 
-# 6) Current anchor preset
+# 6. Current anchor preset
 
 | Metric          |  Low | Median (good) |      High |
 | --------------- | ---: | ------------: | --------: |
@@ -203,7 +203,7 @@ Valuation mixes lower-is-better multiples with higher-is-better yield and viabil
 
 ---
 
-# 7) Score definitions
+# 7. Score definitions
 
 ## 7.1 Moat (0–10)
 
@@ -352,7 +352,7 @@ Size maps market cap on a log-like perception scale (because $4T is not “4×�
 
 ---
 
-# 8) Overall ranking metric
+# 8. Overall ranking metric
 
 Overall = average(Moat, Quality, Valuation, Upside), with missing components contributing neutral `5`
 
@@ -362,7 +362,7 @@ Stats improve the four underlying scores rather than becoming a separate top-ran
 
 ---
 
-# 9) Labels come after scores (role indices)
+# 9. Labels come after scores (role indices)
 
 Roles are not opinions. They are derived mechanically from scores.
 
@@ -404,7 +404,7 @@ That makes the framework stable, interpretable, and anchored to explicit definit
 
 ---
 
-# 10) Implementation notes
+# 10. Implementation notes
 
 This document follows the current TypeScript implementation.
 
