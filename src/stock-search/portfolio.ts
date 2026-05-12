@@ -36,7 +36,6 @@ export type PortfolioScope =
 	| "portfolio_live"
 	| "all";
 
-const CACHE_SCOPES = new Set<PortfolioScope>(["priority", "all_cached"]);
 const LIVE_SCOPES = new Set<PortfolioScope>(["portfolio_live", "all"]);
 const ALL_UNIVERSE_SCOPES = new Set<PortfolioScope>(["all_cached", "all"]);
 const PORTFOLIO_LABEL_FIELD = "industry_labels";
@@ -956,7 +955,7 @@ function syncModeForScope(scope: PortfolioScope): string {
 
 /** Return the cache policy used for one portfolio scope. */
 export function cacheControlForScope(scope: PortfolioScope): string {
-	return CACHE_SCOPES.has(scope)
+	return scope === "all_cached"
 		? "private, max-age=30, stale-while-revalidate=300"
 		: "no-store";
 }
