@@ -1,7 +1,6 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
 import { resolveEtfSnapshotCache } from "../etf.js";
-import { fetchYahooIndicators } from "../indicators.js";
 import { mergePortfolioRow } from "../portfolio.js";
 import { resolveTickerStats } from "../stats-resolver.js";
 import { normalizeTicker, nowIso } from "../utils.js";
@@ -188,9 +187,9 @@ export async function buildStandaloneTickerPayload(
 	}
 }
 
-/** Build the cached evaluation payload for one ticker. */
+/** Build a normalized evaluation payload for one ticker. */
 export async function buildEvaluateTickerPayload(
-	_store: BackendStore,
+	store: BackendStore,
 	ticker: string,
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
@@ -198,21 +197,24 @@ export async function buildEvaluateTickerPayload(
 		throw new Error("Invalid ticker");
 	}
 
-	const indicators = await fetchYahooIndicators(tickerSymbol);
+	const { row, meta } = await buildStandaloneTickerPayload(
+		store,
+		tickerSymbol,
+		"auto",
+	);
 	return {
 		ticker: tickerSymbol,
-		rank: 1,
-		overall_score: 8.5,
-		moat_score: 9.0,
-		quality_score: 8.0,
-		valuation_score: 7.5,
-		upside_score: 10.0,
-		market_cap_score: 9.0,
-		price: typeof indicators.price === "number" ? indicators.price : null,
-		change_percent_1d:
-			typeof indicators.change_percent_1d === "number"
-				? indicators.change_percent_1d
-				: null,
-		rsi: typeof indicators.rsi === "number" ? indicators.rsi : null,
+		overall_score: row.overall_score ?? null,
+		moat_score: row.moat_score ?? null,
+		quality_score: row.quality_score ?? null,
+		valuation_score: row.valuation_score ?? null,
+		upside_score: row.upside_score ?? null,
+		market_cap_score: row.market_cap_score ?? null,
+		strategy: row.strategy ?? null,
+		eval_source: row.eval_source ?? null,
+		price: row.price ?? null,
+		change_percent_1d: row.change_percent_1d ?? null,
+		rsi: row.rsi ?? null,
+		meta,
 	};
 }

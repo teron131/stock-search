@@ -5,7 +5,7 @@ import path from "node:path";
 import { buildColorStandardsPayload } from "./api/color-standards.js";
 import { DATA_SQLITE_PATH, RAW_UI_DIR } from "./config.js";
 import { getSectorSnapshot } from "./data-sources/stockanalysis/index.js";
-import { normalizeEvaluationRow } from "./evaluation/normalization.js";
+import { normalizeEvaluation } from "./evaluation/normalization.js";
 import { writeJson } from "./file-utils.js";
 import { getNewsAsync } from "./news/orchestrator.js";
 import { SQLiteStore } from "./sqlite-store.js";
@@ -178,7 +178,7 @@ function buildDemoRows(
 	for (const ticker of Object.keys(stocksMap).sort()) {
 		const stockRow = stocksMap[ticker];
 		const indicators = { ...stockRow.indicators };
-		const evaluation = normalizeEvaluationRow(stockRow.evaluation);
+		const evaluation = normalizeEvaluation(stockRow.evaluation);
 		const position = holdings[ticker] ?? {};
 
 		const merged = { ...indicators };

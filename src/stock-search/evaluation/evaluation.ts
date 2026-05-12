@@ -16,9 +16,9 @@ import {
 	QUALITY_SIGNAL_WEIGHT,
 } from "./constants.js";
 import {
-	bucketFromEvalJson,
-	evalFromJson,
-	normalizeEvalJson,
+	bucketFromEvaluation,
+	evaluationFromRecord,
+	normalizeEvaluation,
 } from "./normalization.js";
 import { runLlmEvaluation } from "./research.js";
 import {
@@ -142,13 +142,13 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 	const qualitySignalScore = calculateQualitySignalScore(indicator);
 	const moatSignalScore = calculateMoatSignalScore(indicator);
 	const upsideScore = calculateCombinedUpsideScore(
+		indicator,
 		typeof indicator.median_upside === "number"
 			? indicator.median_upside
 			: null,
 		Array.isArray(indicator.ratings)
 			? (indicator.ratings as Array<Record<string, unknown>>)
 			: null,
-		outlook?.score ?? null,
 	);
 
 	const quality = blendedQuality(research, qualitySignalScore);
@@ -223,10 +223,4 @@ export function strategyLabel(
 	return availableScores.sort((left, right) => right[1] - left[1])[0][0];
 }
 
-export {
-	bucketFromEvalJson,
-	bucketFromEvalJson as bucketFromEvaluation,
-	evalFromJson,
-	normalizeEvalJson,
-	normalizeEvalJson as normalizeEvaluationRow,
-};
+export { bucketFromEvaluation, evaluationFromRecord, normalizeEvaluation };

@@ -51,8 +51,8 @@ function scoreFromEvaluationField(value: unknown): number | null {
 	return Number.isFinite(converted) ? converted : null;
 }
 
-/** Normalize an eval.json entry to canonical keys used by the app. */
-export function normalizeEvalJson(
+/** Normalize an evaluation entry to canonical keys used by the app. */
+export function normalizeEvaluation(
 	data: Record<string, unknown> | null | undefined,
 ): Record<string, number> {
 	if (!data || Object.keys(data).length === 0) {
@@ -76,12 +76,12 @@ export function normalizeEvalJson(
 	return normalized;
 }
 
-/** Normalize evaluation while refreshing deterministic scores from current stats. */
-export function normalizeEvalJsonForIndicators(
+/** Derive current deterministic evaluation scores from indicator stats. */
+export function deriveEvaluationScores(
 	data: Record<string, unknown> | null | undefined,
 	indicators: Record<string, unknown> | null | undefined,
 ): Record<string, number> {
-	const normalized = normalizeEvalJson(data);
+	const normalized = normalizeEvaluation(data);
 	const indicatorRow = indicators ?? {};
 
 	const qualityScore = roundScore(calculateQualitySignalScore(indicatorRow));
@@ -112,13 +112,13 @@ export function normalizeEvalJsonForIndicators(
 
 	const upsideScore = roundScore(
 		calculateCombinedUpsideScore(
+			indicatorRow,
 			typeof indicatorRow.median_upside === "number"
 				? indicatorRow.median_upside
 				: null,
 			Array.isArray(indicatorRow.ratings)
 				? (indicatorRow.ratings as Array<Record<string, unknown>>)
 				: null,
-			null,
 		),
 	);
 	if (upsideScore != null) {
@@ -149,11 +149,11 @@ export function normalizeEvalJsonForIndicators(
 	return normalized;
 }
 
-/** Build an `Evaluation` model from an `eval.json` entry. */
-export function evalFromJson(
+/** Build an `Evaluation` model from an evaluation entry. */
+export function evaluationFromRecord(
 	data: Record<string, unknown> | null | undefined,
 ): Evaluation | null {
-	const normalized = normalizeEvalJson(data);
+	const normalized = normalizeEvaluation(data);
 	if (Object.keys(normalized).length === 0) {
 		return null;
 	}
@@ -187,14 +187,14 @@ function strategyLabel(indices: Record<string, number | null>): string {
 	return BUCKET_LABELS[bestKey] ?? DEFAULT_BUCKET;
 }
 
-/** Derive dashboard strategy label from a normalized `eval.json` entry. */
-export function bucketFromEvalJson(
+/** Derive dashboard strategy label from a normalized evaluation entry. */
+export function bucketFromEvaluation(
 	ticker: string,
 	data: Record<string, unknown> | null | undefined,
 ): string | null {
 	void ticker;
 
-	const normalized = normalizeEvalJson(data);
+	const normalized = normalizeEvaluation(data);
 	if (Object.keys(normalized).length === 0) {
 		return null;
 	}
@@ -209,9 +209,3 @@ export function bucketFromEvalJson(
 
 	return strategyLabel(calculateStrategyIndices(scores));
 }
-
-// Backward-compatible aliases for the rest of the TS app.
-export const normalizeEvaluationRow = normalizeEvalJson;
-export const normalizeEvaluationRowForIndicators =
-	normalizeEvalJsonForIndicators;
-export const bucketFromEvaluation = bucketFromEvalJson;

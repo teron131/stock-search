@@ -35,6 +35,10 @@ const NORMALIZED_SCORE_RANGE: [number, number, number] = [
 	SCORE_SCALE / 2,
 	SCORE_SCALE,
 ];
+const MIN_UPSIDE_RAW_COMPONENTS = 2;
+const DEFAULT_UPSIDE_TRUST_FACTOR = 0.75;
+const UPSIDE_SUPPORT_BASE_TRUST = 0.5;
+const UPSIDE_SUPPORT_TRUST_SPAN = 0.5;
 
 const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 	core: {
@@ -511,23 +515,55 @@ export function calculateQualitySignalScore(
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 
-/** Blend analyst upside, current ratings, and LLM outlook into a single score. */
+/** Score growth-driven upside, normalized by valuation and business support. */
 export function calculateCombinedUpsideScore(
-	medianUpside: number | null,
+	indicator: IndicatorLike,
+	analystTargetGap: number | null,
 	ratings: Array<Record<string, unknown>> | null | undefined,
-	outlookScore: number | null,
 ): number | null {
-	const [rangeMin, rangeMedian, rangeMax] = anchorRange("median_upside");
-	const analystUpsideScore =
-		medianUpside == null
-			? null
-			: mapToCurveScore(medianUpside, rangeMin, rangeMax, rangeMedian);
+	const revenueGrowthScore = statCurveScore(
+		getNumberField(indicator, "revenue_growth"),
+		"revenue_growth",
+	);
+	const epsGrowthScore = statCurveScore(
+		getNumberField(indicator, "eps_growth"),
+		"eps_growth",
+	);
+	const analystTargetGapScore = statCurveScore(
+		analystTargetGap,
+		"median_upside",
+	);
 	const ratingScore = calculateRatingScore(ratings);
-	return weightedMeanScore([
-		[analystUpsideScore, UpsideMultipliers.MEDIAN_UPSIDE],
+
+	const rawUpsideComponents: Array<[number | null, number]> = [
+		[revenueGrowthScore, UpsideMultipliers.REVENUE_GROWTH],
+		[epsGrowthScore, UpsideMultipliers.EPS_GROWTH],
+		[analystTargetGapScore, UpsideMultipliers.MEDIAN_UPSIDE],
 		[ratingScore, UpsideMultipliers.RATING],
-		[outlookScore, UpsideMultipliers.OUTLOOK],
+	];
+	const availableRawCount = rawUpsideComponents.filter(
+		([score]) => score != null,
+	).length;
+	if (availableRawCount < MIN_UPSIDE_RAW_COMPONENTS) {
+		return null;
+	}
+
+	const rawUpsideScore = weightedMeanScore(rawUpsideComponents);
+	if (rawUpsideScore == null) {
+		return null;
+	}
+
+	const supportScore = weightedMeanScore([
+		[calculateValuationScore(indicator), UpsideMultipliers.VALUATION_SUPPORT],
+		[calculateQualitySignalScore(indicator), UpsideMultipliers.QUALITY_SUPPORT],
+		[calculateMoatSignalScore(indicator), UpsideMultipliers.MOAT_SUPPORT],
 	]);
+	const trustFactor =
+		supportScore == null
+			? DEFAULT_UPSIDE_TRUST_FACTOR
+			: UPSIDE_SUPPORT_BASE_TRUST +
+				UPSIDE_SUPPORT_TRUST_SPAN * (supportScore / SCORE_SCALE);
+	return clampScore(rawUpsideScore * trustFactor);
 }
 
 /** Map list of analyst ratings to 0-10 engine score. */

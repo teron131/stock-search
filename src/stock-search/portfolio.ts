@@ -14,7 +14,7 @@ import {
 } from "./etf.js";
 import {
 	bucketFromEvaluation,
-	normalizeEvaluationRowForIndicators,
+	deriveEvaluationScores,
 } from "./evaluation/normalization.js";
 import {
 	fetchYahooIndicators,
@@ -972,10 +972,7 @@ export function mergePortfolioRow(
 	const quantity = positionQuantity(position);
 	const price = asNumber(indicators.price);
 	const total = price == null ? 0 : quantity * price;
-	const normalizedEvaluation = normalizeEvaluationRowForIndicators(
-		evaluation,
-		indicators,
-	);
+	const normalizedEvaluation = deriveEvaluationScores(evaluation, indicators);
 	const selectedEvaluation: Record<string, number | null> = {};
 	let llmCount = 0;
 	let selectedCount = 0;
@@ -1370,7 +1367,10 @@ export async function loadEvalMap(
 			? await store.loadStocksByTickers(tickers)
 			: await store.loadStocks();
 	return Object.fromEntries(
-		Object.entries(stocks).map(([ticker, stock]) => [ticker, stock.evaluation]),
+		Object.entries(stocks).map(([ticker, stock]) => [
+			ticker,
+			deriveEvaluationScores(stock.evaluation, stock.indicators),
+		]),
 	);
 }
 

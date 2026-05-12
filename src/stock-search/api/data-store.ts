@@ -275,16 +275,6 @@ export function getStore(): BackendStore {
 
 export { createLazyStore };
 
-export async function loadEvalMap(tickers?: string[]) {
-	const stocks =
-		tickers && tickers.length > 0
-			? await getStore().loadStocksByTickers(tickers)
-			: await getStore().loadStocks();
-	return Object.fromEntries(
-		Object.entries(stocks).map(([ticker, stock]) => [ticker, stock.evaluation]),
-	);
-}
-
 export async function verifyStoreStartup(
 	store: BackendStore = getStore(),
 ): Promise<void> {

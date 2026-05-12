@@ -199,7 +199,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	},
 	{
 		name: "get_eval_map",
-		description: "Return the stored evaluation map.",
+		description: "Return the normalized evaluation map.",
 		parameters: z.object({
 			tickers: z.array(z.string()).optional(),
 		}),
