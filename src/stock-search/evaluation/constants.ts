@@ -88,15 +88,12 @@ export const MoatSignalMultipliers = {
 	DEBT_TO_EQUITY: 0.5,
 } as const;
 
-/** Multipliers tune growth and analyst channels before upside normalization. */
+/** Multipliers tune the raw growth and analyst channels in upside scoring. */
 export const UpsideMultipliers = {
 	REVENUE_GROWTH: 1,
 	EPS_GROWTH: 1,
 	MEDIAN_UPSIDE: 0.75,
 	RATING: 0.5,
-	VALUATION_SUPPORT: 0.4,
-	QUALITY_SUPPORT: 0.3,
-	MOAT_SUPPORT: 0.3,
 } as const;
 
 /** Strategy weights for 'Core' portfolio bucket (Quality & Moat focused). */

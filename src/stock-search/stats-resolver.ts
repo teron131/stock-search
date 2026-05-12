@@ -171,6 +171,13 @@ function hasKnownFields(
 	return fields.every((field) => hasKnownField(row, field));
 }
 
+function hasMeaningfulFields(
+	row: Record<string, unknown>,
+	fields: readonly string[],
+): boolean {
+	return fields.every((field) => hasMeaningfulPayload(row[field]));
+}
+
 function hasFamilyPayload(
 	row: Record<string, unknown>,
 	family: StatsFamily,
@@ -195,12 +202,18 @@ function hasRequiredFamilyFields(
 		return true;
 	}
 	if (family === "statistics") {
-		return hasKnownFields(row, REQUIRED_STATISTICS_FIELDS);
+		return (
+			hasMeaningfulPayload(row.beta) &&
+			hasKnownFields(
+				row,
+				REQUIRED_STATISTICS_FIELDS.filter((field) => field !== "beta"),
+			)
+		);
 	}
 	if (family === "financials") {
 		return (
 			hasMeaningfulPayload(row.revenue) &&
-			hasKnownFields(row, REQUIRED_FINANCIALS_FIELDS)
+			hasMeaningfulFields(row, REQUIRED_FINANCIALS_FIELDS)
 		);
 	}
 	return true;
@@ -252,7 +265,10 @@ function chooseCachedSnapshot(
 	}
 
 	const policy = FAMILY_POLICIES[family];
-	const hasRequiredFields = hasRequiredFamilyFields(persistedRow, family);
+	const hasRequiredFields = hasRequiredFamilyFields(
+		{ ...persistedRow, ...chosenRow },
+		family,
+	);
 	return {
 		sourceTier,
 		row: chosenRow,

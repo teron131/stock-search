@@ -38,7 +38,7 @@ For each asset:
 - **Moat**: replaceability under real constraints; currently blends stored/research output with a stats-derived economic moat signal when both exist
 - **Quality**: durability of economics / execution
 - **Valuation**: attractiveness of price relative to growth/quality
-- **Upside**: growth-driven forward return setup, normalized by business support
+- **Upside**: growth-driven forward return setup, capped by weak business support
 - **Size**: market-cap scale (robustness proxy)
 
 ### B) Ranking + roles
@@ -318,10 +318,10 @@ EV/Sales, earnings growth, interest coverage, and Piotroski F-Score are not curr
 ## 7.4 Upside (0–10) — growth-centered return setup
 
 Upside is intentionally narrower than Overall. It measures growth-driven
-forward return potential and analyst setup, then discounts that setup by the
-support of Valuation, Quality, and Moat. Those support scores are not raw
-upside inputs; they are a normalization layer so low-quality hype does not get
-the same upside treatment as durable growth.
+forward return potential and analyst setup, then applies Valuation, Quality,
+and Moat as trust gates. Those support scores are not raw upside inputs; they
+only cap weak setups so low-quality hype does not get the same upside treatment
+as durable growth.
 
 Raw upside requires at least two available raw inputs:
 
@@ -332,18 +332,15 @@ Raw upside requires at least two available raw inputs:
 
 RawUpside = weighted average of the available raw inputs.
 
-Support normalization:
+Support gates:
 
-- valuation score, weight 0.40
-- quality score, weight 0.30
-- moat score, weight 0.30
+- If valuation score is below `3`, cap Upside at `6`.
+- If quality score is below `3`, cap Upside at `6`.
+- If moat score is below `3`, cap Upside at `6`.
+- If valuation score is below `2` and quality score is below `3`, cap Upside at
+  `4`.
 
-SupportScore = weighted average of the available support scores.
-
-TrustFactor = `0.75` when SupportScore is missing; otherwise
-`0.5 + 0.5 * SupportScore / 10`.
-
-Upside = clamp(`RawUpside * TrustFactor`, 0, 10).
+Upside = clamp(`RawUpside` after support caps, 0, 10).
 
 The displayed stats-derived upside score does not use LLM outlook. Stored or
 future LLM outlook can still exist as research context, but it is not part of
@@ -420,6 +417,6 @@ This document follows the current TypeScript implementation.
 - Stored LLM quality is retained as `llm_quality_score` only. Displayed `quality_score` is market-stat-derived when enough quality stats exist.
 - Stored/default valuation, upside, market-cap score, and overall values are not used as dashboard fallbacks when current stats cannot derive them.
 - Moat blends stored/research output with a deterministic stats-derived economic moat signal when both are available.
-- Upside is deterministic: raw revenue growth, EPS growth, analyst target gap, and analyst rating are blended first, then normalized by valuation/quality/moat support. It does not use LLM outlook for the displayed stats-derived score.
+- Upside is deterministic: raw revenue growth, EPS growth, analyst target gap, and analyst rating are blended first, then valuation/quality/moat support applies only as caps. It does not use LLM outlook for the displayed stats-derived score.
 - Dashboard rank currently sorts by `overall_score`; role indices label the asset but do not drive table rank.
 - Rows without stored evaluation and without enough derived stats now keep evaluation fields empty rather than inventing default fallback scores.

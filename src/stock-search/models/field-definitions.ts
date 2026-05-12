@@ -270,7 +270,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "Upside Score",
 		shortLabel: "UP",
 		description:
-			"0-10 forward return setup score. Blends growth and analyst signals, then normalizes by valuation, quality, and moat support.",
+			"0-10 forward return setup score. Blends growth and analyst signals, then caps weak setups using valuation, quality, and moat support.",
 	},
 	valuation_score: {
 		label: "Valuation Score",

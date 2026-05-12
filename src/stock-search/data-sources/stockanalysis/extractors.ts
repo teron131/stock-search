@@ -371,6 +371,7 @@ const STATISTICS_ROW_FIELDS: Record<string, StatisticsFieldName> = {
 	"Revenue (ttm)": "revenue",
 	Revenue: "revenue",
 	Beta: "beta",
+	"Beta (5Y)": "beta",
 	"52-Week Price Change": "fifty_two_week_price_change",
 	"50-Day Moving Average": "moving_average_50d",
 	"200-Day Moving Average": "moving_average_200d",

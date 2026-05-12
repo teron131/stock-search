@@ -36,9 +36,8 @@ const NORMALIZED_SCORE_RANGE: [number, number, number] = [
 	SCORE_SCALE,
 ];
 const MIN_UPSIDE_RAW_COMPONENTS = 2;
-const DEFAULT_UPSIDE_TRUST_FACTOR = 0.75;
-const UPSIDE_SUPPORT_BASE_TRUST = 0.5;
-const UPSIDE_SUPPORT_TRUST_SPAN = 0.5;
+const WEAK_SUPPORT_UPSIDE_CAP = 6;
+const VERY_WEAK_SUPPORT_UPSIDE_CAP = 4;
 
 const STRATEGY_BUCKETS: Record<string, StrategyBucket> = {
 	core: {
@@ -515,7 +514,7 @@ export function calculateQualitySignalScore(
 	return rawScore == null ? floor : Math.max(rawScore, floor ?? rawScore);
 }
 
-/** Score growth-driven upside, normalized by valuation and business support. */
+/** Score growth-driven upside, capped by weak valuation and business support. */
 export function calculateCombinedUpsideScore(
 	indicator: IndicatorLike,
 	analystTargetGap: number | null,
@@ -553,17 +552,33 @@ export function calculateCombinedUpsideScore(
 		return null;
 	}
 
-	const supportScore = weightedMeanScore([
-		[calculateValuationScore(indicator), UpsideMultipliers.VALUATION_SUPPORT],
-		[calculateQualitySignalScore(indicator), UpsideMultipliers.QUALITY_SUPPORT],
-		[calculateMoatSignalScore(indicator), UpsideMultipliers.MOAT_SUPPORT],
-	]);
-	const trustFactor =
-		supportScore == null
-			? DEFAULT_UPSIDE_TRUST_FACTOR
-			: UPSIDE_SUPPORT_BASE_TRUST +
-				UPSIDE_SUPPORT_TRUST_SPAN * (supportScore / SCORE_SCALE);
-	return clampScore(rawUpsideScore * trustFactor);
+	const valuationScore = calculateValuationScore(indicator);
+	const qualityScore = calculateQualitySignalScore(indicator);
+	const moatScore = calculateMoatSignalScore(indicator);
+	let cappedUpsideScore = rawUpsideScore;
+
+	if (valuationScore != null && valuationScore < 3) {
+		cappedUpsideScore = Math.min(cappedUpsideScore, WEAK_SUPPORT_UPSIDE_CAP);
+	}
+	if (
+		(qualityScore != null && qualityScore < 3) ||
+		(moatScore != null && moatScore < 3)
+	) {
+		cappedUpsideScore = Math.min(cappedUpsideScore, WEAK_SUPPORT_UPSIDE_CAP);
+	}
+	if (
+		valuationScore != null &&
+		valuationScore < 2 &&
+		qualityScore != null &&
+		qualityScore < 3
+	) {
+		cappedUpsideScore = Math.min(
+			cappedUpsideScore,
+			VERY_WEAK_SUPPORT_UPSIDE_CAP,
+		);
+	}
+
+	return clampScore(cappedUpsideScore);
 }
 
 /** Map list of analyst ratings to 0-10 engine score. */
