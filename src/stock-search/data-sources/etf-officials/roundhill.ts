@@ -1,4 +1,3 @@
-import type { Browser } from "playwright";
 import { normalizeTicker } from "../../utils.js";
 import { parseNumberText } from "../shared.js";
 import type {
@@ -6,6 +5,37 @@ import type {
 	OfficialEtfHoldingsProvider,
 	OfficialEtfHoldingsSnapshot,
 } from "./types.js";
+
+type PlaywrightPage = {
+	goto(
+		url: string,
+		options: { waitUntil: "domcontentloaded"; timeout: number },
+	): Promise<unknown>;
+	waitForSelector(
+		selector: string,
+		options: { timeout: number },
+	): Promise<unknown>;
+	$$eval<T>(
+		selector: string,
+		pageFunction: (elements: Element[]) => T,
+	): Promise<T>;
+};
+
+type PlaywrightBrowser = {
+	newPage(): Promise<PlaywrightPage>;
+	close(): Promise<void>;
+};
+
+type PlaywrightRuntime = {
+	chromium?: {
+		launch(options: { headless: boolean }): Promise<PlaywrightBrowser>;
+	};
+	default?: {
+		chromium?: {
+			launch(options: { headless: boolean }): Promise<PlaywrightBrowser>;
+		};
+	};
+};
 
 const ROUNDHILL_BASE_URL = "https://www.roundhillinvestments.com/etf/";
 const RENDERED_HOLDINGS_SELECTOR = "#fund-topTenHoldings tr";
@@ -63,19 +93,26 @@ export async function scrapeRoundhillRenderedHoldings(
 	}
 
 	const url = roundhillEtfPageUrl(ticker);
-	let browser: Browser | null = null;
+	let browser: PlaywrightBrowser | null = null;
 	try {
-		const { chromium } = await import("playwright");
+		const playwright = (await import("playwright")) as PlaywrightRuntime;
+		const chromium = playwright.chromium ?? playwright.default?.chromium;
+		if (!chromium) {
+			throw new Error("Playwright chromium runtime is unavailable");
+		}
+
 		browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
 		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
 		await page.waitForSelector(RENDERED_HOLDINGS_SELECTOR, { timeout: 30_000 });
-		const rows = await page.$$eval(RENDERED_HOLDINGS_SELECTOR, (tableRows) =>
-			tableRows.map((row) =>
-				Array.from(row.querySelectorAll("td")).map(
-					(cell) => cell.textContent?.trim() ?? "",
+		const rows = await page.$$eval<string[][]>(
+			RENDERED_HOLDINGS_SELECTOR,
+			(tableRows) =>
+				tableRows.map((row: Element) =>
+					Array.from(row.querySelectorAll("td")).map(
+						(cell: Element) => cell.textContent?.trim() ?? "",
+					),
 				),
-			),
 		);
 		const holdings = parseRenderedRoundhillHoldingsRows(rows);
 		return {

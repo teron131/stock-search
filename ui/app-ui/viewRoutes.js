@@ -1,33 +1,50 @@
 export const DEFAULT_VIEW = "dashboard";
 
+export const APP_BASE_PATH = normalizeBasePath(
+	process.env.NEXT_PUBLIC_BASE_PATH,
+);
+
+function normalizeBasePath(value) {
+	const trimmed = String(value || "").trim();
+	if (!trimmed || trimmed === "/") {
+		return "";
+	}
+	return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
+}
+
+export function appPath(path) {
+	const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+	return `${APP_BASE_PATH}${normalizedPath}`;
+}
+
 export const VIEW_ROUTES = [
 	{
 		view: "dashboard",
-		path: "/dashboard",
+		path: appPath("/dashboard"),
 		label: "DASHBOARD",
 		title: "Dashboard - Stock Search",
 	},
 	{
 		view: "news",
-		path: "/news",
+		path: appPath("/news"),
 		label: "NEWS",
 		title: "News - Stock Search",
 	},
 	{
 		view: "sectors",
-		path: "/sectors",
+		path: appPath("/sectors"),
 		label: "SECTORS",
 		title: "Sectors - Stock Search",
 	},
 	{
 		view: "marketmap",
-		path: "/marketmap",
+		path: appPath("/marketmap"),
 		label: "MARKET MAP",
 		title: "Market Map - Stock Search",
 	},
 	{
 		view: "calendar",
-		path: "/calendar",
+		path: appPath("/calendar"),
 		label: "ECONOMIC CALENDAR",
 		title: "Calendar - Stock Search",
 	},

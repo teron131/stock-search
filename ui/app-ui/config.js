@@ -9,14 +9,22 @@ const apiBase =
 	window.location.port === "5173"
 		? "/api-proxy"
 		: "";
+const appBasePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
+function normalizeBasePath(value) {
+	const trimmed = String(value || "").trim();
+	if (!trimmed || trimmed === "/") {
+		return "";
+	}
+	return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
+}
 
 function apiPath(path) {
 	return `${apiBase}${path}`;
 }
 
 function getDemoAssetUrl(filename) {
-	if (!isBrowser) return `/demo/${filename}`;
-	return new URL(`demo/${filename}`, window.location.href).toString();
+	return `${appBasePath}/demo/${filename}`;
 }
 
 import { getFieldMetadata } from "../../src/stock-search/models/field-definitions.ts";

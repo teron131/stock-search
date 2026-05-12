@@ -1,9 +1,14 @@
 .git
 .gitmodules
+.vercel
 .playwright-cli
 .pytest_cache
 .ruff_cache
 .venv
+public
+ui/.next
+ui/dist
+ui/out
 __pycache__
 docs
 error.log

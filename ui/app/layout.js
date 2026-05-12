@@ -1,11 +1,21 @@
 import "../styles.css";
 import Script from "next/script";
 
+function normalizeBasePath(value) {
+	const trimmed = String(value || "").trim();
+	if (!trimmed || trimmed === "/") {
+		return "";
+	}
+	return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
+}
+
+const appBasePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
 export const metadata = {
 	title: "Stock Search",
 	description: "Portfolio dashboard and stock research workspace.",
 	icons: {
-		icon: "/logo.png",
+		icon: `${appBasePath}/logo.png`,
 	},
 };
 
