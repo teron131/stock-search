@@ -34,7 +34,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "Beta (5Y)",
 		shortLabel: "BETA",
 		description:
-			"Five-year volatility vs market: 1 = market-like, >1 more volatile, <1 more defensive.",
+			"Five-year volatility vs the market. Above 1 is more volatile; below 1 is more defensive.",
 	},
 	change: {
 		label: "Price Change",
@@ -45,36 +45,32 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	change_percent_1d: {
 		label: "1D Change",
 		shortLabel: "CHG%",
-		description:
-			"(Price / previous close - 1). Positive is up on the day; negative is down.",
+		description: "Price change from previous close. Positive is up on the day.",
 	},
 	change_percent_1m: {
 		label: "1M Change",
 		shortLabel: "1M%",
-		description: "(Price / price 1M ago - 1). Short-term momentum window.",
+		description: "Price change over the last month.",
 	},
 	change_percent_3m: {
 		label: "3M Change",
 		shortLabel: "3M%",
-		description: "(Price / price 3M ago - 1). Medium-term momentum window.",
+		description: "Price change over the last three months.",
 	},
 	change_percent_6m: {
 		label: "6M Change",
 		shortLabel: "6M%",
-		description:
-			"(Price / price 6M ago - 1). Helps separate trend from one-off moves.",
+		description: "Price change over the last six months.",
 	},
 	change_percent_1y: {
 		label: "1Y Change",
 		shortLabel: "1Y%",
-		description:
-			"(Price / price 1Y ago - 1). Longer-term market performance signal.",
+		description: "Price change over the last year.",
 	},
 	debt_to_equity: {
 		label: "Debt / Equity",
 		shortLabel: "D/E%",
-		description:
-			"Debt / shareholder equity. The raw value is a ratio; dashboard percentage display multiplies it by 100.",
+		description: "Debt divided by shareholder equity. Shown as a percentage.",
 	},
 	free_cash_flow: {
 		label: "Free Cash Flow",
@@ -85,8 +81,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	fcf_cagr_3y: {
 		label: "FCF CAGR (3Y)",
 		shortLabel: "FCF%3Y",
-		description:
-			"Three-year compound annual growth in free cash flow from StockAnalysis financials.",
+		description: "Three-year compound annual growth in free cash flow.",
 	},
 	fcf_growth_1y: {
 		label: "FCF Growth (1Y)",
@@ -98,13 +93,13 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "FCF Margin Median (3Y)",
 		shortLabel: "FCFM%3Y",
 		description:
-			"Median free-cash-flow margin across the latest three fiscal-year columns.",
+			"Median free-cash-flow margin over the last three fiscal years.",
 	},
 	financials_currency: {
 		label: "Financials Currency",
 		shortLabel: "CUR",
 		description:
-			"Currency shown on the StockAnalysis financials page for statement-derived fields.",
+			"Statement currency used for financial fields before normalization.",
 	},
 	gross_margin: {
 		label: "Gross Margin",
@@ -115,8 +110,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	gross_margin_median_3y: {
 		label: "Gross Margin Median (3Y)",
 		shortLabel: "GM%3Y",
-		description:
-			"Median gross margin across the latest three fiscal-year columns.",
+		description: "Median gross margin over the last three fiscal years.",
 	},
 	iv: {
 		label: "Implied Volatility",
@@ -126,7 +120,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	},
 	market_cap: {
 		label: "Market Cap",
-		shortLabel: "MCAP",
+		shortLabel: "MKTC",
 		description:
 			"Share price * shares outstanding. Total market value of common equity.",
 	},
@@ -140,7 +134,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "Median Upside",
 		shortLabel: "UP%",
 		description:
-			"(Analyst target / price - 1). Positive means targets sit above spot.",
+			"Median analyst target upside. Positive means targets sit above spot.",
 	},
 	moat_score: {
 		label: "Moat Score",
@@ -151,14 +145,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	notional_value: {
 		label: "Notional Value",
 		shortLabel: "NOTL",
-		description:
-			"Direct shares + indirect ETF exposure. Shows the effective dollars tied to a ticker.",
+		description: "Direct shares plus indirect ETF exposure tied to a ticker.",
 	},
 	notional_weight_pct: {
 		label: "Notional Weight",
 		shortLabel: "NOTL%",
-		description:
-			"Notional value / portfolio value. Includes direct shares and indirect ETF exposure.",
+		description: "Notional value as a share of portfolio value.",
 	},
 	operating_margin: {
 		label: "Operating Margin",
@@ -175,56 +167,48 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	operating_margin_median_3y: {
 		label: "Operating Margin Median (3Y)",
 		shortLabel: "OM%3Y",
-		description:
-			"Median operating margin across the latest three fiscal-year columns.",
+		description: "Median operating margin over the last three fiscal years.",
 	},
 	operating_margin_std_3y: {
 		label: "Operating Margin Volatility (3Y)",
 		shortLabel: "OMSTD%3Y",
 		description:
-			"Standard deviation of operating margin across the latest three fiscal-year columns.",
+			"Standard deviation of operating margin over the last three fiscal years.",
 	},
 	overall_score: {
 		label: "Overall Score",
 		shortLabel: "SCORE",
-		description:
-			"0-10 composite score; 10 is best. Blends quality, value, moat, upside, and risk.",
+		description: "0-10 composite score. Higher is better.",
 	},
 	pe: {
 		label: "Price / Earnings (P/E)",
 		shortLabel: "PE",
-		description:
-			"Price / trailing earnings per share. Lower can be cheaper; losses make it unusable.",
+		description: "Price divided by trailing earnings per share.",
 	},
 	pe_forward: {
 		label: "Forward P/E",
 		shortLabel: "FPE",
-		description:
-			"Price / forecast earnings per share. Lower can signal cheaper expected profits.",
+		description: "Price divided by forecast earnings per share.",
 	},
 	ps: {
 		label: "Price / Sales",
-		shortLabel: "P/S",
-		description:
-			"Market cap / trailing revenue. Lower can be cheaper; high-growth firms often sustain higher multiples.",
+		shortLabel: "PS",
+		description: "Market cap divided by trailing revenue.",
 	},
 	ps_forward: {
 		label: "Forward Price / Sales",
 		shortLabel: "FPS",
-		description:
-			"Forward P/S or Forward Price / Sales ratio. Use only when explicitly displayed.",
+		description: "Forward price-to-sales ratio.",
 	},
 	peg: {
 		label: "P/E to Growth",
 		shortLabel: "PEG",
-		description:
-			"P/E / expected earnings growth. Around 1 is neutral; lower is cheaper growth.",
+		description: "P/E divided by expected earnings growth.",
 	},
 	price: {
 		label: "Price",
 		shortLabel: "PRICE",
-		description:
-			"Latest quoted share price. Drives position value and valuation multiples.",
+		description: "Latest quoted share price.",
 	},
 	quality_score: {
 		label: "Quality Score",
@@ -258,8 +242,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	revenue_cagr_3y: {
 		label: "Revenue CAGR (3Y)",
 		shortLabel: "REV%3Y",
-		description:
-			"Three-year compound annual revenue growth from StockAnalysis financials.",
+		description: "Three-year compound annual revenue growth.",
 	},
 	revenue_growth_1y: {
 		label: "Revenue Growth (1Y)",
@@ -271,25 +254,23 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "EPS Growth",
 		shortLabel: "EPS%",
 		description:
-			"(EPS / prior EPS - 1). Shows per-share earnings growth after margins, interest, tax, and dilution.",
+			"Per-share earnings growth after margins, interest, tax, and dilution.",
 	},
 	rd_intensity: {
 		label: "R&D Intensity",
-		shortLabel: "RD%",
+		shortLabel: "R&D%",
 		description:
 			"Latest fiscal-year R&D expense / revenue. Used as currency-safe R&D evidence.",
 	},
 	rd_knowledge_capital: {
 		label: "R&D Knowledge Capital",
-		shortLabel: "RDCAP",
-		description:
-			"Weighted R&D knowledge-capital proxy using recent fiscal-year R&D spend.",
+		shortLabel: "R&D3Y",
+		description: "Weighted recent R&D spend used as a knowledge-capital proxy.",
 	},
 	research_and_development: {
 		label: "Research & Development",
 		shortLabel: "R&D",
-		description:
-			"Latest fiscal-year R&D expense from StockAnalysis financials, converted to absolute currency units.",
+		description: "Latest fiscal-year R&D expense.",
 	},
 	roe: {
 		label: "Return on Equity",
@@ -312,8 +293,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 	shareholder_yield: {
 		label: "Shareholder Yield",
 		shortLabel: "YLD%",
-		description:
-			"Dividend yield + net buyback yield. Shows shareholder cash return after dilution.",
+		description: "Dividend yield plus net buyback yield.",
 	},
 	shares_change_1y: {
 		label: "Shares Change (1Y)",
@@ -342,7 +322,7 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "Tactical Score",
 		shortLabel: "TACT",
 		description:
-			"0-10 short-to-medium-term setup score. Tracks momentum, growth, valuation, target gap, RSI, and IV without feeding Overall.",
+			"0-10 short-to-medium-term setup score. Does not feed Overall.",
 	},
 	total: {
 		label: "Position Value",
@@ -353,13 +333,13 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		label: "Upside Score",
 		shortLabel: "UP",
 		description:
-			"0-10 forward return setup score. Blends growth and analyst signals, then caps weak setups using valuation, quality, and moat support.",
+			"0-10 forward return setup score. Higher means stronger upside support.",
 	},
 	valuation_score: {
 		label: "Valuation Score",
 		shortLabel: "VAL",
 		description:
-			"0-10 valuation score; 10 is best. Favors cheaper or better-supported multiples.",
+			"0-10 valuation score. Higher means cheaper or better-supported value.",
 	},
 	weight_pct: {
 		label: "Weight",
@@ -436,8 +416,6 @@ export const INDICATOR_FIELD_GROUPS = {
 			"gross_margin_median_3y",
 			"operating_margin",
 			"operating_margin_median_3y",
-			"operating_margin_delta_vs_3y",
-			"operating_margin_std_3y",
 			"roe",
 			"roic",
 		],

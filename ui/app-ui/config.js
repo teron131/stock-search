@@ -27,6 +27,14 @@ function getDemoAssetUrl(filename) {
 	return `${appBasePath}/demo/${filename}`;
 }
 
+import {
+	MoatBlendConfig,
+	OverallScoreWeights,
+	QualitySignalConfig,
+	TacticalScoreMultipliers,
+	UpsideMultipliers,
+	WarrantedFpeConfig,
+} from "../../src/stock-search/evaluation/constants.ts";
 import { getFieldMetadata } from "../../src/stock-search/models/field-definitions.ts";
 
 export const CONFIG = {
@@ -171,6 +179,81 @@ function createGroupedColumn(key, label, format, widthGroup, options = {}) {
 	return createColumn(key, label, format, { ...options, widthGroup });
 }
 
+function formatWeightShare(value, total) {
+	const percent = total > 0 ? (value / total) * 100 : 0;
+	const rounded = Number(percent.toFixed(1));
+	return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+}
+
+function weightedTooltipRows(entries) {
+	const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+	return entries.map(([label, weight]) => ({
+		label,
+		value: formatWeightShare(weight, total),
+	}));
+}
+
+const SCORE_TOOLTIP_ROWS = {
+	overall_score: weightedTooltipRows([
+		["Moat", OverallScoreWeights.MOAT],
+		["Quality", OverallScoreWeights.QUALITY],
+		["Valuation", OverallScoreWeights.VALUATION],
+		["Upside", OverallScoreWeights.UPSIDE],
+	]),
+	valuation_score: weightedTooltipRows([
+		["Legacy factors", WarrantedFpeConfig.LEGACY_WEIGHT],
+		["Warranted FPE", WarrantedFpeConfig.WARRANTED_FPE_WEIGHT],
+	]),
+	moat_score: weightedTooltipRows([
+		["Economic proof", MoatBlendConfig.ECONOMIC_WEIGHT],
+		["Structural persistence", MoatBlendConfig.STRUCTURAL_WEIGHT],
+	]),
+	quality_score: weightedTooltipRows([
+		["Current stats", QualitySignalConfig.CURRENT_WEIGHT],
+		["Margin persistence", QualitySignalConfig.MARGIN_PERSISTENCE_WEIGHT],
+		["FCF margin", QualitySignalConfig.FCF_MARGIN_WEIGHT],
+		["Share discipline", QualitySignalConfig.SHARES_DISCIPLINE_WEIGHT],
+		["Stability", QualitySignalConfig.STABILITY_WEIGHT],
+	]),
+	upside_score: weightedTooltipRows([
+		["Revenue growth", UpsideMultipliers.REVENUE_GROWTH],
+		["EPS growth", UpsideMultipliers.EPS_GROWTH],
+		["Analyst upside", UpsideMultipliers.MEDIAN_UPSIDE],
+		["Rating", UpsideMultipliers.RATING],
+	]),
+	tactical_score: weightedTooltipRows([
+		["1Y momentum", TacticalScoreMultipliers.PRICE_MOMENTUM_1Y],
+		["6M momentum", TacticalScoreMultipliers.PRICE_MOMENTUM_6M],
+		["Revenue growth", TacticalScoreMultipliers.REVENUE_GROWTH],
+		["EPS growth", TacticalScoreMultipliers.EPS_GROWTH],
+		["Valuation", TacticalScoreMultipliers.VALUATION],
+		["Analyst upside", TacticalScoreMultipliers.MEDIAN_UPSIDE],
+		["RSI activity", TacticalScoreMultipliers.RSI_ACTIVITY],
+		["IV activity", TacticalScoreMultipliers.IV_ACTIVITY],
+	]),
+};
+
+const FIELD_TOOLTIP_ROWS = {
+	rd_knowledge_capital: [
+		{ label: "Latest FY R&D", value: "1.00x" },
+		{ label: "Prior FY R&D", value: "0.75x" },
+		{ label: "2Y ago R&D", value: "0.50x" },
+		{ label: "3Y ago R&D", value: "0.25x" },
+	],
+};
+
+function createEvaluationScoreColumn(key, label) {
+	return createGroupedColumn(
+		key,
+		label,
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+		{
+			tooltipRows: SCORE_TOOLTIP_ROWS[key],
+		},
+	);
+}
+
 const BASE_COLUMNS = [
 	createColumn("ticker", "TICKER"),
 	createColumn("price", "PRICE", "currency"),
@@ -182,13 +265,13 @@ const BASE_COLUMNS = [
 	),
 	createGroupedColumn(
 		"market_cap",
-		"MCAP",
+		"MKTC",
 		"market_cap",
 		WIDTH_GROUPS.abbrevCurrency,
 	),
 	createGroupedColumn("pe", "PE", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("pe_forward", "FPE", "number", WIDTH_GROUPS.marketNumber),
-	createGroupedColumn("ps", "P/S", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("ps", "PS", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("ps_forward", "FPS", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("peg", "PEG", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("beta", "BETA", "number", WIDTH_GROUPS.marketNumber),
@@ -249,16 +332,6 @@ const FUNDAMENTAL_COLUMN_SPECS = [
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
 	],
-	[
-		"operating_margin_delta_vs_3y",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	],
-	[
-		"operating_margin_std_3y",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	],
 	["roe", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
 	["roic", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
 	["debt_to_equity", "ratio_percent_neutral", WIDTH_GROUPS.fundamentalPercent],
@@ -284,7 +357,9 @@ function createFundamentalColumns({ signedGrowth = false } = {}) {
 	return FUNDAMENTAL_COLUMN_SPECS.map(([key, format, widthGroup]) => {
 		const displayFormat =
 			signedGrowth && SIGNED_GROWTH_COLUMNS.has(key) ? "percent" : format;
-		return createGroupedColumn(key, undefined, displayFormat, widthGroup);
+		return createGroupedColumn(key, undefined, displayFormat, widthGroup, {
+			tooltipRows: FIELD_TOOLTIP_ROWS[key],
+		});
 	});
 }
 
@@ -295,48 +370,18 @@ const FUNDAMENTAL_COLUMNS_HOLDINGS = createFundamentalColumns({
 
 const EVALUATION_COLUMNS = [
 	createColumn("rank", "RANK"),
-	createGroupedColumn(
-		"overall_score",
-		"SCORE",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
-	createGroupedColumn(
-		"quality_score",
-		"QUAL",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
-	createGroupedColumn(
-		"valuation_score",
-		"VAL",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
-	createGroupedColumn(
-		"moat_score",
-		"MOAT",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
-	createGroupedColumn(
-		"upside_score",
-		"UP",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
+	createEvaluationScoreColumn("overall_score", "SCORE"),
+	createEvaluationScoreColumn("quality_score", "QUAL"),
+	createEvaluationScoreColumn("valuation_score", "VAL"),
+	createEvaluationScoreColumn("moat_score", "MOAT"),
+	createEvaluationScoreColumn("upside_score", "UP"),
 	createGroupedColumn(
 		"market_cap_score",
 		"SIZE",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
 	),
-	createGroupedColumn(
-		"tactical_score",
-		"TACT",
-		"score",
-		WIDTH_GROUPS.evaluationScore,
-	),
+	createEvaluationScoreColumn("tactical_score", "TACT"),
 ];
 
 const HOLDING_ACTION_COLUMNS = [

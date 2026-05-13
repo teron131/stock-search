@@ -688,6 +688,23 @@ export function DataTable({
 														</span>`
 													: null
 											}
+											${
+												c.tooltipRows?.length
+													? html`<span className="table-header-tooltip-rows">
+															${c.tooltipRows.map(
+																(row) => html`
+																	<span
+																		key=${row.label}
+																		className="table-header-tooltip-row"
+																	>
+																		<span>${row.label}</span>
+																		<span>${row.value}</span>
+																	</span>
+																`,
+															)}
+														</span>`
+													: null
+											}
 										</span>
 									</button>
 								</th>`;
