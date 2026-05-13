@@ -1,11 +1,25 @@
 import { ROOT } from "./api/route-paths.js";
 
+const CANONICAL_TICKERS: Record<string, string> = {
+	"KRX:000660": "000660.KS",
+	"KRX:005930": "005930.KS",
+};
+
 export function nowIso(date = new Date()): string {
 	return date.toISOString();
 }
 
 export function normalizeTicker(value: unknown): string {
-	return typeof value === "string" ? value.trim().toUpperCase() : "";
+	if (typeof value !== "string") {
+		return "";
+	}
+	const ticker = value
+		.trim()
+		.toUpperCase()
+		.replace(/\s*:\s*/g, ":")
+		.replace(/^([A-Z0-9]{1,8})\s+([A-Z]{2,4})$/, "$1.$2");
+	const krxMatch = ticker.match(/^KRX:(\d{6})$/);
+	return CANONICAL_TICKERS[ticker] ?? (krxMatch ? `${krxMatch[1]}.KS` : ticker);
 }
 
 export function uniqueTickers(values: Iterable<string>): string[] {
