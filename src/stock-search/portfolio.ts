@@ -5,7 +5,7 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "./api/data-store.js";
-import { isCacheTimestampFresh } from "./cache.js";
+import { isCacheTimestampFresh, parseCacheTimestamp } from "./cache.js";
 import { safeFloat } from "./common-utils.js";
 import {
 	classifyAndResolveEtfs,
@@ -41,7 +41,14 @@ const PORTFOLIO_LABEL_FIELD = "industry_labels";
 const LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at";
 const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const ETF_LOOKTHROUGH_ROW_MIN_WEIGHT = 2;
+const ETF_LOOKTHROUGH_ROW_MIN_NOTIONAL_WEIGHT = 0.5;
 const ETF_PROXY_MIN_HOLDING_WEIGHT = 0.5;
+const ETF_PROXY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ETF_PROXY_TIMESTAMP_FIELDS = [
+	"statistics_fetched_at",
+	"financials_fetched_at",
+	"ratings_fetched_at",
+] as const;
 const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
 const NON_US_TICKER_SUFFIXES = new Set([
 	"HK",
@@ -55,6 +62,7 @@ const NON_US_TICKER_SUFFIXES = new Set([
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 type EtfRepresentativePosition = PositionRow & {
 	etf_holding_weight: number;
+	etf_holding_notional_weight: number;
 	etf_source_tickers: string[];
 };
 const EVAL_KEYS = [
@@ -428,6 +436,31 @@ function weightedAverage(
 	return totalWeight > 0 ? weightedSum / totalWeight : null;
 }
 
+function applyRowWeights(rows: Array<Record<string, unknown>>): number {
+	const heldTotal = rows.reduce((sum, row) => {
+		return Number(row.quantity ?? 0) > 0 ? sum + Number(row.total ?? 0) : sum;
+	}, 0);
+	for (const row of rows) {
+		const rowTotal = Number(row.total ?? 0);
+		row.weight_pct =
+			Number(row.quantity ?? 0) > 0 && heldTotal > 0
+				? (rowTotal / heldTotal) * 100
+				: 0;
+	}
+	return heldTotal;
+}
+
+function weightPctByTicker(
+	rows: Array<Record<string, unknown>>,
+): Map<string, number> {
+	return new Map(
+		rows.map((row) => [
+			normalizeTicker(row.ticker),
+			asNumber(row.weight_pct) ?? 0,
+		]),
+	);
+}
+
 function normalizeWeightsTo100(
 	weights: Record<string, number>,
 	decimals = 4,
@@ -650,17 +683,21 @@ function isStockLikeEtfRepresentativeTicker(ticker: string): boolean {
 function buildEtfRepresentativePositions(
 	resolution: EtfResolutionResult,
 	existingTickers: Set<string>,
+	etfWeightPctByTicker: Map<string, number>,
 ): EtfRepresentativePosition[] {
 	const representativesByTicker = new Map<string, EtfRepresentativePosition>();
 
 	for (const etfPosition of resolution.etfPositions) {
 		const etfTicker = normalizeTicker(etfPosition.ticker);
 		const snapshot = resolution.snapshotByTicker[etfTicker];
+		const etfWeightPct = etfWeightPctByTicker.get(etfTicker) ?? 0;
 		for (const holding of snapshot?.holdings ?? []) {
 			const holdingTicker = normalizeTicker(holding.ticker);
 			const holdingWeight = safeFloat(holding.weight) ?? 0;
+			const holdingNotionalWeight = etfWeightPct * (holdingWeight / 100);
 			if (
 				Number(etfPosition.quantity ?? 0) <= 0 ||
+				etfWeightPct <= 0 ||
 				!holdingTicker ||
 				existingTickers.has(holdingTicker) ||
 				!isStockLikeEtfRepresentativeTicker(holdingTicker) ||
@@ -671,6 +708,7 @@ function buildEtfRepresentativePositions(
 
 			const existing = representativesByTicker.get(holdingTicker);
 			if (existing) {
+				existing.etf_holding_notional_weight += holdingNotionalWeight;
 				existing.etf_holding_weight = Math.max(
 					existing.etf_holding_weight,
 					holdingWeight,
@@ -687,12 +725,17 @@ function buildEtfRepresentativePositions(
 				quantity: 0,
 				etf_lookthrough_only: true,
 				etf_holding_weight: holdingWeight,
+				etf_holding_notional_weight: holdingNotionalWeight,
 				etf_source_tickers: etfTicker ? [etfTicker] : [],
 			});
 		}
 	}
 
-	return [...representativesByTicker.values()];
+	return [...representativesByTicker.values()].filter(
+		(position) =>
+			position.etf_holding_notional_weight >
+			ETF_LOOKTHROUGH_ROW_MIN_NOTIONAL_WEIGHT,
+	);
 }
 
 function etfProxyHoldingsForTicker(
@@ -724,15 +767,63 @@ function etfProxyHoldingTickers(resolution: EtfResolutionResult): string[] {
 	);
 }
 
-async function resolveEtfProxyStocks(
-	store: BackendStore,
-	resolution: EtfResolutionResult,
-	knownStocks: Record<string, StockEntry>,
-	scope: PortfolioScope,
-): Promise<Record<string, StockEntry>> {
+function etfProxyAggregationFor(field: string): EtfProxyAggregation {
+	if (ETF_PROXY_HARMONIC_MEAN_FIELDS.has(field)) {
+		return "harmonic_mean";
+	}
+	if (ETF_PROXY_INTERPOLATED_VALUE_FIELDS.has(field)) {
+		return "coverage_mean";
+	}
+	return "weighted_mean";
+}
+
+function isUsableEtfProxyValue(field: string, value: number): boolean {
+	if (ETF_PROXY_ZERO_IS_MISSING_FIELDS.has(field) && value === 0) {
+		return false;
+	}
+	return !(ETF_PROXY_HARMONIC_MEAN_FIELDS.has(field) && value <= 0);
+}
+
+function hasUsableEtfProxyStats(indicators: Record<string, unknown>): boolean {
+	return ETF_PROXY_STAT_FIELDS.some((field) => {
+		const value = asNumber(indicators[field]);
+		return value != null && isUsableEtfProxyValue(field, value);
+	});
+}
+
+function hasFreshEtfProxyStats(
+	stockEntry: StockEntry | undefined,
+	now: number,
+): boolean {
+	const indicators = stockEntry?.indicators;
+	if (!indicators || !hasUsableEtfProxyStats(indicators)) {
+		return false;
+	}
+	return ETF_PROXY_TIMESTAMP_FIELDS.every((field) => {
+		const timestamp = parseCacheTimestamp(indicators[field]);
+		return timestamp != null && timestamp >= now - ETF_PROXY_CACHE_MAX_AGE_MS;
+	});
+}
+
+async function resolveEtfProxyStocks({
+	store,
+	resolution,
+	knownStocks,
+	scope,
+	normalRefreshTickers,
+}: {
+	store: BackendStore;
+	resolution: EtfResolutionResult;
+	knownStocks: Record<string, StockEntry>;
+	scope: PortfolioScope;
+	normalRefreshTickers: Set<string>;
+}): Promise<{
+	stocks: Record<string, StockEntry>;
+	liveResults: Record<string, StatsResolutionResult>;
+}> {
 	const tickers = etfProxyHoldingTickers(resolution);
 	if (tickers.length === 0) {
-		return {};
+		return { stocks: {}, liveResults: {} };
 	}
 
 	const missingTickers = tickers.filter((ticker) => !knownStocks[ticker]);
@@ -745,20 +836,32 @@ async function resolveEtfProxyStocks(
 		...knownStocks,
 	};
 	if (!LIVE_SCOPES.has(scope)) {
-		return Object.fromEntries(
-			tickers
-				.map((ticker) => [ticker, stockEntries[ticker]] as const)
-				.filter(([, stock]) => stock !== undefined),
-		);
+		return {
+			stocks: Object.fromEntries(
+				tickers
+					.map((ticker) => [ticker, stockEntries[ticker]] as const)
+					.filter(([, stock]) => stock !== undefined),
+			),
+			liveResults: {},
+		};
 	}
 
-	const liveResults = await resolveTickerStatsMap(
-		store,
-		tickers,
-		"auto",
-		stockEntries,
+	const now = Date.now();
+	const refreshTickers = uniqueTickers(
+		tickers.filter(
+			(ticker) =>
+				normalRefreshTickers.has(ticker) ||
+				!hasFreshEtfProxyStats(stockEntries[ticker], now),
+		),
 	);
-	return mergeLiveResultsIntoStocks(stockEntries, liveResults);
+	const liveResults =
+		refreshTickers.length > 0
+			? await resolveTickerStatsMap(store, refreshTickers, "auto", stockEntries)
+			: {};
+	return {
+		stocks: mergeLiveResultsIntoStocks(stockEntries, liveResults),
+		liveResults,
+	};
 }
 
 function shouldProxyEtfField(
@@ -786,23 +889,6 @@ function roundProxyValue(value: number): number {
 		return Math.round(value);
 	}
 	return Number(value.toFixed(4));
-}
-
-function etfProxyAggregationFor(field: string): EtfProxyAggregation {
-	if (ETF_PROXY_HARMONIC_MEAN_FIELDS.has(field)) {
-		return "harmonic_mean";
-	}
-	if (ETF_PROXY_INTERPOLATED_VALUE_FIELDS.has(field)) {
-		return "coverage_mean";
-	}
-	return "weighted_mean";
-}
-
-function isUsableEtfProxyValue(field: string, value: number): boolean {
-	if (ETF_PROXY_ZERO_IS_MISSING_FIELDS.has(field) && value === 0) {
-		return false;
-	}
-	return !(ETF_PROXY_HARMONIC_MEAN_FIELDS.has(field) && value <= 0);
 }
 
 function calculateEtfProxyValue(
@@ -1434,16 +1520,33 @@ export async function buildPortfolioPayload(
 		scopedPositions,
 		mergedStocks,
 	);
-	const etfProxyStocks = await resolveEtfProxyStocks(
-		store,
-		proxyEtfResolution,
-		mergedStocks,
-		scope,
+	const preliminaryRows = scopedPositions.map((position) =>
+		mergePortfolioRow(position, mergedStocks[normalizeTicker(position.ticker)]),
 	);
+	applyRowWeights(preliminaryRows);
+	const etfRepresentativePositions = buildEtfRepresentativePositions(
+		etfResolution,
+		new Set(
+			preliminaryRows.map((row) => normalizeTicker(row.ticker)).filter(Boolean),
+		),
+		weightPctByTicker(preliminaryRows),
+	);
+	const etfRepresentativeTickers = etfRepresentativePositions.map(
+		(position) => position.ticker,
+	);
+	const proxyStockResolution = await resolveEtfProxyStocks({
+		store,
+		resolution: proxyEtfResolution,
+		knownStocks: mergedStocks,
+		scope,
+		normalRefreshTickers: new Set(
+			uniqueTickers([...liveTickers, ...etfRepresentativeTickers]),
+		),
+	});
 	const proxiedStocks = applyEtfProxyStatsToStocks(
 		mergedStocks,
 		proxyEtfResolution,
-		etfProxyStocks,
+		proxyStockResolution.stocks,
 	);
 
 	const rows = scopedPositions.map((position) =>
@@ -1452,16 +1555,7 @@ export async function buildPortfolioPayload(
 			proxiedStocks[normalizeTicker(position.ticker)],
 		),
 	);
-	const heldTotal = rows.reduce((sum, row) => {
-		return Number(row.quantity ?? 0) > 0 ? sum + Number(row.total ?? 0) : sum;
-	}, 0);
-	for (const row of rows) {
-		const rowTotal = Number(row.total ?? 0);
-		row.weight_pct =
-			Number(row.quantity ?? 0) > 0 && heldTotal > 0
-				? (rowTotal / heldTotal) * 100
-				: 0;
-	}
+	const heldTotal = applyRowWeights(rows);
 
 	for (const row of rows) {
 		const ticker = normalizeTicker(row.ticker);
@@ -1479,46 +1573,15 @@ export async function buildPortfolioPayload(
 				? proxiedStocks[ticker]?.indicators.etf_holdings_fetched_at
 				: nowIso();
 	}
-	const etfRepresentativePositions = buildEtfRepresentativePositions(
-		etfResolution,
-		new Set(rows.map((row) => normalizeTicker(row.ticker)).filter(Boolean)),
-	);
-	const etfRepresentativeTickers = etfRepresentativePositions.map(
-		(position) => position.ticker,
-	);
-	const etfRepresentativeStocks =
-		etfRepresentativePositions.length > 0
-			? await store.loadStocksByTickers(etfRepresentativeTickers)
-			: {};
-	const etfRepresentativeLiveResults =
-		LIVE_SCOPES.has(scope) && etfRepresentativePositions.length > 0
-			? await resolveTickerStatsMap(
-					store,
-					etfRepresentativeTickers,
-					"auto",
-					etfRepresentativeStocks,
-				)
-			: {};
 	for (const position of etfRepresentativePositions) {
 		const ticker = normalizeTicker(position.ticker);
 		const cachedStock =
-			etfRepresentativeStocks[ticker] ??
-			etfProxyStocks[ticker] ??
-			proxiedStocks[ticker];
-		const resolvedRow = etfRepresentativeLiveResults[ticker]?.row;
-		const row = mergePortfolioRow(
-			position,
-			resolvedRow
-				? {
-						indicators: resolvedRow,
-						evaluation: cachedStock?.evaluation ?? {},
-						labels: cachedStock?.labels ?? [],
-					}
-				: cachedStock,
-		);
+			proxyStockResolution.stocks[ticker] ?? proxiedStocks[ticker];
+		const row = mergePortfolioRow(position, cachedStock);
 		row.etf_lookthrough_only = true;
 		row.weight_pct = 0;
 		row.etf_holding_weight = position.etf_holding_weight;
+		row.etf_holding_notional_weight = position.etf_holding_notional_weight;
 		row.etf_source_tickers = position.etf_source_tickers;
 		if (row.equity_type === "UNKNOWN") {
 			row.equity_type = "STOCK";
@@ -1555,7 +1618,7 @@ export async function buildPortfolioPayload(
 		]);
 	const allLiveResults = {
 		...resolvedLiveResults,
-		...etfRepresentativeLiveResults,
+		...proxyStockResolution.liveResults,
 	};
 	let dataSource = LIVE_SCOPES.has(scope)
 		? aggregateTickerDataSource(allLiveResults, "auto")
