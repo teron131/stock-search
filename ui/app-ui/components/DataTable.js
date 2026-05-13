@@ -1,5 +1,5 @@
 import { html } from "htm/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, useEffect, useMemo, useRef, useState } from "react";
 
 import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
@@ -20,11 +20,10 @@ const PLAIN_ALLOCATION_COLUMNS = new Set([
 	"weight_pct",
 	"notional_weight_pct",
 ]);
-const VIRTUAL_ROW_HEIGHT_PX = 28;
-const VIRTUAL_ROW_OVERSCAN = 6;
-const VIRTUAL_INITIAL_VIEWPORT_ROWS = 18;
-const VIRTUAL_INITIAL_VIEWPORT_HEIGHT =
-	VIRTUAL_ROW_HEIGHT_PX * VIRTUAL_INITIAL_VIEWPORT_ROWS;
+const TABLE_ROW_HEIGHT_PX = 28;
+const HEADER_TOOLTIP_HALF_WIDTH_PX = 130;
+const HEADER_TOOLTIP_OFFSET_PX = 6;
+const SCROLL_SYNC_THRESHOLD_PX = 1;
 
 function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
@@ -74,6 +73,23 @@ function getTickerCellLabel(row) {
 		.replace(/\s+Inc\.?$/i, "")
 		.replace(/\s+Corp\.?$/i, "")
 		.trim();
+}
+
+function normalizeSearchText(value) {
+	return String(value ?? "")
+		.trim()
+		.toUpperCase();
+}
+
+function rowMatchesNormalizedSearch(row, normalizedQuery) {
+	const ticker = normalizeSearchText(row?.ticker);
+	const displayTicker = normalizeSearchText(getTickerDisplayValue(row?.ticker));
+	const label = normalizeSearchText(getTickerCellLabel(row));
+	const name = normalizeSearchText(row?.name);
+
+	return [ticker, displayTicker, label, name].some((value) =>
+		value.includes(normalizedQuery),
+	);
 }
 
 function getColumnClassName(key) {
@@ -173,6 +189,7 @@ function getScrollState(scrollEl) {
 			hasOverflowX: false,
 			isScrolledX: false,
 			hasMoreX: false,
+			scrollLeft: 0,
 		};
 	}
 
@@ -185,6 +202,7 @@ function getScrollState(scrollEl) {
 		hasOverflowX: maxScrollLeft > 1,
 		isScrolledX: scrollLeft > 1,
 		hasMoreX: maxScrollLeft - scrollLeft > 1,
+		scrollLeft,
 	};
 }
 
@@ -192,7 +210,8 @@ function statesEqual(a, b) {
 	return (
 		a.hasOverflowX === b.hasOverflowX &&
 		a.isScrolledX === b.isScrolledX &&
-		a.hasMoreX === b.hasMoreX
+		a.hasMoreX === b.hasMoreX &&
+		a.scrollLeft === b.scrollLeft
 	);
 }
 
@@ -203,42 +222,34 @@ function syncScrollState(setScrollState, scrollEl) {
 	);
 }
 
-function getVirtualWindow({ rowCount, start, viewportHeight }) {
-	if (rowCount === 0) {
-		return {
-			start: 0,
-			end: 0,
-			topPadding: 0,
-			bottomPadding: 0,
-		};
-	}
-
-	const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT_PX);
-	const safeStart = Math.min(Math.max(start, 0), Math.max(rowCount - 1, 0));
-	const end = Math.min(
-		rowCount,
-		safeStart + visibleCount + VIRTUAL_ROW_OVERSCAN * 2,
-	);
-
-	return {
-		start: safeStart,
-		end,
-		topPadding: safeStart * VIRTUAL_ROW_HEIGHT_PX,
-		bottomPadding: (rowCount - end) * VIRTUAL_ROW_HEIGHT_PX,
-	};
+function getMaxScrollLeft(scrollEl) {
+	return Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth);
 }
 
-function getNextVirtualStart({ currentStart, scrollTop, viewportHeight }) {
-	const visibleCount = Math.ceil(viewportHeight / VIRTUAL_ROW_HEIGHT_PX);
-	const firstVisible = Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT_PX);
-	const currentEnd = currentStart + visibleCount + VIRTUAL_ROW_OVERSCAN * 2;
-	const overscanEdge = Math.max(2, Math.floor(VIRTUAL_ROW_OVERSCAN / 2));
-	const shouldMoveWindow =
-		firstVisible < currentStart + overscanEdge ||
-		firstVisible + visibleCount > currentEnd - overscanEdge;
+function getNextScrollLeft(scrollEl, deltaX) {
+	const maxScrollLeft = getMaxScrollLeft(scrollEl);
+	return Math.min(Math.max(scrollEl.scrollLeft + deltaX, 0), maxScrollLeft);
+}
 
-	if (!shouldMoveWindow) return currentStart;
-	return Math.max(0, firstVisible - VIRTUAL_ROW_OVERSCAN);
+function mapScrollLeft(sourceEl, targetEl) {
+	const sourceMax = getMaxScrollLeft(sourceEl);
+	const targetMax = getMaxScrollLeft(targetEl);
+	if (sourceMax <= 0 || targetMax <= 0) return 0;
+	return (sourceEl.scrollLeft / sourceMax) * targetMax;
+}
+
+function syncHorizontalScroll(sourceEl, targetEl) {
+	if (!targetEl) return false;
+
+	const nextScrollLeft = mapScrollLeft(sourceEl, targetEl);
+	if (
+		Math.abs(targetEl.scrollLeft - nextScrollLeft) <= SCROLL_SYNC_THRESHOLD_PX
+	) {
+		return false;
+	}
+
+	targetEl.scrollLeft = nextScrollLeft;
+	return true;
 }
 
 function getColumnDisplayValues(rows, col) {
@@ -253,7 +264,7 @@ function getColumnCharCounts(rows, cols) {
 	const columnCharCounts = {};
 
 	for (const col of cols) {
-		if (!col.widthGroup) {
+		if (col.key === "ticker" || col.key === "remove") {
 			continue;
 		}
 
@@ -389,14 +400,14 @@ function renderCell({
 		}
 		return html`<tv-ticker-tag
 			className="ticker-tag-compact"
-      symbol=${tradingViewSymbol}
-      preserve-text
-      hide-change
-      hide-background
-      theme="dark"
-      transparent
-      >${val}</tv-ticker-tag
-    >`;
+			symbol=${tradingViewSymbol}
+			preserve-text
+			hide-change
+			hide-background
+			theme="dark"
+			transparent
+			>${val}</tv-ticker-tag
+		>`;
 	}
 
 	const valueForDisplay = row[key];
@@ -475,17 +486,13 @@ export function DataTable({
 	isUsingDemoData = false,
 	isLoading = false,
 	animateRows = true,
+	searchQuery = "",
 }) {
 	const scrollRef = useRef(null);
-	const rafRef = useRef(null);
-	const virtualStartRef = useRef(0);
-	const virtualViewportHeightRef = useRef(VIRTUAL_INITIAL_VIEWPORT_HEIGHT);
-	const hasScrolledRef = useRef(false);
-	const [virtualStart, setVirtualStart] = useState(0);
-	const [virtualViewportHeight, setVirtualViewportHeight] = useState(
-		VIRTUAL_INITIAL_VIEWPORT_HEIGHT,
-	);
+	const headerScrollRef = useRef(null);
+	const lastJumpQueryRef = useRef("");
 	const [scrollState, setScrollState] = useState(() => getScrollState(null));
+	const [headerTooltip, setHeaderTooltip] = useState(null);
 	const cols = COLS[tab];
 	const isEvaluationTab = tab === "evaluations";
 
@@ -498,14 +505,14 @@ export function DataTable({
 		() => sortRows(filtered, sortCol, sortDir),
 		[filtered, sortCol, sortDir],
 	);
-	const virtualWindow = getVirtualWindow({
-		rowCount: sorted.length,
-		start: virtualStart,
-		viewportHeight: virtualViewportHeight,
-	});
-	const visibleRows = sorted.slice(virtualWindow.start, virtualWindow.end);
-	const shouldAnimateRows =
-		animateRows && virtualStart === 0 && !hasScrolledRef.current;
+	const normalizedSearchQuery = normalizeSearchText(searchQuery);
+	const targetRowIndex = useMemo(() => {
+		if (!normalizedSearchQuery) return -1;
+		return sorted.findIndex((row) =>
+			rowMatchesNormalizedSearch(row, normalizedSearchQuery),
+		);
+	}, [sorted, normalizedSearchQuery]);
+	const shouldAnimateRows = animateRows && !searchQuery;
 
 	const hasRows = sorted.length > 0;
 	const shouldShowLoadingRows = isLoading && !hasRows;
@@ -531,6 +538,7 @@ export function DataTable({
 	const tableWrapperClassName = [
 		"table-wrapper data-table-scroll",
 		isEvaluationTab ? "table-wrapper-evaluations" : "",
+		"table-wrapper-window-scroll",
 		scrollState.hasOverflowX ? "has-overflow-x" : "",
 		scrollState.isScrolledX ? "is-scrolled-x" : "",
 		scrollState.hasMoreX ? "has-more-x" : "",
@@ -544,36 +552,163 @@ export function DataTable({
 		.filter(Boolean)
 		.join(" ");
 	const tableResetKey = `${tab}:${sortCol}:${sortDir}`;
+	const renderColGroup = () => html`<colgroup key="colgroup">
+		${Children.toArray(
+			cols.map((col) => {
+				const className = [
+					getColumnClassName(col.key),
+					getColumnClusterClassName(col.cluster),
+				]
+					.filter(Boolean)
+					.join(" ");
+				return html`<col
+					key=${col.key}
+					className=${className}
+					style=${
+						col.key === "ticker"
+							? null
+							: getColumnWidthStyle(
+									columnCharCounts[col.key],
+									WIDTH_GROUP_OPTIONS[col.widthGroup] ?? {},
+								)
+					}
+				/>`;
+			}),
+		)}
+	</colgroup>`;
+	const renderHeaderTooltip = (c) => html`
+		<span key="title" className="table-header-tooltip-title">
+			${c.tooltip || c.label}
+		</span>
+		${
+			c.description
+				? html`<span key="description" className="table-header-tooltip-description">
+						${c.description}
+					</span>`
+				: null
+		}
+		${
+			c.tooltipRows?.length
+				? html`<span key="rows" className="table-header-tooltip-rows">
+						${Children.toArray(
+							c.tooltipRows.map(
+								(row, rowIndex) => html`
+									<span
+										key=${`${row.label}:${rowIndex}`}
+										className="table-header-tooltip-row"
+									>
+										<span>${row.label}</span>
+										<span>${row.value}</span>
+									</span>
+								`,
+							),
+						)}
+					</span>`
+				: null
+		}
+	`;
+	const showHeaderTooltip = (c, event) => {
+		const rect = event.currentTarget.getBoundingClientRect();
+		setHeaderTooltip({
+			col: c,
+			left: Math.min(
+				Math.max(rect.left + rect.width / 2, HEADER_TOOLTIP_HALF_WIDTH_PX),
+				window.innerWidth - HEADER_TOOLTIP_HALF_WIDTH_PX,
+			),
+			top: rect.bottom + HEADER_TOOLTIP_OFFSET_PX,
+		});
+	};
+	const hideHeaderTooltip = () => setHeaderTooltip(null);
+	const renderHeaderCells = () =>
+		Children.toArray(
+			cols.map((c) => {
+				const columnClassName = [
+					getColumnClassName(c.key),
+					getColumnClusterClassName(c.cluster),
+				]
+					.filter(Boolean)
+					.join(" ");
+				if (c.key === "remove")
+					return html`<th key=${c.key} className=${columnClassName}></th>`;
+				const sortedClass = sortCol === c.key ? `sorted ${sortDir}` : "";
+				return html`<th
+				key=${c.key}
+				data-sort=${c.key}
+				className=${`${columnClassName} ${sortedClass}`.trim()}
+				aria-sort=${getAriaSort(sortCol, sortDir, c.key)}
+			>
+				<button
+					type="button"
+					className="table-sort-btn"
+					data-tooltip=${c.tooltip || c.label}
+					data-description=${c.description || ""}
+					onMouseEnter=${(event) => showHeaderTooltip(c, event)}
+					onMouseLeave=${hideHeaderTooltip}
+					onFocus=${(event) => showHeaderTooltip(c, event)}
+					onBlur=${hideHeaderTooltip}
+					onClick=${() => onSort(c.key)}
+				>
+					<span key="label">${c.label}</span>
+					<span
+						key="sort-indicator"
+						className="sort-indicator"
+						aria-hidden="true"
+					></span>
+					<span
+						key="tooltip"
+						className="table-header-tooltip"
+						aria-hidden="true"
+					>
+						${renderHeaderTooltip(c)}
+					</span>
+				</button>
+			</th>`;
+			}),
+		);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
 
-		const updateViewportHeight = () => {
-			const nextHeight = scrollEl.clientHeight || VIRTUAL_ROW_HEIGHT_PX;
-			virtualViewportHeightRef.current = nextHeight;
-			setVirtualViewportHeight(nextHeight);
+		const updateScrollState = () => {
 			syncScrollState(setScrollState, scrollEl);
 		};
 
-		updateViewportHeight();
+		updateScrollState();
 
-		window.addEventListener("resize", updateViewportHeight);
-		window.visualViewport?.addEventListener("resize", updateViewportHeight);
+		window.addEventListener("resize", updateScrollState);
+		window.visualViewport?.addEventListener("resize", updateScrollState);
 		return () => {
-			window.removeEventListener("resize", updateViewportHeight);
-			window.visualViewport?.removeEventListener(
-				"resize",
-				updateViewportHeight,
-			);
+			window.removeEventListener("resize", updateScrollState);
+			window.visualViewport?.removeEventListener("resize", updateScrollState);
 		};
 	}, []);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
+		const headerScrollEl = headerScrollRef.current;
 		if (!scrollEl) return;
-		syncScrollState(setScrollState, scrollEl);
-	});
+
+		const handleWheel = (event) => {
+			if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+
+			const nextScrollLeft = getNextScrollLeft(scrollEl, event.deltaX);
+			if (nextScrollLeft === scrollEl.scrollLeft) return;
+
+			event.preventDefault();
+			scrollEl.scrollLeft = nextScrollLeft;
+			syncHorizontalScroll(scrollEl, headerScrollEl);
+			syncScrollState(setScrollState, scrollEl);
+		};
+		const wheelOptions = { passive: false };
+
+		scrollEl.addEventListener("wheel", handleWheel, wheelOptions);
+		headerScrollEl?.addEventListener("wheel", handleWheel, wheelOptions);
+		return () => {
+			scrollEl.removeEventListener("wheel", handleWheel, wheelOptions);
+			headerScrollEl?.removeEventListener("wheel", handleWheel, wheelOptions);
+		};
+	}, []);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -581,240 +716,186 @@ export function DataTable({
 		scrollEl.dataset.resetKey = tableResetKey;
 
 		scrollEl.scrollTop = 0;
-		virtualStartRef.current = 0;
-		hasScrolledRef.current = false;
-		setVirtualStart(0);
+		scrollEl.scrollLeft = 0;
+		if (headerScrollRef.current) {
+			headerScrollRef.current.scrollLeft = 0;
+		}
 	}, [tableResetKey]);
 
 	useEffect(() => {
-		return () => {
-			if (rafRef.current != null) {
-				cancelAnimationFrame(rafRef.current);
-			}
-		};
-	}, []);
+		if (!normalizedSearchQuery || targetRowIndex < 0) return;
+
+		const jumpKey = `${normalizedSearchQuery}:${targetRowIndex}`;
+		if (lastJumpQueryRef.current === jumpKey) return;
+		lastJumpQueryRef.current = jumpKey;
+
+		const scrollEl = scrollRef.current;
+		if (!scrollEl) return;
+
+		requestAnimationFrame(() => {
+			const targetRow = scrollEl.querySelector(
+				`tr[data-row-index="${targetRowIndex}"]`,
+			);
+			const rowTop =
+				(targetRow?.getBoundingClientRect().top ?? 0) + window.scrollY;
+			const headerOffset =
+				(document.querySelector(".top-bar")?.getBoundingClientRect().height ??
+					0) + TABLE_ROW_HEIGHT_PX;
+			window.scrollTo({
+				top: Math.max(0, rowTop - headerOffset),
+				behavior: "smooth",
+			});
+		});
+	}, [normalizedSearchQuery, targetRowIndex]);
 
 	function handleScroll(event) {
-		syncScrollState(setScrollState, event.currentTarget);
-
-		const nextScrollTop = event.currentTarget.scrollTop;
-		if (nextScrollTop > 0) {
-			hasScrolledRef.current = true;
-		}
-		if (rafRef.current != null) return;
-
-		rafRef.current = requestAnimationFrame(() => {
-			rafRef.current = null;
-			const currentStart = virtualStartRef.current;
-			const nextStart = getNextVirtualStart({
-				currentStart,
-				scrollTop: nextScrollTop,
-				viewportHeight: virtualViewportHeightRef.current,
-			});
-			if (nextStart === currentStart) return;
-
-			virtualStartRef.current = nextStart;
-			setVirtualStart(nextStart);
-		});
+		const scrollEl = event.currentTarget;
+		const headerScrollEl = headerScrollRef.current;
+		hideHeaderTooltip();
+		syncHorizontalScroll(scrollEl, headerScrollEl);
+		syncScrollState(setScrollState, scrollEl);
 	}
+
+	function handleHeaderScroll(event) {
+		const headerScrollEl = event.currentTarget;
+		const scrollEl = scrollRef.current;
+		hideHeaderTooltip();
+		if (scrollEl && syncHorizontalScroll(headerScrollEl, scrollEl)) {
+			syncScrollState(setScrollState, scrollEl);
+		}
+	}
+
+	const renderTableCells = (row) =>
+		Children.toArray(
+			cols.map(
+				(col) =>
+					html`<td
+						key=${col.key}
+						className=${[
+							getColumnClassName(col.key),
+							getColumnClusterClassName(col.cluster),
+						]
+							.filter(Boolean)
+							.join(" ")}
+					>
+					${renderCell({
+						row,
+						col,
+						colorMeta,
+						onRemove,
+						onSetQuantity,
+						isUsingDemoData,
+					})}
+				</td>`,
+			),
+		);
+
+	const renderSkeletonCells = () =>
+		Children.toArray(
+			cols.map(
+				(col, colIndex) => html`<td key=${col.key}>
+					<span
+						className=${`table-skeleton-cell ${
+							colIndex === 0 ? "is-ticker" : ""
+						}`}
+					></span>
+				</td>`,
+			),
+		);
+
+	const bodyRows = Children.toArray(
+		shouldShowLoadingRows
+			? skeletonRows.map(
+					(_, rowIndex) => html`<tr
+						key=${`loading-${rowIndex}`}
+						className="table-skeleton-row"
+					>
+						${renderSkeletonCells()}
+					</tr>`,
+				)
+			: hasRows
+				? sorted.map((row, rowIndex) => {
+						return html`<tr
+							key=${`${normalizeTicker(row.ticker)}:${rowIndex}`}
+							data-row-index=${rowIndex}
+							data-ticker=${getTickerDisplayValue(row.ticker)}
+							className=${[
+								shouldAnimateRows ? "animate-in" : "",
+								rowIndex === targetRowIndex ? "search-target-row" : "",
+							]
+								.filter(Boolean)
+								.join(" ")}
+							style=${
+								shouldAnimateRows
+									? {
+											animationDelay: `${Math.min(rowIndex, 12) * CONFIG.animationDelayMs}ms`,
+										}
+									: null
+							}
+						>
+							${renderTableCells(row)}
+						</tr>`;
+					})
+				: [
+						html`<tr key="empty-row" className="table-empty-row">
+							<td colSpan=${cols.length}>
+								<div className="table-empty-state">
+									<div className="table-empty-title">No rows in this view</div>
+									<div className="table-empty-copy">
+										Add positions or switch tabs to inspect available ticker data.
+									</div>
+								</div>
+							</td>
+						</tr>`,
+					],
+	);
 
 	return html`
 		<div className="table-shell">
 			<div
+				key="sticky-header"
+				ref=${headerScrollRef}
+				className="table-sticky-header"
+				style=${tableWrapperStyle}
+				onScroll=${handleHeaderScroll}
+			>
+				<table
+					className=${`${tableClassName} data-table-header-clone`}
+				>
+					${renderColGroup()}
+					<thead key="header-head">
+						<tr>${renderHeaderCells()}</tr>
+					</thead>
+				</table>
+			</div>
+			${
+				headerTooltip
+					? html`<div
+							key="header-tooltip"
+							className="table-header-tooltip table-header-tooltip-floating"
+							style=${{
+								left: `${headerTooltip.left}px`,
+								top: `${headerTooltip.top}px`,
+							}}
+							aria-hidden="true"
+						>
+							${renderHeaderTooltip(headerTooltip.col)}
+						</div>`
+					: null
+			}
+			<div
+				key="table-wrapper"
 				ref=${scrollRef}
 				className=${tableWrapperClassName}
 				style=${tableWrapperStyle}
 				onScroll=${handleScroll}
 			>
 				<table id="main-table" className=${tableClassName}>
-					<colgroup>
-						${cols.map((col) => {
-							const className = [
-								getColumnClassName(col.key),
-								getColumnClusterClassName(col.cluster),
-							]
-								.filter(Boolean)
-								.join(" ");
-							return html`<col
-								key=${col.key}
-								className=${className}
-								style=${
-									col.key === "ticker"
-										? null
-										: getColumnWidthStyle(
-												columnCharCounts[col.key],
-												WIDTH_GROUP_OPTIONS[col.widthGroup],
-											)
-								}
-							/>`;
-						})}
-					</colgroup>
-					<thead>
-						<tr>
-							${cols.map((c) => {
-								const columnClassName = [
-									getColumnClassName(c.key),
-									getColumnClusterClassName(c.cluster),
-								]
-									.filter(Boolean)
-									.join(" ");
-								if (c.key === "remove")
-									return html`<th key=${c.key} className=${columnClassName}></th>`;
-								const sortedClass =
-									sortCol === c.key ? `sorted ${sortDir}` : "";
-								return html`<th
-									key=${c.key}
-									data-sort=${c.key}
-									className=${`${columnClassName} ${sortedClass}`.trim()}
-									aria-sort=${getAriaSort(sortCol, sortDir, c.key)}
-								>
-									<button
-										type="button"
-										className="table-sort-btn"
-										data-tooltip=${c.tooltip || c.label}
-										data-description=${c.description || ""}
-										onClick=${() => onSort(c.key)}
-									>
-										<span>${c.label}</span>
-										<span className="sort-indicator" aria-hidden="true"></span>
-										<span className="table-header-tooltip" aria-hidden="true">
-											<span className="table-header-tooltip-title">
-												${c.tooltip || c.label}
-											</span>
-											${
-												c.description
-													? html`<span className="table-header-tooltip-description">
-															${c.description}
-														</span>`
-													: null
-											}
-											${
-												c.tooltipRows?.length
-													? html`<span className="table-header-tooltip-rows">
-															${c.tooltipRows.map(
-																(row) => html`
-																	<span
-																		key=${row.label}
-																		className="table-header-tooltip-row"
-																	>
-																		<span>${row.label}</span>
-																		<span>${row.value}</span>
-																	</span>
-																`,
-															)}
-														</span>`
-													: null
-											}
-										</span>
-									</button>
-								</th>`;
-							})}
-						</tr>
+					${renderColGroup()}
+					<thead key="body-head" className="table-body-head">
+						<tr>${renderHeaderCells()}</tr>
 					</thead>
-					<tbody>
-						${
-							shouldShowLoadingRows
-								? skeletonRows.map(
-										(_, rowIndex) => html`<tr
-											key=${`loading-${rowIndex}`}
-											className="table-skeleton-row"
-										>
-											${cols.map(
-												(col, colIndex) => html`<td key=${col.key}>
-													<span
-														className=${`table-skeleton-cell ${
-															colIndex === 0 ? "is-ticker" : ""
-														}`}
-													></span>
-												</td>`,
-											)}
-										</tr>`,
-									)
-								: null
-						}
-						${
-							hasRows
-								? html`
-										${
-											virtualWindow.topPadding > 0
-												? html`<tr key="top-spacer" className="virtual-spacer-row">
-														<td
-															colSpan=${cols.length}
-															style=${{
-																height: `${virtualWindow.topPadding}px`,
-															}}
-														></td>
-													</tr>`
-												: null
-										}
-										${visibleRows.map((row, rowOffset) => {
-											const rowIndex = virtualWindow.start + rowOffset;
-											return html`<tr
-												key=${normalizeTicker(row.ticker)}
-												className=${shouldAnimateRows ? "animate-in" : ""}
-												style=${
-													shouldAnimateRows
-														? {
-																animationDelay: `${Math.min(rowIndex, 12) * CONFIG.animationDelayMs}ms`,
-															}
-														: null
-												}
-											>
-												${cols.map(
-													(col) =>
-														html`<td
-															key=${col.key}
-															className=${[
-																getColumnClassName(col.key),
-																getColumnClusterClassName(col.cluster),
-															]
-																.filter(Boolean)
-																.join(" ")}
-														>
-														${renderCell({
-															row,
-															col,
-															colorMeta,
-															onRemove,
-															onSetQuantity,
-															isUsingDemoData,
-														})}
-													</td>`,
-												)}
-											</tr>`;
-										})}
-										${
-											virtualWindow.bottomPadding > 0
-												? html`<tr key="bottom-spacer" className="virtual-spacer-row">
-														<td
-															colSpan=${cols.length}
-															style=${{
-																height: `${virtualWindow.bottomPadding}px`,
-															}}
-														></td>
-													</tr>`
-												: null
-										}
-									`
-								: null
-						}
-						${
-							hasRows || shouldShowLoadingRows
-								? null
-								: html`
-										<tr key="empty-row" className="table-empty-row">
-											<td colSpan=${cols.length}>
-												<div className="table-empty-state">
-													<div className="table-empty-title">No rows in this view</div>
-													<div className="table-empty-copy">
-														Add positions or switch tabs to inspect available ticker data.
-													</div>
-												</div>
-											</td>
-										</tr>
-									`
-						}
-					</tbody>
+					<tbody key="body">${bodyRows}</tbody>
 				</table>
 			</div>
 		</div>

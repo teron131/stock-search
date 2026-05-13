@@ -357,6 +357,8 @@ function renderDashboardScreen({
 	isBackgroundLoading,
 	isLoading,
 	onAddOrUpdate,
+	onTickerSearchChange,
+	tickerSearchQuery,
 }) {
 	return html`
 		<div className="tabs-container" id="dashboard-tables">
@@ -389,6 +391,7 @@ function renderDashboardScreen({
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
 						onSubmit=${onAddOrUpdate}
+						onTickerInput=${onTickerSearchChange}
 					/>
 				</div>
 			</div>
@@ -405,6 +408,7 @@ function renderDashboardScreen({
 				isUsingDemoData=${isUsingDemoData}
 				isLoading=${isLoading}
 				animateRows=${!isBackgroundLoading}
+				searchQuery=${tickerSearchQuery}
 			/>
 		</div>
 	`;
@@ -525,6 +529,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
 	const [showPortfolioStats, setShowPortfolioStats] = useState(false);
+	const [tickerSearchQuery, setTickerSearchQuery] = useState("");
 
 	const {
 		rows,
@@ -901,5 +906,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		isBackgroundLoading,
 		isLoading,
 		onAddOrUpdate,
+		onTickerSearchChange: setTickerSearchQuery,
+		tickerSearchQuery,
 	});
 }

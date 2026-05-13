@@ -124,6 +124,7 @@ const WIDTH_GROUPS = {
 	holdingStrategy: "holding-strategy",
 	holdingCurrency: "holding-currency",
 	holdingPercent: "holding-percent",
+	holdingQuantity: "holding-quantity",
 };
 
 const HOLDINGS_TAIL_CLUSTER = "holdings-tail";
@@ -160,6 +161,11 @@ export const WIDTH_GROUP_OPTIONS = {
 	[WIDTH_GROUPS.holdingPercent]: {
 		paddingChars: 0,
 		extraPx: 2,
+	},
+	[WIDTH_GROUPS.holdingQuantity]: {
+		paddingChars: 0,
+		extraPx: 2,
+		minPx: 88,
 	},
 };
 
@@ -387,7 +393,7 @@ const EVALUATION_COLUMNS = [
 const HOLDING_ACTION_COLUMNS = [
 	createGroupedColumn(
 		"strategy",
-		"STRAT",
+		"STRATEGY",
 		undefined,
 		WIDTH_GROUPS.holdingStrategy,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
@@ -420,7 +426,13 @@ const HOLDING_ACTION_COLUMNS = [
 		WIDTH_GROUPS.holdingPercent,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
-	createColumn("quantity", "QTY", "number", { cluster: HOLDINGS_TAIL_CLUSTER }),
+	createGroupedColumn(
+		"quantity",
+		"QTY",
+		"number",
+		WIDTH_GROUPS.holdingQuantity,
+		{ cluster: HOLDINGS_TAIL_CLUSTER },
+	),
 	createColumn("remove", "", "action", { cluster: HOLDINGS_TAIL_CLUSTER }),
 ];
 
@@ -443,7 +455,7 @@ export const COLS = {
 		...EVALUATION_COLUMNS,
 		createGroupedColumn(
 			"strategy",
-			"STRAT",
+			"STRATEGY",
 			undefined,
 			WIDTH_GROUPS.holdingStrategy,
 			{ cluster: HOLDINGS_TAIL_CLUSTER },

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 
 import { normalizeTicker } from "../format.js";
 
-export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
+export function QuickAdd({ rows, isUsingDemoData, onSubmit, onTickerInput }) {
 	const [ticker, setTicker] = useState("");
 	const [qty, setQty] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,6 +27,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 			});
 			if (!result?.ok) return;
 			setTicker("");
+			onTickerInput?.("");
 			setQty("");
 		} finally {
 			setIsSubmitting(false);
@@ -34,6 +35,11 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 	};
 
 	const submitLabel = existingQty != null ? "UPDATE" : "ADD";
+	const handleTickerInput = (event) => {
+		const nextTicker = event.target.value;
+		setTicker(nextTicker);
+		onTickerInput?.(nextTicker);
+	};
 
 	return html`
     <form id="quick-add-form" className="quick-add-compact" onSubmit=${submit}>
@@ -45,7 +51,7 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
         required
         autoComplete="off"
         value=${ticker}
-        onInput=${(e) => setTicker(e.target.value)}
+        onInput=${handleTickerInput}
         disabled=${isSubmitting}
         suppressHydrationWarning=${true}
       />
