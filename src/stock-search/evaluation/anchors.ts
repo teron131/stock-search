@@ -37,6 +37,8 @@ export type ScoreAnchorKey =
 	| "free_cash_flow"
 	| "fcf_yield"
 	| "shareholder_yield"
+	| "rd_knowledge_capital"
+	| "rd_intensity"
 	| "revenue"
 	| "revenue_growth"
 	| "eps_growth"
@@ -64,6 +66,8 @@ export const STATIC_SCORE_ANCHORS: ScoreAnchors = {
 	free_cash_flow: CalibrationConfig.FREE_CASH_FLOW_RANGE,
 	fcf_yield: CalibrationConfig.FCF_YIELD_PCT_RANGE,
 	shareholder_yield: CalibrationConfig.SHAREHOLDER_YIELD_PCT_RANGE,
+	rd_knowledge_capital: CalibrationConfig.RD_KNOWLEDGE_CAPITAL_RANGE,
+	rd_intensity: CalibrationConfig.RD_INTENSITY_PCT_RANGE,
 	revenue: CalibrationConfig.REVENUE_RANGE,
 	revenue_growth: CalibrationConfig.REVENUE_GROWTH_PCT_RANGE,
 	eps_growth: CalibrationConfig.EPS_GROWTH_PCT_RANGE,
@@ -85,6 +89,8 @@ const ANCHOR_DIRECTIONS: Record<ScoreAnchorKey, "positive" | "inverse"> = {
 	free_cash_flow: "positive",
 	fcf_yield: "positive",
 	shareholder_yield: "positive",
+	rd_knowledge_capital: "positive",
+	rd_intensity: "positive",
 	revenue: "positive",
 	revenue_growth: "positive",
 	eps_growth: "positive",
@@ -244,6 +250,8 @@ function loadDynamicAnchors(): ScoreAnchors {
 			free_cash_flow: dynamicAnchor(database, "free_cash_flow"),
 			fcf_yield: dynamicAnchor(database, "fcf_yield"),
 			shareholder_yield: dynamicAnchor(database, "shareholder_yield"),
+			rd_knowledge_capital: dynamicAnchor(database, "rd_knowledge_capital"),
+			rd_intensity: dynamicAnchor(database, "rd_intensity"),
 			revenue: dynamicAnchor(database, "revenue"),
 			revenue_growth: dynamicAnchor(database, "revenue_growth"),
 			eps_growth: dynamicAnchor(database, "eps_growth"),

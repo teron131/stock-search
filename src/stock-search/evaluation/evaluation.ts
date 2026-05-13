@@ -1,5 +1,6 @@
 /** Blend evaluation signals into scores and strategy indices. */
 
+import type { ZodType, z } from "zod";
 import { fetchLiveIndicators } from "../indicators.js";
 import type {
 	Evaluation,
@@ -9,7 +10,6 @@ import type {
 import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
 import { normalizeTicker } from "../utils.js";
 import {
-	DEFAULT_SCORE,
 	MOAT_RESEARCH_WEIGHT,
 	MOAT_SIGNAL_WEIGHT,
 	QUALITY_RESEARCH_WEIGHT,
@@ -24,6 +24,7 @@ import { runLlmEvaluation } from "./research.js";
 import {
 	calculateCombinedUpsideScore,
 	calculateMoatSignalScore,
+	calculateOverallScore,
 	calculateQualitySignalScore,
 	calculateStrategyIndices,
 	calculateValuationScore,
@@ -40,78 +41,76 @@ export type EvaluationResult = {
 	diversifierIndex: number | null;
 };
 
-function blendedQuality(
-	research: ResearchEvaluation | null,
-	qualitySignalScore: number | null,
-): ScoredReason | null {
-	const researchQualityScore = research?.quality_score?.score ?? null;
-	if (researchQualityScore == null && qualitySignalScore == null) {
+function blendedResearchSignal({
+	researchScore,
+	signalScore,
+	researchWeight,
+	signalWeight,
+	reasons,
+}: {
+	researchScore: number | null;
+	signalScore: number | null;
+	researchWeight: number;
+	signalWeight: number;
+	reasons: string[];
+}): ScoredReason | null {
+	if (researchScore == null && signalScore == null) {
 		return null;
 	}
 
 	let score: number;
-	if (researchQualityScore != null && qualitySignalScore != null) {
+	if (researchScore != null && signalScore != null) {
 		score = Number(
-			(
-				QUALITY_RESEARCH_WEIGHT * researchQualityScore +
-				QUALITY_SIGNAL_WEIGHT * qualitySignalScore
-			).toFixed(2),
+			(researchWeight * researchScore + signalWeight * signalScore).toFixed(2),
 		);
-	} else if (researchQualityScore != null) {
-		score = Number(researchQualityScore.toFixed(2));
+	} else if (researchScore != null) {
+		score = Number(researchScore.toFixed(2));
 	} else {
-		score = Number((qualitySignalScore ?? 0).toFixed(2));
+		score = Number((signalScore ?? 0).toFixed(2));
 	}
 
 	return {
 		score,
-		reasons: research?.quality_score?.reasons ?? [],
+		reasons,
 	};
+}
+
+function blendedQuality(
+	research: ResearchEvaluation | null,
+	qualitySignalScore: number | null,
+): ScoredReason | null {
+	return blendedResearchSignal({
+		researchScore: research?.quality_score?.score ?? null,
+		signalScore: qualitySignalScore,
+		researchWeight: QUALITY_RESEARCH_WEIGHT,
+		signalWeight: QUALITY_SIGNAL_WEIGHT,
+		reasons: research?.quality_score?.reasons ?? [],
+	});
 }
 
 function blendedMoat(
 	research: ResearchEvaluation | null,
 	moatSignalScore: number | null,
 ): ScoredReason | null {
-	const researchMoatScore = research?.moat_score?.score ?? null;
-	if (researchMoatScore == null && moatSignalScore == null) {
-		return null;
-	}
-
-	let score: number;
-	if (researchMoatScore != null && moatSignalScore != null) {
-		score = Number(
-			(
-				MOAT_RESEARCH_WEIGHT * researchMoatScore +
-				MOAT_SIGNAL_WEIGHT * moatSignalScore
-			).toFixed(2),
-		);
-	} else if (researchMoatScore != null) {
-		score = Number(researchMoatScore.toFixed(2));
-	} else {
-		score = Number((moatSignalScore ?? 0).toFixed(2));
-	}
-
-	return {
-		score,
+	return blendedResearchSignal({
+		researchScore: research?.moat_score?.score ?? null,
+		signalScore: moatSignalScore,
+		researchWeight: MOAT_RESEARCH_WEIGHT,
+		signalWeight: MOAT_SIGNAL_WEIGHT,
 		reasons: research?.moat_score?.reasons ?? [],
-	};
+	});
 }
 
-function averageWithNeutralMissing(
-	values: Array<number | null>,
-): number | null {
-	const availableScores = values.filter(
-		(value): value is number => value != null && Number.isFinite(value),
-	);
-	if (availableScores.length === 0) {
+async function runOptionalLlmEvaluation<T extends ZodType>(
+	ticker: string,
+	systemPrompt: string,
+	responseFormat: T,
+): Promise<z.infer<T> | null> {
+	try {
+		return await runLlmEvaluation(ticker, systemPrompt, responseFormat);
+	} catch {
 		return null;
 	}
-	return (
-		(availableScores.reduce((sum, value) => sum + value, 0) +
-			(values.length - availableScores.length) * DEFAULT_SCORE) /
-		values.length
-	);
 }
 
 /** Fetch metrics and run LLM evaluations to build the Evaluation input model. */
@@ -122,12 +121,12 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 		import("../models/schemas.js"),
 	]);
 	const [outlook, research] = await Promise.all([
-		runLlmEvaluation(
+		runOptionalLlmEvaluation(
 			ticker,
 			FUTURE_OUTLOOK_DEFINITION,
 			schemas.FutureOutlookSchema,
 		),
-		runLlmEvaluation(
+		runOptionalLlmEvaluation(
 			ticker,
 			RESEARCH_DEFINITION,
 			schemas.ResearchEvaluationSchema,
@@ -178,13 +177,7 @@ export function evaluateAsset(
 		size_score: inputs.market_cap_score ?? null,
 	};
 
-	const coreMetrics = [
-		scores.moat_score,
-		scores.quality_score,
-		scores.valuation_score,
-		scores.upside_score,
-	];
-	const overall = averageWithNeutralMissing(coreMetrics);
+	const overall = calculateOverallScore(scores);
 
 	const indices = calculateStrategyIndices(scores);
 

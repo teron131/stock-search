@@ -190,7 +190,11 @@ export const NewsAnalysisSchema = z
 
 export const ScoredReasonSchema = z
 	.object({
-		score: z.number().describe("Numeric score for the evaluated dimension."),
+		score: z
+			.number()
+			.nullable()
+			.optional()
+			.describe("Optional numeric score for the evaluated dimension."),
 		reasons: z
 			.array(z.string())
 			.default([])
