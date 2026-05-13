@@ -1,6 +1,7 @@
 /** CLI for calling the Stock Search MCP tools in-process. */
 
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
+import { INDICATOR_FIELD_GROUPS } from "./models/field-definitions.js";
 
 type CliCommand = {
 	command: string;
@@ -31,48 +32,12 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 	},
 ];
 
-const STOCK_STATS_FIELDS = [
+const STOCK_STATS_FIELDS: readonly string[] = [
 	"ticker",
-	"price",
-	"change_percent_1d",
-	"market_cap",
-	"pe",
-	"pe_forward",
-	"peg",
-	"beta",
-	"iv",
-	"rsi",
-	"change_percent_1m",
-	"change_percent_3m",
-	"change_percent_6m",
-	"change_percent_1y",
-	"median_upside",
-	"revenue",
-	"revenue_growth",
-	"revenue_growth_1y",
-	"revenue_cagr_3y",
-	"eps_growth",
-	"fcf_growth_1y",
-	"fcf_cagr_3y",
-	"gross_margin",
-	"gross_margin_median_3y",
-	"operating_margin",
-	"operating_margin_median_3y",
-	"operating_margin_delta_vs_3y",
-	"operating_margin_std_3y",
-	"roe",
-	"roic",
-	"debt_to_equity",
-	"free_cash_flow",
-	"fcf_margin_median_3y",
-	"shares_change_1y",
-	"shares_change_cagr_3y",
-	"financials_currency",
-	"research_and_development",
-	"rd_intensity",
-	"rd_knowledge_capital",
-	"shareholder_yield",
-] as const;
+	...Object.values(INDICATOR_FIELD_GROUPS)
+		.flatMap((group) => group.fields)
+		.filter((field) => field !== "change"),
+];
 
 function parseBool(value: string): boolean {
 	const normalized = value.trim().toLowerCase();

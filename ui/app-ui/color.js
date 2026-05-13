@@ -4,6 +4,7 @@ const BACKEND_MEDIAN_SCORE = 5.0;
 const TARGET_FORMATS = new Set([
 	"score",
 	"percent_neutral",
+	"ratio_percent_neutral",
 	"number",
 	"market_cap",
 ]);

@@ -14,7 +14,7 @@ export function buildColorStandardsPayload(): {
 			operating_margin: { min: 0.0, max: 40.0 },
 			roe: { min: 0.0, max: 30.0 },
 			roic: { min: 0.0, max: 30.0 },
-			debt_to_equity: { min: 0.0, max: 200.0 },
+			debt_to_equity: { min: 0.0, max: 3.0 },
 			shareholder_yield: { min: -5.0, max: 8.0 },
 			median_upside: { min: 0.0, max: 50.0 },
 			rsi: { min: 20.0, max: 80.0 },

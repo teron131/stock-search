@@ -70,23 +70,11 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"(Price / price 1Y ago - 1). Longer-term market performance signal.",
 	},
-	change_percent_mtd: {
-		label: "MTD Change",
-		shortLabel: "MTD%",
-		description:
-			"(Price / month-start price - 1). Resets at the start of each month.",
-	},
-	change_percent_ytd: {
-		label: "YTD Change",
-		shortLabel: "YTD%",
-		description:
-			"(Price / year-start price - 1). Resets at the start of each year.",
-	},
 	debt_to_equity: {
 		label: "Debt / Equity",
-		shortLabel: "D/E",
+		shortLabel: "D/E%",
 		description:
-			"Debt / shareholder equity. 0 is ungeared; higher means more leverage.",
+			"Debt / shareholder equity. The raw value is a ratio; dashboard percentage display multiplies it by 100.",
 	},
 	free_cash_flow: {
 		label: "Free Cash Flow",
@@ -94,11 +82,41 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"Operating cash flow - capital expenditures. Cash left after maintaining the business.",
 	},
+	fcf_cagr_3y: {
+		label: "FCF CAGR (3Y)",
+		shortLabel: "FCF%3Y",
+		description:
+			"Three-year compound annual growth in free cash flow from StockAnalysis financials.",
+	},
+	fcf_growth_1y: {
+		label: "FCF Growth (1Y)",
+		shortLabel: "FCF%1Y",
+		description:
+			"Latest fiscal-year free cash flow growth versus the prior fiscal year.",
+	},
+	fcf_margin_median_3y: {
+		label: "FCF Margin Median (3Y)",
+		shortLabel: "FCFM%3Y",
+		description:
+			"Median free-cash-flow margin across the latest three fiscal-year columns.",
+	},
+	financials_currency: {
+		label: "Financials Currency",
+		shortLabel: "CUR",
+		description:
+			"Currency shown on the StockAnalysis financials page for statement-derived fields.",
+	},
 	gross_margin: {
 		label: "Gross Margin",
 		shortLabel: "GM%",
 		description:
 			"Gross profit / revenue. Higher means more revenue left after direct costs.",
+	},
+	gross_margin_median_3y: {
+		label: "Gross Margin Median (3Y)",
+		shortLabel: "GM%3Y",
+		description:
+			"Median gross margin across the latest three fiscal-year columns.",
 	},
 	iv: {
 		label: "Implied Volatility",
@@ -147,6 +165,24 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		shortLabel: "OM%",
 		description:
 			"Operating income / revenue. Higher means stronger operating profitability.",
+	},
+	operating_margin_delta_vs_3y: {
+		label: "Operating Margin Delta vs 3Y",
+		shortLabel: "OMD%3Y",
+		description:
+			"Latest operating margin minus the latest-three-year median operating margin.",
+	},
+	operating_margin_median_3y: {
+		label: "Operating Margin Median (3Y)",
+		shortLabel: "OM%3Y",
+		description:
+			"Median operating margin across the latest three fiscal-year columns.",
+	},
+	operating_margin_std_3y: {
+		label: "Operating Margin Volatility (3Y)",
+		shortLabel: "OMSTD%3Y",
+		description:
+			"Standard deviation of operating margin across the latest three fiscal-year columns.",
 	},
 	overall_score: {
 		label: "Overall Score",
@@ -219,11 +255,41 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"(Revenue / prior revenue - 1). Shows top-line growth before margins.",
 	},
+	revenue_cagr_3y: {
+		label: "Revenue CAGR (3Y)",
+		shortLabel: "REV%3Y",
+		description:
+			"Three-year compound annual revenue growth from StockAnalysis financials.",
+	},
+	revenue_growth_1y: {
+		label: "Revenue Growth (1Y)",
+		shortLabel: "REV%1Y",
+		description:
+			"Latest fiscal-year revenue growth versus the prior fiscal year.",
+	},
 	eps_growth: {
 		label: "EPS Growth",
 		shortLabel: "EPS%",
 		description:
 			"(EPS / prior EPS - 1). Shows per-share earnings growth after margins, interest, tax, and dilution.",
+	},
+	rd_intensity: {
+		label: "R&D Intensity",
+		shortLabel: "RD%",
+		description:
+			"Latest fiscal-year R&D expense / revenue. Used as currency-safe R&D evidence.",
+	},
+	rd_knowledge_capital: {
+		label: "R&D Knowledge Capital",
+		shortLabel: "RDCAP",
+		description:
+			"Weighted R&D knowledge-capital proxy using recent fiscal-year R&D spend.",
+	},
+	research_and_development: {
+		label: "Research & Development",
+		shortLabel: "R&D",
+		description:
+			"Latest fiscal-year R&D expense from StockAnalysis financials, converted to absolute currency units.",
 	},
 	roe: {
 		label: "Return on Equity",
@@ -249,6 +315,17 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"Dividend yield + net buyback yield. Shows shareholder cash return after dilution.",
 	},
+	shares_change_1y: {
+		label: "Shares Change (1Y)",
+		shortLabel: "SH%1Y",
+		description:
+			"Latest fiscal-year year-over-year change in shares outstanding.",
+	},
+	shares_change_cagr_3y: {
+		label: "Shares Change CAGR (3Y)",
+		shortLabel: "SH%3Y",
+		description: "Three-year compound annual change in shares outstanding.",
+	},
 	strategy: {
 		label: "Strategy",
 		shortLabel: "STRAT",
@@ -260,6 +337,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		shortLabel: "TICKER",
 		description:
 			"Exchange ticker symbol. Primary key for quotes, stats, and news lookup.",
+	},
+	tactical_score: {
+		label: "Tactical Score",
+		shortLabel: "TACT",
+		description:
+			"0-10 short-to-medium-term setup score. Tracks momentum, growth, valuation, target gap, RSI, and IV without feeding Overall.",
 	},
 	total: {
 		label: "Position Value",
@@ -324,7 +407,7 @@ export const INDICATOR_FIELD_GROUPS = {
 	},
 	technicalSnapshot: {
 		category: "technical",
-		fields: ["iv"],
+		fields: ["iv", "rsi"],
 	},
 	momentum: {
 		category: "market",
@@ -333,8 +416,6 @@ export const INDICATOR_FIELD_GROUPS = {
 			"change_percent_3m",
 			"change_percent_6m",
 			"change_percent_1y",
-			"change_percent_mtd",
-			"change_percent_ytd",
 		],
 	},
 	analyst: {
@@ -346,20 +427,34 @@ export const INDICATOR_FIELD_GROUPS = {
 		fields: [
 			"revenue",
 			"revenue_growth",
+			"revenue_growth_1y",
+			"revenue_cagr_3y",
 			"eps_growth",
+			"fcf_growth_1y",
+			"fcf_cagr_3y",
 			"gross_margin",
+			"gross_margin_median_3y",
 			"operating_margin",
+			"operating_margin_median_3y",
+			"operating_margin_delta_vs_3y",
+			"operating_margin_std_3y",
 			"roe",
 			"roic",
 		],
 	},
 	capitalReturns: {
 		category: "fundamental",
-		fields: ["debt_to_equity", "free_cash_flow", "shareholder_yield"],
-	},
-	technicalMomentum: {
-		category: "technical",
-		fields: ["rsi"],
+		fields: [
+			"debt_to_equity",
+			"free_cash_flow",
+			"fcf_margin_median_3y",
+			"shares_change_1y",
+			"shares_change_cagr_3y",
+			"shareholder_yield",
+			"research_and_development",
+			"rd_intensity",
+			"rd_knowledge_capital",
+		],
 	},
 } as const satisfies Record<string, IndicatorFieldGroup>;
 
@@ -392,6 +487,7 @@ export const EVAL_FIELD_GROUPS = {
 		"moat_score",
 		"upside_score",
 		"market_cap_score",
+		"tactical_score",
 	],
 } as const satisfies Record<string, readonly string[]>;
 

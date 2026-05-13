@@ -27,8 +27,6 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"change_percent_3m",
 		"change_percent_6m",
 		"change_percent_1y",
-		"change_percent_mtd",
-		"change_percent_ytd",
 	],
 	statistics: [
 		"market_cap",

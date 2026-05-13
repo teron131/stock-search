@@ -17,8 +17,6 @@ const YAHOO_PRIORITY_FIELDS = new Set([
 	"change_percent_3m",
 	"change_percent_6m",
 	"change_percent_1y",
-	"change_percent_mtd",
-	"change_percent_ytd",
 	"ratings",
 	"median_upside",
 	"name",

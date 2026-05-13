@@ -188,6 +188,8 @@ const BASE_COLUMNS = [
 	),
 	createGroupedColumn("pe", "PE", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("pe_forward", "FPE", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("ps", "P/S", "number", WIDTH_GROUPS.marketNumber),
+	createGroupedColumn("ps_forward", "FPS", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("peg", "PEG", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("beta", "BETA", "number", WIDTH_GROUPS.marketNumber),
 	createGroupedColumn("iv", "IV", "percent_neutral", WIDTH_GROUPS.marketNumber),
@@ -227,131 +229,69 @@ const MOMENTUM_COLUMNS = [
 	),
 ];
 
-const FUNDAMENTAL_COLUMNS_ALL = [
-	createGroupedColumn(
-		"revenue",
-		"REV",
-		"market_cap",
-		WIDTH_GROUPS.abbrevCurrency,
-	),
-	createGroupedColumn(
-		"revenue_growth",
-		"REV%",
+const FUNDAMENTAL_COLUMN_SPECS = [
+	["revenue", "market_cap", WIDTH_GROUPS.abbrevCurrency],
+	["revenue_growth", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["revenue_growth_1y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["revenue_cagr_3y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["eps_growth", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["fcf_growth_1y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["fcf_cagr_3y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["gross_margin", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	[
+		"gross_margin_median_3y",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"eps_growth",
-		"EPS%",
+	],
+	["operating_margin", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	[
+		"operating_margin_median_3y",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"gross_margin",
-		"GM%",
+	],
+	[
+		"operating_margin_delta_vs_3y",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"operating_margin",
-		"OM%",
+	],
+	[
+		"operating_margin_std_3y",
 		"percent_neutral",
 		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"roe",
-		"ROE",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"roic",
-		"ROIC",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"debt_to_equity",
-		"D/E",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"free_cash_flow",
-		"FCF",
-		"market_cap",
-		WIDTH_GROUPS.abbrevCurrency,
-	),
-	createGroupedColumn(
-		"shareholder_yield",
-		"YLD%",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
+	],
+	["roe", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["roic", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["debt_to_equity", "ratio_percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["free_cash_flow", "market_cap", WIDTH_GROUPS.abbrevCurrency],
+	["fcf_margin_median_3y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["shares_change_1y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["shares_change_cagr_3y", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["shareholder_yield", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["research_and_development", "market_cap", WIDTH_GROUPS.abbrevCurrency],
+	["rd_intensity", "percent_neutral", WIDTH_GROUPS.fundamentalPercent],
+	["rd_knowledge_capital", "market_cap", WIDTH_GROUPS.abbrevCurrency],
 ];
+const SIGNED_GROWTH_COLUMNS = new Set([
+	"revenue_growth",
+	"revenue_growth_1y",
+	"revenue_cagr_3y",
+	"eps_growth",
+	"fcf_growth_1y",
+	"fcf_cagr_3y",
+]);
 
-const FUNDAMENTAL_COLUMNS_HOLDINGS = [
-	createGroupedColumn(
-		"revenue",
-		"REV",
-		"market_cap",
-		WIDTH_GROUPS.abbrevCurrency,
-	),
-	createGroupedColumn(
-		"revenue_growth",
-		"REV%",
-		"percent",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"eps_growth",
-		"EPS%",
-		"percent",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"gross_margin",
-		"GM%",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"operating_margin",
-		"OM%",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"roe",
-		"ROE",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"roic",
-		"ROIC",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"debt_to_equity",
-		"D/E",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-	createGroupedColumn(
-		"free_cash_flow",
-		"FCF",
-		"market_cap",
-		WIDTH_GROUPS.abbrevCurrency,
-	),
-	createGroupedColumn(
-		"shareholder_yield",
-		"YLD%",
-		"percent_neutral",
-		WIDTH_GROUPS.fundamentalPercent,
-	),
-];
+function createFundamentalColumns({ signedGrowth = false } = {}) {
+	return FUNDAMENTAL_COLUMN_SPECS.map(([key, format, widthGroup]) => {
+		const displayFormat =
+			signedGrowth && SIGNED_GROWTH_COLUMNS.has(key) ? "percent" : format;
+		return createGroupedColumn(key, undefined, displayFormat, widthGroup);
+	});
+}
+
+const FUNDAMENTAL_COLUMNS_ALL = createFundamentalColumns();
+const FUNDAMENTAL_COLUMNS_HOLDINGS = createFundamentalColumns({
+	signedGrowth: true,
+});
 
 const EVALUATION_COLUMNS = [
 	createColumn("rank", "RANK"),
@@ -388,6 +328,12 @@ const EVALUATION_COLUMNS = [
 	createGroupedColumn(
 		"market_cap_score",
 		"SIZE",
+		"score",
+		WIDTH_GROUPS.evaluationScore,
+	),
+	createGroupedColumn(
+		"tactical_score",
+		"TACT",
 		"score",
 		WIDTH_GROUPS.evaluationScore,
 	),

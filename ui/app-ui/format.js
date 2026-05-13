@@ -84,6 +84,14 @@ export const fmt = {
 		return `${numeric.toFixed(2)}%`;
 	},
 
+	ratio_percent_neutral: (value) => {
+		const numeric = toNumberOrNull(value);
+		if (numeric == null) return "--";
+		const percentage = numeric * 100;
+		const digits = Math.abs(percentage) >= 1 ? 0 : 2;
+		return `${percentage.toFixed(digits)}%`;
+	},
+
 	number: (value) => {
 		const numeric = toNumberOrNull(value);
 		if (numeric == null) return "--";

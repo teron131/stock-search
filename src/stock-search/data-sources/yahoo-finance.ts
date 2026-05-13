@@ -331,14 +331,6 @@ function computeRsi(series: DatedClose[], period = 14): number | null {
 	return 100 - 100 / (1 + relativeStrength);
 }
 
-function firstDayOfMonth(date: Date): Date {
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
-
-function firstDayOfYear(date: Date): Date {
-	return new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-}
-
 function toDateKey(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
@@ -1087,24 +1079,6 @@ export class YahooFinanceSource {
 							currentPrice,
 							latest
 								? lastCloseAtOrBefore(series, subtractMonths(latest.date, 12))
-								: null,
-						)
-					: null,
-			change_percent_mtd:
-				currentPrice != null
-					? percentChange(
-							currentPrice,
-							latest
-								? lastCloseAtOrBefore(series, firstDayOfMonth(latest.date))
-								: null,
-						)
-					: null,
-			change_percent_ytd:
-				currentPrice != null
-					? percentChange(
-							currentPrice,
-							latest
-								? lastCloseAtOrBefore(series, firstDayOfYear(latest.date))
 								: null,
 						)
 					: null,
