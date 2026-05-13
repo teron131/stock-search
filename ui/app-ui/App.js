@@ -53,7 +53,7 @@ function setDisplay(id, display) {
 function formatLastUpdatedText(timestamp, { isUsingDemoData = false } = {}) {
 	const modeText = isUsingDemoData ? " [DEMO]" : "";
 	if (!timestamp) {
-		return `LAST UPDATED: --${modeText}`;
+		return `UPDATED --${modeText}`;
 	}
 
 	const time = new Date(timestamp);
@@ -65,10 +65,9 @@ function formatLastUpdatedText(timestamp, { isUsingDemoData = false } = {}) {
 		hour12: false,
 		hour: "2-digit",
 		minute: "2-digit",
-		second: "2-digit",
 	});
 
-	return `LAST UPDATED: ${dateStr} ${timeStr}${modeText}`;
+	return `UPDATED ${dateStr} ${timeStr}${modeText}`;
 }
 
 function showToast(message) {
