@@ -2,7 +2,12 @@
 
 import { asNumber } from "./utils.js";
 
-const FX_MONETARY_FIELDS = ["market_cap", "free_cash_flow"] as const;
+const FX_MONETARY_FIELDS = [
+	"market_cap",
+	"free_cash_flow",
+	"research_and_development",
+	"rd_knowledge_capital",
+] as const;
 const STOCKANALYSIS_STATEMENT_FALLBACK_FIELDS = [
 	"revenue",
 	"free_cash_flow",

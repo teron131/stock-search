@@ -21,7 +21,7 @@ import {
 	STAT_FAMILIES,
 	type StatsFamily,
 } from "./stats-families.js";
-import { normalizeTicker, nowIso } from "./utils.js";
+import { normalizeTicker } from "./utils.js";
 
 export type StatsResolutionMode = "auto" | "live" | "cache";
 
@@ -105,7 +105,14 @@ const REQUIRED_STATISTICS_FIELDS = [
 	"free_cash_flow",
 	"shareholder_yield",
 ] as const;
-const REQUIRED_FINANCIALS_FIELDS = ["revenue_growth", "eps_growth"] as const;
+const REQUIRED_FINANCIALS_FIELDS = [
+	"revenue_growth",
+	"eps_growth",
+	"revenue_growth_1y",
+	"revenue_cagr_3y",
+	"operating_margin_median_3y",
+	"operating_margin_std_3y",
+] as const;
 
 function resolutionKey(ticker: string, family: StatsFamily): string {
 	return `${ticker}:${family}`;
@@ -160,15 +167,11 @@ function hasMeaningfulPayload(value: unknown): boolean {
 	return true;
 }
 
-function hasKnownField(row: Record<string, unknown>, field: string): boolean {
-	return field in row && row[field] !== undefined;
-}
-
 function hasKnownFields(
 	row: Record<string, unknown>,
 	fields: readonly string[],
 ): boolean {
-	return fields.every((field) => hasKnownField(row, field));
+	return fields.every((field) => field in row && row[field] !== undefined);
 }
 
 function hasMeaningfulFields(
@@ -638,9 +641,4 @@ export function aggregateTickerDataSource(
 	return Object.values(results).every((result) => result.dataSource === "live")
 		? "live"
 		: "live_with_cache_fallback";
-}
-
-/** Return the generated timestamp for the current resolver response. */
-export function generatedAtIso(): string {
-	return nowIso();
 }
