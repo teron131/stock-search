@@ -28,6 +28,8 @@ const PLAIN_ALLOCATION_COLUMNS = new Set([
 	"notional_weight_pct",
 ]);
 const TABLE_ROW_HEIGHT_PX = 28;
+const ROW_WINDOW_OVERSCAN = 12;
+const ROW_WINDOW_INITIAL_COUNT = 64;
 const HEADER_TOOLTIP_HALF_WIDTH_PX = 130;
 const HEADER_TOOLTIP_OFFSET_PX = 6;
 const SCROLL_SYNC_THRESHOLD_PX = 1;
@@ -256,6 +258,50 @@ function syncHorizontalScroll(sourceEl, targetEl) {
 	return true;
 }
 
+function getVisibleRowWindow(wrapperEl, rowCount) {
+	if (!wrapperEl || rowCount <= 0) {
+		return { start: 0, end: 0 };
+	}
+
+	const wrapperTop = window.scrollY + wrapperEl.getBoundingClientRect().top;
+	const viewportTop = window.scrollY;
+	const viewportBottom = viewportTop + window.innerHeight;
+	const start = Math.min(
+		rowCount,
+		Math.max(
+			0,
+			Math.floor((viewportTop - wrapperTop) / TABLE_ROW_HEIGHT_PX) -
+				ROW_WINDOW_OVERSCAN,
+		),
+	);
+	const end = Math.min(
+		rowCount,
+		Math.max(
+			0,
+			Math.ceil((viewportBottom - wrapperTop) / TABLE_ROW_HEIGHT_PX) +
+				ROW_WINDOW_OVERSCAN,
+		),
+	);
+
+	if (end <= start) {
+		const fallbackStart = Math.max(
+			0,
+			Math.min(start, rowCount - ROW_WINDOW_INITIAL_COUNT),
+		);
+		const fallbackEnd = Math.min(
+			rowCount,
+			fallbackStart + ROW_WINDOW_INITIAL_COUNT,
+		);
+		return { start: fallbackStart, end: fallbackEnd };
+	}
+
+	return { start, end };
+}
+
+function rowWindowEqual(a, b) {
+	return a.start === b.start && a.end === b.end;
+}
+
 function getColumnDisplayValues(rows, col) {
 	if (col.key === "ticker") {
 		return rows.map((row) => getTickerCellLabel(row));
@@ -305,6 +351,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
     <input
       className="qty-input"
       type="number"
+      inputMode="numeric"
       step="1"
       min="0"
       value=${draftQty}
@@ -371,6 +418,7 @@ function renderCell({
       className="btn-remove-cell"
       onClick=${() => onRemove(row.ticker)}
       title="Remove"
+      aria-label=${`Remove ${getTickerDisplayValue(row.ticker)}`}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -498,6 +546,10 @@ export function DataTable({
 	const mirroredScrollTargetRef = useRef(null);
 	const [scrollState, setScrollState] = useState(() => getScrollState(null));
 	const [headerTooltip, setHeaderTooltip] = useState(null);
+	const [rowWindow, setRowWindow] = useState(() => ({
+		start: 0,
+		end: ROW_WINDOW_INITIAL_COUNT,
+	}));
 	const cols = COLS[tab];
 	const isEvaluationTab = tab === "evaluations";
 
@@ -522,15 +574,26 @@ export function DataTable({
 	const hasRows = sorted.length > 0;
 	const shouldShowLoadingRows = isLoading && !hasRows;
 	const skeletonRows = useMemo(() => Array.from({ length: 10 }), []);
-	const tickerCharCount = getColumnCharCount(
-		sorted.map((row) => getTickerDisplayValue(row.ticker)),
-		"TICKER",
+	const tickerCharCount = useMemo(
+		() =>
+			getColumnCharCount(
+				sorted.map((row) => getTickerDisplayValue(row.ticker)),
+				"TICKER",
+			),
+		[sorted],
 	);
-	const columnCharCounts = getColumnCharCounts(sorted, cols);
-	const colorMeta = calculateScoreColorMetadata(sorted, cols, {
-		colorBandFraction: CONFIG.colorBandFraction,
-		keyStandards: colorStandards,
-	});
+	const columnCharCounts = useMemo(
+		() => getColumnCharCounts(sorted, cols),
+		[sorted, cols],
+	);
+	const colorMeta = useMemo(
+		() =>
+			calculateScoreColorMetadata(sorted, cols, {
+				colorBandFraction: CONFIG.colorBandFraction,
+				keyStandards: colorStandards,
+			}),
+		[sorted, cols, colorStandards],
+	);
 	const evaluationFluidColumnCount = isEvaluationTab
 		? cols.filter((col) => col.key !== "ticker" && col.key !== "remove").length
 		: null;
@@ -557,6 +620,17 @@ export function DataTable({
 		.filter(Boolean)
 		.join(" ");
 	const tableResetKey = `${tab}:${sortCol}:${sortDir}`;
+	const effectiveRowWindow = {
+		start: Math.min(rowWindow.start, sorted.length),
+		end: Math.min(Math.max(rowWindow.end, rowWindow.start), sorted.length),
+	};
+	const visibleRows = sorted.slice(
+		effectiveRowWindow.start,
+		effectiveRowWindow.end,
+	);
+	const topSpacerHeight = effectiveRowWindow.start * TABLE_ROW_HEIGHT_PX;
+	const bottomSpacerHeight =
+		(sorted.length - effectiveRowWindow.end) * TABLE_ROW_HEIGHT_PX;
 	const renderColGroup = () => html`<colgroup key="colgroup">
 		${Children.toArray(
 			cols.map((col) => {
@@ -691,11 +765,46 @@ export function DataTable({
 
 		window.addEventListener("resize", updateScrollState);
 		window.visualViewport?.addEventListener("resize", updateScrollState);
+		const resizeObserver =
+			typeof ResizeObserver === "undefined"
+				? null
+				: new ResizeObserver(updateScrollState);
+		resizeObserver?.observe(scrollEl);
 		return () => {
 			window.removeEventListener("resize", updateScrollState);
 			window.visualViewport?.removeEventListener("resize", updateScrollState);
+			resizeObserver?.disconnect();
 		};
 	}, []);
+
+	useEffect(() => {
+		const scrollEl = scrollRef.current;
+		let animationFrameId = 0;
+
+		const updateRowWindow = () => {
+			window.cancelAnimationFrame(animationFrameId);
+			animationFrameId = window.requestAnimationFrame(() => {
+				const nextWindow = getVisibleRowWindow(scrollEl, sorted.length);
+				setRowWindow((currentWindow) =>
+					rowWindowEqual(currentWindow, nextWindow)
+						? currentWindow
+						: nextWindow,
+				);
+			});
+		};
+
+		updateRowWindow();
+		window.addEventListener("scroll", updateRowWindow, { passive: true });
+		window.addEventListener("resize", updateRowWindow);
+		window.visualViewport?.addEventListener("resize", updateRowWindow);
+
+		return () => {
+			window.cancelAnimationFrame(animationFrameId);
+			window.removeEventListener("scroll", updateRowWindow);
+			window.removeEventListener("resize", updateRowWindow);
+			window.visualViewport?.removeEventListener("resize", updateRowWindow);
+		};
+	}, [sorted.length]);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -747,11 +856,10 @@ export function DataTable({
 		if (!scrollEl) return;
 
 		requestAnimationFrame(() => {
-			const targetRow = scrollEl.querySelector(
-				`tr[data-row-index="${targetRowIndex}"]`,
-			);
 			const rowTop =
-				(targetRow?.getBoundingClientRect().top ?? 0) + window.scrollY;
+				window.scrollY +
+				scrollEl.getBoundingClientRect().top +
+				targetRowIndex * TABLE_ROW_HEIGHT_PX;
 			const headerOffset =
 				(document.querySelector(".top-bar")?.getBoundingClientRect().height ??
 					0) + TABLE_ROW_HEIGHT_PX;
@@ -823,6 +931,13 @@ export function DataTable({
 			),
 		);
 
+	const renderSpacerRow = (key, height) =>
+		height > 0
+			? html`<tr key=${key} className="table-virtual-spacer" aria-hidden="true">
+					<td colSpan=${cols.length} style=${{ height: `${height}px` }}></td>
+				</tr>`
+			: null;
+
 	const renderSkeletonCells = () =>
 		Children.toArray(
 			cols.map(
@@ -847,28 +962,33 @@ export function DataTable({
 					</tr>`,
 				)
 			: hasRows
-				? sorted.map((row, rowIndex) => {
-						return html`<tr
-							key=${`${normalizeTicker(row.ticker)}:${rowIndex}`}
-							data-row-index=${rowIndex}
-							data-ticker=${getTickerDisplayValue(row.ticker)}
-							className=${[
-								shouldAnimateRows ? "animate-in" : "",
-								rowIndex === targetRowIndex ? "search-target-row" : "",
-							]
-								.filter(Boolean)
-								.join(" ")}
-							style=${
-								shouldAnimateRows
-									? {
-											animationDelay: `${Math.min(rowIndex, 12) * CONFIG.animationDelayMs}ms`,
-										}
-									: null
-							}
-						>
-							${renderTableCells(row)}
-						</tr>`;
-					})
+				? [
+						renderSpacerRow("top-spacer", topSpacerHeight),
+						...visibleRows.map((row, visibleRowIndex) => {
+							const rowIndex = effectiveRowWindow.start + visibleRowIndex;
+							return html`<tr
+								key=${`${normalizeTicker(row.ticker)}:${rowIndex}`}
+								data-row-index=${rowIndex}
+								data-ticker=${getTickerDisplayValue(row.ticker)}
+								className=${[
+									shouldAnimateRows ? "animate-in" : "",
+									rowIndex === targetRowIndex ? "search-target-row" : "",
+								]
+									.filter(Boolean)
+									.join(" ")}
+								style=${
+									shouldAnimateRows
+										? {
+												animationDelay: `${Math.min(rowIndex, 12) * CONFIG.animationDelayMs}ms`,
+											}
+										: null
+								}
+							>
+								${renderTableCells(row)}
+							</tr>`;
+						}),
+						renderSpacerRow("bottom-spacer", bottomSpacerHeight),
+					]
 				: [
 						html`<tr key="empty-row" className="table-empty-row">
 							<td colSpan=${cols.length}>

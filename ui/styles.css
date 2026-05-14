@@ -2416,6 +2416,28 @@ tbody tr.search-target-row td:first-child {
 		inset 0 -1px 0 rgba(217, 255, 63, 0.16);
 }
 
+.table-virtual-spacer,
+.table-virtual-spacer:hover {
+	height: auto;
+	background: transparent;
+	cursor: default;
+	pointer-events: none;
+}
+
+.table-virtual-spacer td,
+.table-virtual-spacer td:first-child,
+.table-virtual-spacer:hover td,
+.table-virtual-spacer:hover td:first-child {
+	position: static;
+	width: auto;
+	min-width: 0;
+	max-width: none;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
 .terminal-layout:has(.table-wrapper-window-scroll) {
 	min-width: 100vw;
 	height: auto;
