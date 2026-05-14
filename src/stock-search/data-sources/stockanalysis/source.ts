@@ -7,7 +7,7 @@ import {
 	loadQuoteFields,
 	loadSectorSnapshot,
 	loadStatisticsSnapshot,
-} from "./extractors.js";
+} from "./extractors/index.js";
 import type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
