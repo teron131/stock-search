@@ -29,7 +29,7 @@ import {
 	calculateStrategyIndices,
 	calculateValuationScore,
 	marketCapScore,
-} from "./scores.js";
+} from "./scores/index.js";
 
 export type EvaluationResult = {
 	inputs: Evaluation;

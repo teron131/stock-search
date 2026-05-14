@@ -11,7 +11,7 @@ import {
 	calculateTacticalScore,
 	calculateValuationScore,
 	marketCapScore,
-} from "./scores.js";
+} from "./scores/index.js";
 
 const DEFAULT_BUCKET = "Speculation";
 const SCORE_DIGITS = 2;
