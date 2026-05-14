@@ -16,8 +16,6 @@ export function TableSection({
 	isBackgroundLoading,
 	isLoading,
 	onAddOrUpdate,
-	onTickerSearchChange,
-	tickerSearchQuery,
 }) {
 	return html`
 		<div className="tabs-container" id="dashboard-tables">
@@ -50,7 +48,6 @@ export function TableSection({
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
 						onSubmit=${onAddOrUpdate}
-						onTickerInput=${onTickerSearchChange}
 					/>
 				</div>
 			</div>
@@ -67,7 +64,6 @@ export function TableSection({
 				isUsingDemoData=${isUsingDemoData}
 				isLoading=${isLoading}
 				animateRows=${!isBackgroundLoading}
-				searchQuery=${tickerSearchQuery}
 			/>
 		</div>
 	`;

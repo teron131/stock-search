@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 
 import { normalizeTicker } from "../../format.js";
 
-export function QuickAdd({ rows, isUsingDemoData, onSubmit, onTickerInput }) {
+export function QuickAdd({ rows, isUsingDemoData, onSubmit }) {
 	const [ticker, setTicker] = useState("");
 	const [qty, setQty] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,7 +27,6 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit, onTickerInput }) {
 			});
 			if (!result?.ok) return;
 			setTicker("");
-			onTickerInput?.("");
 			setQty("");
 		} finally {
 			setIsSubmitting(false);
@@ -38,7 +37,6 @@ export function QuickAdd({ rows, isUsingDemoData, onSubmit, onTickerInput }) {
 	const handleTickerInput = (event) => {
 		const nextTicker = event.target.value;
 		setTicker(nextTicker);
-		onTickerInput?.(nextTicker);
 	};
 
 	return html`

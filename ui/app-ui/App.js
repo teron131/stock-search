@@ -74,7 +74,6 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
 	const [showPortfolioStats, setShowPortfolioStats] = useState(false);
-	const [tickerSearchQuery, setTickerSearchQuery] = useState("");
 
 	const {
 		rows,
@@ -450,7 +449,5 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		isBackgroundLoading=${isBackgroundLoading}
 		isLoading=${isLoading}
 		onAddOrUpdate=${onAddOrUpdate}
-		onTickerSearchChange=${setTickerSearchQuery}
-		tickerSearchQuery=${tickerSearchQuery}
 	/>`;
 }
