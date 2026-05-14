@@ -2,11 +2,11 @@ import { html } from "htm/react";
 
 import { getScoreColor } from "./color.js";
 
-const DEFAULT_COLUMN_PADDING_CHARS = 1;
-const DEFAULT_COLUMN_EXTRA_PX = 2;
-const COLUMN_CHARACTER_WIDTH_PX = 7.2;
-const MIN_COLUMN_EXTRA_PX = 2;
-const SORT_INDICATOR_WIDTH_PX = 5;
+const DEFAULT_COLUMN_PADDING_CHARS = 0;
+const DEFAULT_COLUMN_EXTRA_PX = 1;
+const COLUMN_CHARACTER_WIDTH_PX = 6.7;
+const MIN_COLUMN_EXTRA_PX = 1;
+const SORT_INDICATOR_WIDTH_PX = 4;
 
 function getTextLength(value) {
 	return String(value ?? "").length;
@@ -22,7 +22,7 @@ export function getColumnCharCount(
 		(maxLength, value) => Math.max(maxLength, getTextLength(value)),
 		0,
 	);
-	return Math.max(headerLength, contentLength) + Math.max(1, paddingChars);
+	return Math.max(headerLength, contentLength) + Math.max(0, paddingChars);
 }
 
 export function getToneClass(value, baseClass = "") {

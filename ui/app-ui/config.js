@@ -165,7 +165,7 @@ export const WIDTH_GROUP_OPTIONS = {
 	[WIDTH_GROUPS.holdingQuantity]: {
 		paddingChars: 0,
 		extraPx: 2,
-		minPx: 88,
+		minPx: 74,
 	},
 };
 
@@ -393,7 +393,7 @@ const EVALUATION_COLUMNS = [
 const HOLDING_ACTION_COLUMNS = [
 	createGroupedColumn(
 		"strategy",
-		"STRATEGY",
+		"STRAT",
 		undefined,
 		WIDTH_GROUPS.holdingStrategy,
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
@@ -455,7 +455,7 @@ export const COLS = {
 		...EVALUATION_COLUMNS,
 		createGroupedColumn(
 			"strategy",
-			"STRATEGY",
+			"STRAT",
 			undefined,
 			WIDTH_GROUPS.holdingStrategy,
 			{ cluster: HOLDINGS_TAIL_CLUSTER },

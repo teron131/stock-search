@@ -23,12 +23,12 @@
 	--table-header-height: 30px;
 	--table-visible-rows: 25;
 	--ticker-char-count: 6;
-	--table-cell-inline-padding: 5px;
-	--table-first-column-gap: 1px;
-	--table-holdings-inline-padding: 2px;
+	--table-cell-inline-padding: 3px;
+	--table-first-column-gap: 0px;
+	--table-holdings-inline-padding: 1px;
 	--ticker-column-width: calc(
 		(var(--ticker-char-count) * 0.82ch) +
-		52px +
+		46px +
 		var(--table-first-column-gap)
 	);
 
@@ -792,7 +792,7 @@ table {
 }
 
 .table-col-remove {
-	width: 52px;
+	width: 44px;
 }
 
 thead {
@@ -1552,7 +1552,7 @@ tv-ticker-tag {
 /* Force table density */
 .data-table th,
 .data-table td {
-	padding: 0 var(--space-xs);
+	padding: 0 var(--table-cell-inline-padding);
 	font-size: var(--text-xs);
 	border-bottom: 1px solid var(--border);
 	border-right: none;
@@ -2149,8 +2149,8 @@ body {
 }
 
 .table-wrapper-evaluations {
-	--evaluation-action-column-width: 52px;
-	--evaluation-min-fluid-column-width: 90px;
+	--evaluation-action-column-width: 44px;
+	--evaluation-min-fluid-column-width: 78px;
 	overflow-x: auto;
 }
 
@@ -2225,7 +2225,7 @@ th {
 	height: 100%;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 2px;
+	gap: 1px;
 	cursor: pointer;
 	color: inherit;
 	text-align: inherit;
@@ -2557,12 +2557,15 @@ tr.animate-in {
 }
 
 .btn-remove-cell {
+	width: 22px;
+	height: 22px;
 	border-color: rgba(255, 255, 255, 0.08);
 }
 
 .qty-input {
+	width: 72px;
 	height: 24px;
-	padding: 0 26px 0 8px;
+	padding: 0 22px 0 6px;
 	border-radius: 0;
 	border-color: rgba(255, 255, 255, 0.08);
 	background: rgba(255, 255, 255, 0.02);
@@ -2571,7 +2574,7 @@ tr.animate-in {
 }
 
 .qty-spin-btn {
-	width: 16px;
+	width: 14px;
 	height: 12px;
 	border-radius: 0;
 }
