@@ -2177,18 +2177,17 @@ body {
 	table-layout: fixed;
 }
 
-.data-table-evaluations col:not(.table-col-ticker):not(.table-col-remove) {
-	width: auto !important;
-	min-width: 0 !important;
-	max-width: none !important;
-}
-
 .data-table-evaluations col.table-col-ticker {
 	width: var(--ticker-column-width);
 }
 
 .data-table-evaluations col.table-col-remove {
 	width: var(--evaluation-action-column-width);
+}
+
+.data-table-header-clone.data-table-evaluations {
+	width: max-content;
+	min-width: max-content;
 }
 
 .table-wrapper.has-more-x {
