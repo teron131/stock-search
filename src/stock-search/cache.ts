@@ -12,6 +12,16 @@ export type CacheEntry<T> = {
 	updatedAt: Date;
 };
 
+export type CacheFreshness = {
+	timestamp: number | null;
+	isFresh: boolean;
+	isStale: boolean;
+};
+
+function cacheNowMs(now: number | Date): number {
+	return now instanceof Date ? now.getTime() : now;
+}
+
 /** Parse a cache timestamp into epoch milliseconds. */
 export function parseCacheTimestamp(value: unknown): number | null {
 	if (typeof value !== "string" || !value.trim()) {
@@ -27,9 +37,60 @@ export function isCacheTimestampFresh(
 	now: number | Date,
 	maxAgeMs: number,
 ): boolean {
+	return cacheFreshness(value, now, {
+		freshWindowMs: maxAgeMs,
+	}).isFresh;
+}
+
+/** Return fresh/stale state for an ISO timestamp and cache windows. */
+export function cacheFreshness(
+	value: unknown,
+	now: number | Date,
+	{
+		freshWindowMs,
+		staleWindowMs = freshWindowMs,
+	}: {
+		freshWindowMs: number;
+		staleWindowMs?: number;
+	},
+): CacheFreshness {
 	const timestamp = parseCacheTimestamp(value);
-	const nowMs = now instanceof Date ? now.getTime() : now;
-	return timestamp != null && timestamp >= nowMs - maxAgeMs;
+	return cacheFreshnessFromTimestamp(timestamp, now, {
+		freshWindowMs,
+		staleWindowMs,
+	});
+}
+
+/** Return fresh/stale state for a parsed epoch-millisecond timestamp. */
+export function cacheFreshnessFromTimestamp(
+	timestamp: number | null,
+	now: number | Date,
+	{
+		freshWindowMs,
+		staleWindowMs = freshWindowMs,
+	}: {
+		freshWindowMs: number;
+		staleWindowMs?: number;
+	},
+): CacheFreshness {
+	if (timestamp == null) {
+		return { timestamp: null, isFresh: false, isStale: false };
+	}
+	const nowMs = cacheNowMs(now);
+	return {
+		timestamp,
+		isFresh: timestamp >= nowMs - freshWindowMs,
+		isStale: timestamp >= nowMs - staleWindowMs,
+	};
+}
+
+/** Return whether an in-memory cache entry is inside a freshness window. */
+export function isCacheEntryFresh(
+	updatedAt: Date,
+	now: number | Date,
+	maxAgeMs: number,
+): boolean {
+	return updatedAt.getTime() >= cacheNowMs(now) - maxAgeMs;
 }
 
 /** Load a JSON cache file and validate its shape before returning it. */
@@ -53,70 +114,29 @@ export async function writeJsonCache(
 	await writeJson(filePath, data, options);
 }
 
-/** Thread-safe-enough cache with fresh/stale windows and failure cooldown. */
-export class TieredCache<T> {
-	private readonly ttlMs: number;
+/** Small in-memory cache with a stale window. */
+export class MemoryCache<T> {
 	private readonly staleMs: number;
-	private readonly failureCooldownMs: number;
 	private readonly entries = new Map<string, CacheEntry<T>>();
-	private readonly failures = new Map<string, Date>();
 
-	constructor({
-		ttlSeconds,
-		staleSeconds,
-		failureCooldownSeconds,
-	}: {
-		ttlSeconds: number;
-		staleSeconds: number;
-		failureCooldownSeconds: number;
-	}) {
-		this.ttlMs = ttlSeconds * 1000;
+	constructor({ staleSeconds }: { staleSeconds: number }) {
 		this.staleMs = staleSeconds * 1000;
-		this.failureCooldownMs = failureCooldownSeconds * 1000;
 	}
 
 	private now(): Date {
 		return new Date();
 	}
 
-	getEntry(key: string): CacheEntry<T> | null {
-		return this.entries.get(key) ?? null;
-	}
-
 	set(key: string, value: T, now = this.now()): void {
 		this.entries.set(key, { value, updatedAt: now });
-		this.failures.delete(key);
 	}
 
-	markFailure(key: string, now = this.now()): void {
-		this.failures.set(key, now);
-	}
-
-	shouldRetry(key: string, now = this.now()): boolean {
-		const failureAt = this.failures.get(key);
-		if (!failureAt) {
-			return true;
-		}
-		return now.getTime() - failureAt.getTime() > this.failureCooldownMs;
-	}
-
-	getFresh(key: string, now = this.now()): T | null {
+	get(key: string, now = this.now()): T | null {
 		const entry = this.entries.get(key);
 		if (!entry) {
 			return null;
 		}
-		if (now.getTime() - entry.updatedAt.getTime() > this.ttlMs) {
-			return null;
-		}
-		return entry.value;
-	}
-
-	getStale(key: string, now = this.now()): T | null {
-		const entry = this.entries.get(key);
-		if (!entry) {
-			return null;
-		}
-		if (now.getTime() - entry.updatedAt.getTime() > this.staleMs) {
+		if (!isCacheEntryFresh(entry.updatedAt, now, this.staleMs)) {
 			return null;
 		}
 		return entry.value;
@@ -124,6 +144,5 @@ export class TieredCache<T> {
 
 	clear(): void {
 		this.entries.clear();
-		this.failures.clear();
 	}
 }

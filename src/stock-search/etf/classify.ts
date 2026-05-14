@@ -7,7 +7,7 @@ import type {
 } from "../api/data-store.js";
 import { ETF_QUOTE_TYPE } from "../data-sources/yahoo-finance.js";
 import { normalizeTicker } from "../utils.js";
-import { loadEtfCache, resolveEtfSnapshotCache } from "./cache.js";
+import { loadAnyEtfCache, resolveEtfSnapshotCache } from "./cache.js";
 import { isEtfTicker } from "./sources.js";
 import type { EtfResolutionResult, EtfSnapshotResult } from "./types.js";
 
@@ -36,7 +36,7 @@ export async function classifyAndResolveEtfs(
 				String(indicators.quote_type ?? "")
 					.trim()
 					.toUpperCase() === ETF_QUOTE_TYPE ||
-				(loadEtfCache(indicators, now, false)?.holdings.length ?? 0) > 0 ||
+				(loadAnyEtfCache(indicators)?.holdings.length ?? 0) > 0 ||
 				(allowLiveFetch && (await isEtfTicker(ticker, stockEntry)));
 
 			if (!etfLike) {

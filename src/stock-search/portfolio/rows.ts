@@ -1,6 +1,7 @@
 /** Build dashboard portfolio rows from positions, indicators, and evaluation data. */
 
 import type { PositionRow, StockEntry } from "../api/data-store.js";
+import { ETF_HOLDINGS_FETCHED_AT_FIELD } from "../etf/index.js";
 import {
 	bucketFromEvaluation,
 	deriveEvaluationScores,
@@ -389,8 +390,8 @@ export function mergePortfolioRow(
 		primary_label: industryLabels[0] ?? null,
 		etf_holdings: etfHoldings,
 		etf_holdings_fetched_at:
-			typeof indicators.etf_holdings_fetched_at === "string"
-				? indicators.etf_holdings_fetched_at
+			typeof indicators[ETF_HOLDINGS_FETCHED_AT_FIELD] === "string"
+				? indicators[ETF_HOLDINGS_FETCHED_AT_FIELD]
 				: null,
 		strategy,
 		rank: null,

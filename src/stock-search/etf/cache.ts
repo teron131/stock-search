@@ -15,22 +15,11 @@ import type {
 } from "./types.js";
 
 const ETF_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const ETF_HOLDINGS_FETCHED_AT_FIELD = "etf_holdings_fetched_at";
 
-export function loadEtfCache(
+function readEtfCache(
 	indicators: Record<string, unknown>,
-	now: number,
-	requireFresh: boolean,
 ): { holdings: EtfHolding[]; sectors: EtfSector[] } | null {
-	if (
-		requireFresh &&
-		!isCacheTimestampFresh(
-			indicators.etf_holdings_fetched_at,
-			now,
-			ETF_CACHE_MAX_AGE_MS,
-		)
-	) {
-		return null;
-	}
 	if (!Array.isArray(indicators.etf_holdings)) {
 		return null;
 	}
@@ -68,6 +57,28 @@ export function loadEtfCache(
 	return { holdings, sectors };
 }
 
+export function loadAnyEtfCache(
+	indicators: Record<string, unknown>,
+): { holdings: EtfHolding[]; sectors: EtfSector[] } | null {
+	return readEtfCache(indicators);
+}
+
+function loadFreshEtfCache(
+	indicators: Record<string, unknown>,
+	now: number,
+): { holdings: EtfHolding[]; sectors: EtfSector[] } | null {
+	if (
+		!isCacheTimestampFresh(
+			indicators[ETF_HOLDINGS_FETCHED_AT_FIELD],
+			now,
+			ETF_CACHE_MAX_AGE_MS,
+		)
+	) {
+		return null;
+	}
+	return readEtfCache(indicators);
+}
+
 function emptyEtfSnapshot(error: string | null = null): EtfSnapshotResult {
 	return {
 		holdings: [],
@@ -86,7 +97,7 @@ function storeEtfCache(
 		...indicators,
 		etf_holdings: holdings,
 		etf_sectors: sectors,
-		etf_holdings_fetched_at: new Date(now).toISOString(),
+		[ETF_HOLDINGS_FETCHED_AT_FIELD]: new Date(now).toISOString(),
 	};
 }
 
@@ -120,7 +131,7 @@ export async function resolveEtfSnapshotCache(
 ): Promise<EtfSnapshotCacheResult> {
 	const ticker = normalizeTicker(tickerInput);
 	const indicators = stockEntry?.indicators ?? {};
-	const cachedSnapshot = loadEtfCache(indicators, now, true);
+	const cachedSnapshot = loadFreshEtfCache(indicators, now);
 	if (
 		cachedSnapshot &&
 		shouldServeCachedEtfSnapshot(
@@ -141,7 +152,7 @@ export async function resolveEtfSnapshotCache(
 		};
 	}
 
-	const staleSnapshot = loadEtfCache(indicators, now, false);
+	const staleSnapshot = loadAnyEtfCache(indicators);
 	if (!allowLiveFetch) {
 		return {
 			snapshot: staleSnapshot

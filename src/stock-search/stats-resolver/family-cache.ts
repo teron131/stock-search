@@ -1,6 +1,6 @@
 /** Cache and freshness helpers for stat-family snapshots. */
 
-import { parseCacheTimestamp } from "../cache.js";
+import { cacheFreshnessFromTimestamp, parseCacheTimestamp } from "../cache.js";
 import {
 	FAMILY_FIELDS,
 	FAMILY_POLICIES,
@@ -155,6 +155,7 @@ export function chooseCachedSnapshot(
 	}
 
 	const policy = FAMILY_POLICIES[family];
+	const freshness = cacheFreshnessFromTimestamp(chosenTimestamp, now, policy);
 	const hasRequiredFields = hasRequiredFamilyFields(
 		{ ...persistedRow, ...chosenRow },
 		family,
@@ -163,9 +164,9 @@ export function chooseCachedSnapshot(
 	return {
 		sourceTier,
 		row: chosenRow,
-		timestamp: chosenTimestamp,
-		isFresh: hasRequiredFields && chosenTimestamp >= now - policy.freshWindowMs,
-		isStale: present && chosenTimestamp >= now - policy.staleWindowMs,
+		timestamp: freshness.timestamp,
+		isFresh: hasRequiredFields && freshness.isFresh,
+		isStale: present && freshness.isStale,
 		present,
 	};
 }

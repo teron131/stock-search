@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "llm-harness-js/clients";
 
-import { TieredCache } from "../cache.js";
+import { MemoryCache } from "../cache.js";
 import { YahooFinanceSource } from "../data-sources/yahoo-finance.js";
 import {
 	type NewsAnalysis,
@@ -84,10 +84,8 @@ const COMPANY_NAME_STOP_WORDS = new Set([
 	"stock",
 ]);
 
-export const ANALYSIS_CACHE = new TieredCache<NewsAnalysis>({
-	ttlSeconds: 7 * 24 * 60 * 60,
+export const ANALYSIS_CACHE = new MemoryCache<NewsAnalysis>({
 	staleSeconds: 30 * 24 * 60 * 60,
-	failureCooldownSeconds: 10 * 60,
 });
 
 export type NewsTickerIdentity = {
@@ -624,7 +622,7 @@ function _splitCachedAnalysis(newsList: NewsArticle[]): {
 
 	newsList.forEach((news, index) => {
 		const cacheKey = normalizeUrl(news.url);
-		const cached = ANALYSIS_CACHE.getStale(cacheKey);
+		const cached = ANALYSIS_CACHE.get(cacheKey);
 		if (cached) {
 			results[index] = cached;
 			return;

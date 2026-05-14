@@ -5,7 +5,10 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "../api/data-store.js";
-import { classifyAndResolveEtfs } from "../etf/index.js";
+import {
+	classifyAndResolveEtfs,
+	ETF_HOLDINGS_FETCHED_AT_FIELD,
+} from "../etf/index.js";
 import { deriveEvaluationScores } from "../evaluation/normalization.js";
 import { Notional } from "../models/schemas.js";
 import {
@@ -180,9 +183,10 @@ export async function buildPortfolioPayload(
 		row.etf_holdings = snapshot.holdings;
 		row.etf_sectors = snapshot.sectors;
 		row.etf_holdings_fetched_at =
-			typeof proxiedStocks[ticker]?.indicators.etf_holdings_fetched_at ===
-			"string"
-				? proxiedStocks[ticker]?.indicators.etf_holdings_fetched_at
+			typeof proxiedStocks[ticker]?.indicators[
+				ETF_HOLDINGS_FETCHED_AT_FIELD
+			] === "string"
+				? proxiedStocks[ticker]?.indicators[ETF_HOLDINGS_FETCHED_AT_FIELD]
 				: nowIso();
 	}
 	for (const position of etfRepresentativePositions) {
