@@ -37,6 +37,7 @@ export type PortfolioScope =
 
 const LIVE_SCOPES = new Set<PortfolioScope>(["portfolio_live", "all"]);
 const ALL_UNIVERSE_SCOPES = new Set<PortfolioScope>(["all_cached", "all"]);
+const LABEL_REFRESH_SCOPES = new Set<PortfolioScope>(["all"]);
 const PORTFOLIO_LABEL_FIELD = "industry_labels";
 const LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at";
 const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -1479,7 +1480,7 @@ export async function buildPortfolioPayload(
 		store,
 		portfolio.positions,
 		stocksMap,
-		LIVE_SCOPES.has(scope),
+		LABEL_REFRESH_SCOPES.has(scope),
 	);
 	applyPositionLabels(scopedPositions, labelsByTicker);
 	const evalTickers = new Set(

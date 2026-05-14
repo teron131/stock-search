@@ -90,30 +90,6 @@ const familyCaches: Record<StatsFamily, Map<string, FamilyCacheEntry>> = {
 	ratings: new Map(),
 };
 const runningRefreshes = new Set<string>();
-const REQUIRED_STATISTICS_FIELDS = [
-	"beta",
-	"rsi",
-	"revenue",
-	"pe",
-	"pe_forward",
-	"ps",
-	"ps_forward",
-	"peg",
-	"roe",
-	"roic",
-	"debt_to_equity",
-	"free_cash_flow",
-	"shareholder_yield",
-] as const;
-const REQUIRED_FINANCIALS_FIELDS = [
-	"revenue_growth",
-	"eps_growth",
-	"revenue_growth_1y",
-	"revenue_cagr_3y",
-	"operating_margin_median_3y",
-	"operating_margin_std_3y",
-] as const;
-
 function resolutionKey(ticker: string, family: StatsFamily): string {
 	return `${ticker}:${family}`;
 }
@@ -174,13 +150,6 @@ function hasKnownFields(
 	return fields.every((field) => field in row && row[field] !== undefined);
 }
 
-function hasMeaningfulFields(
-	row: Record<string, unknown>,
-	fields: readonly string[],
-): boolean {
-	return fields.every((field) => hasMeaningfulPayload(row[field]));
-}
-
 function hasFamilyPayload(
 	row: Record<string, unknown>,
 	family: StatsFamily,
@@ -204,20 +173,8 @@ function hasRequiredFamilyFields(
 	if (!isStockLikeRow(row)) {
 		return true;
 	}
-	if (family === "statistics") {
-		return (
-			hasMeaningfulPayload(row.beta) &&
-			hasKnownFields(
-				row,
-				REQUIRED_STATISTICS_FIELDS.filter((field) => field !== "beta"),
-			)
-		);
-	}
-	if (family === "financials") {
-		return (
-			hasMeaningfulPayload(row.revenue) &&
-			hasMeaningfulFields(row, REQUIRED_FINANCIALS_FIELDS)
-		);
+	if (family === "statistics" || family === "financials") {
+		return hasKnownFields(row, FAMILY_FIELDS[family]);
 	}
 	return true;
 }
@@ -272,13 +229,14 @@ function chooseCachedSnapshot(
 		{ ...persistedRow, ...chosenRow },
 		family,
 	);
+	const present = Object.keys(chosenRow).length > 0;
 	return {
 		sourceTier,
 		row: chosenRow,
 		timestamp: chosenTimestamp,
 		isFresh: hasRequiredFields && chosenTimestamp >= now - policy.freshWindowMs,
-		isStale: hasRequiredFields && chosenTimestamp >= now - policy.staleWindowMs,
-		present: Object.keys(chosenRow).length > 0,
+		isStale: present && chosenTimestamp >= now - policy.staleWindowMs,
+		present,
 	};
 }
 

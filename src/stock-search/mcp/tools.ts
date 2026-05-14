@@ -147,7 +147,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		execute: async ({ scope }) =>
 			buildPortfolioPayload(
 				getStore(),
-				(typeof scope === "string" ? scope : "all") as
+				(typeof scope === "string" ? scope : "priority") as
 					| "priority"
 					| "all_cached"
 					| "portfolio_live"

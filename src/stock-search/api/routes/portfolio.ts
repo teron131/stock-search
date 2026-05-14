@@ -23,7 +23,7 @@ const PortfolioPositionPatchSchema = z.object({
 });
 const PortfolioScopeSchema = z
 	.enum(["priority", "all_cached", "portfolio_live", "all"])
-	.catch("all");
+	.catch("priority");
 
 function parseOptionalFormText(
 	value: FormDataEntryValue | null,

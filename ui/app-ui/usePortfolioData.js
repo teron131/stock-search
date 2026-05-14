@@ -249,7 +249,7 @@ function getPortfolioUrl(scope) {
 		return CONFIG.demoEndpoints.portfolio;
 	}
 
-	if (!scope || scope === "all") {
+	if (!scope) {
 		return CONFIG.endpoints.portfolio;
 	}
 
