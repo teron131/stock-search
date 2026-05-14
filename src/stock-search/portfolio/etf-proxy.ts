@@ -10,7 +10,7 @@ import type { EtfResolutionResult } from "../etf.js";
 import {
 	resolveTickerStatsMap,
 	type StatsResolutionResult,
-} from "../stats-resolver.js";
+} from "../stats-resolver/index.js";
 import { asNumber, normalizeTicker, uniqueTickers } from "../utils.js";
 import { mergeLiveResultsIntoStocks } from "./rows.js";
 import { LIVE_SCOPES, type PortfolioScope } from "./shared.js";

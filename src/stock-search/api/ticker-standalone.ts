@@ -2,7 +2,7 @@
 
 import { resolveEtfSnapshotCache } from "../etf.js";
 import { mergePortfolioRow } from "../portfolio/index.js";
-import { resolveTickerStats } from "../stats-resolver.js";
+import { resolveTickerStats } from "../stats-resolver/index.js";
 import { normalizeTicker, nowIso } from "../utils.js";
 import type { BackendStore, PositionRow, StockEntry } from "./data-store.js";
 

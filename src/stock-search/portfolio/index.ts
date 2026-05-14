@@ -11,7 +11,7 @@ import { Notional } from "../models/schemas.js";
 import {
 	aggregateTickerDataSource,
 	resolveTickerStatsMap,
-} from "../stats-resolver.js";
+} from "../stats-resolver/index.js";
 import { normalizeTicker, nowIso, uniqueTickers } from "../utils.js";
 import {
 	applyEtfProxyStatsToStocks,
