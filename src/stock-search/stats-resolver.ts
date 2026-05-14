@@ -159,6 +159,17 @@ function hasFamilyPayload(
 	);
 }
 
+function hasKnownFamilySnapshot(
+	row: Record<string, unknown>,
+	family: StatsFamily,
+): boolean {
+	return (
+		hasFamilyPayload(row, family) ||
+		((family === "statistics" || family === "financials") &&
+			hasKnownFields(row, FAMILY_FIELDS[family]))
+	);
+}
+
 function isStockLikeRow(row: Record<string, unknown>): boolean {
 	const quoteType = String(row.quote_type ?? "")
 		.trim()
@@ -197,7 +208,7 @@ function chooseCachedSnapshot(
 	let chosenRow: Record<string, unknown> = {};
 	let chosenTimestamp = familyTimestamp(persistedRow, family);
 
-	if (hasFamilyPayload(persistedFamilyRow, family)) {
+	if (hasKnownFamilySnapshot(persistedFamilyRow, family)) {
 		sourceTier = "l2";
 		chosenRow = persistedFamilyRow;
 	}
@@ -205,7 +216,7 @@ function chooseCachedSnapshot(
 	const l1Entry = familyCaches[family].get(ticker);
 	if (
 		l1Entry &&
-		hasFamilyPayload(l1Entry.value, family) &&
+		hasKnownFamilySnapshot(l1Entry.value, family) &&
 		(chosenTimestamp == null || l1Entry.updatedAt >= chosenTimestamp)
 	) {
 		sourceTier = "l1";

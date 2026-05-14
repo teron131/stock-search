@@ -48,7 +48,6 @@ const ETF_PROXY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ETF_PROXY_TIMESTAMP_FIELDS = [
 	"statistics_fetched_at",
 	"financials_fetched_at",
-	"ratings_fetched_at",
 ] as const;
 const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
 const NON_US_TICKER_SUFFIXES = new Set([
