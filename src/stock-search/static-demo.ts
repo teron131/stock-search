@@ -3,6 +3,7 @@
 import path from "node:path";
 
 import { buildColorStandardsPayload } from "./api/color-standards.js";
+import { safeFloat } from "./common-utils.js";
 import { DATA_SQLITE_PATH, RAW_UI_DIR } from "./config.js";
 import { getSectorSnapshot } from "./data-sources/stockanalysis/index.js";
 import { normalizeEvaluation } from "./evaluation/normalization.js";
@@ -16,14 +17,6 @@ const DEMO_POSITION_COUNT_RANGE = [14, 20] as const;
 const DEMO_BUCKETS = ["Core", "Satellite", "Speculation", "Defense"] as const;
 const DEMO_NEWS_MAX_RESULTS = 5;
 const DEMO_NEWS_CONCURRENCY = 3;
-
-function safeFloat(value: unknown): number | null {
-	if (value == null) {
-		return null;
-	}
-	const numeric = Number(value);
-	return Number.isFinite(numeric) ? numeric : null;
-}
 
 function weightedAverage(
 	rows: Array<Record<string, unknown>>,

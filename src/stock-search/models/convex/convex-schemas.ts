@@ -1,6 +1,6 @@
 /** Normalize Convex rows to and from local stock models. */
 
-import { normalizeTickerSymbol } from "../../common-utils.js";
+import { normalizeTicker } from "../../utils.js";
 import { normalizeStockIndicators } from "../schemas.js";
 
 export type ConvexStockRow = {
@@ -50,7 +50,7 @@ export function normalizePortfolioPositions(
 ): Array<Record<string, unknown>> {
 	const normalized: Array<Record<string, unknown>> = [];
 	for (const row of rows) {
-		const ticker = normalizeTickerSymbol(String(row.ticker ?? ""));
+		const ticker = normalizeTicker(String(row.ticker ?? ""));
 		if (!ticker) {
 			continue;
 		}
@@ -71,7 +71,7 @@ export function normalizeStockMap(
 ): Record<string, Record<string, unknown>> {
 	const normalized: Record<string, Record<string, unknown>> = {};
 	for (const [ticker, row] of Object.entries(rows)) {
-		const tickerSymbol = normalizeTickerSymbol(ticker);
+		const tickerSymbol = normalizeTicker(ticker);
 		if (!tickerSymbol) {
 			continue;
 		}
@@ -107,7 +107,7 @@ export function payloadToStockMap(
 			continue;
 		}
 		const row = item as Record<string, unknown>;
-		const ticker = normalizeTickerSymbol(String(row.ticker ?? ""));
+		const ticker = normalizeTicker(String(row.ticker ?? ""));
 		if (!ticker) {
 			continue;
 		}

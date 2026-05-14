@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "llm-harness-js/clients";
+import { webloader } from "llm-harness-js/tools/web";
 
 import { MemoryCache } from "../cache.js";
 import type {
@@ -62,7 +63,6 @@ import {
 	summarizePortfolioNews,
 } from "./orchestrator/portfolio-summary.js";
 import * as newsProviders from "./providers/index.js";
-import * as webloaderModule from "./webloader.js";
 
 const FAST_LLM = process.env.FAST_LLM;
 const QUALITY_LLM = process.env.QUALITY_LLM;
@@ -82,7 +82,7 @@ export type NewsFetchOptions = {
 
 export const newsPipelineDeps = {
 	chatOpenAI: ChatOpenAI,
-	webloader: webloaderModule.webloader,
+	webloader,
 	resolveTickerIdentity: resolveTickerIdentityFromYahoo,
 } satisfies AnalysisDeps &
 	PortfolioSummaryDeps & {

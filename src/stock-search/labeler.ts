@@ -10,10 +10,10 @@ import { ExaAnswerAgent } from "llm-harness-js/agents";
 import { ChatOpenAI } from "llm-harness-js/clients";
 import { z } from "zod";
 
-import { normalizeTickerSymbol } from "./common-utils.js";
 import { ModelConfig } from "./config.js";
 import { INDUSTRY_LABELS, INDUSTRY_LABELS_BY_SECTOR } from "./models/labels.js";
 import { type TickerLabels, TickerLabelsSchema } from "./models/schemas.js";
+import { normalizeTicker } from "./utils.js";
 
 const INDUSTRY_LABEL_SET = new Set(INDUSTRY_LABELS);
 const MAX_LABELS = 5;
@@ -273,7 +273,7 @@ function runLabelerSync<T>(command: string, payload: unknown): T {
 
 /** Fetch labels for one ticker asynchronously. */
 export async function agetLabel(ticker: string): Promise<TickerLabels> {
-	const tickerSymbol = normalizeTickerSymbol(ticker);
+	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
 		throw new Error("ticker cannot be empty");
 	}
@@ -298,7 +298,7 @@ export async function agetLabels(
 ): Promise<Record<string, TickerLabels>> {
 	const normalizedTickers = [
 		...new Set(
-			tickers.map((ticker) => normalizeTickerSymbol(ticker)).filter(Boolean),
+			tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean),
 		),
 	];
 	if (normalizedTickers.length === 0) {

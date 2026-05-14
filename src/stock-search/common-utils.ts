@@ -4,8 +4,6 @@ This module consolidates frequently duplicated helper functions to reduce
 code repetition and maintain consistent behavior.
 */
 
-import { normalizeTicker } from "./utils.js";
-
 const MARKET_CAP_UNITS: ReadonlyArray<readonly [number, string]> = [
 	[1_000_000_000_000, "T"],
 	[1_000_000_000, "B"],
@@ -36,11 +34,6 @@ export function clamp(value: number, minVal: number, maxVal: number): number {
 export function toFloat(value: unknown, defaultValue: number): number {
 	const converted = Number(value);
 	return Number.isFinite(converted) ? converted : defaultValue;
-}
-
-/** Normalize ticker for internal keys without Yahoo-specific symbol rewrites. */
-export function normalizeTickerSymbol(ticker: string): string {
-	return normalizeTicker(ticker);
 }
 
 /** Format market cap with T/B/M/K suffix. */
