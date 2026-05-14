@@ -4,9 +4,9 @@ import Image from "next/image";
 import { useEffect } from "react";
 
 import { App } from "../app-ui/App.js";
-import { getIconDefinition, getNavIconName } from "../app-ui/sectorIcons.js";
+import { getIconDefinition, getNavIconName } from "../app-ui/sectors/icons.js";
+import { APP_BASE_PATH, VIEW_ROUTES } from "../app-ui/shell/routes.js";
 import { isTradingViewSymbolError } from "../app-ui/tradingViewSymbols.js";
-import { APP_BASE_PATH, VIEW_ROUTES } from "../app-ui/viewRoutes.js";
 
 const ACTION_ICON_PATHS = {
 	logout: [

@@ -3,7 +3,6 @@ import { html } from "htm/react";
 import { calculateScoreColorMetadata } from "../color.js";
 import { CONFIG } from "../config.js";
 import { fmt, parseMarketCap } from "../format.js";
-import { getIconDefinition, getSectorIconName } from "../sectorIcons.js";
 import {
 	getColumnCharCount,
 	getToneClass,
@@ -13,6 +12,7 @@ import {
 	getTradingViewTickerTagSymbol,
 	normalizeTickerLabel,
 } from "../tradingViewSymbols.js";
+import { getIconDefinition, getSectorIconName } from "./icons.js";
 
 const SECTOR_ALIAS_MIN_LENGTH = 24;
 

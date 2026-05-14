@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CONFIG } from "./config.js";
-import { normalizeSectorPayload } from "./dataContract.js";
-import { buildSectorViewModel } from "./sectorViewModel.js";
+import { CONFIG } from "../config.js";
+import { normalizeSectorPayload } from "../dataContract.js";
+import { buildSectorViewModel } from "./viewModel.js";
 
 async function fetchJsonWithTimeout(url, timeoutMs) {
 	const controller = new AbortController();

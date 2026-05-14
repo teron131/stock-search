@@ -1,4 +1,4 @@
-import { normalizeTicker } from "./format.js";
+import { normalizeTicker } from "../format.js";
 
 const MAX_TOP_TICKERS = 5;
 const MAX_SOURCE_ARTICLES = 2;

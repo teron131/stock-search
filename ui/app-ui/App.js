@@ -1,315 +1,40 @@
 import { html } from "htm/react";
 import { useEffect, useRef, useState } from "react";
-import { DataTable } from "./components/DataTable.js";
-import { NewsView } from "./components/NewsView.js";
-import { QuickAdd } from "./components/QuickAdd.js";
-import { SectorView } from "./components/SectorView.js";
+import { TableSection } from "./components/table/Section.js";
 import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
-import { fmt } from "./format.js";
-import { useNewsData } from "./useNewsData.js";
-import { usePortfolioData } from "./usePortfolioData.js";
-import { useSectorData } from "./useSectorData.js";
+import { useNewsData } from "./news/useNewsData.js";
+import { NewsView } from "./news/View.js";
+import { usePortfolioData } from "./portfolio/usePortfolioData.js";
+import { useSectorData } from "./sectors/useSectorData.js";
+import { SectorView } from "./sectors/View.js";
+import {
+	buildAuthLoginUrl,
+	CALENDAR_VIEW,
+	DASHBOARD_VIEW,
+	fetchAuthSession,
+	fetchRuntimeConfig,
+	formatLastUpdatedText,
+	importImageFile,
+	initSidebarAndNav,
+	MARKETMAP_VIEW,
+	NEWS_VIEW,
+	SECTORS_VIEW,
+	setText,
+	showActionError,
+	showToast,
+	syncLogoutButton,
+	syncRefreshButtonState,
+	syncViewLayout,
+	updatePortfolioSummary,
+} from "./shell/dom.js";
+import {
+	createCalendarWidget,
+	initHeatmapTabs,
+	updateTickerTape,
+} from "./shell/tradingView.js";
 
-const DASHBOARD_VIEW = "dashboard";
-const NEWS_VIEW = "news";
-const SECTORS_VIEW = "sectors";
-const MARKETMAP_VIEW = "marketmap";
-const CALENDAR_VIEW = "calendar";
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
 const NEWS_BACKGROUND_SYNC_INTERVAL_MS = CONFIG.newsAutoRefreshIntervalMs;
-
-const VIEW_TITLES = {
-	[DASHBOARD_VIEW]: "DASHBOARD",
-	[NEWS_VIEW]: "NEWS",
-	[SECTORS_VIEW]: "SECTORS",
-	[MARKETMAP_VIEW]: "MARKET MAP",
-	[CALENDAR_VIEW]: "ECONOMIC CALENDAR",
-};
-const TICKER_TAPE_SCRIPT_SRC =
-	"https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
-const TICKER_TAPE_PLACEHOLDER_HTML =
-	'<div class="tradingview-widget-container__widget"></div>';
-const TICKER_TAPE_RETRY_DELAY_MS = 6_000;
-const TICKER_TAPE_OPTIONS = {
-	showSymbolLogo: true,
-	isTransparent: true,
-	displayMode: "compact",
-	colorTheme: "dark",
-	locale: "en",
-};
-
-let tickerTapeRetryId = null;
-
-function setText(id, value) {
-	const el = document.getElementById(id);
-	if (el) el.textContent = value;
-}
-
-function setDisplay(id, display) {
-	const el = document.getElementById(id);
-	if (el) el.style.display = display;
-}
-
-function formatLastUpdatedText(timestamp, { isUsingDemoData = false } = {}) {
-	const modeText = isUsingDemoData ? " [DEMO]" : "";
-	if (!timestamp) {
-		return `UPDATED --${modeText}`;
-	}
-
-	const time = new Date(timestamp);
-	const dateStr = time.toLocaleDateString("en-US", {
-		month: "short",
-		day: "2-digit",
-	});
-	const timeStr = time.toLocaleTimeString("en-US", {
-		hour12: false,
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-
-	return `UPDATED ${dateStr} ${timeStr}${modeText}`;
-}
-
-function showToast(message) {
-	const toast = document.createElement("div");
-	toast.className = "toast";
-	toast.textContent = message;
-	document.body.appendChild(toast);
-
-	setTimeout(() => {
-		toast.classList.add("toast-fade");
-		setTimeout(() => toast.remove(), 500);
-	}, 3000);
-}
-
-function showActionError(reason, detail = null) {
-	if (reason === "demo") showToast("Demo Mode: Changes not saved.");
-	if (reason === "invalid") showToast("INVALID_QTY");
-	if (reason === "server") showToast(detail || "UPDATE FAILED");
-}
-
-function buildAuthLoginUrl() {
-	const nextPath = `${window.location.pathname}${window.location.search}`;
-	return `${CONFIG.endpoints.authLogin}?next=${encodeURIComponent(nextPath)}`;
-}
-
-async function fetchAuthSession() {
-	try {
-		const response = await fetch(CONFIG.endpoints.authSession);
-		if (!response.ok) return null;
-		return await response.json();
-	} catch {
-		return null;
-	}
-}
-
-async function fetchRuntimeConfig() {
-	if (CONFIG.isDemoMode) return null;
-	try {
-		const response = await fetch(CONFIG.endpoints.realtimeConfig);
-		if (!response.ok) return null;
-		return await response.json();
-	} catch {
-		return null;
-	}
-}
-
-function syncButtonTooltip(button, tooltip) {
-	button.setAttribute("aria-label", tooltip);
-	button.dataset.tooltip = tooltip;
-	button.removeAttribute("title");
-}
-
-function syncLogoutButton(authSession) {
-	const logoutBtn = document.getElementById("logout-btn");
-	if (!logoutBtn) return;
-
-	const shouldShow =
-		!CONFIG.isDemoMode &&
-		Boolean(authSession?.enabled) &&
-		Boolean(authSession?.authenticated);
-
-	logoutBtn.hidden = !shouldShow;
-	const tooltip =
-		shouldShow && authSession?.email
-			? `Logout (${authSession.email})`
-			: "Logout";
-	syncButtonTooltip(logoutBtn, tooltip);
-}
-
-async function importImageFile(file, importImageRef) {
-	if (!file) return;
-	setText("import-status", "IMPORTING...");
-	const res = await importImageRef.current?.({
-		file,
-	});
-	if (!res?.ok) {
-		showActionError(res?.reason, res?.detail);
-		setText("import-status", "IMPORT FAILED");
-		return;
-	}
-	const appliedCount = Number(res?.payload?.applied_count || 0);
-	if (appliedCount > 0) {
-		showToast(`UPDATED ${appliedCount}`);
-		setText("import-status", `UPDATED ${appliedCount}`);
-	} else {
-		showToast("NO HOLDINGS FOUND");
-		setText("import-status", "NO HOLDINGS");
-	}
-}
-
-function updateTickerTape(tickers) {
-	const container = document.getElementById("ticker-tape-widget");
-	if (!container) return;
-
-	const symbols = tickers.filter(Boolean);
-	const symbolsKey = symbols.join(",");
-	if (hasLoadedTickerTape(container, symbolsKey)) {
-		return;
-	}
-
-	window.clearTimeout(tickerTapeRetryId);
-	container.dataset.symbols = symbolsKey;
-	container.innerHTML = TICKER_TAPE_PLACEHOLDER_HTML;
-
-	if (!symbols.length) {
-		return;
-	}
-
-	container.appendChild(createTickerTapeScript(symbols));
-	tickerTapeRetryId = window.setTimeout(() => {
-		if (!shouldRetryTickerTape(container, symbolsKey)) return;
-		container.dataset.symbols = "";
-		updateTickerTape(symbols);
-	}, TICKER_TAPE_RETRY_DELAY_MS);
-}
-
-function hasLoadedTickerTape(container, symbolsKey) {
-	return (
-		container.dataset.symbols === symbolsKey &&
-		Boolean(container.querySelector("iframe"))
-	);
-}
-
-function shouldRetryTickerTape(container, symbolsKey) {
-	return (
-		container.dataset.symbols === symbolsKey &&
-		!container.querySelector("iframe")
-	);
-}
-
-function createTickerTapeScript(symbols) {
-	const script = document.createElement("script");
-	script.type = "text/javascript";
-	script.src = TICKER_TAPE_SCRIPT_SRC;
-	script.async = true;
-	script.innerHTML = JSON.stringify({
-		symbols: symbols.map((symbol) => ({
-			proName: symbol.toUpperCase(),
-			title: symbol.toUpperCase(),
-		})),
-		...TICKER_TAPE_OPTIONS,
-	});
-	return script;
-}
-
-function syncViewLayout(view, { showPortfolioStats = false } = {}) {
-	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
-
-	const isDashboard = view === DASHBOARD_VIEW;
-	const showsAppRoot =
-		isDashboard || view === SECTORS_VIEW || view === NEWS_VIEW;
-
-	const appRoot = document.getElementById("app-root");
-	if (appRoot) {
-		appRoot.style.display = showsAppRoot ? "block" : "none";
-	}
-
-	setDisplay("heatmap-section", view === MARKETMAP_VIEW ? "block" : "none");
-	setDisplay("calendar-section", view === CALENDAR_VIEW ? "block" : "none");
-	setDisplay(
-		"stats-strip",
-		isDashboard && showPortfolioStats ? "flex" : "none",
-	);
-	setDisplay("import-image-btn", isDashboard ? "inline-flex" : "none");
-	setDisplay("import-status", isDashboard ? "inline" : "none");
-
-	const tapeView = document.getElementById("ticker-tape-view");
-	if (!tapeView) return;
-
-	if (isDashboard) {
-		tapeView.style.display = "block";
-		tapeView.style.visibility = "visible";
-		tapeView.style.height = "auto";
-		return;
-	}
-
-	tapeView.style.display = "none";
-	tapeView.style.visibility = "hidden";
-	tapeView.style.height = "0";
-}
-
-function getRefreshIconMarkup(isSyncing) {
-	if (isSyncing) {
-		return `<svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg>`;
-	}
-	return `<svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M12.8 5.3A4.8 4.8 0 0 0 4.2 6.9"></path><path d="M12.8 3.2v2.1h-2.1"></path><path d="M3.2 10.7a4.8 4.8 0 0 0 8.6-1.6"></path><path d="M3.2 12.8v-2.1h2.1"></path></svg>`;
-}
-
-function syncRefreshButtonState({
-	view,
-	isPortfolioSyncing,
-	isSectorLoading,
-	isNewsLoading,
-}) {
-	const refreshBtn = document.getElementById("refresh-btn");
-	const syncStatus = document.getElementById("sync-status");
-	const isDashboardSyncing = view === DASHBOARD_VIEW && isPortfolioSyncing;
-	const isViewLoading =
-		isDashboardSyncing ||
-		(view === SECTORS_VIEW && isSectorLoading) ||
-		(view === NEWS_VIEW && isNewsLoading);
-
-	if (syncStatus) {
-		syncStatus.textContent = isViewLoading ? "SYNCING..." : "";
-	}
-	if (!refreshBtn) return;
-
-	refreshBtn.classList.toggle("is-syncing", isDashboardSyncing);
-	refreshBtn.dataset.icon = isDashboardSyncing ? "stop" : "sync";
-	refreshBtn.innerHTML = getRefreshIconMarkup(isDashboardSyncing);
-	syncButtonTooltip(refreshBtn, isDashboardSyncing ? "Stop syncing" : "Sync");
-	refreshBtn.setAttribute(
-		"aria-pressed",
-		isDashboardSyncing ? "true" : "false",
-	);
-}
-
-function updatePortfolioSummary(stats) {
-	setText("total-positions", stats.positions ? String(stats.positions) : "--");
-	setText(
-		"total-value",
-		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
-	);
-
-	if (stats.totalVal <= 0) {
-		setText("portfolio-change", "--");
-		return;
-	}
-
-	const { percent, absolute } = stats.change;
-	const sign = absolute >= 0 ? "+" : "";
-	const absoluteText = sign + fmt.currency(Math.abs(absolute));
-	const percentText = fmt.percent(percent);
-	setText("portfolio-change", `${absoluteText} (${percentText})`);
-
-	const trend = document.getElementById("portfolio-change");
-	if (!trend) return;
-
-	trend.className = `stats-value stats-trend ${
-		percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"
-	}`;
-}
 
 function renderSectorScreen(sectorData) {
 	return html`
@@ -341,186 +66,6 @@ function renderNewsScreen(newsData) {
 			lastError=${newsData.lastError}
 		/>
 	`;
-}
-
-function renderDashboardScreen({
-	tab,
-	rows,
-	sortCol,
-	sortDir,
-	onTabChange,
-	onSort,
-	onRemove,
-	onSetQuantity,
-	colorStandards,
-	isUsingDemoData,
-	isBackgroundLoading,
-	isLoading,
-	onAddOrUpdate,
-	onTickerSearchChange,
-	tickerSearchQuery,
-}) {
-	return html`
-		<div className="tabs-container" id="dashboard-tables">
-			<div className="tabs-header">
-				<div className="tab-group">
-					<button
-						type="button"
-						className=${`tab-btn ${tab === "all" ? "active" : ""}`}
-						onClick=${() => onTabChange("all")}
-					>
-						ALL
-					</button>
-					<button
-						type="button"
-						className=${`tab-btn ${tab === "holdings" ? "active" : ""}`}
-						onClick=${() => onTabChange("holdings")}
-					>
-						PORTFOLIO
-					</button>
-					<button
-						type="button"
-						className=${`tab-btn ${tab === "evaluations" ? "active" : ""}`}
-						onClick=${() => onTabChange("evaluations")}
-					>
-						EVALUATION
-					</button>
-				</div>
-				<div className="dashboard-tabs-actions">
-					<${QuickAdd}
-						rows=${rows}
-						isUsingDemoData=${isUsingDemoData}
-						onSubmit=${onAddOrUpdate}
-						onTickerInput=${onTickerSearchChange}
-					/>
-				</div>
-			</div>
-
-			<${DataTable}
-				tab=${tab}
-				rows=${rows}
-				sortCol=${sortCol}
-				sortDir=${sortDir}
-				onSort=${onSort}
-				onRemove=${onRemove}
-				onSetQuantity=${onSetQuantity}
-				colorStandards=${colorStandards}
-				isUsingDemoData=${isUsingDemoData}
-				isLoading=${isLoading}
-				animateRows=${!isBackgroundLoading}
-				searchQuery=${tickerSearchQuery}
-			/>
-		</div>
-	`;
-}
-
-function initSidebarAndNav() {
-	const sidebar = document.getElementById("sidebar");
-	const toggle = document.getElementById("sidebar-toggle");
-	const cleanupFns = [];
-
-	const toggleSidebar = () => {
-		if (sidebar) sidebar.classList.toggle("collapsed");
-	};
-
-	if (toggle) {
-		toggle.addEventListener("click", toggleSidebar);
-		cleanupFns.push(() => toggle.removeEventListener("click", toggleSidebar));
-	}
-
-	if (window.innerWidth <= 1024) {
-		const topBarLeft = document.querySelector(".top-bar-left");
-		if (topBarLeft) {
-			topBarLeft.addEventListener("click", toggleSidebar);
-			cleanupFns.push(() =>
-				topBarLeft.removeEventListener("click", toggleSidebar),
-			);
-		}
-	}
-
-	document.querySelectorAll(".nav-item").forEach((btn) => {
-		const onClick = () => {
-			if (window.innerWidth <= 1024 && sidebar) {
-				sidebar.classList.add("collapsed");
-			}
-		};
-		btn.addEventListener("click", onClick);
-		cleanupFns.push(() => btn.removeEventListener("click", onClick));
-	});
-
-	return () => {
-		cleanupFns.forEach((cleanup) => {
-			cleanup();
-		});
-	};
-}
-
-function createHeatmapWidget(dataSource) {
-	const container = document.getElementById("heatmap-widget-container");
-	if (!container) return;
-
-	container.innerHTML =
-		'<div class="tradingview-widget-container__widget"></div>';
-	const script = document.createElement("script");
-	script.type = "text/javascript";
-	script.src =
-		"https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js";
-	script.async = true;
-	script.innerHTML = JSON.stringify({ ...CONFIG.heatmapWidget, dataSource });
-	container.appendChild(script);
-}
-
-function createCalendarWidget() {
-	const container = document.getElementById("calendar-widget-container");
-	if (!container) return;
-
-	container.innerHTML =
-		'<div class="tradingview-widget-container__widget"></div>';
-	const script = document.createElement("script");
-	script.type = "text/javascript";
-	script.src =
-		"https://s3.tradingview.com/external-embedding/embed-widget-events.js";
-	script.async = true;
-	script.innerHTML = JSON.stringify({
-		colorTheme: "dark",
-		isTransparent: false,
-		locale: "en",
-		countryFilter: "us",
-		importanceFilter: "-1,0,1",
-		width: "100%",
-		height: "100%",
-	});
-	container.appendChild(script);
-}
-
-function initHeatmapTabs() {
-	const tabs = document.querySelectorAll("#heatmap-section .tab-btn");
-	const cleanupFns = [];
-	createHeatmapWidget("SPX500");
-
-	tabs.forEach((tab) => {
-		const onClick = () => {
-			const source = tab.dataset.source;
-			if (!source) return;
-
-			tabs.forEach((tabButton) => {
-				tabButton.classList.toggle(
-					"active",
-					tabButton.dataset.source === source,
-				);
-			});
-			createHeatmapWidget(source);
-		};
-
-		tab.addEventListener("click", onClick);
-		cleanupFns.push(() => tab.removeEventListener("click", onClick));
-	});
-
-	return () => {
-		cleanupFns.forEach((cleanup) => {
-			cleanup();
-		});
-	};
 }
 
 export function App({ initialView = DASHBOARD_VIEW }) {
@@ -891,22 +436,21 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		return null;
 	}
 
-	return renderDashboardScreen({
-		stats,
-		tab,
-		rows,
-		sortCol,
-		sortDir,
-		onTabChange,
-		onSort,
-		onRemove,
-		onSetQuantity,
-		colorStandards,
-		isUsingDemoData,
-		isBackgroundLoading,
-		isLoading,
-		onAddOrUpdate,
-		onTickerSearchChange: setTickerSearchQuery,
-		tickerSearchQuery,
-	});
+	return html`<${TableSection}
+		tab=${tab}
+		rows=${rows}
+		sortCol=${sortCol}
+		sortDir=${sortDir}
+		onTabChange=${onTabChange}
+		onSort=${onSort}
+		onRemove=${onRemove}
+		onSetQuantity=${onSetQuantity}
+		colorStandards=${colorStandards}
+		isUsingDemoData=${isUsingDemoData}
+		isBackgroundLoading=${isBackgroundLoading}
+		isLoading=${isLoading}
+		onAddOrUpdate=${onAddOrUpdate}
+		onTickerSearchChange=${setTickerSearchQuery}
+		tickerSearchQuery=${tickerSearchQuery}
+	/>`;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export function useQtyCellState({ row, isUsingDemoData, onSetQuantity }) {
+export function useQuantityCellState({ row, isUsingDemoData, onSetQuantity }) {
 	const canEdit = !isUsingDemoData;
 	const initialQty = Number(row.quantity) || 0;
 

@@ -1,7 +1,7 @@
 import { html } from "htm/react";
 import { useMemo, useState } from "react";
 
-import { normalizeTicker } from "../format.js";
+import { normalizeTicker } from "../../format.js";
 
 export function QuickAdd({ rows, isUsingDemoData, onSubmit, onTickerInput }) {
 	const [ticker, setTicker] = useState("");

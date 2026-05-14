@@ -3,24 +3,38 @@ import {
 	Children,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 
-import { calculateScoreColorMetadata } from "../color.js";
-import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
-import { fmt, normalizeTicker, parseMarketCap } from "../format.js";
+import { calculateScoreColorMetadata } from "../../color.js";
+import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../../config.js";
+import { normalizeTicker, parseMarketCap } from "../../format.js";
 import {
 	getColumnCharCount,
 	getColumnWidthStyle,
 	renderConditionallyColoredValue,
-} from "../tableStyle.js";
-import { getTradingViewTickerTagSymbol } from "../tradingViewSymbols.js";
-import { useQtyCellState } from "./useQtyCellState.js";
+} from "../../tableStyle.js";
+import { getTradingViewTickerTagSymbol } from "../../tradingViewSymbols.js";
+import {
+	formatCellValue,
+	getAriaSort,
+	getColumnCharCounts,
+	getColumnClassName,
+	getColumnClusterClassName,
+	getTickerCellLabel,
+	getTickerDisplayValue,
+	isNonUsLookthroughRow,
+	isProxiedStatCell,
+	normalizeSearchText,
+	rowBelongsToTab,
+	rowMatchesNormalizedSearch,
+	sortRows,
+} from "./dataModel.js";
+import { useQuantityCellState } from "./useQuantityCellState.js";
 
-const NON_US_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
-const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 const PLAIN_ALLOCATION_COLUMNS = new Set([
 	"total",
 	"notional_value",
@@ -33,164 +47,6 @@ const ROW_WINDOW_INITIAL_COUNT = 64;
 const HEADER_TOOLTIP_HALF_WIDTH_PX = 130;
 const HEADER_TOOLTIP_OFFSET_PX = 6;
 const SCROLL_SYNC_THRESHOLD_PX = 1;
-
-function getTickerDisplayValue(ticker) {
-	return normalizeTicker(ticker).replace("-", ".");
-}
-
-function isNonUsTicker(ticker) {
-	const displayTicker = getTickerDisplayValue(ticker);
-	if (/^\d/.test(displayTicker)) {
-		return true;
-	}
-
-	const [prefix, prefixedSymbol] = displayTicker.includes(":")
-		? displayTicker.split(":", 2)
-		: ["", ""];
-	if (prefixedSymbol) {
-		return !US_EXCHANGE_PREFIXES.has(prefix);
-	}
-
-	const suffix = displayTicker.match(/\.([A-Z]{1,4})$/)?.[1];
-	return suffix ? NON_US_SUFFIXES.has(suffix) : false;
-}
-
-function isNonUsLookthroughRow(row) {
-	return Boolean(row?.etf_lookthrough_only) && isNonUsTicker(row?.ticker);
-}
-
-function isEtfLikeRow(row) {
-	const equityType = String(row?.equity_type ?? "")
-		.trim()
-		.toUpperCase();
-	const quoteType = String(row?.quote_type ?? "")
-		.trim()
-		.toUpperCase();
-	return equityType === "ETF" || quoteType === "ETF";
-}
-
-function getTickerCellLabel(row) {
-	const ticker = getTickerDisplayValue(row?.ticker);
-	const name = String(row?.name || "").trim();
-	if (!isNonUsLookthroughRow(row) || !name || name === ticker) {
-		return ticker;
-	}
-	return name
-		.replace(/\bCorporation\b/gi, "Corp")
-		.replace(/\bIncorporated\b/gi, "Inc.")
-		.replace(/\s+(Co\.,?\s*)?Ltd\.?$/i, "")
-		.replace(/\s+Inc\.?$/i, "")
-		.replace(/\s+Corp\.?$/i, "")
-		.trim();
-}
-
-function normalizeSearchText(value) {
-	return String(value ?? "")
-		.trim()
-		.toUpperCase();
-}
-
-function rowMatchesNormalizedSearch(row, normalizedQuery) {
-	const ticker = normalizeSearchText(row?.ticker);
-	const displayTicker = normalizeSearchText(getTickerDisplayValue(row?.ticker));
-	const label = normalizeSearchText(getTickerCellLabel(row));
-	const name = normalizeSearchText(row?.name);
-
-	return [ticker, displayTicker, label, name].some((value) =>
-		value.includes(normalizedQuery),
-	);
-}
-
-function getColumnClassName(key) {
-	return `table-col-${String(key || "").replaceAll("_", "-")}`;
-}
-
-function getColumnClusterClassName(cluster) {
-	return cluster ? `table-cluster-${cluster}` : "";
-}
-
-function compareNullable(a, b, dir) {
-	if (a == null) return 1;
-	if (b == null) return -1;
-
-	const na = typeof a === "string" ? a.toLowerCase() : a;
-	const nb = typeof b === "string" ? b.toLowerCase() : b;
-
-	if (na === nb) return 0;
-	return dir === "asc" ? (na < nb ? -1 : 1) : na < nb ? 1 : -1;
-}
-
-function notionalTotal(value) {
-	if (!value || typeof value !== "object") return null;
-	const total =
-		Number(value.from_stocks ?? 0) +
-		Number(value.from_etf ?? 0) +
-		Number(value.from_options ?? 0);
-	return Number.isFinite(total) ? total : null;
-}
-
-function rowBelongsToTab(row, tab) {
-	const qty = Number(row.quantity);
-	const hasQty = row.quantity != null && !Number.isNaN(qty);
-	const isHolding = hasQty && qty > 0 && row.total != null;
-	const hasEvalScore = row.overall_score != null && row.overall_score !== "";
-	const hasEvalRank = row.rank != null;
-	const isEval = hasEvalScore || hasEvalRank;
-	const isLookthroughRepresentative =
-		Boolean(row.etf_lookthrough_only) && (notionalTotal(row.notional) ?? 0) > 0;
-
-	if (tab === "all") return isHolding || isEval || isLookthroughRepresentative;
-	if (tab === "holdings") return isHolding;
-	return isEval;
-}
-
-function stripCurrencySymbol(value) {
-	return String(value).replace(/^\$/, "");
-}
-
-function isProxiedStatCell(row, key) {
-	return (
-		Array.isArray(row?.proxied_stat_fields) &&
-		row.proxied_stat_fields.includes(key)
-	);
-}
-
-function formatCellValue(row, col) {
-	if (
-		col.key === "market_cap" &&
-		isEtfLikeRow(row) &&
-		!isProxiedStatCell(row, col.key)
-	) {
-		return "--";
-	}
-	const formatter = fmt[col.format] || fmt.default;
-	const formatted = formatter(row[col.key]);
-	if (isNonUsTicker(row?.ticker) && col.format === "currency") {
-		return stripCurrencySymbol(formatted);
-	}
-	return formatted;
-}
-
-function sortRows(rows, col, dir) {
-	const sorted = [...rows];
-	sorted.sort((a, b) => {
-		if (col === "market_cap") {
-			return compareNullable(
-				parseMarketCap(a.market_cap),
-				parseMarketCap(b.market_cap),
-				dir,
-			);
-		}
-
-		return compareNullable(a[col], b[col], dir);
-	});
-	return sorted;
-}
-
-function getAriaSort(sortCol, sortDir, key) {
-	if (sortCol !== key) return "none";
-	return sortDir === "asc" ? "ascending" : "descending";
-}
 
 function getScrollState(scrollEl) {
 	if (!scrollEl) {
@@ -302,34 +158,6 @@ function rowWindowEqual(a, b) {
 	return a.start === b.start && a.end === b.end;
 }
 
-function getColumnDisplayValues(rows, col) {
-	if (col.key === "ticker") {
-		return rows.map((row) => getTickerCellLabel(row));
-	}
-
-	return rows.map((row) => formatCellValue(row, col));
-}
-
-function getColumnCharCounts(rows, cols) {
-	const columnCharCounts = {};
-
-	for (const col of cols) {
-		if (col.key === "ticker" || col.key === "remove") {
-			continue;
-		}
-
-		const charCount = getColumnCharCount(
-			getColumnDisplayValues(rows, col),
-			col.label || "",
-			WIDTH_GROUP_OPTIONS[col.widthGroup],
-		);
-
-		columnCharCounts[col.key] = charCount;
-	}
-
-	return columnCharCounts;
-}
-
 function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 	const {
 		canEdit,
@@ -341,7 +169,7 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
 		onSpinClick,
 		onSpinKeyDown,
 		onSpinPointerDown,
-	} = useQtyCellState({
+	} = useQuantityCellState({
 		row,
 		isUsingDemoData,
 		onSetQuantity,
@@ -526,7 +354,7 @@ function renderCell({
 	return content;
 }
 
-export function DataTable({
+export function Table({
 	tab,
 	rows,
 	sortCol,
@@ -541,6 +369,7 @@ export function DataTable({
 	searchQuery = "",
 }) {
 	const scrollRef = useRef(null);
+	const bodyTableRef = useRef(null);
 	const headerScrollRef = useRef(null);
 	const lastJumpQueryRef = useRef("");
 	const mirroredScrollTargetRef = useRef(null);
@@ -550,6 +379,7 @@ export function DataTable({
 		start: 0,
 		end: ROW_WINDOW_INITIAL_COUNT,
 	}));
+	const [headerColumnWidths, setHeaderColumnWidths] = useState([]);
 	const cols = COLS[tab];
 	const isEvaluationTab = tab === "evaluations";
 
@@ -619,6 +449,17 @@ export function DataTable({
 	]
 		.filter(Boolean)
 		.join(" ");
+	const headerTableWidth = headerColumnWidths.reduce(
+		(totalWidth, width) => totalWidth + width,
+		0,
+	);
+	const headerTableStyle = headerTableWidth
+		? {
+				width: `${headerTableWidth}px`,
+				minWidth: `${headerTableWidth}px`,
+				maxWidth: `${headerTableWidth}px`,
+			}
+		: null;
 	const tableResetKey = `${tab}:${sortCol}:${sortDir}`;
 	const effectiveRowWindow = {
 		start: Math.min(rowWindow.start, sorted.length),
@@ -631,9 +472,28 @@ export function DataTable({
 	const topSpacerHeight = effectiveRowWindow.start * TABLE_ROW_HEIGHT_PX;
 	const bottomSpacerHeight =
 		(sorted.length - effectiveRowWindow.end) * TABLE_ROW_HEIGHT_PX;
-	const renderColGroup = () => html`<colgroup key="colgroup">
+	const getBaseColumnStyle = (col) =>
+		col.key === "ticker"
+			? null
+			: getColumnWidthStyle(
+					columnCharCounts[col.key],
+					WIDTH_GROUP_OPTIONS[col.widthGroup] ?? {},
+				);
+	const getMeasuredColumnStyle = (col, colIndex) => {
+		const width = headerColumnWidths[colIndex];
+		if (!width) return getBaseColumnStyle(col);
+
+		const widthPx = `${width}px`;
+		return {
+			width: widthPx,
+			minWidth: widthPx,
+			maxWidth: widthPx,
+		};
+	};
+	const renderColGroup = ({ useMeasuredWidths = false } = {}) =>
+		html`<colgroup key="colgroup">
 		${Children.toArray(
-			cols.map((col) => {
+			cols.map((col, colIndex) => {
 				const className = [
 					getColumnClassName(col.key),
 					getColumnClusterClassName(col.cluster),
@@ -644,12 +504,9 @@ export function DataTable({
 					key=${col.key}
 					className=${className}
 					style=${
-						col.key === "ticker"
-							? null
-							: getColumnWidthStyle(
-									columnCharCounts[col.key],
-									WIDTH_GROUP_OPTIONS[col.widthGroup] ?? {},
-								)
+						useMeasuredWidths
+							? getMeasuredColumnStyle(col, colIndex)
+							: getBaseColumnStyle(col)
 					}
 				/>`;
 			}),
@@ -805,6 +662,41 @@ export function DataTable({
 			window.visualViewport?.removeEventListener("resize", updateRowWindow);
 		};
 	}, [sorted.length]);
+
+	useLayoutEffect(() => {
+		const tableEl = bodyTableRef.current;
+		if (!tableEl || !hasRows) {
+			setHeaderColumnWidths((currentWidths) =>
+				currentWidths.length === 0 ? currentWidths : [],
+			);
+			return;
+		}
+
+		const firstDataRow = tableEl.querySelector(
+			"tbody tr:not(.table-virtual-spacer):not(.table-empty-row)",
+		);
+		const nextWidths = Array.from(firstDataRow?.children || []).map(
+			(cell) => Math.round(cell.getBoundingClientRect().width * 100) / 100,
+		);
+		if (nextWidths.length !== cols.length) return;
+
+		setHeaderColumnWidths((currentWidths) => {
+			const isSameWidthSet =
+				currentWidths.length === nextWidths.length &&
+				currentWidths.every(
+					(width, index) => Math.abs(width - nextWidths[index]) < 0.5,
+				);
+			return isSameWidthSet ? currentWidths : nextWidths;
+		});
+	});
+
+	useLayoutEffect(() => {
+		const scrollEl = scrollRef.current;
+		const headerScrollEl = headerScrollRef.current;
+		if (!scrollEl || !headerScrollEl || !headerColumnWidths.length) return;
+
+		headerScrollEl.scrollLeft = scrollEl.scrollLeft;
+	}, [headerColumnWidths]);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -1014,8 +906,9 @@ export function DataTable({
 			>
 				<table
 					className=${`${tableClassName} data-table-header-clone`}
+					style=${headerTableStyle}
 				>
-					${renderColGroup()}
+					${renderColGroup({ useMeasuredWidths: true })}
 					<thead key="header-head">
 						<tr>${renderHeaderCells()}</tr>
 					</thead>
@@ -1043,7 +936,7 @@ export function DataTable({
 				style=${tableWrapperStyle}
 				onScroll=${handleScroll}
 			>
-				<table id="main-table" className=${tableClassName}>
+				<table id="main-table" ref=${bodyTableRef} className=${tableClassName}>
 					${renderColGroup()}
 					<thead key="body-head" className="table-body-head">
 						<tr>${renderHeaderCells()}</tr>
