@@ -7,7 +7,7 @@ import {
 	PortfolioNewsSummaryRequestRowSchema,
 } from "../../models/schemas.js";
 import * as newsOrchestrator from "../../news/orchestrator.js";
-import { loadEvalMap, loadStocksMap } from "../../portfolio.js";
+import { loadEvalMap, loadStocksMap } from "../../portfolio/index.js";
 import { normalizeTicker } from "../../utils.js";
 import { buildColorStandardsPayload } from "../color-standards.js";
 import { appConfig } from "../config.js";

@@ -21,7 +21,7 @@ import {
 	loadStocksMap,
 	patchPortfolioPosition,
 	removePortfolioPosition,
-} from "../portfolio.js";
+} from "../portfolio/index.js";
 
 export type JsonScalar = string | number | boolean | null;
 export type JsonValue = JsonScalar | JsonValue[] | { [key: string]: JsonValue };

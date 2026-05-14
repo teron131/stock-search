@@ -1,7 +1,7 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
 import { resolveEtfSnapshotCache } from "../etf.js";
-import { mergePortfolioRow } from "../portfolio.js";
+import { mergePortfolioRow } from "../portfolio/index.js";
 import { resolveTickerStats } from "../stats-resolver.js";
 import { normalizeTicker, nowIso } from "../utils.js";
 import type { BackendStore, PositionRow, StockEntry } from "./data-store.js";

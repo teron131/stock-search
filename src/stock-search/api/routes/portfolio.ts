@@ -7,7 +7,7 @@ import {
 	cacheControlForScope,
 	patchPortfolioPosition,
 	removePortfolioPosition,
-} from "../../portfolio.js";
+} from "../../portfolio/index.js";
 import { normalizeTicker } from "../../utils.js";
 import type { BackendStore } from "../data-store.js";
 import { importPortfolioImage } from "../import-image.js";
