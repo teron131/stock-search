@@ -5,7 +5,7 @@ import type {
 	PositionRow,
 	StockEntry,
 } from "../api/data-store.js";
-import { classifyAndResolveEtfs } from "../etf.js";
+import { classifyAndResolveEtfs } from "../etf/index.js";
 import { deriveEvaluationScores } from "../evaluation/normalization.js";
 import { Notional } from "../models/schemas.js";
 import {

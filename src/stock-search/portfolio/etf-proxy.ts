@@ -6,7 +6,7 @@ import type {
 	StockEntry,
 } from "../api/data-store.js";
 import { parseCacheTimestamp } from "../cache.js";
-import type { EtfResolutionResult } from "../etf.js";
+import type { EtfResolutionResult } from "../etf/index.js";
 import {
 	resolveTickerStatsMap,
 	type StatsResolutionResult,

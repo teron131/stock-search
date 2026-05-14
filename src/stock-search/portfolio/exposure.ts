@@ -1,8 +1,8 @@
 /** Build ETF lookthrough, notional, and sector exposure tables. */
 
 import { safeFloat } from "../common-utils.js";
-import type { EtfResolutionResult } from "../etf.js";
-import { normalizeSectorName } from "../etf.js";
+import type { EtfResolutionResult } from "../etf/index.js";
+import { normalizeSectorName } from "../etf/index.js";
 import { fetchYahooSymbolMetadata } from "../indicators.js";
 import { Notional } from "../models/schemas.js";
 import { normalizeTicker } from "../utils.js";
