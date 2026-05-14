@@ -1,5 +1,12 @@
 import { html } from "htm/react";
-import { Children, useEffect, useMemo, useRef, useState } from "react";
+import {
+	Children,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 
 import { calculateScoreColorMetadata } from "../color.js";
 import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../config.js";
@@ -189,7 +196,6 @@ function getScrollState(scrollEl) {
 			hasOverflowX: false,
 			isScrolledX: false,
 			hasMoreX: false,
-			scrollLeft: 0,
 		};
 	}
 
@@ -202,7 +208,6 @@ function getScrollState(scrollEl) {
 		hasOverflowX: maxScrollLeft > 1,
 		isScrolledX: scrollLeft > 1,
 		hasMoreX: maxScrollLeft - scrollLeft > 1,
-		scrollLeft,
 	};
 }
 
@@ -210,8 +215,7 @@ function statesEqual(a, b) {
 	return (
 		a.hasOverflowX === b.hasOverflowX &&
 		a.isScrolledX === b.isScrolledX &&
-		a.hasMoreX === b.hasMoreX &&
-		a.scrollLeft === b.scrollLeft
+		a.hasMoreX === b.hasMoreX
 	);
 }
 
@@ -491,6 +495,7 @@ export function DataTable({
 	const scrollRef = useRef(null);
 	const headerScrollRef = useRef(null);
 	const lastJumpQueryRef = useRef("");
+	const mirroredScrollTargetRef = useRef(null);
 	const [scrollState, setScrollState] = useState(() => getScrollState(null));
 	const [headerTooltip, setHeaderTooltip] = useState(null);
 	const cols = COLS[tab];
@@ -607,6 +612,14 @@ export function DataTable({
 				: null
 		}
 	`;
+	const markMirroredScrollTarget = useCallback((targetName) => {
+		mirroredScrollTargetRef.current = targetName;
+		requestAnimationFrame(() => {
+			if (mirroredScrollTargetRef.current === targetName) {
+				mirroredScrollTargetRef.current = null;
+			}
+		});
+	}, []);
 	const showHeaderTooltip = (c, event) => {
 		const rect = event.currentTarget.getBoundingClientRect();
 		setHeaderTooltip({
@@ -697,6 +710,7 @@ export function DataTable({
 
 			event.preventDefault();
 			scrollEl.scrollLeft = nextScrollLeft;
+			markMirroredScrollTarget("header");
 			syncHorizontalScroll(scrollEl, headerScrollEl);
 			syncScrollState(setScrollState, scrollEl);
 		};
@@ -708,7 +722,7 @@ export function DataTable({
 			scrollEl.removeEventListener("wheel", handleWheel, wheelOptions);
 			headerScrollEl?.removeEventListener("wheel", handleWheel, wheelOptions);
 		};
-	}, []);
+	}, [markMirroredScrollTarget]);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -751,18 +765,37 @@ export function DataTable({
 	function handleScroll(event) {
 		const scrollEl = event.currentTarget;
 		const headerScrollEl = headerScrollRef.current;
+		if (mirroredScrollTargetRef.current === "body") {
+			mirroredScrollTargetRef.current = null;
+			return;
+		}
 		hideHeaderTooltip();
-		syncHorizontalScroll(scrollEl, headerScrollEl);
+		if (headerScrollEl) {
+			markMirroredScrollTarget("header");
+			const didSync = syncHorizontalScroll(scrollEl, headerScrollEl);
+			if (!didSync) {
+				mirroredScrollTargetRef.current = null;
+			}
+		}
 		syncScrollState(setScrollState, scrollEl);
 	}
 
 	function handleHeaderScroll(event) {
 		const headerScrollEl = event.currentTarget;
 		const scrollEl = scrollRef.current;
-		hideHeaderTooltip();
-		if (scrollEl && syncHorizontalScroll(headerScrollEl, scrollEl)) {
-			syncScrollState(setScrollState, scrollEl);
+		if (mirroredScrollTargetRef.current === "header") {
+			mirroredScrollTargetRef.current = null;
+			return;
 		}
+		hideHeaderTooltip();
+		if (!scrollEl) return;
+
+		markMirroredScrollTarget("body");
+		const didSync = syncHorizontalScroll(headerScrollEl, scrollEl);
+		if (!didSync) {
+			mirroredScrollTargetRef.current = null;
+		}
+		syncScrollState(setScrollState, scrollEl);
 	}
 
 	const renderTableCells = (row) =>
