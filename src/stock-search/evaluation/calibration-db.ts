@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
+import { SQLiteStore } from "../sqlite-store.js";
 import { normalizeTicker } from "../utils.js";
 import { calibrationDbPath, resetScoreAnchorsCache } from "./anchors.js";
 
@@ -89,31 +90,11 @@ type SyncEvaluationCalibrationOptions = {
 	insertMissingRows?: boolean;
 	logWarnings?: boolean;
 };
-type SqlStatement = ReturnType<DatabaseSync["prepare"]>;
-type CalibrationStatements = {
-	selectStock: SqlStatement;
-	upsertStock: SqlStatement;
-};
 type ExistingCalibrationStock = {
 	indicators: Record<string, unknown>;
 	evaluation: Record<string, unknown>;
 	labels: string[];
 };
-
-function jsonParse<T>(value: unknown, fallback: T): T {
-	if (typeof value !== "string") {
-		return fallback;
-	}
-	try {
-		return JSON.parse(value) as T;
-	} catch {
-		return fallback;
-	}
-}
-
-function jsonStringify(value: unknown): string {
-	return JSON.stringify(value);
-}
 
 function asNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -229,17 +210,6 @@ export function ensureCalibrationStatsTable(database: DatabaseSync): void {
 	`);
 }
 
-function ensureCalibrationStocksTable(database: DatabaseSync): void {
-	database.exec(`
-		CREATE TABLE IF NOT EXISTS stocks (
-			ticker TEXT PRIMARY KEY,
-			indicators_json TEXT NOT NULL,
-			evaluation_json TEXT NOT NULL,
-			labels_json TEXT NOT NULL
-		);
-	`);
-}
-
 function calibrationStatsValues(
 	ticker: string,
 	indicators: Record<string, unknown>,
@@ -317,69 +287,32 @@ function openWritableCalibrationDatabase(dbPath: string): DatabaseSync {
 	const database = new DatabaseSync(dbPath);
 	database.exec("PRAGMA journal_mode=WAL");
 	database.exec("PRAGMA busy_timeout=250");
-	ensureCalibrationStocksTable(database);
 	ensureCalibrationStatsTable(database);
 	return database;
 }
 
-function prepareCalibrationStatements(
-	database: DatabaseSync,
-): CalibrationStatements {
-	return {
-		selectStock: database.prepare(`
-			SELECT indicators_json, evaluation_json, labels_json
-			FROM stocks
-			WHERE ticker = ?
-		`),
-		upsertStock: database.prepare(`
-			INSERT INTO stocks (ticker, indicators_json, evaluation_json, labels_json)
-			VALUES (?, ?, ?, ?)
-			ON CONFLICT(ticker) DO UPDATE SET
-				indicators_json = excluded.indicators_json,
-				evaluation_json = excluded.evaluation_json,
-				labels_json = excluded.labels_json
-		`),
-	};
-}
-
-function loadExistingCalibrationStock(
-	statement: SqlStatement,
+async function loadExistingCalibrationStock(
+	store: SQLiteStore,
 	ticker: string,
-): ExistingCalibrationStock | null {
-	const existing = statement.get(ticker) as
-		| {
-				indicators_json: string;
-				evaluation_json: string;
-				labels_json: string;
-		  }
-		| undefined;
+): Promise<ExistingCalibrationStock | null> {
+	const existing = await store.loadStock(ticker);
 	if (!existing) {
 		return null;
 	}
-	return {
-		indicators: jsonParse<Record<string, unknown>>(
-			existing.indicators_json,
-			{},
-		),
-		evaluation: jsonParse<Record<string, unknown>>(
-			existing.evaluation_json,
-			{},
-		),
-		labels: jsonParse<string[]>(existing.labels_json, []).filter(Boolean),
-	};
+	return existing;
 }
 
-function syncEvaluationCalibrationRow(
+async function syncEvaluationCalibrationRow(
+	store: SQLiteStore,
 	database: DatabaseSync,
-	statements: CalibrationStatements,
 	row: CalibrationStockRow,
 	insertMissingRows: boolean,
-): boolean {
+): Promise<boolean> {
 	const ticker = normalizeTicker(row.ticker);
 	if (!ticker || row.indicators == null) {
 		return false;
 	}
-	const existing = loadExistingCalibrationStock(statements.selectStock, ticker);
+	const existing = await loadExistingCalibrationStock(store, ticker);
 	if (!existing && !insertMissingRows) {
 		return false;
 	}
@@ -393,43 +326,33 @@ function syncEvaluationCalibrationRow(
 	);
 	const evaluation = row.evaluation ?? existing?.evaluation ?? {};
 	const labels = row.labels ?? existing?.labels ?? [];
-	statements.upsertStock.run(
-		ticker,
-		jsonStringify(indicators),
-		jsonStringify(evaluation),
-		jsonStringify(labels),
-	);
+	await store.upsertStocks([{ ticker, indicators, evaluation, labels }]);
 	runCalibrationStatsRowUpsert(database, ticker, indicators);
 	return true;
 }
 
-export function syncEvaluationCalibrationRows(
+export async function syncEvaluationCalibrationRows(
 	rows: CalibrationStockRow[],
 	options: SyncEvaluationCalibrationOptions = {},
-): number {
+): Promise<number> {
 	const dbPath = path.resolve(options.dbPath ?? calibrationDbPath());
 	if (options.insertMissingRows !== true && !existsSync(dbPath)) {
 		return 0;
 	}
+	const store = new SQLiteStore(dbPath);
 	const database = openWritableCalibrationDatabase(dbPath);
-	const statements = prepareCalibrationStatements(database);
 	let changedCount = 0;
-	database.exec("BEGIN");
 	try {
 		for (const row of rows) {
-			changedCount += syncEvaluationCalibrationRow(
+			changedCount += (await syncEvaluationCalibrationRow(
+				store,
 				database,
-				statements,
 				row,
 				options.insertMissingRows === true,
-			)
+			))
 				? 1
 				: 0;
 		}
-		database.exec("COMMIT");
-	} catch (error) {
-		database.exec("ROLLBACK");
-		throw error;
 	} finally {
 		database.close();
 	}
@@ -449,16 +372,18 @@ export function queueEvaluationCalibrationRowsSync(
 		return;
 	}
 	setTimeout(() => {
-		try {
-			syncEvaluationCalibrationRows(syncRows, options);
-		} catch (error) {
-			if (options.logWarnings === false) {
-				return;
+		void (async () => {
+			try {
+				await syncEvaluationCalibrationRows(syncRows, options);
+			} catch (error) {
+				if (options.logWarnings === false) {
+					return;
+				}
+				console.warn(
+					"Evaluation calibration sync skipped.",
+					error instanceof Error ? error.message : error,
+				);
 			}
-			console.warn(
-				"Evaluation calibration sync skipped.",
-				error instanceof Error ? error.message : error,
-			);
-		}
+		})();
 	}, 0);
 }

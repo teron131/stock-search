@@ -314,24 +314,17 @@ function asNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function calibrationStatsSummary(dbPath: string): {
+async function calibrationStatsSummary(dbPath: string): Promise<{
 	rowCount: number;
 	completeCount: number;
 	incompleteCount: number;
 	fieldCounts: Record<string, number>;
-} {
+}> {
 	const database = new DatabaseSync(dbPath);
 	ensureCalibrationStatsTable(database);
+	const store = new SQLiteStore(dbPath);
 
-	const rows = database
-		.prepare(
-			`
-			SELECT ticker, indicators_json
-			FROM stocks
-			ORDER BY ticker ASC
-			`,
-		)
-		.all() as Array<{ ticker: string; indicators_json: string }>;
+	const stocks = await store.loadStocks();
 	const fieldCounts = Object.fromEntries(
 		SCORE_FIELD_NAMES.map((fieldName) => [fieldName, 0]),
 	) as Record<string, number>;
@@ -339,11 +332,8 @@ function calibrationStatsSummary(dbPath: string): {
 
 	database.exec("BEGIN");
 	try {
-		for (const row of rows) {
-			const indicators = JSON.parse(row.indicators_json) as Record<
-				string,
-				unknown
-			>;
+		for (const [ticker, stock] of Object.entries(stocks)) {
+			const indicators = stock.indicators;
 			for (const fieldName of SCORE_FIELD_NAMES) {
 				if (indicators[fieldName] != null) {
 					fieldCounts[fieldName] += 1;
@@ -353,7 +343,7 @@ function calibrationStatsSummary(dbPath: string): {
 			if (isComplete) {
 				completeCount += 1;
 			}
-			upsertCalibrationStatsRow(database, row.ticker, indicators);
+			upsertCalibrationStatsRow(database, ticker, indicators);
 		}
 		database.exec("COMMIT");
 	} catch (error) {
@@ -363,9 +353,9 @@ function calibrationStatsSummary(dbPath: string): {
 	database.close();
 
 	return {
-		rowCount: rows.length,
+		rowCount: Object.keys(stocks).length,
 		completeCount,
-		incompleteCount: rows.length - completeCount,
+		incompleteCount: Object.keys(stocks).length - completeCount,
 		fieldCounts,
 	};
 }
@@ -380,12 +370,13 @@ function dropCalibrationAuxiliaryTables(dbPath: string): void {
 	database.close();
 }
 
-function loadCalibrationRowState(
+async function loadCalibrationRowState(
 	dbPath: string,
 	tickers: string[],
-): Map<string, { exists: boolean; isComplete: boolean }> {
+): Promise<Map<string, { exists: boolean; isComplete: boolean }>> {
 	const database = new DatabaseSync(dbPath);
 	ensureCalibrationStatsTable(database);
+	const store = new SQLiteStore(dbPath);
 	const normalizedTickers = [
 		...new Set(tickers.map(normalizeTicker).filter(Boolean)),
 	];
@@ -396,34 +387,30 @@ function loadCalibrationRowState(
 	}
 
 	const placeholders = normalizedTickers.map(() => "?").join(", ");
-	const rows = database
+	const statsRows = database
 		.prepare(
 			`
-			SELECT
-				s.ticker,
-				s.indicators_json,
-				cs.is_complete
-			FROM stocks s
-			LEFT JOIN calibration_stats cs ON cs.ticker = s.ticker
-			WHERE s.ticker IN (${placeholders})
+			SELECT ticker, is_complete
+			FROM calibration_stats
+			WHERE ticker IN (${placeholders})
 			`,
 		)
 		.all(...normalizedTickers) as Array<{
 		ticker: string;
-		indicators_json: string;
 		is_complete: number | null;
 	}>;
-	for (const row of rows) {
-		const indicators = JSON.parse(row.indicators_json) as Record<
-			string,
-			unknown
-		>;
-		rowState.set(normalizeTicker(row.ticker), {
+	const statsByTicker = Object.fromEntries(
+		statsRows.map((row) => [normalizeTicker(row.ticker), row.is_complete]),
+	);
+	const stocks = await store.loadStocksByTickers(normalizedTickers);
+	for (const [ticker, stock] of Object.entries(stocks)) {
+		const completeFlag = statsByTicker[ticker];
+		rowState.set(ticker, {
 			exists: true,
 			isComplete:
-				row.is_complete == null
-					? isCompleteCalibrationScoreRow(indicators)
-					: Number(row.is_complete) === 1,
+				completeFlag == null
+					? isCompleteCalibrationScoreRow(stock.indicators)
+					: Number(completeFlag) === 1,
 		});
 	}
 	database.close();
@@ -487,13 +474,13 @@ async function syncNewerAppRows(
 	});
 }
 
-function selectFetchTickers(
+async function selectFetchTickers(
 	options: ScriptOptions,
 	candidateTickers: string[],
-): {
+): Promise<{
 	selectedTickers: string[];
 	skippedCompleteCount: number;
-} {
+}> {
 	if (options.force) {
 		return {
 			selectedTickers: candidateTickers,
@@ -501,7 +488,10 @@ function selectFetchTickers(
 		};
 	}
 
-	const rowState = loadCalibrationRowState(options.dbPath, candidateTickers);
+	const rowState = await loadCalibrationRowState(
+		options.dbPath,
+		candidateTickers,
+	);
 	const selectedTickers = candidateTickers.filter((ticker) => {
 		const state = rowState.get(ticker);
 		if (!state?.exists) {
@@ -588,12 +578,12 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 			}),
 		);
 	}
-	syncEvaluationCalibrationRows(updatedRows, {
+	await syncEvaluationCalibrationRows(updatedRows, {
 		dbPath: options.dbPath,
 		insertMissingRows: true,
 	});
 
-	const flatTable = calibrationStatsSummary(options.dbPath);
+	const flatTable = await calibrationStatsSummary(options.dbPath);
 	dropCalibrationAuxiliaryTables(options.dbPath);
 	console.log(
 		JSON.stringify(
@@ -651,7 +641,7 @@ async function main(): Promise<void> {
 	}
 
 	if (options.schemaOnly) {
-		const flatTable = calibrationStatsSummary(options.dbPath);
+		const flatTable = await calibrationStatsSummary(options.dbPath);
 		dropCalibrationAuxiliaryTables(options.dbPath);
 		console.log(
 			JSON.stringify(
@@ -682,7 +672,7 @@ async function main(): Promise<void> {
 	const candidateTickers =
 		options.limit == null ? tickers : tickers.slice(0, options.limit);
 	const newerAppStockCount = await syncNewerAppRows(options, candidateTickers);
-	const { selectedTickers, skippedCompleteCount } = selectFetchTickers(
+	const { selectedTickers, skippedCompleteCount } = await selectFetchTickers(
 		options,
 		candidateTickers,
 	);
@@ -721,7 +711,7 @@ async function main(): Promise<void> {
 		options,
 		selectedTickers,
 	);
-	syncEvaluationCalibrationRows(updatedRows, {
+	await syncEvaluationCalibrationRows(updatedRows, {
 		dbPath: options.dbPath,
 		insertMissingRows: true,
 	});
@@ -729,7 +719,7 @@ async function main(): Promise<void> {
 	const stocks = await store.loadStocksByTickers(selectedTickers);
 	const rows = Object.values(stocks).map((stock) => stock.indicators);
 	const counts = countFields(rows);
-	const flatTable = calibrationStatsSummary(options.dbPath);
+	const flatTable = await calibrationStatsSummary(options.dbPath);
 	dropCalibrationAuxiliaryTables(options.dbPath);
 
 	console.log(
