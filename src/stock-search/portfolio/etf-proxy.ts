@@ -7,6 +7,7 @@ import type {
 } from "../api/data-store.js";
 import { parseCacheTimestamp } from "../cache.js";
 import type { EtfResolutionResult } from "../etf/index.js";
+import type { StatsFamily } from "../stats-families.js";
 import {
 	resolveTickerStatsMap,
 	type StatsResolutionResult,
@@ -31,6 +32,10 @@ const ETF_PROXY_TIMESTAMP_FIELDS = [
 	"statistics_fetched_at",
 	"financials_fetched_at",
 ] as const;
+const ETF_PROXY_REFRESH_FAMILIES = [
+	"statistics",
+	"financials",
+] as const satisfies readonly StatsFamily[];
 const NON_STOCK_ETF_HOLDING_SUFFIXES = new Set(["TRS"]);
 const ETF_PROXY_STAT_FIELDS = [
 	"market_cap",
@@ -363,17 +368,30 @@ export async function resolveEtfProxyStocks({
 	}
 
 	const now = Date.now();
-	const refreshTickers = uniqueTickers(
+	const normalRefresh = uniqueTickers(
+		tickers.filter((ticker) => normalRefreshTickers.has(ticker)),
+	);
+	const proxyRefresh = uniqueTickers(
 		tickers.filter(
 			(ticker) =>
-				normalRefreshTickers.has(ticker) ||
+				!normalRefreshTickers.has(ticker) &&
 				!hasFreshEtfProxyStats(stockEntries[ticker], now),
 		),
 	);
-	const liveResults =
-		refreshTickers.length > 0
-			? await resolveTickerStatsMap(store, refreshTickers, "auto", stockEntries)
-			: {};
+	const [normalResults, proxyResults] = await Promise.all([
+		normalRefresh.length > 0
+			? resolveTickerStatsMap(store, normalRefresh, "auto", stockEntries)
+			: Promise.resolve({}),
+		proxyRefresh.length > 0
+			? resolveTickerStatsMap(store, proxyRefresh, "auto", stockEntries, {
+					families: ETF_PROXY_REFRESH_FAMILIES,
+				})
+			: Promise.resolve({}),
+	]);
+	const liveResults = {
+		...normalResults,
+		...proxyResults,
+	};
 	return {
 		stocks: mergeLiveResultsIntoStocks(stockEntries, liveResults),
 		liveResults,

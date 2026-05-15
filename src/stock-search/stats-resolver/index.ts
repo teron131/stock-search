@@ -15,6 +15,10 @@ import type {
 
 export type { StatsResolutionMode, StatsResolutionResult } from "./types.js";
 
+type StatsResolutionOptions = {
+	families?: readonly StatsFamily[];
+};
+
 async function mapWithConcurrency<T, U>(
 	items: T[],
 	concurrency: number,
@@ -39,7 +43,7 @@ async function mapWithConcurrency<T, U>(
 
 function classifyDataSource(
 	mode: StatsResolutionMode,
-	families: Record<StatsFamily, FamilyResolution>,
+	families: Partial<Record<StatsFamily, FamilyResolution>>,
 ): "cache" | "live" | "live_with_cache_fallback" {
 	if (mode === "cache") {
 		return "cache";
@@ -58,6 +62,7 @@ export async function resolveTickerStats(
 	tickerInput: string,
 	mode: StatsResolutionMode,
 	stockEntryOverride?: StockEntry | null,
+	options: StatsResolutionOptions = {},
 ): Promise<StatsResolutionResult> {
 	const ticker = normalizeTicker(tickerInput);
 	if (!ticker) {
@@ -66,10 +71,11 @@ export async function resolveTickerStats(
 
 	const stockEntry = stockEntryOverride ?? (await store.loadStock(ticker));
 	const persistedRow = { ...(stockEntry?.indicators ?? {}) };
-	const families = {} as Record<StatsFamily, FamilyResolution>;
+	const families: Partial<Record<StatsFamily, FamilyResolution>> = {};
+	const familiesToResolve = options.families ?? STAT_FAMILIES;
 	const bundle = new ProviderBundle(ticker);
 
-	for (const family of STAT_FAMILIES) {
+	for (const family of familiesToResolve) {
 		families[family] = await resolveFamily({
 			bundle,
 			store,
@@ -102,6 +108,7 @@ export async function resolveTickerStatsMap(
 	tickers: string[],
 	mode: StatsResolutionMode,
 	stockEntries?: Record<string, StockEntry>,
+	options: StatsResolutionOptions = {},
 ): Promise<Record<string, StatsResolutionResult>> {
 	const unique = [
 		...new Set(
@@ -121,6 +128,7 @@ export async function resolveTickerStatsMap(
 					ticker,
 					mode,
 					prefetchedStocks[ticker] ?? null,
+					options,
 				),
 			] as const,
 	);

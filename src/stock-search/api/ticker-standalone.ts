@@ -1,6 +1,14 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
-import { resolveEtfSnapshotCache } from "../etf/index.js";
+import {
+	type EtfResolutionResult,
+	type EtfSnapshotResult,
+	resolveEtfSnapshotCache,
+} from "../etf/index.js";
+import {
+	applyEtfProxyStatsToStocks,
+	resolveEtfProxyStocks,
+} from "../portfolio/etf-proxy.js";
 import { mergePortfolioRow } from "../portfolio/index.js";
 import { resolveTickerStats } from "../stats-resolver/index.js";
 import { normalizeTicker, nowIso } from "../utils.js";
@@ -16,6 +24,12 @@ type StandaloneTickerPayload = {
 		sync_mode: string;
 	};
 };
+type StandaloneEtfEntry = {
+	stockEntry: StockEntry;
+	snapshot: EtfSnapshotResult | null;
+};
+
+const STANDALONE_ETF_PROXY_SCOPE = "portfolio_live";
 
 function makePosition(ticker: string): PositionRow {
 	return { ticker, quantity: 0, strategy: null };
@@ -72,9 +86,9 @@ async function enrichStandaloneEtfEntry(
 	store: BackendStore,
 	ticker: string,
 	stockEntry: StockEntry,
-): Promise<StockEntry> {
+): Promise<StandaloneEtfEntry> {
 	if (!hasEtfSnapshotSignal(stockEntry.indicators)) {
-		return stockEntry;
+		return { stockEntry, snapshot: null };
 	}
 
 	const snapshotCache = await resolveEtfSnapshotCache(ticker, stockEntry, true);
@@ -104,9 +118,59 @@ async function enrichStandaloneEtfEntry(
 	}
 
 	return {
-		...stockEntry,
-		indicators,
+		stockEntry: {
+			...stockEntry,
+			indicators,
+		},
+		snapshot: snapshotCache.snapshot,
 	};
+}
+
+function standaloneEtfResolution(
+	ticker: string,
+	snapshot: EtfSnapshotResult,
+): EtfResolutionResult {
+	return {
+		stockPositions: [],
+		etfPositions: [makePosition(ticker)],
+		snapshotByTicker: {
+			[ticker]: snapshot,
+		},
+		etfRefreshedCount: 0,
+		cacheChanged: false,
+		changedTickers: [],
+	};
+}
+
+async function applyStandaloneEtfProxyStats(
+	store: BackendStore,
+	ticker: string,
+	stockEntry: StockEntry,
+	snapshot: EtfSnapshotResult | null,
+): Promise<StockEntry> {
+	if (!snapshot || snapshot.holdings.length === 0) {
+		return stockEntry;
+	}
+
+	const resolution = standaloneEtfResolution(ticker, snapshot);
+	const proxyStockResolution = await resolveEtfProxyStocks({
+		store,
+		resolution,
+		knownStocks: {
+			[ticker]: stockEntry,
+		},
+		scope: STANDALONE_ETF_PROXY_SCOPE,
+		normalRefreshTickers: new Set(),
+	});
+	return (
+		applyEtfProxyStatsToStocks(
+			{
+				[ticker]: stockEntry,
+			},
+			resolution,
+			proxyStockResolution.stocks,
+		)[ticker] ?? stockEntry
+	);
 }
 
 async function loadTickerContext(
@@ -165,10 +229,16 @@ export async function buildStandaloneTickerPayload(
 				resolveTickerStats(store, tickerSymbol, source, context.stockEntry),
 			),
 		]);
-		const stockEntry = await enrichStandaloneEtfEntry(store, tickerSymbol, {
+		const etfEntry = await enrichStandaloneEtfEntry(store, tickerSymbol, {
 			...context.stockEntry,
 			indicators: resolved.row,
 		});
+		const stockEntry = await applyStandaloneEtfProxyStats(
+			store,
+			tickerSymbol,
+			etfEntry.stockEntry,
+			etfEntry.snapshot,
+		);
 		return buildStandalonePayload(
 			store,
 			mergePortfolioRow(context.position, stockEntry),

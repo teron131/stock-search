@@ -23,7 +23,7 @@ export type FamilyResolution = {
 export type StatsResolutionResult = {
 	row: Record<string, unknown>;
 	dataSource: "cache" | "live" | "live_with_cache_fallback";
-	families: Record<StatsFamily, FamilyResolution>;
+	families: Partial<Record<StatsFamily, FamilyResolution>>;
 };
 
 export type FamilyCacheEntry = {
