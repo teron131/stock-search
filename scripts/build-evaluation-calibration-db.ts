@@ -3,42 +3,36 @@ import { DatabaseSync } from "node:sqlite";
 
 import { ExaLoadAgent } from "llm-harness-js/agents";
 
+import { calibrationDbPath } from "../src/stock-search/evaluation/anchors.js";
+import {
+	type CalibrationStockRow,
+	ensureCalibrationStatsTable,
+	indicatorsAreNewer,
+	isCompleteCalibrationScoreRow,
+	mergeNonNullFields,
+	CALIBRATION_SCORE_FIELD_NAMES as SCORE_FIELD_NAMES,
+	syncEvaluationCalibrationRows,
+	upsertCalibrationStatsRow,
+} from "../src/stock-search/evaluation/calibration-db.js";
 import { fetchStockAnalysisStatistics } from "../src/stock-search/indicators.js";
 import { SQLiteStore } from "../src/stock-search/sqlite-store.js";
 import {
 	resolveTickerStats,
 	type StatsResolutionMode,
-} from "../src/stock-search/stats-resolver.js";
+} from "../src/stock-search/stats-resolver/index.js";
 import { normalizeTicker, nowIso } from "../src/stock-search/utils.js";
 
 const DEFAULT_LIST_URL = "https://stockanalysis.com/list/sp-500-stocks/";
 const FALLBACK_LIST_URL =
 	"https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv";
-const DEFAULT_DB_PATH = path.resolve("data/evaluation_calibration.db");
+const DEFAULT_APP_DB_PATH = path.resolve("data/stock_search.db");
 const DEFAULT_BATCH_SIZE = 25;
-const SCORE_FIELD_NAMES = [
-	"market_cap",
-	"peg",
-	"pe",
-	"pe_forward",
-	"ps",
-	"ps_forward",
-	"debt_to_equity",
-	"free_cash_flow",
-	"shareholder_yield",
-	"revenue",
-	"revenue_growth",
-	"eps_growth",
-	"gross_margin",
-	"operating_margin",
-	"roe",
-	"roic",
-	"median_upside",
-] as const;
 
 type ScriptOptions = {
+	appDbPath: string;
 	batchSize: number;
 	dbPath: string;
+	force: boolean;
 	limit: number | null;
 	listUrl: string;
 	missingOnly: boolean;
@@ -60,10 +54,14 @@ type TickerList = {
 
 function parseArgs(argv: string[]): ScriptOptions {
 	const options: ScriptOptions = {
+		appDbPath: process.env.APP_SQLITE_PATH
+			? path.resolve(process.env.APP_SQLITE_PATH)
+			: DEFAULT_APP_DB_PATH,
 		batchSize: DEFAULT_BATCH_SIZE,
 		dbPath: process.env.CALIBRATION_SQLITE_PATH
 			? path.resolve(process.env.CALIBRATION_SQLITE_PATH)
-			: DEFAULT_DB_PATH,
+			: calibrationDbPath(),
+		force: false,
 		limit: null,
 		listUrl: DEFAULT_LIST_URL,
 		missingOnly: false,
@@ -84,9 +82,18 @@ function parseArgs(argv: string[]): ScriptOptions {
 			index += 1;
 			continue;
 		}
+		if (arg === "--app-db" && next) {
+			options.appDbPath = path.resolve(next);
+			index += 1;
+			continue;
+		}
 		if (arg === "--db" && next) {
 			options.dbPath = path.resolve(next);
 			index += 1;
+			continue;
+		}
+		if (arg === "--force") {
+			options.force = true;
 			continue;
 		}
 		if (arg === "--limit" && next) {
@@ -303,70 +310,18 @@ function countFields(
 	return counts;
 }
 
-function hasAllScoreFields(row: Record<string, unknown> | undefined): boolean {
-	return (
-		!!row && SCORE_FIELD_NAMES.every((fieldName) => row[fieldName] != null)
-	);
-}
-
 function asNumber(value: unknown): number | null {
 	return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function asText(value: unknown): string | null {
-	return typeof value === "string" && value.trim() ? value : null;
-}
-
-function createCalibrationStatsTable(dbPath: string): {
+function calibrationStatsSummary(dbPath: string): {
 	rowCount: number;
 	completeCount: number;
 	incompleteCount: number;
 	fieldCounts: Record<string, number>;
 } {
 	const database = new DatabaseSync(dbPath);
-	database.exec(`
-		DROP TABLE IF EXISTS calibration_stats;
-		CREATE TABLE calibration_stats (
-			ticker TEXT PRIMARY KEY,
-			name TEXT,
-			sector_name TEXT,
-			industry_name TEXT,
-			quote_type TEXT,
-			fx TEXT,
-			price REAL,
-			change REAL,
-			change_percent_1d REAL,
-			market_cap REAL,
-			peg REAL,
-			pe REAL,
-			pe_forward REAL,
-			ps REAL,
-			ps_forward REAL,
-			debt_to_equity REAL,
-			free_cash_flow REAL,
-			shareholder_yield REAL,
-			revenue REAL,
-			revenue_growth REAL,
-			eps_growth REAL,
-			gross_margin REAL,
-			operating_margin REAL,
-			roe REAL,
-			roic REAL,
-			median_upside REAL,
-			is_complete INTEGER NOT NULL,
-			missing_score_fields TEXT NOT NULL,
-			missing_score_field_count INTEGER NOT NULL,
-			market_data_fetched_at TEXT,
-			market_snapshot_fetched_at TEXT,
-			statistics_fetched_at TEXT,
-			financials_fetched_at TEXT,
-			ratings_fetched_at TEXT
-		);
-		CREATE INDEX calibration_stats_complete_idx
-			ON calibration_stats (is_complete, missing_score_field_count);
-		CREATE INDEX calibration_stats_sector_idx
-			ON calibration_stats (sector_name);
-	`);
+	ensureCalibrationStatsTable(database);
 
 	const rows = database
 		.prepare(
@@ -377,44 +332,6 @@ function createCalibrationStatsTable(dbPath: string): {
 			`,
 		)
 		.all() as Array<{ ticker: string; indicators_json: string }>;
-	const insert = database.prepare(`
-		INSERT INTO calibration_stats (
-			ticker,
-			name,
-			sector_name,
-			industry_name,
-			quote_type,
-			fx,
-			price,
-			change,
-			change_percent_1d,
-			market_cap,
-			peg,
-			pe,
-			pe_forward,
-			ps,
-			ps_forward,
-			debt_to_equity,
-			free_cash_flow,
-			shareholder_yield,
-			revenue,
-			revenue_growth,
-			eps_growth,
-			gross_margin,
-			operating_margin,
-			roe,
-			roic,
-			median_upside,
-			is_complete,
-			missing_score_fields,
-			missing_score_field_count,
-			market_data_fetched_at,
-			market_snapshot_fetched_at,
-			statistics_fetched_at,
-			financials_fetched_at,
-			ratings_fetched_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`);
 	const fieldCounts = Object.fromEntries(
 		SCORE_FIELD_NAMES.map((fieldName) => [fieldName, 0]),
 	) as Record<string, number>;
@@ -427,55 +344,16 @@ function createCalibrationStatsTable(dbPath: string): {
 				string,
 				unknown
 			>;
-			const missingScoreFields = SCORE_FIELD_NAMES.filter(
-				(fieldName) => indicators[fieldName] == null,
-			);
 			for (const fieldName of SCORE_FIELD_NAMES) {
 				if (indicators[fieldName] != null) {
 					fieldCounts[fieldName] += 1;
 				}
 			}
-			const isComplete = missingScoreFields.length === 0;
+			const isComplete = isCompleteCalibrationScoreRow(indicators);
 			if (isComplete) {
 				completeCount += 1;
 			}
-
-			insert.run(
-				row.ticker,
-				asText(indicators.name),
-				asText(indicators.sector_name),
-				asText(indicators.industry_name),
-				asText(indicators.quote_type),
-				asText(indicators.fx),
-				asNumber(indicators.price),
-				asNumber(indicators.change),
-				asNumber(indicators.change_percent_1d),
-				asNumber(indicators.market_cap),
-				asNumber(indicators.peg),
-				asNumber(indicators.pe),
-				asNumber(indicators.pe_forward),
-				asNumber(indicators.ps),
-				asNumber(indicators.ps_forward),
-				asNumber(indicators.debt_to_equity),
-				asNumber(indicators.free_cash_flow),
-				asNumber(indicators.shareholder_yield),
-				asNumber(indicators.revenue),
-				asNumber(indicators.revenue_growth),
-				asNumber(indicators.eps_growth),
-				asNumber(indicators.gross_margin),
-				asNumber(indicators.operating_margin),
-				asNumber(indicators.roe),
-				asNumber(indicators.roic),
-				asNumber(indicators.median_upside),
-				isComplete ? 1 : 0,
-				missingScoreFields.join(","),
-				missingScoreFields.length,
-				asText(indicators.market_data_fetched_at),
-				asText(indicators.market_snapshot_fetched_at),
-				asText(indicators.statistics_fetched_at),
-				asText(indicators.financials_fetched_at),
-				asText(indicators.ratings_fetched_at),
-			);
+			upsertCalibrationStatsRow(database, row.ticker, indicators);
 		}
 		database.exec("COMMIT");
 	} catch (error) {
@@ -502,27 +380,175 @@ function dropCalibrationAuxiliaryTables(dbPath: string): void {
 	database.close();
 }
 
+function loadCalibrationRowState(
+	dbPath: string,
+	tickers: string[],
+): Map<string, { exists: boolean; isComplete: boolean }> {
+	const database = new DatabaseSync(dbPath);
+	ensureCalibrationStatsTable(database);
+	const normalizedTickers = [
+		...new Set(tickers.map(normalizeTicker).filter(Boolean)),
+	];
+	const rowState = new Map<string, { exists: boolean; isComplete: boolean }>();
+	if (normalizedTickers.length === 0) {
+		database.close();
+		return rowState;
+	}
+
+	const placeholders = normalizedTickers.map(() => "?").join(", ");
+	const rows = database
+		.prepare(
+			`
+			SELECT
+				s.ticker,
+				s.indicators_json,
+				cs.is_complete
+			FROM stocks s
+			LEFT JOIN calibration_stats cs ON cs.ticker = s.ticker
+			WHERE s.ticker IN (${placeholders})
+			`,
+		)
+		.all(...normalizedTickers) as Array<{
+		ticker: string;
+		indicators_json: string;
+		is_complete: number | null;
+	}>;
+	for (const row of rows) {
+		const indicators = JSON.parse(row.indicators_json) as Record<
+			string,
+			unknown
+		>;
+		rowState.set(normalizeTicker(row.ticker), {
+			exists: true,
+			isComplete:
+				row.is_complete == null
+					? isCompleteCalibrationScoreRow(indicators)
+					: Number(row.is_complete) === 1,
+		});
+	}
+	database.close();
+	return rowState;
+}
+
+async function syncNewerAppRows(
+	options: ScriptOptions,
+	tickers: string[],
+): Promise<number> {
+	const normalizedTickers = [
+		...new Set(tickers.map(normalizeTicker).filter(Boolean)),
+	];
+	if (normalizedTickers.length === 0) {
+		return 0;
+	}
+
+	const [calibrationStore, appStore] = [
+		new SQLiteStore(options.dbPath),
+		new SQLiteStore(options.appDbPath),
+	];
+	const [calibrationStocks, appStocks] = await Promise.all([
+		calibrationStore.loadStocksByTickers(normalizedTickers),
+		appStore.loadStocksByTickers(normalizedTickers),
+	]);
+	const upserts: CalibrationStockRow[] = [];
+	for (const ticker of normalizedTickers) {
+		const appStock = appStocks[ticker];
+		if (!appStock) {
+			continue;
+		}
+		const calibrationStock = calibrationStocks[ticker];
+		if (
+			!indicatorsAreNewer(appStock.indicators, calibrationStock?.indicators)
+		) {
+			continue;
+		}
+		upserts.push({
+			ticker,
+			indicators: mergeNonNullFields(
+				calibrationStock?.indicators ?? {},
+				appStock.indicators,
+			),
+			evaluation:
+				Object.keys(calibrationStock?.evaluation ?? {}).length > 0
+					? (calibrationStock?.evaluation ?? {})
+					: appStock.evaluation,
+			labels:
+				(calibrationStock?.labels.length ?? 0) > 0
+					? (calibrationStock?.labels ?? [])
+					: appStock.labels,
+		});
+	}
+	if (upserts.length === 0) {
+		return 0;
+	}
+
+	return syncEvaluationCalibrationRows(upserts, {
+		dbPath: options.dbPath,
+		insertMissingRows: true,
+	});
+}
+
+function selectFetchTickers(
+	options: ScriptOptions,
+	candidateTickers: string[],
+): {
+	selectedTickers: string[];
+	skippedCompleteCount: number;
+} {
+	if (options.force) {
+		return {
+			selectedTickers: candidateTickers,
+			skippedCompleteCount: 0,
+		};
+	}
+
+	const rowState = loadCalibrationRowState(options.dbPath, candidateTickers);
+	const selectedTickers = candidateTickers.filter((ticker) => {
+		const state = rowState.get(ticker);
+		if (!state?.exists) {
+			return true;
+		}
+		return options.missingOnly && !state.isComplete;
+	});
+	return {
+		selectedTickers,
+		skippedCompleteCount: candidateTickers.length - selectedTickers.length,
+	};
+}
+
 async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 	const store = new SQLiteStore(options.dbPath);
-	const existingStocks = await store.loadStocks();
-	const existingTickers = Object.keys(existingStocks).sort();
+	const initialStocks = await store.loadStocks();
+	const existingTickers = Object.keys(initialStocks).sort();
 	const requestedTickers =
 		options.tickers.length > 0 ? options.tickers : existingTickers;
 	const candidateTickers =
 		options.limit == null
 			? requestedTickers
 			: requestedTickers.slice(0, options.limit);
-	const selectedTickers = options.missingOnly
-		? candidateTickers.filter(
-				(ticker) =>
-					existingStocks[ticker]?.indicators.ps == null ||
-					existingStocks[ticker]?.indicators.ps_forward == null,
-			)
-		: candidateTickers;
+	const newerAppStockCount = await syncNewerAppRows(options, candidateTickers);
+	const existingStocks = await store.loadStocks();
+	const { selectedTickers, skippedCompleteCount } = options.force
+		? {
+				selectedTickers: candidateTickers,
+				skippedCompleteCount: 0,
+			}
+		: {
+				selectedTickers: candidateTickers.filter(
+					(ticker) =>
+						existingStocks[ticker]?.indicators.ps == null ||
+						existingStocks[ticker]?.indicators.ps_forward == null,
+				),
+				skippedCompleteCount: candidateTickers.filter(
+					(ticker) =>
+						existingStocks[ticker]?.indicators.ps != null &&
+						existingStocks[ticker]?.indicators.ps_forward != null,
+				).length,
+			};
 
 	let completed = 0;
 	let updated = 0;
 	let missing = 0;
+	const updatedRows: CalibrationStockRow[] = [];
 	for (const batch of chunks(selectedTickers, options.batchSize)) {
 		await Promise.all(
 			batch.map(async (ticker) => {
@@ -542,18 +568,19 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 					);
 					return;
 				}
-				await store.upsertStocks([
-					{
-						ticker,
-						indicators: {
-							...existing.indicators,
-							ps: ps ?? existing.indicators.ps,
-							ps_forward: psForward ?? existing.indicators.ps_forward,
-						},
-						evaluation: existing.evaluation,
-						labels: existing.labels,
-					},
-				]);
+				const indicators = {
+					...existing.indicators,
+					ps: ps ?? existing.indicators.ps,
+					ps_forward: psForward ?? existing.indicators.ps_forward,
+				};
+				const updatedRow = {
+					ticker,
+					indicators,
+					evaluation: existing.evaluation,
+					labels: existing.labels,
+				};
+				await store.upsertStocks([updatedRow]);
+				updatedRows.push(updatedRow);
 				updated += 1;
 				console.log(
 					`[${completed}/${selectedTickers.length}] ${ticker} PS ${ps ?? "-"} FPS ${psForward ?? "-"}`,
@@ -561,8 +588,12 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 			}),
 		);
 	}
+	syncEvaluationCalibrationRows(updatedRows, {
+		dbPath: options.dbPath,
+		insertMissingRows: true,
+	});
 
-	const flatTable = createCalibrationStatsTable(options.dbPath);
+	const flatTable = calibrationStatsSummary(options.dbPath);
 	dropCalibrationAuxiliaryTables(options.dbPath);
 	console.log(
 		JSON.stringify(
@@ -571,7 +602,8 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 				mode: "stockanalysis-ps-only",
 				candidateCount: candidateTickers.length,
 				selectedCount: selectedTickers.length,
-				skippedCompleteCount: candidateTickers.length - selectedTickers.length,
+				skippedCompleteCount,
+				newerAppStockCount,
 				updatedCount: updated,
 				missingCount: missing,
 				flatTable: "calibration_stats",
@@ -583,6 +615,34 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 	);
 }
 
+async function fetchSelectedTickers(
+	store: SQLiteStore,
+	options: ScriptOptions,
+	selectedTickers: string[],
+): Promise<CalibrationStockRow[]> {
+	let completed = 0;
+	const updatedRows: CalibrationStockRow[] = [];
+	for (const batch of chunks(selectedTickers, options.batchSize)) {
+		await Promise.all(
+			batch.map(async (ticker) => {
+				await resolveTickerStats(store, ticker, options.mode, null);
+				const stock = await store.loadStock(ticker);
+				if (stock) {
+					updatedRows.push({
+						ticker,
+						indicators: stock.indicators,
+						evaluation: stock.evaluation,
+						labels: stock.labels,
+					});
+				}
+				completed += 1;
+				console.log(`[${completed}/${selectedTickers.length}] ${ticker}`);
+			}),
+		);
+	}
+	return updatedRows;
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	if (options.stockAnalysisPsOnly) {
@@ -591,7 +651,7 @@ async function main(): Promise<void> {
 	}
 
 	if (options.schemaOnly) {
-		const flatTable = createCalibrationStatsTable(options.dbPath);
+		const flatTable = calibrationStatsSummary(options.dbPath);
 		dropCalibrationAuxiliaryTables(options.dbPath);
 		console.log(
 			JSON.stringify(
@@ -621,15 +681,11 @@ async function main(): Promise<void> {
 	const tickers = tickerList.tickers;
 	const candidateTickers =
 		options.limit == null ? tickers : tickers.slice(0, options.limit);
-	const existingStocks = options.missingOnly
-		? await store.loadStocksByTickers(candidateTickers)
-		: {};
-	const selectedTickers = options.missingOnly
-		? candidateTickers.filter(
-				(ticker) => !hasAllScoreFields(existingStocks[ticker]?.indicators),
-			)
-		: candidateTickers;
-	const skippedCompleteCount = candidateTickers.length - selectedTickers.length;
+	const newerAppStockCount = await syncNewerAppRows(options, candidateTickers);
+	const { selectedTickers, skippedCompleteCount } = selectFetchTickers(
+		options,
+		candidateTickers,
+	);
 
 	await store.setMetaValue("calibration_source_url", tickerList.sourceUrl);
 	await store.setMetaValue("calibration_source_kind", tickerList.sourceKind);
@@ -651,26 +707,29 @@ async function main(): Promise<void> {
 		String(skippedCompleteCount),
 	);
 	await store.setMetaValue(
+		"calibration_newer_app_stock_count",
+		String(newerAppStockCount),
+	);
+	await store.setMetaValue(
 		"calibration_filter",
-		options.missingOnly ? "missing-only" : "all",
+		options.force ? "force" : options.missingOnly ? "missing-only" : "row-safe",
 	);
 	await store.setMetaValue("calibration_updated_at", nowIso());
 
-	let completed = 0;
-	for (const batch of chunks(selectedTickers, options.batchSize)) {
-		await Promise.all(
-			batch.map(async (ticker) => {
-				await resolveTickerStats(store, ticker, options.mode, null);
-				completed += 1;
-				console.log(`[${completed}/${selectedTickers.length}] ${ticker}`);
-			}),
-		);
-	}
+	const updatedRows = await fetchSelectedTickers(
+		store,
+		options,
+		selectedTickers,
+	);
+	syncEvaluationCalibrationRows(updatedRows, {
+		dbPath: options.dbPath,
+		insertMissingRows: true,
+	});
 
 	const stocks = await store.loadStocksByTickers(selectedTickers);
 	const rows = Object.values(stocks).map((stock) => stock.indicators);
 	const counts = countFields(rows);
-	const flatTable = createCalibrationStatsTable(options.dbPath);
+	const flatTable = calibrationStatsSummary(options.dbPath);
 	dropCalibrationAuxiliaryTables(options.dbPath);
 
 	console.log(
@@ -684,6 +743,7 @@ async function main(): Promise<void> {
 				candidateTickerCount: candidateTickers.length,
 				selectedTickerCount: selectedTickers.length,
 				skippedCompleteCount,
+				newerAppStockCount,
 				storedTickerCount: Object.keys(stocks).length,
 				fieldCounts: counts,
 				flatTable: {

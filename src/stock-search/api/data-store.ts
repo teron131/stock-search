@@ -1,6 +1,7 @@
 /** Read and persist portfolio data through SQLite or Convex backends. */
 
 import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
+import { queueEvaluationCalibrationRowsSync } from "../evaluation/calibration-db.js";
 import { ConvexApiError } from "../models/convex/client.js";
 import { ConvexStore, convexRealtimeTopics } from "../models/convex/store.js";
 import { SQLiteStore } from "../sqlite-store.js";
@@ -96,8 +97,9 @@ function createLazyStore(): BackendStore {
 		loadStock(ticker) {
 			return getStore().loadStock(ticker);
 		},
-		upsertStocks(rows) {
-			return getStore().upsertStocks(rows);
+		async upsertStocks(rows) {
+			await getStore().upsertStocks(rows);
+			queueEvaluationCalibrationRowsSync(rows);
 		},
 		deleteStocksByTickers(tickers) {
 			return getStore().deleteStocksByTickers(tickers);

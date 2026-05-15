@@ -116,7 +116,7 @@ const SECTOR_VALUATION_ANCHOR_KEYS = [
 let cachedAnchors: ScoreAnchors | null = null;
 let cachedSectorValuationAnchors = new Map<string, ScoreAnchors>();
 
-function calibrationDbPath(): string {
+export function calibrationDbPath(): string {
 	return path.resolve(
 		process.env.EVALUATION_CALIBRATION_SQLITE_PATH ??
 			DEFAULT_CALIBRATION_DB_PATH,
@@ -307,7 +307,11 @@ export function getValuationScoreAnchors(context: AnchorContext): ScoreAnchors {
 	return anchors;
 }
 
-export function resetScoreAnchorsForTest(): void {
+export function resetScoreAnchorsCache(): void {
 	cachedAnchors = null;
 	cachedSectorValuationAnchors = new Map();
+}
+
+export function resetScoreAnchorsForTest(): void {
+	resetScoreAnchorsCache();
 }
