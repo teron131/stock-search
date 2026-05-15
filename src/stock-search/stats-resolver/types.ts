@@ -36,6 +36,7 @@ export type CachedFamilySnapshot = {
 	sourceTier: SourceTier;
 	row: Record<string, unknown>;
 	timestamp: number | null;
+	hasRequiredFields: boolean;
 	isFresh: boolean;
 	isStale: boolean;
 	present: boolean;

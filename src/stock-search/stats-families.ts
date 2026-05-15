@@ -71,6 +71,10 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 	ratings: ["median_upside", "ratings"],
 };
 
+export const REQUIRED_FAMILY_FIELDS: Partial<Record<StatsFamily, string[]>> = {
+	statistics: ["market_cap", "pe"],
+};
+
 export const FAMILY_TIMESTAMP_FIELD: Record<StatsFamily, string> = {
 	market_data: "market_data_fetched_at",
 	market_snapshot: "market_snapshot_fetched_at",

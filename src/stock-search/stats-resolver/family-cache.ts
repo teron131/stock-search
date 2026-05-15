@@ -5,6 +5,7 @@ import {
 	FAMILY_FIELDS,
 	FAMILY_POLICIES,
 	FAMILY_TIMESTAMP_FIELD,
+	REQUIRED_FAMILY_FIELDS,
 	type StatsFamily,
 } from "../stats-families.js";
 import type {
@@ -110,6 +111,13 @@ function hasRequiredFamilyFields(
 	if (quoteType === "ETF" || quoteType === "MUTUALFUND") {
 		return true;
 	}
+	const requiredFields = REQUIRED_FAMILY_FIELDS[family] ?? [];
+	if (
+		requiredFields.length > 0 &&
+		!requiredFields.every((field) => hasMeaningfulPayload(row[field]))
+	) {
+		return false;
+	}
 	if (family === "statistics" || family === "financials") {
 		return hasKnownFields(row, FAMILY_FIELDS[family]);
 	}
@@ -148,6 +156,7 @@ export function chooseCachedSnapshot(
 			sourceTier,
 			row: chosenRow,
 			timestamp: null,
+			hasRequiredFields: false,
 			isFresh: false,
 			isStale: false,
 			present: Object.keys(chosenRow).length > 0,
@@ -165,6 +174,7 @@ export function chooseCachedSnapshot(
 		sourceTier,
 		row: chosenRow,
 		timestamp: freshness.timestamp,
+		hasRequiredFields,
 		isFresh: hasRequiredFields && freshness.isFresh,
 		isStale: present && freshness.isStale,
 		present,
@@ -179,8 +189,12 @@ export function mergeFamilyRow(
 ): Record<string, unknown> {
 	const merged = { ...baseRow };
 	for (const field of FAMILY_FIELDS[family]) {
-		if (field in nextRow) {
-			merged[field] = nextRow[field];
+		if (!(field in nextRow)) {
+			continue;
+		}
+		const nextValue = nextRow[field];
+		if (nextValue != null || !(field in merged) || merged[field] == null) {
+			merged[field] = nextValue;
 		}
 	}
 	merged[FAMILY_TIMESTAMP_FIELD[family]] = new Date(timestamp).toISOString();

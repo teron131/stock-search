@@ -182,6 +182,7 @@ export async function resolveFamily({
 	if (
 		mode === "auto" &&
 		cached.isStale &&
+		cached.hasRequiredFields &&
 		!BLOCKING_AUTO_FAMILIES.has(family)
 	) {
 		return {
