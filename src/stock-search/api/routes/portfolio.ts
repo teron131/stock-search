@@ -6,6 +6,7 @@ import {
 	buildPortfolioPayload,
 	cacheControlForScope,
 	patchPortfolioPosition,
+	readStoredPortfolioStatsPayload,
 	removePortfolioPosition,
 } from "../../portfolio/index.js";
 import { normalizeTicker } from "../../utils.js";
@@ -14,6 +15,7 @@ import { importPortfolioImage } from "../import-image.js";
 import {
 	PORTFOLIO,
 	PORTFOLIO_IMPORT_IMAGE,
+	PORTFOLIO_STATS,
 	PORTFOLIO_TICKER_ROUTE,
 } from "../route-paths.js";
 
@@ -24,6 +26,8 @@ const PortfolioPositionPatchSchema = z.object({
 const PortfolioScopeSchema = z
 	.enum(["priority", "all_cached", "portfolio_live", "all"])
 	.catch("priority");
+const PORTFOLIO_STATS_CACHE_CONTROL =
+	"private, max-age=15, stale-while-revalidate=60";
 
 function parseOptionalFormText(
 	value: FormDataEntryValue | null,
@@ -38,6 +42,11 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 		const scope = PortfolioScopeSchema.parse(c.req.query("scope"));
 		c.header("Cache-Control", cacheControlForScope(scope));
 		return c.json(await buildPortfolioPayload(store, scope));
+	});
+
+	router.get(PORTFOLIO_STATS, async (c) => {
+		c.header("Cache-Control", PORTFOLIO_STATS_CACHE_CONTROL);
+		return c.json(await readStoredPortfolioStatsPayload(store));
 	});
 
 	router.patch(PORTFOLIO_TICKER_ROUTE, async (c) => {

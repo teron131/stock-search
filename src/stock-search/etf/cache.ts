@@ -2,11 +2,10 @@
 
 import type { StockEntry } from "../api/data-store.js";
 import { isCacheTimestampFresh } from "../cache.js";
-import { resolveOfficialEtfHoldingsProvider } from "../data-sources/etf-officials/index.js";
 import { ETF_QUOTE_TYPE } from "../data-sources/yahoo-finance.js";
 import { normalizeTicker } from "../utils.js";
 import { normalizeEtfSectors } from "./sectors.js";
-import { fundFamilyFromIndicators, getEtfSnapshot } from "./sources.js";
+import { getEtfSnapshot } from "./sources.js";
 import type {
 	EtfHolding,
 	EtfSector,
@@ -101,27 +100,6 @@ function storeEtfCache(
 	};
 }
 
-function shouldServeCachedEtfSnapshot(
-	snapshot: { holdings: EtfHolding[]; sectors: EtfSector[] },
-	ticker: string,
-	indicators: Record<string, unknown>,
-	allowLiveFetch: boolean,
-): boolean {
-	if (snapshot.holdings.length > 0) {
-		return true;
-	}
-	if (!allowLiveFetch) {
-		return true;
-	}
-	return (
-		resolveOfficialEtfHoldingsProvider({
-			ticker,
-			fundFamily: fundFamilyFromIndicators(indicators),
-			name: indicators.name,
-		}) == null
-	);
-}
-
 /** Resolve one ETF snapshot with cache-first semantics and optional live refresh. */
 export async function resolveEtfSnapshotCache(
 	tickerInput: string,
@@ -134,12 +112,7 @@ export async function resolveEtfSnapshotCache(
 	const cachedSnapshot = loadFreshEtfCache(indicators, now);
 	if (
 		cachedSnapshot &&
-		shouldServeCachedEtfSnapshot(
-			cachedSnapshot,
-			ticker,
-			indicators,
-			allowLiveFetch,
-		)
+		(cachedSnapshot.holdings.length > 0 || !allowLiveFetch)
 	) {
 		return {
 			snapshot: {

@@ -47,6 +47,25 @@ const ROW_WINDOW_INITIAL_COUNT = 64;
 const HEADER_TOOLTIP_HALF_WIDTH_PX = 130;
 const HEADER_TOOLTIP_OFFSET_PX = 6;
 const SCROLL_SYNC_THRESHOLD_PX = 1;
+const PORTFOLIO_SUMMARY_TICKER = "__PORTFOLIO_SUMMARY__";
+const SUMMARY_BLANK_COLUMNS = new Set([
+	"ticker",
+	"price",
+	"rank",
+	"strategy",
+	"notional_value",
+	"weight_pct",
+	"notional_weight_pct",
+	"quantity",
+	"remove",
+]);
+const SUMMARY_RETURN_PERCENT_COLUMNS = new Set([
+	"change_percent_1d",
+	"change_percent_1m",
+	"change_percent_3m",
+	"change_percent_6m",
+	"change_percent_1y",
+]);
 
 function getScrollState(scrollEl) {
 	if (!scrollEl) {
@@ -221,6 +240,115 @@ function QtyCell({ row, isUsingDemoData, onSetQuantity }) {
   </div>`;
 }
 
+function finiteNumber(value) {
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? numeric : null;
+}
+
+function weightedAverage(rows, fieldName) {
+	let weightedSum = 0;
+	let totalWeight = 0;
+
+	for (const row of rows) {
+		const total = finiteNumber(row.total);
+		const value = finiteNumber(row[fieldName]);
+		if (total == null || total <= 0 || value == null) continue;
+
+		weightedSum += total * value;
+		totalWeight += total;
+	}
+
+	return totalWeight > 0 ? weightedSum / totalWeight : null;
+}
+
+function weightedReturnPercent(rows, fieldName) {
+	let currentValue = 0;
+	let priorValue = 0;
+
+	for (const row of rows) {
+		const total = finiteNumber(row.total);
+		const changePercent = finiteNumber(row[fieldName]);
+		if (total == null || total <= 0 || changePercent == null) continue;
+
+		const returnMultiple = 1 + changePercent / 100;
+		if (returnMultiple <= 0) continue;
+
+		currentValue += total;
+		priorValue += total / returnMultiple;
+	}
+
+	return priorValue > 0
+		? ((currentValue - priorValue) / priorValue) * 100
+		: null;
+}
+
+function abbreviateSectorName(sector) {
+	return String(sector || "")
+		.replace("Communication Services", "Comm Services")
+		.replace("Consumer Discretionary", "Cons Disc")
+		.replace("Consumer Staples", "Cons Staples")
+		.trim();
+}
+
+function formatTopSectorSummary(sectorDistribution) {
+	const topSectors = (
+		Array.isArray(sectorDistribution) ? sectorDistribution : []
+	)
+		.map((sectorRow) => ({
+			sector: abbreviateSectorName(sectorRow?.sector),
+			weight: finiteNumber(sectorRow?.portfolio_weight),
+		}))
+		.filter((sectorRow) => sectorRow.sector && sectorRow.weight != null)
+		.sort((left, right) => right.weight - left.weight)
+		.slice(0, 2);
+
+	if (topSectors.length === 0) return "";
+
+	return topSectors
+		.map((sectorRow) => `${sectorRow.sector} ${sectorRow.weight.toFixed(0)}%`)
+		.join(" / ");
+}
+
+function buildPortfolioSummaryRow(rows, stats, cols, tab) {
+	if (tab === "evaluations") return null;
+
+	const heldRows = rows.filter((row) => {
+		const quantity = finiteNumber(row.quantity);
+		const total = finiteNumber(row.total);
+		return quantity != null && quantity > 0 && total != null && total > 0;
+	});
+	if (heldRows.length === 0) return null;
+
+	const summaryRow = {
+		ticker: PORTFOLIO_SUMMARY_TICKER,
+		name: "Portfolio",
+		is_portfolio_summary: true,
+		top_sector_summary: formatTopSectorSummary(stats?.sectorDistribution),
+		total: finiteNumber(stats?.totalVal),
+		beta: finiteNumber(stats?.weightedBeta),
+		iv: finiteNumber(stats?.weightedIv),
+	};
+
+	const changePercent = finiteNumber(stats?.change?.percent);
+	if (changePercent != null) {
+		summaryRow.change_percent_1d = changePercent;
+	}
+
+	for (const col of cols) {
+		if (
+			Object.hasOwn(summaryRow, col.key) ||
+			SUMMARY_BLANK_COLUMNS.has(col.key)
+		) {
+			continue;
+		}
+		summaryRow[col.key] = SUMMARY_RETURN_PERCENT_COLUMNS.has(col.key)
+			? weightedReturnPercent(heldRows, col.key)
+			: weightedAverage(heldRows, col.key);
+	}
+
+	return summaryRow;
+}
+
 function renderCell({
 	row,
 	col,
@@ -231,6 +359,20 @@ function renderCell({
 }) {
 	const key = col.key;
 	const format = col.format;
+
+	if (row.is_portfolio_summary) {
+		if (key === "ticker") {
+			return html`<span
+				className="ticker-name-cell portfolio-summary-ticker"
+				title=${row.top_sector_summary || "Portfolio weighted summary"}
+			>
+				<span className="ticker-name-primary">PORTFOLIO</span>
+			</span>`;
+		}
+		if (SUMMARY_BLANK_COLUMNS.has(key)) {
+			return "";
+		}
+	}
 
 	if (key === "quantity" && onSetQuantity) {
 		return html`<${QtyCell}
@@ -336,6 +478,7 @@ function renderCell({
 	const colorKey = col.key;
 	const isColorizable =
 		!PLAIN_ALLOCATION_COLUMNS.has(colorKey) &&
+		!row.is_portfolio_summary &&
 		(["score", "percent_neutral", "number", "market_cap"].includes(format) ||
 			["rank", "rsi", "market_cap"].includes(colorKey));
 
@@ -357,6 +500,7 @@ function renderCell({
 export function Table({
 	tab,
 	rows,
+	stats = null,
 	sortCol,
 	sortDir,
 	onSort,
@@ -371,6 +515,7 @@ export function Table({
 	const scrollRef = useRef(null);
 	const bodyTableRef = useRef(null);
 	const headerScrollRef = useRef(null);
+	const summaryScrollRef = useRef(null);
 	const lastJumpQueryRef = useRef("");
 	const mirroredScrollTargetRef = useRef(null);
 	const [scrollState, setScrollState] = useState(() => getScrollState(null));
@@ -391,6 +536,10 @@ export function Table({
 	const sorted = useMemo(
 		() => sortRows(filtered, sortCol, sortDir),
 		[filtered, sortCol, sortDir],
+	);
+	const portfolioSummaryRow = useMemo(
+		() => buildPortfolioSummaryRow(rows, stats, cols, tab),
+		[cols, rows, stats, tab],
 	);
 	const normalizedSearchQuery = normalizeSearchText(searchQuery);
 	const targetRowIndex = useMemo(() => {
@@ -673,7 +822,7 @@ export function Table({
 		}
 
 		const firstDataRow = tableEl.querySelector(
-			"tbody tr:not(.table-virtual-spacer):not(.table-empty-row)",
+			"tbody tr:not(.portfolio-summary-row):not(.table-virtual-spacer):not(.table-empty-row)",
 		);
 		const nextWidths = Array.from(firstDataRow?.children || []).map(
 			(cell) => Math.round(cell.getBoundingClientRect().width * 100) / 100,
@@ -693,14 +842,19 @@ export function Table({
 	useLayoutEffect(() => {
 		const scrollEl = scrollRef.current;
 		const headerScrollEl = headerScrollRef.current;
+		const summaryScrollEl = summaryScrollRef.current;
 		if (!scrollEl || !headerScrollEl || !headerColumnWidths.length) return;
 
 		headerScrollEl.scrollLeft = scrollEl.scrollLeft;
+		if (summaryScrollEl) {
+			summaryScrollEl.scrollLeft = scrollEl.scrollLeft;
+		}
 	}, [headerColumnWidths]);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
 		const headerScrollEl = headerScrollRef.current;
+		const summaryScrollEl = summaryScrollRef.current;
 		if (!scrollEl) return;
 
 		const handleWheel = (event) => {
@@ -713,6 +867,7 @@ export function Table({
 			scrollEl.scrollLeft = nextScrollLeft;
 			markMirroredScrollTarget("header");
 			syncHorizontalScroll(scrollEl, headerScrollEl);
+			syncHorizontalScroll(scrollEl, summaryScrollEl);
 			syncScrollState(setScrollState, scrollEl);
 		};
 		const wheelOptions = { passive: false };
@@ -734,6 +889,9 @@ export function Table({
 		scrollEl.scrollLeft = 0;
 		if (headerScrollRef.current) {
 			headerScrollRef.current.scrollLeft = 0;
+		}
+		if (summaryScrollRef.current) {
+			summaryScrollRef.current.scrollLeft = 0;
 		}
 	}, [tableResetKey]);
 
@@ -777,13 +935,16 @@ export function Table({
 				mirroredScrollTargetRef.current = null;
 			}
 		}
+		syncHorizontalScroll(scrollEl, summaryScrollRef.current);
 		syncScrollState(setScrollState, scrollEl);
 	}
 
-	function handleHeaderScroll(event) {
-		const headerScrollEl = event.currentTarget;
+	function handleMirroredTableScroll(event, targetName) {
+		const sourceEl = event.currentTarget;
 		const scrollEl = scrollRef.current;
-		if (mirroredScrollTargetRef.current === "header") {
+		const headerScrollEl = headerScrollRef.current;
+		const summaryScrollEl = summaryScrollRef.current;
+		if (mirroredScrollTargetRef.current === targetName) {
 			mirroredScrollTargetRef.current = null;
 			return;
 		}
@@ -791,11 +952,25 @@ export function Table({
 		if (!scrollEl) return;
 
 		markMirroredScrollTarget("body");
-		const didSync = syncHorizontalScroll(headerScrollEl, scrollEl);
+		const didSync = syncHorizontalScroll(sourceEl, scrollEl);
+		if (targetName !== "header") {
+			syncHorizontalScroll(sourceEl, headerScrollEl);
+		}
+		if (targetName !== "summary") {
+			syncHorizontalScroll(sourceEl, summaryScrollEl);
+		}
 		if (!didSync) {
 			mirroredScrollTargetRef.current = null;
 		}
 		syncScrollState(setScrollState, scrollEl);
+	}
+
+	function handleHeaderScroll(event) {
+		handleMirroredTableScroll(event, "header");
+	}
+
+	function handleSummaryScroll(event) {
+		handleMirroredTableScroll(event, "summary");
 	}
 
 	const renderTableCells = (row) =>
@@ -807,6 +982,7 @@ export function Table({
 						className=${[
 							getColumnClassName(col.key),
 							getColumnClusterClassName(col.cluster),
+							row.is_portfolio_summary ? "portfolio-summary-cell" : "",
 						]
 							.filter(Boolean)
 							.join(" ")}
@@ -842,6 +1018,31 @@ export function Table({
 				</td>`,
 			),
 		);
+
+	const portfolioSummaryTable = portfolioSummaryRow
+		? html`<div
+				key="portfolio-summary"
+				ref=${summaryScrollRef}
+				className="table-portfolio-summary"
+				style=${tableWrapperStyle}
+				onScroll=${handleSummaryScroll}
+			>
+				<table
+					className=${`${tableClassName} data-table-summary`}
+					style=${headerTableStyle}
+				>
+					${renderColGroup({ useMeasuredWidths: true })}
+					<tbody>
+						<tr
+							className="portfolio-summary-row"
+							aria-label="Portfolio weighted summary"
+						>
+							${renderTableCells(portfolioSummaryRow)}
+						</tr>
+					</tbody>
+				</table>
+			</div>`
+		: null;
 
 	const bodyRows = Children.toArray(
 		shouldShowLoadingRows
@@ -929,6 +1130,7 @@ export function Table({
 						</div>`
 					: null
 			}
+			${portfolioSummaryTable}
 			<div
 				key="table-wrapper"
 				ref=${scrollRef}

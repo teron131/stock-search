@@ -56,6 +56,10 @@ export {
 export { mergePortfolioRow } from "./rows.js";
 export type { PortfolioScope } from "./shared.js";
 
+const PORTFOLIO_STATS_GENERATED_AT_META_KEY = "portfolio_stats_generated_at";
+const STATS_GENERATED_AT_META_KEY = "stats_generated_at";
+const STORED_PORTFOLIO_STATS_SYNC_MODE = "stored_portfolio_stats";
+
 /** Return the cache policy used for one portfolio scope. */
 export function cacheControlForScope(scope: PortfolioScope): string {
 	return scope === "all_cached"
@@ -230,7 +234,7 @@ export async function buildPortfolioPayload(
 			buildEtfTables(rows, etfResolution, heldTickers, notionalByTicker),
 			LIVE_SCOPES.has(scope)
 				? Promise.resolve(nowIso())
-				: store.getMetaValue("stats_generated_at"),
+				: store.getMetaValue(STATS_GENERATED_AT_META_KEY),
 		]);
 	const allLiveResults = {
 		...resolvedLiveResults,
@@ -249,6 +253,16 @@ export async function buildPortfolioPayload(
 			}
 		}
 	}
+	const portfolioStats = calculatePortfolioStats(rows, sectorDistribution);
+	if (scope === "portfolio_live") {
+		await Promise.all([
+			store.savePortfolioStats(portfolioStats),
+			store.setMetaValue(
+				PORTFOLIO_STATS_GENERATED_AT_META_KEY,
+				generatedAt ?? nowIso(),
+			),
+		]);
+	}
 
 	return {
 		rows,
@@ -256,7 +270,7 @@ export async function buildPortfolioPayload(
 			ticker_exposure: tickerTable,
 			sector_exposure: sectorTable,
 		},
-		portfolio_stats: calculatePortfolioStats(rows, sectorDistribution),
+		portfolio_stats: portfolioStats,
 		meta: {
 			...tableMeta,
 			etf_count: etfResolution.etfPositions.length,
@@ -265,6 +279,32 @@ export async function buildPortfolioPayload(
 			data_source: dataSource,
 			backend_store: store.backendName,
 			sync_mode: "realtime_subscription",
+		},
+	};
+}
+
+/** Read stored portfolio stats without refreshing portfolio rows. */
+export async function readStoredPortfolioStatsPayload(
+	store: BackendStore,
+): Promise<{
+	portfolio_stats: Record<string, unknown> | null;
+	meta: Record<string, unknown>;
+}> {
+	const [portfolio, generatedAt] = await Promise.all([
+		store.loadPortfolio(),
+		store
+			.getMetaValue(PORTFOLIO_STATS_GENERATED_AT_META_KEY)
+			.then(
+				(value) => value ?? store.getMetaValue(STATS_GENERATED_AT_META_KEY),
+			),
+	]);
+	return {
+		portfolio_stats: portfolio.portfolioStats,
+		meta: {
+			generated_at: generatedAt,
+			data_source: "cache",
+			backend_store: store.backendName,
+			sync_mode: STORED_PORTFOLIO_STATS_SYNC_MODE,
 		},
 	};
 }

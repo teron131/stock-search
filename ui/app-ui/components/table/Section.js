@@ -5,6 +5,7 @@ import { Table } from "./Table.js";
 export function TableSection({
 	tab,
 	rows,
+	stats,
 	sortCol,
 	sortDir,
 	onTabChange,
@@ -55,6 +56,7 @@ export function TableSection({
 			<${Table}
 				tab=${tab}
 				rows=${rows}
+				stats=${stats}
 				sortCol=${sortCol}
 				sortDir=${sortDir}
 				onSort=${onSort}

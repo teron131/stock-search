@@ -125,6 +125,18 @@ export class ConvexStore implements BackendStore {
 		});
 	}
 
+	async savePortfolioStats(
+		portfolioStats: Record<string, unknown> | null,
+		key = "default",
+	): Promise<void> {
+		const existing = await this.loadPortfolio(key);
+		await this.savePortfolio({
+			key,
+			positions: existing.positions,
+			portfolioStats,
+		});
+	}
+
 	async loadPositions(): Promise<PositionRow[]> {
 		try {
 			const payload = await this.client.query<unknown[]>(

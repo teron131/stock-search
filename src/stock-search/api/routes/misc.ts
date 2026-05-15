@@ -185,7 +185,6 @@ export function createMiscRouter(store: BackendStore): Hono {
 			convex_url: appConfig.convexUrl || null,
 			audience: appConfig.convexAudience || null,
 			topics: [...convexRealtimeTopics],
-			show_portfolio_stats: appConfig.showPortfolioStats,
 		});
 	});
 

@@ -33,6 +33,10 @@ export interface BackendStore {
 	backendName: BackendName;
 	loadPortfolio(key?: string): Promise<PortfolioRecord>;
 	savePortfolio(input: PortfolioRecord & { key?: string }): Promise<void>;
+	savePortfolioStats(
+		portfolioStats: Record<string, unknown> | null,
+		key?: string,
+	): Promise<void>;
 	loadPositions(): Promise<PositionRow[]>;
 	savePositions(positions: PositionRow[]): Promise<void>;
 	loadStocks(): Promise<Record<string, StockEntry>>;
@@ -73,6 +77,9 @@ function createLazyStore(): BackendStore {
 		},
 		savePortfolio(input) {
 			return getStore().savePortfolio(input);
+		},
+		savePortfolioStats(portfolioStats, key) {
+			return getStore().savePortfolioStats(portfolioStats, key);
 		},
 		loadPositions() {
 			return getStore().loadPositions();
@@ -156,6 +163,13 @@ class FallbackConvexStore implements BackendStore {
 
 	savePortfolio(input: PortfolioRecord & { key?: string }): Promise<void> {
 		return this.convexStore.savePortfolio(input);
+	}
+
+	savePortfolioStats(
+		portfolioStats: Record<string, unknown> | null,
+		key?: string,
+	): Promise<void> {
+		return this.convexStore.savePortfolioStats(portfolioStats, key);
 	}
 
 	loadPositions(): Promise<PositionRow[]> {

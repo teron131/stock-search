@@ -4,6 +4,7 @@ import type { BackendStore, StockEntry } from "../api/data-store.js";
 import {
 	mergeAndNormalizeMonetaryFields,
 	mergeStockAnalysisSnapshots,
+	normalizeMonetaryFields,
 } from "../monetary-fields.js";
 import {
 	BLOCKING_AUTO_FAMILIES,
@@ -49,9 +50,10 @@ async function refreshFamilyRow(
 		);
 	}
 	if (family === "financials") {
-		const [financials, statistics] = await Promise.all([
+		const [financials, statistics, yahoo] = await Promise.all([
 			bundle.getFinancials(),
 			bundle.getStatistics(),
+			bundle.getYahooIndicators(),
 		]);
 		const merged = {
 			...mergeStockAnalysisSnapshots(statistics, financials),
@@ -60,7 +62,9 @@ async function refreshFamilyRow(
 			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
 			operating_margin:
 				financials.operating_margin ?? statistics.operating_margin ?? null,
+			fx: yahoo.fx,
 		};
+		normalizeMonetaryFields(merged);
 		return completeKnownFamilyRow(merged, family);
 	}
 	return familyRow(await bundle.getYahooIndicators(), family);

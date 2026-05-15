@@ -59,6 +59,12 @@ export class SQLiteStore implements BackendStore {
 		portfolioStats,
 	}: PortfolioRecord): Promise<void> {
 		await this.savePositions(positions);
+		await this.savePortfolioStats(portfolioStats);
+	}
+
+	async savePortfolioStats(
+		portfolioStats: Record<string, unknown> | null,
+	): Promise<void> {
 		if (portfolioStats) {
 			await this.setMetaValue("portfolio_stats", jsonStringify(portfolioStats));
 			return;

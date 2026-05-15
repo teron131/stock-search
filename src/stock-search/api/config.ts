@@ -49,7 +49,6 @@ export const appConfig = {
 	convexDeployKey: (process.env.CONVEX_DEPLOY_KEY ?? "").trim(),
 	convexAudience: (process.env.CONVEX_AUDIENCE ?? "").trim(),
 	convexSyncEnabled: truthy(process.env.CONVEX_SYNC_ENABLED, true),
-	showPortfolioStats: truthy(process.env.SHOW_PORTFOLIO_STATS, false),
 	authEnabled: truthy(process.env.AUTH_ENABLED, false),
 	authSecret: (process.env.AUTH_SECRET ?? "").trim(),
 	authGoogleId: (process.env.AUTH_GOOGLE_ID ?? "").trim(),

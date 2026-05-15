@@ -31,6 +31,14 @@ function isProxiedStatCell(row, key) {
 	return row?.proxied_stat_fields?.includes?.(key) === true;
 }
 
+function hasTopHoldingsProxyStats(row) {
+	return (
+		row?.stats_proxy_source === "etf_top_holdings" ||
+		(Array.isArray(row?.proxied_stat_fields) &&
+			row.proxied_stat_fields.length > 0)
+	);
+}
+
 function clearEtfMarketCap(row) {
 	if (!isProxiedStatCell(row, "market_cap")) {
 		row.market_cap = null;
@@ -77,9 +85,11 @@ export function mergeRows(dashData, evalData) {
 
 		if (isEtfLikeRow(merged)) {
 			clearEtfMarketCap(merged);
-			EVAL_KEYS.forEach((key) => {
-				merged[key] = null;
-			});
+			if (!hasTopHoldingsProxyStats(merged)) {
+				EVAL_KEYS.forEach((key) => {
+					merged[key] = null;
+				});
+			}
 		}
 
 		return merged;

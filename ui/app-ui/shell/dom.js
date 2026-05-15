@@ -1,5 +1,4 @@
 import { CONFIG } from "../config.js";
-import { fmt } from "../format.js";
 
 export const DASHBOARD_VIEW = "dashboard";
 export const NEWS_VIEW = "news";
@@ -81,17 +80,6 @@ export async function fetchAuthSession() {
 	}
 }
 
-export async function fetchRuntimeConfig() {
-	if (CONFIG.isDemoMode) return null;
-	try {
-		const response = await fetch(CONFIG.endpoints.realtimeConfig);
-		if (!response.ok) return null;
-		return await response.json();
-	} catch {
-		return null;
-	}
-}
-
 function syncButtonTooltip(button, tooltip) {
 	button.setAttribute("aria-label", tooltip);
 	button.dataset.tooltip = tooltip;
@@ -136,7 +124,7 @@ export async function importImageFile(file, importImageRef) {
 	}
 }
 
-export function syncViewLayout(view, { showPortfolioStats = false } = {}) {
+export function syncViewLayout(view) {
 	setText("view-title", VIEW_TITLES[view] ?? VIEW_TITLES[DASHBOARD_VIEW]);
 
 	const isDashboard = view === DASHBOARD_VIEW;
@@ -150,10 +138,6 @@ export function syncViewLayout(view, { showPortfolioStats = false } = {}) {
 
 	setDisplay("heatmap-section", view === MARKETMAP_VIEW ? "block" : "none");
 	setDisplay("calendar-section", view === CALENDAR_VIEW ? "block" : "none");
-	setDisplay(
-		"stats-strip",
-		isDashboard && showPortfolioStats ? "flex" : "none",
-	);
 	setDisplay("import-image-btn", isDashboard ? "inline-flex" : "none");
 	setDisplay("import-status", isDashboard ? "inline" : "none");
 
@@ -206,32 +190,6 @@ export function syncRefreshButtonState({
 		"aria-pressed",
 		isDashboardSyncing ? "true" : "false",
 	);
-}
-
-export function updatePortfolioSummary(stats) {
-	setText("total-positions", stats.positions ? String(stats.positions) : "--");
-	setText(
-		"total-value",
-		stats.totalVal > 0 ? fmt.currency(stats.totalVal) : "--",
-	);
-
-	if (stats.totalVal <= 0) {
-		setText("portfolio-change", "--");
-		return;
-	}
-
-	const { percent, absolute } = stats.change;
-	const sign = absolute >= 0 ? "+" : "";
-	const absoluteText = sign + fmt.currency(Math.abs(absolute));
-	const percentText = fmt.percent(percent);
-	setText("portfolio-change", `${absoluteText} (${percentText})`);
-
-	const trend = document.getElementById("portfolio-change");
-	if (!trend) return;
-
-	trend.className = `stats-value stats-trend ${
-		percent > 0 ? "positive" : percent < 0 ? "negative" : "neutral"
-	}`;
 }
 
 export function initSidebarAndNav() {

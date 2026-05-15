@@ -214,8 +214,14 @@ export function marketCapScore(
 	}
 	const marketCap =
 		"marketCap" in info ? asNumber(info.marketCap) : canonicalMarketCap(info);
-	const quoteType = info.quoteType ?? info.quote_type;
-	if (quoteType === "ETF" || marketCap == null || marketCap <= 0) {
+	const quoteType = String(info.quoteType ?? info.quote_type ?? "")
+		.trim()
+		.toUpperCase();
+	const hasProxiedMarketCap =
+		Array.isArray(info.proxied_stat_fields) &&
+		info.proxied_stat_fields.some((field) => String(field) === "market_cap");
+	const isFund = quoteType === "ETF" || quoteType === "MUTUALFUND";
+	if ((isFund && !hasProxiedMarketCap) || marketCap == null || marketCap <= 0) {
 		return null;
 	}
 

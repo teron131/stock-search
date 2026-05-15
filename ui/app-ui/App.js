@@ -12,7 +12,6 @@ import {
 	CALENDAR_VIEW,
 	DASHBOARD_VIEW,
 	fetchAuthSession,
-	fetchRuntimeConfig,
 	formatLastUpdatedText,
 	importImageFile,
 	initSidebarAndNav,
@@ -25,7 +24,6 @@ import {
 	syncLogoutButton,
 	syncRefreshButtonState,
 	syncViewLayout,
-	updatePortfolioSummary,
 } from "./shell/dom.js";
 import {
 	createCalendarWidget,
@@ -73,7 +71,6 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
-	const [showPortfolioStats, setShowPortfolioStats] = useState(false);
 
 	const {
 		rows,
@@ -260,19 +257,6 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	}, []);
 
 	useEffect(() => {
-		let isActive = true;
-		void (async () => {
-			const runtimeConfig = await fetchRuntimeConfig();
-			if (isActive) {
-				setShowPortfolioStats(Boolean(runtimeConfig?.show_portfolio_stats));
-			}
-		})();
-		return () => {
-			isActive = false;
-		};
-	}, []);
-
-	useEffect(() => {
 		if (CONFIG.isDemoMode) return;
 
 		const intervalId = setInterval(() => {
@@ -301,8 +285,8 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	}, []);
 
 	useEffect(() => {
-		syncViewLayout(view, { showPortfolioStats });
-	}, [showPortfolioStats, view]);
+		syncViewLayout(view);
+	}, [view]);
 
 	useEffect(() => {
 		syncRefreshButtonState({
@@ -334,10 +318,6 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 			}),
 		);
 	}, [activeIsUsingDemoData, activeTimestamp]);
-
-	useEffect(() => {
-		updatePortfolioSummary(stats);
-	}, [stats]);
 
 	useEffect(() => {
 		updateTickerTape(topTickers);
@@ -438,6 +418,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	return html`<${TableSection}
 		tab=${tab}
 		rows=${rows}
+		stats=${stats}
 		sortCol=${sortCol}
 		sortDir=${sortDir}
 		onTabChange=${onTabChange}

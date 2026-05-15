@@ -239,27 +239,6 @@ export function ClientApp({ initialView = "dashboard" }) {
 					</div>
 				</div>
 
-				<div id="stats-strip" className="stats-strip">
-					<div className="stats-item">
-						<span className="stats-label">TOT:</span>
-						<span className="stats-value" id="total-value">
-							--
-						</span>
-					</div>
-					<div className="stats-item">
-						<span className="stats-label">CHG:</span>
-						<span className="stats-value stats-trend" id="portfolio-change">
-							--
-						</span>
-					</div>
-					<div className="stats-item">
-						<span className="stats-label">POS:</span>
-						<span className="stats-value" id="total-positions">
-							--
-						</span>
-					</div>
-				</div>
-
 				<div id="app-root" className="terminal-grid">
 					<App initialView={initialView} />
 				</div>

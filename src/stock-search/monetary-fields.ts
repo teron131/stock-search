@@ -4,6 +4,7 @@ import { asNumber } from "./utils.js";
 
 const FX_MONETARY_FIELDS = [
 	"market_cap",
+	"revenue",
 	"free_cash_flow",
 	"research_and_development",
 	"rd_knowledge_capital",
