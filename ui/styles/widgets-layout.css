@@ -1,0 +1,503 @@
+/* Heatmap & Calendar */
+.heatmap-container,
+.calendar-container {
+	min-height: 600px;
+	border: 1px solid var(--border);
+	background: var(--bg-surface);
+	display: flex;
+	flex-direction: column;
+	border-radius: var(--radius-md);
+	overflow: visible;
+	padding: 0 0 var(--space-md);
+	box-shadow: var(--shadow-sm);
+}
+
+/* TradingView widgets need an explicit parent height when using height: 100% */
+#heatmap-section,
+#calendar-section {
+	height: calc(
+		100vh -
+		var(--header-height) -
+		var(--space-xl) -
+		var(--space-4xl)
+	);
+}
+
+#heatmap-widget-container,
+#calendar-section .tradingview-widget-container {
+	flex: 1;
+	min-height: 0;
+}
+
+#heatmap-widget-container > .tradingview-widget-container__widget,
+#calendar-section .tradingview-widget-container__widget {
+	height: 100%;
+}
+
+#heatmap-widget-container iframe,
+#calendar-section iframe {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+	/* Hide sidebar completely when thin/mobile */
+	.sidebar {
+		width: 0;
+		border-right: none;
+		transform: translateX(-100%);
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 100%;
+		z-index: 1000;
+	}
+
+	.sidebar:not(.collapsed) {
+		width: var(--sidebar-width);
+		transform: translateX(0);
+		box-shadow: var(--shadow-lg);
+	}
+
+	/* Show the brand icon in the top bar on mobile since sidebar is gone */
+	.top-bar-left::before {
+		content: "";
+		width: 32px;
+		height: 32px;
+		background-image: url("../logo.png");
+		background-position: center;
+		background-repeat: no-repeat;
+		background-size: contain;
+		margin-right: var(--space-sm);
+		cursor: pointer;
+	}
+
+	.breadcrumbs {
+		display: flex; /* Re-enable on mobile if we use logo as toggle */
+	}
+
+	.content-area {
+		padding: var(--space-lg) var(--space-md);
+	}
+
+	.overview-panel {
+		grid-template-columns: 1fr;
+		padding: var(--space-lg);
+	}
+
+	.overview-meta {
+		border-left: none;
+		border-top: 1px solid var(--border);
+		padding-left: 0;
+		padding-top: var(--space-lg);
+	}
+
+	.stat-value {
+		font-size: var(--text-display);
+	}
+
+	.top-bar {
+		padding: 0 var(--space-md);
+	}
+
+	.breadcrumbs {
+		display: none;
+	}
+
+	/* Compact Table for Mobile */
+	th,
+	td {
+		padding: 0 var(--space-sm);
+	}
+
+	th:first-child,
+	td:first-child {
+		padding-left: var(--space-md);
+	}
+
+	th:last-child,
+	td:last-child {
+		padding-right: var(--space-md);
+	}
+}
+
+/* Docked terminal layout tune (layout-only, keeps existing theme colors) */
+.content-area {
+	padding: var(--space-sm) 0 0;
+	gap: var(--space-sm);
+}
+
+.overview-panel {
+	margin: 0;
+	border-left: none;
+	border-right: none;
+	border-radius: 0;
+	box-shadow: none;
+	padding: var(--space-md) var(--space-xl);
+}
+
+.overview-panel::after {
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.ticker-tape-container {
+	border-left: none;
+	border-right: none;
+	border-radius: 0;
+	box-shadow: none;
+	padding: 2px 0;
+}
+
+.stats-strip {
+	display: flex;
+	align-items: center;
+	gap: var(--space-xl);
+	min-height: 40px;
+	padding: 0 var(--space-xl);
+	border-top: 1px solid var(--border);
+	border-bottom: 1px solid var(--border);
+	background: var(--bg-surface);
+}
+
+.stats-item {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-sm);
+}
+
+.stats-label {
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	color: var(--ink-ghost);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.stats-value {
+	font-family: var(--font-mono);
+	font-size: var(--text-sm);
+	color: var(--ink);
+	font-variant-numeric: tabular-nums;
+}
+
+.stats-trend.positive {
+	color: var(--positive);
+}
+
+.stats-trend.negative {
+	color: var(--negative);
+}
+
+.stats-trend.neutral {
+	color: var(--ink);
+}
+
+#app-root {
+	min-height: 0;
+}
+
+.tabs-container {
+	border-left: none;
+	border-right: none;
+	border-bottom: none;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.tabs-header {
+	height: 52px;
+	padding: 0 var(--space-xl);
+}
+
+.tab-btn {
+	height: 52px;
+}
+
+.table-wrapper {
+	height: calc(
+		(var(--row-height) * var(--table-visible-rows)) +
+		var(--table-header-height)
+	);
+	min-height: calc(
+		(var(--row-height) * var(--table-visible-rows)) +
+		var(--table-header-height)
+	);
+}
+
+@media (max-width: 1024px) {
+	.content-area {
+		padding: var(--space-sm) 0 0;
+		gap: var(--space-sm);
+	}
+
+	.overview-panel {
+		padding: var(--space-md);
+	}
+
+	.tabs-header {
+		padding: 0 var(--space-md);
+	}
+
+	.stats-strip {
+		padding: 0 var(--space-md);
+		gap: var(--space-md);
+		flex-wrap: wrap;
+		min-height: 44px;
+	}
+}
+
+/* Bloomberg Style Layout Additions */
+.terminal-layout {
+	display: flex;
+	flex-direction: column;
+	height: 100dvh;
+	width: 100vw;
+	overflow: hidden;
+}
+
+.slide-menu {
+	position: fixed;
+	top: 0;
+	left: -250px;
+	width: 250px;
+	height: 100dvh;
+	background-color: var(--bg-surface-high);
+	z-index: 1000;
+	transition: left 0.3s ease;
+	border-right: 1px solid var(--border);
+	display: flex;
+	flex-direction: column;
+}
+
+.slide-menu.open {
+	left: 0;
+}
+
+.menu-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100dvh;
+	background: rgba(0, 0, 0, 0.5);
+	backdrop-filter: blur(2px);
+	z-index: 999;
+	display: none;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+.menu-overlay.active {
+	display: block;
+	opacity: 1;
+}
+
+.menu-header {
+	padding: var(--space-md);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	border-bottom: 1px solid var(--border);
+}
+
+.close-btn {
+	background: none;
+	border: none;
+	color: var(--ink);
+	font-size: var(--text-title);
+	cursor: pointer;
+}
+
+.top-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--header-height);
+	padding: 0 var(--space-sm);
+	background-color: var(--bg-surface);
+	border-bottom: 1px solid var(--border);
+	flex-shrink: 0;
+}
+
+.top-bar-left,
+.top-bar-right {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+}
+
+.hamburger-btn {
+	background: none;
+	border: none;
+	color: var(--ink);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-xs);
+}
+
+.stats-strip {
+	display: flex;
+	background-color: transparent; /* Changed from surface-high */
+	padding: var(--space-xs) var(--space-sm);
+	border-bottom: none; /* Removed border */
+	gap: var(--space-lg);
+	font-family: var(--font-mono);
+	font-size: var(--text-base);
+	flex-shrink: 0;
+}
+
+.terminal-grid {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+	padding: var(--space-xs);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-xs);
+}
+
+/* Force table density */
+.data-table th,
+.data-table td {
+	padding: 0 var(--table-cell-inline-padding);
+	font-size: var(--text-xs);
+	border-bottom: 1px solid var(--border);
+	border-right: none;
+	white-space: nowrap;
+}
+
+.data-table tr {
+	height: var(--row-height);
+}
+
+.data-table {
+	border: none;
+	border-spacing: 0;
+	width: 100%;
+}
+
+/* Starker Table Styling & Hover States (Bloomberg Style) */
+.data-table {
+	background-color: var(--bg-deep); /* Darker background */
+}
+
+.data-table tr {
+	transition: background-color 0.1s ease;
+	border-bottom: 1px solid var(--border-bright); /* Starker borders */
+}
+
+.data-table tbody tr:hover {
+	background-color: transparent;
+	outline: none;
+	outline-offset: -1px;
+	z-index: 1;
+	position: relative;
+	cursor: crosshair; /* Terminal cursor */
+}
+
+.data-table td {
+	border-right: none;
+}
+
+/* Quick Add Terminal Prompt Style */
+.quick-add-container {
+	display: flex;
+	align-items: center;
+	background-color: var(--bg-deep);
+	border: 1px solid var(--accent); /* Command line is always "active" */
+	padding: 2px var(--space-xs);
+	margin-bottom: var(--space-sm);
+	font-family: var(--font-mono);
+}
+
+.quick-add-container::before {
+	content: ">";
+	color: var(--accent);
+	margin-right: var(--space-xs);
+	font-weight: bold;
+}
+
+.quick-add-input {
+	background: transparent;
+	border: none;
+	color: var(--ink);
+	font-family: var(--font-mono);
+	font-size: var(--text-sm);
+	outline: none;
+	width: 100%;
+	text-transform: uppercase;
+}
+
+.quick-add-input::placeholder {
+	color: var(--ink-ghost);
+}
+
+/* Hide default input stuff if needed */
+.quick-add-container input[type="text"] {
+	all: unset; /* Remove default styles */
+	width: 100%;
+	color: var(--accent);
+	text-transform: uppercase;
+	font-family: var(--font-mono);
+}
+.quick-add-container input[type="text"]:focus {
+	outline: none;
+}
+
+/* Denser "Cards" (Panels) & Global Spacing Fixes */
+
+/* Main content wrapper padding to pull things slightly off the exact edges */
+.content-area {
+	padding: var(--space-sm) var(--space-md);
+	gap: var(--space-md);
+}
+
+/* Base Panel Reset for Terminal Style */
+.overview-panel,
+.heatmap-container,
+.calendar-container {
+	background-color: transparent;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	margin: var(--space-sm) 0;
+	padding: 0;
+	position: relative;
+}
+
+/* Make sure the tabs header inside heatmap respects the square look */
+.tabs-header {
+	border-bottom: none;
+	padding: 0 var(--space-xs);
+	margin-bottom: var(--space-md); /* Good space below tabs, no border */
+}
+
+.tab-btn {
+	border-radius: 0;
+	border: none;
+	background: transparent;
+}
+
+.tab-btn.active {
+	border: none;
+	color: var(--accent);
+}
+
+/* Widget containers inside panels */
+.tradingview-widget-container {
+	background-color: transparent;
+	border: none;
+}
+
+/* Force iframe and inner widgets to have no borders */
+.tradingview-widget-container iframe,
+.tradingview-widget-container__widget {
+	border: none;
+	outline: none;
+}
