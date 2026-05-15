@@ -2322,6 +2322,32 @@ th:focus-within {
 	display: block;
 }
 
+.portfolio-summary-tooltip {
+	min-width: 196px;
+	max-width: min(232px, calc(100vw - 24px));
+	padding: 6px 8px;
+}
+
+.portfolio-summary-tooltip .table-header-tooltip-description {
+	max-width: none;
+	white-space: nowrap;
+}
+
+.portfolio-summary-tooltip .table-header-tooltip-row {
+	gap: 10px;
+}
+
+.portfolio-summary-tooltip .table-header-tooltip-row > :first-child {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+.portfolio-summary-tooltip .table-header-tooltip-row > :last-child {
+	flex: 0 0 auto;
+	text-align: right;
+	white-space: nowrap;
+}
+
 #main-table th:not(:first-child) .table-sort-btn,
 .sector-ledger-table th:not(:first-child) .table-sort-btn {
 	justify-content: flex-end;

@@ -282,31 +282,23 @@ function weightedReturnPercent(rows, fieldName) {
 		: null;
 }
 
-function abbreviateSectorName(sector) {
-	return String(sector || "")
-		.replace("Communication Services", "Comm Services")
-		.replace("Consumer Discretionary", "Cons Disc")
-		.replace("Consumer Staples", "Cons Staples")
-		.trim();
-}
-
-function formatTopSectorSummary(sectorDistribution) {
-	const topSectors = (
-		Array.isArray(sectorDistribution) ? sectorDistribution : []
-	)
+function buildTopSectorTooltipRows(sectorDistribution) {
+	return (Array.isArray(sectorDistribution) ? sectorDistribution : [])
 		.map((sectorRow) => ({
-			sector: abbreviateSectorName(sectorRow?.sector),
-			weight: finiteNumber(sectorRow?.portfolio_weight),
+			label: String(sectorRow?.sector || "").trim(),
+			value: finiteNumber(sectorRow?.portfolio_weight),
 		}))
-		.filter((sectorRow) => sectorRow.sector && sectorRow.weight != null)
-		.sort((left, right) => right.weight - left.weight)
-		.slice(0, 2);
-
-	if (topSectors.length === 0) return "";
-
-	return topSectors
-		.map((sectorRow) => `${sectorRow.sector} ${sectorRow.weight.toFixed(0)}%`)
-		.join(" / ");
+		.filter(
+			(sectorRow) =>
+				sectorRow.label &&
+				sectorRow.value != null &&
+				Math.round(sectorRow.value) > 0,
+		)
+		.sort((left, right) => right.value - left.value)
+		.map((sectorRow) => ({
+			label: sectorRow.label,
+			value: `${sectorRow.value.toFixed(0)}%`,
+		}));
 }
 
 function buildPortfolioSummaryRow(rows, stats, cols, tab) {
@@ -323,7 +315,7 @@ function buildPortfolioSummaryRow(rows, stats, cols, tab) {
 		ticker: PORTFOLIO_SUMMARY_TICKER,
 		name: "Portfolio",
 		is_portfolio_summary: true,
-		top_sector_summary: formatTopSectorSummary(stats?.sectorDistribution),
+		top_sector_rows: buildTopSectorTooltipRows(stats?.sectorDistribution),
 		total: finiteNumber(stats?.totalVal),
 		beta: finiteNumber(stats?.weightedBeta),
 		iv: finiteNumber(stats?.weightedIv),
@@ -356,15 +348,30 @@ function renderCell({
 	onRemove,
 	onSetQuantity,
 	isUsingDemoData,
+	onShowTooltip,
+	onHideTooltip,
 }) {
 	const key = col.key;
 	const format = col.format;
 
 	if (row.is_portfolio_summary) {
 		if (key === "ticker") {
+			const tooltipRows = Array.isArray(row.top_sector_rows)
+				? row.top_sector_rows
+				: [];
+			const portfolioTooltip = {
+				tooltip: "Portfolio weighted summary",
+				description: "Value-weighted by holdings.",
+				tooltipRows,
+				className: "portfolio-summary-tooltip",
+			};
 			return html`<span
 				className="ticker-name-cell portfolio-summary-ticker"
-				title=${row.top_sector_summary || "Portfolio weighted summary"}
+				tabIndex="0"
+				onMouseEnter=${(event) => onShowTooltip?.(portfolioTooltip, event)}
+				onMouseLeave=${onHideTooltip}
+				onFocus=${(event) => onShowTooltip?.(portfolioTooltip, event)}
+				onBlur=${onHideTooltip}
 			>
 				<span className="ticker-name-primary">PORTFOLIO</span>
 			</span>`;
@@ -994,6 +1001,8 @@ export function Table({
 						onRemove,
 						onSetQuantity,
 						isUsingDemoData,
+						onShowTooltip: showHeaderTooltip,
+						onHideTooltip: hideHeaderTooltip,
 					})}
 				</td>`,
 			),
@@ -1119,7 +1128,13 @@ export function Table({
 				headerTooltip
 					? html`<div
 							key="header-tooltip"
-							className="table-header-tooltip table-header-tooltip-floating"
+							className=${[
+								"table-header-tooltip",
+								"table-header-tooltip-floating",
+								headerTooltip.col.className,
+							]
+								.filter(Boolean)
+								.join(" ")}
 							style=${{
 								left: `${headerTooltip.left}px`,
 								top: `${headerTooltip.top}px`,
