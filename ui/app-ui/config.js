@@ -92,6 +92,9 @@ export const CONFIG = {
 	defaultStrategy: null,
 	maxTickerLength: 10,
 	maxTickerTapeCount: 20,
+	tableDisplayDefaults: {
+		showNotional: true,
+	},
 
 	animationDelayMs: 30,
 	scoreThresholds: { high: 8, low: 4 },
@@ -435,6 +438,8 @@ const HOLDING_ACTION_COLUMNS = [
 	),
 	createColumn("remove", "", "action", { cluster: HOLDINGS_TAIL_CLUSTER }),
 ];
+
+export const NOTIONAL_COLUMN_KEYS = ["notional_value", "notional_weight_pct"];
 
 export const COLS = {
 	all: [

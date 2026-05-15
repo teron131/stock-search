@@ -10,7 +10,12 @@ import {
 } from "react";
 
 import { calculateScoreColorMetadata } from "../../color.js";
-import { COLS, CONFIG, WIDTH_GROUP_OPTIONS } from "../../config.js";
+import {
+	COLS,
+	CONFIG,
+	NOTIONAL_COLUMN_KEYS,
+	WIDTH_GROUP_OPTIONS,
+} from "../../config.js";
 import { normalizeTicker, parseMarketCap } from "../../format.js";
 import {
 	getColumnCharCount,
@@ -27,6 +32,7 @@ import {
 	getTickerCellLabel,
 	getTickerDisplayValue,
 	isNonUsLookthroughRow,
+	isGeneratedNotionalOnlyRow,
 	isProxiedStatCell,
 	normalizeSearchText,
 	rowBelongsToTab,
@@ -518,6 +524,7 @@ export function Table({
 	isLoading = false,
 	animateRows = true,
 	searchQuery = "",
+	tableDisplayOptions = CONFIG.tableDisplayDefaults,
 }) {
 	const scrollRef = useRef(null);
 	const bodyTableRef = useRef(null);
@@ -532,12 +539,27 @@ export function Table({
 		end: ROW_WINDOW_INITIAL_COUNT,
 	}));
 	const [headerColumnWidths, setHeaderColumnWidths] = useState([]);
-	const cols = COLS[tab];
+	const rawCols = COLS[tab];
+	const showNotional =
+		tableDisplayOptions?.showNotional ??
+		CONFIG.tableDisplayDefaults.showNotional;
+	const cols = useMemo(
+		() =>
+			showNotional
+				? rawCols
+				: rawCols.filter((col) => !NOTIONAL_COLUMN_KEYS.includes(col.key)),
+		[rawCols, showNotional],
+	);
 	const isEvaluationTab = tab === "evaluations";
 
 	const filtered = useMemo(
-		() => rows.filter((row) => rowBelongsToTab(row, tab)),
-		[rows, tab],
+		() =>
+			rows.filter(
+				(row) =>
+					rowBelongsToTab(row, tab) &&
+					(showNotional || !isGeneratedNotionalOnlyRow(row)),
+			),
+		[rows, tab, showNotional],
 	);
 
 	const sorted = useMemo(
@@ -616,7 +638,7 @@ export function Table({
 				maxWidth: `${headerTableWidth}px`,
 			}
 		: null;
-	const tableResetKey = `${tab}:${sortCol}:${sortDir}`;
+	const tableResetKey = `${tab}:${sortCol}:${sortDir}:${cols.map((col) => col.key).join(",")}`;
 	const effectiveRowWindow = {
 		start: Math.min(rowWindow.start, sorted.length),
 		end: Math.min(Math.max(rowWindow.end, rowWindow.start), sorted.length),

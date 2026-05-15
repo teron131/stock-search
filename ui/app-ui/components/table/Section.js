@@ -17,7 +17,14 @@ export function TableSection({
 	isBackgroundLoading,
 	isLoading,
 	onAddOrUpdate,
+	tableDisplayOptions,
+	onToggleNotionalDisplay,
 }) {
+	const showNotional = tableDisplayOptions?.showNotional !== false;
+	const notionalToggleTitle = showNotional
+		? "Hide notional columns"
+		: "Show notional columns";
+
 	return html`
 		<div className="tabs-container" id="dashboard-tables">
 			<div className="tabs-header">
@@ -45,6 +52,17 @@ export function TableSection({
 					</button>
 				</div>
 				<div className="dashboard-tabs-actions">
+					<div className="table-display-options" aria-label="Table display options">
+						<button
+							type="button"
+							className=${`table-option-toggle ${showNotional ? "active" : ""}`.trim()}
+							aria-pressed=${showNotional}
+							title=${notionalToggleTitle}
+							onClick=${onToggleNotionalDisplay}
+						>
+							NOTIONAL
+						</button>
+					</div>
 					<${QuickAdd}
 						rows=${rows}
 						isUsingDemoData=${isUsingDemoData}
@@ -66,6 +84,7 @@ export function TableSection({
 				isUsingDemoData=${isUsingDemoData}
 				isLoading=${isLoading}
 				animateRows=${!isBackgroundLoading}
+				tableDisplayOptions=${tableDisplayOptions}
 			/>
 		</div>
 	`;

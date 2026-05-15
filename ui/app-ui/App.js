@@ -1,7 +1,7 @@
 import { html } from "htm/react";
 import { useEffect, useRef, useState } from "react";
 import { TableSection } from "./components/table/Section.js";
-import { CONFIG, DEFAULT_SORT_COLS } from "./config.js";
+import { CONFIG, DEFAULT_SORT_COLS, NOTIONAL_COLUMN_KEYS } from "./config.js";
 import { useNewsData } from "./news/useNewsData.js";
 import { NewsView } from "./news/View.js";
 import { usePortfolioData } from "./portfolio/usePortfolioData.js";
@@ -33,6 +33,35 @@ import {
 
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
 const NEWS_BACKGROUND_SYNC_INTERVAL_MS = CONFIG.newsAutoRefreshIntervalMs;
+const TABLE_DISPLAY_STORAGE_KEY = "stock-search:table-display-options";
+const NOTIONAL_COLUMN_KEY_SET = new Set(NOTIONAL_COLUMN_KEYS);
+const HIDDEN_NOTIONAL_SORT_FALLBACKS = {
+	all: "weight_pct",
+	holdings: "weight_pct",
+	evaluations: DEFAULT_SORT_COLS.evaluations,
+};
+
+function normalizeTableDisplayOptions(value) {
+	const source = value && typeof value === "object" ? value : {};
+	return {
+		...CONFIG.tableDisplayDefaults,
+		showNotional:
+			source.showNotional === undefined
+				? CONFIG.tableDisplayDefaults.showNotional
+				: Boolean(source.showNotional),
+	};
+}
+
+function getDefaultSortCol(tab, tableDisplayOptions) {
+	const defaultSortCol = DEFAULT_SORT_COLS[tab] ?? DEFAULT_SORT_COLS.all;
+	if (
+		tableDisplayOptions.showNotional ||
+		!NOTIONAL_COLUMN_KEY_SET.has(defaultSortCol)
+	) {
+		return defaultSortCol;
+	}
+	return HIDDEN_NOTIONAL_SORT_FALLBACKS[tab] ?? defaultSortCol;
+}
 
 function renderSectorScreen(sectorData) {
 	return html`
@@ -71,6 +100,11 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
+	const [tableDisplayOptions, setTableDisplayOptions] = useState(() =>
+		normalizeTableDisplayOptions(CONFIG.tableDisplayDefaults),
+	);
+	const [hasHydratedTableDisplayOptions, setHasHydratedTableDisplayOptions] =
+		useState(false);
 
 	const {
 		rows,
@@ -129,6 +163,51 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	useEffect(() => {
 		viewRef.current = view;
 	}, [view]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		try {
+			const rawValue = window.localStorage.getItem(TABLE_DISPLAY_STORAGE_KEY);
+			if (rawValue) {
+				setTableDisplayOptions(
+					normalizeTableDisplayOptions(JSON.parse(rawValue)),
+				);
+			}
+		} catch {
+			setTableDisplayOptions(
+				normalizeTableDisplayOptions(CONFIG.tableDisplayDefaults),
+			);
+		} finally {
+			setHasHydratedTableDisplayOptions(true);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (!hasHydratedTableDisplayOptions || typeof window === "undefined")
+			return;
+
+		try {
+			window.localStorage.setItem(
+				TABLE_DISPLAY_STORAGE_KEY,
+				JSON.stringify(tableDisplayOptions),
+			);
+		} catch {
+			// Ignore storage failures; the in-memory table display state still works.
+		}
+	}, [hasHydratedTableDisplayOptions, tableDisplayOptions]);
+
+	useEffect(() => {
+		if (
+			tableDisplayOptions.showNotional ||
+			!NOTIONAL_COLUMN_KEY_SET.has(sortCol)
+		) {
+			return;
+		}
+
+		setSortCol(getDefaultSortCol(tab, tableDisplayOptions));
+		setSortDir("desc");
+	}, [sortCol, tab, tableDisplayOptions]);
 
 	useEffect(() => {
 		if (view !== MARKETMAP_VIEW) return undefined;
@@ -354,8 +433,17 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 
 	const onTabChange = (nextTab) => {
 		setTab(nextTab);
-		setSortCol(DEFAULT_SORT_COLS[nextTab] ?? DEFAULT_SORT_COLS.all);
+		setSortCol(getDefaultSortCol(nextTab, tableDisplayOptions));
 		setSortDir("desc");
+	};
+
+	const onToggleNotionalDisplay = () => {
+		setTableDisplayOptions((currentOptions) =>
+			normalizeTableDisplayOptions({
+				...currentOptions,
+				showNotional: !currentOptions?.showNotional,
+			}),
+		);
 	};
 
 	const onRemove = async (ticker) => {
@@ -430,5 +518,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		isBackgroundLoading=${isBackgroundLoading}
 		isLoading=${isLoading}
 		onAddOrUpdate=${onAddOrUpdate}
+		tableDisplayOptions=${tableDisplayOptions}
+		onToggleNotionalDisplay=${onToggleNotionalDisplay}
 	/>`;
 }

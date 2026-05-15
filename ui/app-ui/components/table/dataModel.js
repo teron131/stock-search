@@ -30,6 +30,21 @@ export function isNonUsLookthroughRow(row) {
 	return Boolean(row?.etf_lookthrough_only) && isNonUsTicker(row?.ticker);
 }
 
+export function isGeneratedNotionalOnlyRow(row) {
+	const quantity = Number(row?.quantity);
+	const hasZeroQuantity = row?.quantity != null && quantity === 0;
+	const notional = row?.notional ?? {};
+	const directNotional = Number(notional.from_stocks ?? 0);
+	const etfNotional = Number(notional.from_etf ?? 0);
+	return (
+		Boolean(row?.etf_lookthrough_only) &&
+		hasZeroQuantity &&
+		(!Number.isFinite(directNotional) || directNotional <= 0) &&
+		Number.isFinite(etfNotional) &&
+		etfNotional > 0
+	);
+}
+
 function isEtfLikeRow(row) {
 	const equityType = String(row?.equity_type ?? "")
 		.trim()

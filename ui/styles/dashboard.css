@@ -275,6 +275,52 @@ body {
 	max-width: 100%;
 }
 
+.table-display-options {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-right: 8px;
+}
+
+.table-option-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	padding: 0 10px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 0;
+	background: rgba(255, 255, 255, 0.025);
+	color: var(--ink-ghost);
+	font-family: "IBM Plex Sans", sans-serif;
+	font-size: var(--text-xs);
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition:
+		background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		border-color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		color 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+		transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.table-option-toggle:hover,
+.table-option-toggle:focus-visible {
+	border-color: rgba(217, 255, 63, 0.24);
+	color: var(--ink);
+}
+
+.table-option-toggle:active {
+	transform: translateY(1px) scale(0.98);
+}
+
+.table-option-toggle.active {
+	border-color: rgba(217, 255, 63, 0.26);
+	background: rgba(217, 255, 63, 0.055);
+	color: var(--accent);
+}
+
 .quick-add-compact {
 	display: grid;
 	grid-template-columns: minmax(92px, 108px) minmax(62px, 74px) auto;
@@ -1190,6 +1236,16 @@ tr.animate-in {
 	.dashboard-tabs-actions {
 		flex: 0 0 auto;
 		margin-left: 0;
+	}
+
+	.table-display-options {
+		margin-right: 4px;
+	}
+
+	.table-option-toggle {
+		height: 30px;
+		padding: 0 8px;
+		font-size: 10px;
 	}
 
 	.quick-add-compact {
