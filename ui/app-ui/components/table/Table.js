@@ -31,6 +31,7 @@ import {
 	getColumnClusterClassName,
 	getTickerCellLabel,
 	getTickerDisplayValue,
+	isDerivedStatCell,
 	isGeneratedNotionalOnlyRow,
 	isNonUsLookthroughRow,
 	isProxiedStatCell,
@@ -483,6 +484,14 @@ function renderCell({
 		content = html`<span
 			className="cell-proxied-stat"
 			title="Proxied from ETF top holdings"
+			>${content}</span
+		>`;
+	}
+
+	if (isDerivedStatCell(row, key)) {
+		content = html`<span
+			className="cell-derived-stat"
+			title="Derived from PE and NTM forward PE"
 			>${content}</span
 		>`;
 	}

@@ -286,6 +286,10 @@ td:first-child {
 	opacity: 0.82;
 }
 
+.cell-derived-stat {
+	font-style: italic;
+}
+
 .badge {
 	display: inline-flex;
 	align-items: center;

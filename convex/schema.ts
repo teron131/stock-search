@@ -31,6 +31,7 @@ const StockFlatFieldSchemas = Object.fromEntries(
 		"ratings_fetched_at",
 		"industry_labels_fetched_at",
 		"etf_holdings_fetched_at",
+		"peg_source",
 		"price",
 		"change",
 		"change_percent_1d",

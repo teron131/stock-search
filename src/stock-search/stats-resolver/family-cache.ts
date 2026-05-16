@@ -8,6 +8,7 @@ import {
 	REQUIRED_FAMILY_FIELDS,
 	type StatsFamily,
 } from "../stats-families.js";
+import { applyCachedPegFallback } from "./derived-stats.js";
 import type {
 	CachedFamilySnapshot,
 	FamilyCacheEntry,
@@ -25,6 +26,15 @@ export const familyCaches: Record<
 	ratings: new Map(),
 };
 
+const FAMILY_SOURCE_METADATA_SUFFIX = "_source";
+const OPTIONAL_REQUIRED_FIELDS_QUOTE_TYPES = new Set(["ETF", "MUTUALFUND"]);
+const FAMILY_COMPLETENESS_FIELDS = Object.fromEntries(
+	Object.entries(FAMILY_FIELDS).map(([family, fields]) => [
+		family,
+		fields.filter((field) => !field.endsWith(FAMILY_SOURCE_METADATA_SUFFIX)),
+	]),
+) as Record<StatsFamily, string[]>;
+
 export function familyTimestamp(
 	row: Record<string, unknown>,
 	family: StatsFamily,
@@ -41,6 +51,15 @@ export function familyRow(
 		if (field in row) {
 			output[field] = row[field];
 		}
+	}
+	if (family === "statistics") {
+		const hydratedOutput: Record<string, unknown> = {
+			quote_type: row.quote_type,
+			...output,
+		};
+		applyCachedPegFallback(hydratedOutput);
+		output.peg = hydratedOutput.peg;
+		output.peg_source = hydratedOutput.peg_source;
 	}
 	return output;
 }
@@ -85,7 +104,7 @@ function hasFamilyPayload(
 	row: Record<string, unknown>,
 	family: StatsFamily,
 ): boolean {
-	return FAMILY_FIELDS[family].some((field) =>
+	return FAMILY_COMPLETENESS_FIELDS[family].some((field) =>
 		hasMeaningfulPayload(row[field]),
 	);
 }
@@ -97,7 +116,7 @@ function hasKnownFamilySnapshot(
 	return (
 		hasFamilyPayload(row, family) ||
 		((family === "statistics" || family === "financials") &&
-			hasKnownFields(row, FAMILY_FIELDS[family]))
+			hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family]))
 	);
 }
 
@@ -108,7 +127,7 @@ function hasRequiredFamilyFields(
 	const quoteType = String(row.quote_type ?? "")
 		.trim()
 		.toUpperCase();
-	if (quoteType === "ETF" || quoteType === "MUTUALFUND") {
+	if (OPTIONAL_REQUIRED_FIELDS_QUOTE_TYPES.has(quoteType)) {
 		return true;
 	}
 	const requiredFields = REQUIRED_FAMILY_FIELDS[family] ?? [];
@@ -119,7 +138,7 @@ function hasRequiredFamilyFields(
 		return false;
 	}
 	if (family === "statistics" || family === "financials") {
-		return hasKnownFields(row, FAMILY_FIELDS[family]);
+		return hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family]);
 	}
 	return true;
 }

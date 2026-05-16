@@ -11,6 +11,7 @@ import {
 	FAMILY_POLICIES,
 	type StatsFamily,
 } from "../stats-families.js";
+import { applyPrimaryPegFallback } from "./derived-stats.js";
 import {
 	chooseCachedSnapshot,
 	completeKnownFamilyRow,
@@ -44,10 +45,9 @@ async function refreshFamilyRow(
 			bundle.getStatistics(),
 			bundle.getYahooIndicators(),
 		]);
-		return completeKnownFamilyRow(
-			mergeAndNormalizeMonetaryFields(statistics, yahoo),
-			family,
-		);
+		const merged = mergeAndNormalizeMonetaryFields(statistics, yahoo);
+		applyPrimaryPegFallback(merged, statistics);
+		return completeKnownFamilyRow(merged, family);
 	}
 	if (family === "financials") {
 		const [financials, statistics, yahoo] = await Promise.all([

@@ -37,6 +37,7 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 		"ps",
 		"ps_forward",
 		"peg",
+		"peg_source",
 		"beta",
 		"roe",
 		"roic",

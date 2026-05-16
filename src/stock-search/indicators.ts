@@ -6,6 +6,7 @@ import {
 	mergeStockAnalysisSnapshots,
 	normalizeMonetaryFields,
 } from "./monetary-fields.js";
+import { applyPrimaryPegFallback } from "./stats-resolver/derived-stats.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -161,6 +162,7 @@ export async function fetchLiveIndicators(
 		liveFields[field] = resolveField(field);
 	}
 	normalizeMonetaryFields(liveFields);
+	applyPrimaryPegFallback(liveFields, stockAnalysisPayload);
 
 	const hasLiveField = Object.values(liveFields).some(
 		(value) => value !== null && value !== undefined,

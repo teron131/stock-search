@@ -4,6 +4,7 @@ import { getColumnCharCount } from "../../tableStyle.js";
 
 const NON_US_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
+const PEG_SOURCE_DERIVED_NTM_FORWARD_PE = "derived_ntm_forward_pe";
 
 export function getTickerDisplayValue(ticker) {
 	return normalizeTicker(ticker).replace("-", ".");
@@ -139,6 +140,10 @@ export function isProxiedStatCell(row, key) {
 		Array.isArray(row?.proxied_stat_fields) &&
 		row.proxied_stat_fields.includes(key)
 	);
+}
+
+export function isDerivedStatCell(row, key) {
+	return key === "peg" && row?.peg_source === PEG_SOURCE_DERIVED_NTM_FORWARD_PE;
 }
 
 export function formatCellValue(row, col) {
