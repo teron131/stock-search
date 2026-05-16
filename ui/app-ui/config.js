@@ -402,13 +402,6 @@ const HOLDING_ACTION_COLUMNS = [
 		{ cluster: HOLDINGS_TAIL_CLUSTER },
 	),
 	createGroupedColumn(
-		"position_source",
-		"SRC",
-		"position_source",
-		WIDTH_GROUPS.holdingStrategy,
-		{ cluster: HOLDINGS_TAIL_CLUSTER },
-	),
-	createGroupedColumn(
 		"total",
 		"VALUE",
 		"currency",
