@@ -15,7 +15,6 @@ export type ConvexPortfolioPosition = {
 	ticker: string;
 	quantity: number;
 	strategy?: string;
-	position_source?: string;
 	industry_labels?: string[];
 	extra?: Record<string, unknown>;
 };
@@ -102,12 +101,15 @@ export function normalizePortfolioPositions(
 		const industryLabels = normalizeStringArray(row.industry_labels);
 		const strategy = trimmedString(row.strategy);
 		const positionSource = trimmedString(row.position_source);
-		const extra = { ...normalizeObject(row.extra), ...extraFields(row) };
+		const extra = {
+			...normalizeObject(row.extra),
+			...extraFields(row),
+			...(positionSource ? { position_source: positionSource } : {}),
+		};
 		normalized.push({
 			ticker,
 			quantity: finiteNumberOrZero(row.quantity),
 			...(strategy ? { strategy } : {}),
-			...(positionSource ? { position_source: positionSource } : {}),
 			...(industryLabels.length > 0 ? { industry_labels: industryLabels } : {}),
 			...(Object.keys(extra).length > 0 ? { extra } : {}),
 		});

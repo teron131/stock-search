@@ -42,6 +42,12 @@ function numberOrZero(value: unknown): number {
 	return Number.isFinite(number) ? number : 0;
 }
 
+function objectOrEmpty(value: unknown): GenericRow {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as GenericRow)
+		: {};
+}
+
 function trimmedString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
@@ -60,8 +66,11 @@ function normalizePositions(positions: unknown): PortfolioPosition[] {
 		if (!ticker) {
 			continue;
 		}
+		const extra = objectOrEmpty(row.extra);
 		const strategy = trimmedString(row.strategy);
-		const positionSource = trimmedString(row.position_source);
+		const positionSource =
+			trimmedString(row.position_source) ??
+			trimmedString(extra.position_source);
 		const position: PortfolioPosition = {
 			ticker,
 			quantity: numberOrZero(row.quantity),
