@@ -50,6 +50,10 @@ function normalizeObject(value: unknown): Record<string, unknown> {
 	return value as Record<string, unknown>;
 }
 
+function trimmedString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function extraFields(value: Record<string, unknown>): Record<string, unknown> {
 	return Object.fromEntries(
 		Object.entries(value)
@@ -76,8 +80,13 @@ function normalizePosition(value: unknown): PositionRow | null {
 	if (Number.isFinite(quantity)) {
 		position.quantity = quantity;
 	}
-	if (typeof row.strategy === "string" && row.strategy.trim()) {
-		position.strategy = row.strategy.trim();
+	const strategy = trimmedString(row.strategy);
+	if (strategy) {
+		position.strategy = strategy;
+	}
+	const positionSource = trimmedString(row.position_source);
+	if (positionSource) {
+		position.position_source = positionSource;
 	}
 	const industryLabels = normalizeLabels(row.industry_labels);
 	if (industryLabels.length > 0) {

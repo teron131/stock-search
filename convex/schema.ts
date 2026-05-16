@@ -5,6 +5,7 @@ export const PortfolioPositionSchema = v.object({
 	ticker: v.string(),
 	quantity: v.number(),
 	strategy: v.optional(v.string()),
+	position_source: v.optional(v.string()),
 	industry_labels: v.optional(v.array(v.string())),
 	extra: v.optional(v.any()),
 });
@@ -127,6 +128,7 @@ export default defineSchema({
 		sort_index: v.optional(NullableNumberSchema),
 		quantity: v.optional(NullableNumberSchema),
 		strategy: v.optional(NullableStringSchema),
+		position_source: v.optional(NullableStringSchema),
 		industry_label_1: v.optional(NullableStringSchema),
 		industry_label_2: v.optional(NullableStringSchema),
 		industry_label_3: v.optional(NullableStringSchema),

@@ -16,6 +16,13 @@ export const ALL_UNIVERSE_SCOPES = new Set<PortfolioScope>([
 ]);
 export const LABEL_REFRESH_SCOPES = new Set<PortfolioScope>(["all"]);
 export const PORTFOLIO_LABEL_FIELD = "industry_labels";
+export const POSITION_SOURCE_FIELD = "position_source";
+export const POSITION_SOURCE_DASHBOARD_MANUAL = "dashboard_manual";
+export const POSITION_SOURCE_DASHBOARD_WATCHLIST = "dashboard_watchlist";
+export const POSITION_SOURCE_ETF_PROXY = "etf_proxy";
+export const POSITION_SOURCE_IMAGE_IMPORT = "image_import";
+export const POSITION_SOURCE_IMAGE_IMPORT_ABSENT = "image_import_absent";
+export const POSITION_SOURCE_CACHED_UNIVERSE = "cached_universe";
 export const LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at";
 export const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const EVAL_KEYS = [

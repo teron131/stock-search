@@ -14,7 +14,12 @@ import {
 } from "../stats-resolver/index.js";
 import { asNumber, normalizeTicker, uniqueTickers } from "../utils.js";
 import { mergeLiveResultsIntoStocks } from "./rows.js";
-import { LIVE_SCOPES, type PortfolioScope } from "./shared.js";
+import {
+	LIVE_SCOPES,
+	POSITION_SOURCE_ETF_PROXY,
+	POSITION_SOURCE_FIELD,
+	type PortfolioScope,
+} from "./shared.js";
 
 type EtfRepresentativePosition = PositionRow & {
 	etf_holding_weight: number;
@@ -244,6 +249,7 @@ export function buildEtfRepresentativePositions(
 				ticker: holdingTicker,
 				name: holding.name,
 				quantity: 0,
+				[POSITION_SOURCE_FIELD]: POSITION_SOURCE_ETF_PROXY,
 				etf_lookthrough_only: true,
 				etf_holding_weight: holdingWeight,
 				etf_holding_notional_weight: holdingNotionalWeight,

@@ -3,6 +3,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { ChatOpenAI, MediaMessage } from "llm-harness-js/clients";
 import { z } from "zod";
+import {
+	POSITION_SOURCE_DASHBOARD_WATCHLIST,
+	POSITION_SOURCE_FIELD,
+	POSITION_SOURCE_IMAGE_IMPORT,
+	POSITION_SOURCE_IMAGE_IMPORT_ABSENT,
+} from "../portfolio/shared.js";
 import { normalizeTicker } from "../utils.js";
 import type { BackendStore, PositionRow } from "./data-store.js";
 
@@ -50,44 +56,97 @@ function validatePortfolioImageFile(file: File): void {
 	}
 }
 
-function mergeExtractedHoldings(
+function importedQuantityByTicker(
+	holdings: PortfolioImageExtraction["holdings"],
+): Map<string, number> {
+	const quantities = new Map<string, number>();
+	for (const holding of holdings) {
+		const ticker = normalizeTicker(holding.ticker);
+		const quantity = Number(holding.quantity);
+		if (!ticker || quantity < 0 || !Number.isFinite(quantity)) {
+			continue;
+		}
+		quantities.set(ticker, quantity);
+	}
+	return quantities;
+}
+
+function imageImportedPosition({
+	position,
+	ticker,
+	quantity,
+	strategy,
+}: {
+	position?: PositionRow;
+	ticker: string;
+	quantity: number;
+	strategy: string | null;
+}): PositionRow {
+	return {
+		...(position ?? {}),
+		ticker,
+		quantity,
+		[POSITION_SOURCE_FIELD]: POSITION_SOURCE_IMAGE_IMPORT,
+		...(strategy ? { strategy } : {}),
+	};
+}
+
+export function reconcileImportedHoldings(
 	positions: PositionRow[],
 	holdings: PortfolioImageExtraction["holdings"],
 	strategy: string | null,
 ): { positions: PositionRow[]; applied: ImportedHolding[] } {
-	const nextPositions = [...positions];
-	const positionIndex = new Map<string, number>();
-	for (const [index, position] of nextPositions.entries()) {
-		const ticker = normalizeTicker(position.ticker);
-		if (ticker) {
-			positionIndex.set(ticker, index);
-		}
-	}
-
+	const imported = importedQuantityByTicker(holdings);
+	const seenTickers = new Set<string>();
+	const nextPositions: PositionRow[] = [];
 	const applied: ImportedHolding[] = [];
-	for (const holding of holdings) {
-		const ticker = normalizeTicker(holding.ticker);
-		const quantity = Number(holding.quantity);
-		if (!ticker || quantity <= 0) {
+
+	for (const position of positions) {
+		const ticker = normalizeTicker(position.ticker);
+		if (!ticker || seenTickers.has(ticker)) {
+			continue;
+		}
+		seenTickers.add(ticker);
+
+		const importedQuantity = imported.get(ticker);
+		if (importedQuantity !== undefined) {
+			nextPositions.push(
+				imageImportedPosition({
+					position,
+					ticker,
+					quantity: importedQuantity,
+					strategy,
+				}),
+			);
+			applied.push({ ticker, quantity: importedQuantity });
 			continue;
 		}
 
-		const existingIndex = positionIndex.get(ticker);
-		if (existingIndex !== undefined) {
-			nextPositions[existingIndex] = {
-				...nextPositions[existingIndex],
-				quantity,
-				...(strategy ? { strategy } : {}),
-			};
-		} else {
-			positionIndex.set(ticker, nextPositions.length);
-			nextPositions.push({
-				ticker,
-				quantity,
-				...(strategy ? { strategy } : {}),
-			});
+		const source =
+			Number(position.quantity ?? 0) === 0 &&
+			position[POSITION_SOURCE_FIELD] === POSITION_SOURCE_DASHBOARD_WATCHLIST
+				? POSITION_SOURCE_DASHBOARD_WATCHLIST
+				: POSITION_SOURCE_IMAGE_IMPORT_ABSENT;
+		nextPositions.push({
+			...position,
+			ticker,
+			quantity: 0,
+			[POSITION_SOURCE_FIELD]: source,
+		});
+	}
+
+	for (const [ticker, quantity] of imported.entries()) {
+		if (!seenTickers.has(ticker)) {
+			nextPositions.push(
+				imageImportedPosition({
+					ticker,
+					quantity,
+					strategy,
+				}),
+			);
+			seenTickers.add(ticker);
+			applied.push({ ticker, quantity });
 		}
-		applied.push({ ticker, quantity });
 	}
 
 	return { positions: nextPositions, applied };
@@ -147,7 +206,7 @@ export async function importPortfolioImage(
 		extractPortfolioImage(file, model),
 		store.loadPositions(),
 	]);
-	const merged = mergeExtractedHoldings(
+	const merged = reconcileImportedHoldings(
 		positions,
 		extraction.holdings,
 		strategy,

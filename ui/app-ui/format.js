@@ -21,6 +21,15 @@ const MARKET_CAP_MULTIPLIERS = {
 	K: 1e3,
 };
 
+const POSITION_SOURCE_LABELS = {
+	cached_universe: "CACHE",
+	dashboard_manual: "MANUAL",
+	dashboard_watchlist: "WATCH",
+	etf_proxy: "ETF",
+	image_import: "IMG",
+	image_import_absent: "MISS",
+};
+
 function toNumberOrNull(value) {
 	if (value == null) return null;
 	const numeric = Number(value);
@@ -141,6 +150,9 @@ export const fmt = {
 		const rounded = toSig4(numeric / unit.div);
 		return rounded ? `$${rounded}${unit.suf}` : "--";
 	},
+
+	position_source: (value) =>
+		POSITION_SOURCE_LABELS[value] || fmt.default(value),
 
 	default: (value) => (value == null || value === "" ? "--" : String(value)),
 };

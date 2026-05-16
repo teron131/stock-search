@@ -205,6 +205,12 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		shortLabel: "PEG",
 		description: "P/E divided by expected earnings growth.",
 	},
+	position_source: {
+		label: "Position Source",
+		shortLabel: "SRC",
+		description:
+			"Why this ticker appears in the portfolio view: image import, dashboard watchlist, ETF proxy, or cached universe.",
+	},
 	price: {
 		label: "Price",
 		shortLabel: "PRICE",

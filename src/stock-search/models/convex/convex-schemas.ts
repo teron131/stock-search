@@ -15,6 +15,7 @@ export type ConvexPortfolioPosition = {
 	ticker: string;
 	quantity: number;
 	strategy?: string;
+	position_source?: string;
 	industry_labels?: string[];
 	extra?: Record<string, unknown>;
 };
@@ -50,6 +51,7 @@ export const CONVEX_PORTFOLIO_POSITION_FIELDS = new Set([
 	"ticker",
 	"quantity",
 	"strategy",
+	"position_source",
 	"industry_labels",
 	"extra",
 ]);
@@ -83,6 +85,10 @@ function finiteNumberOrZero(value: unknown): number {
 	return Number.isFinite(number) ? number : 0;
 }
 
+function trimmedString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 /** Normalize local portfolio rows into Convex-safe position records. */
 export function normalizePortfolioPositions(
 	rows: Array<Record<string, unknown>>,
@@ -94,13 +100,14 @@ export function normalizePortfolioPositions(
 			continue;
 		}
 		const industryLabels = normalizeStringArray(row.industry_labels);
+		const strategy = trimmedString(row.strategy);
+		const positionSource = trimmedString(row.position_source);
 		const extra = { ...normalizeObject(row.extra), ...extraFields(row) };
 		normalized.push({
 			ticker,
 			quantity: finiteNumberOrZero(row.quantity),
-			...(typeof row.strategy === "string" && row.strategy.trim()
-				? { strategy: row.strategy.trim() }
-				: {}),
+			...(strategy ? { strategy } : {}),
+			...(positionSource ? { position_source: positionSource } : {}),
 			...(industryLabels.length > 0 ? { industry_labels: industryLabels } : {}),
 			...(Object.keys(extra).length > 0 ? { extra } : {}),
 		});

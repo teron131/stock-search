@@ -12,6 +12,8 @@ import {
 	EVAL_KEYS,
 	normalizeLabels,
 	PORTFOLIO_LABEL_FIELD,
+	POSITION_SOURCE_CACHED_UNIVERSE,
+	POSITION_SOURCE_FIELD,
 	type PortfolioScope,
 	STAT_DERIVED_EVAL_KEYS,
 } from "./shared.js";
@@ -125,7 +127,11 @@ export function buildRowsForScope(
 		if (existingTickers.has(ticker)) {
 			continue;
 		}
-		rows.push({ ticker, quantity: 0 });
+		rows.push({
+			ticker,
+			quantity: 0,
+			[POSITION_SOURCE_FIELD]: POSITION_SOURCE_CACHED_UNIVERSE,
+		});
 	}
 	return rows;
 }

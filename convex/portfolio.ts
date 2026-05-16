@@ -42,6 +42,10 @@ function numberOrZero(value: unknown): number {
 	return Number.isFinite(number) ? number : 0;
 }
 
+function trimmedString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function normalizePositions(positions: unknown): PortfolioPosition[] {
 	if (!Array.isArray(positions)) {
 		return [];
@@ -52,21 +56,21 @@ function normalizePositions(positions: unknown): PortfolioPosition[] {
 			continue;
 		}
 		const row = item as GenericRow;
-		const ticker =
-			typeof row.ticker === "string" ? row.ticker.toUpperCase().trim() : "";
+		const ticker = trimmedString(row.ticker)?.toUpperCase() ?? "";
 		if (!ticker) {
 			continue;
 		}
-		const strategy =
-			typeof row.strategy === "string" && row.strategy.trim()
-				? row.strategy.trim()
-				: undefined;
+		const strategy = trimmedString(row.strategy);
+		const positionSource = trimmedString(row.position_source);
 		const position: PortfolioPosition = {
 			ticker,
 			quantity: numberOrZero(row.quantity),
 		};
 		if (strategy) {
 			position.strategy = strategy;
+		}
+		if (positionSource) {
+			position.position_source = positionSource;
 		}
 		const industryLabels = normalizeStringArray(row.industry_labels);
 		if (industryLabels.length > 0) {
@@ -87,6 +91,9 @@ function positionFromRow(row: PortfolioDocument): PortfolioPosition | null {
 	};
 	if (row.strategy) {
 		position.strategy = row.strategy;
+	}
+	if (row.position_source) {
+		position.position_source = row.position_source;
 	}
 	const industryLabels = [
 		row.industry_label_1,
@@ -159,6 +166,7 @@ function positionPayload(
 		sort_index: sortIndex,
 		quantity: numberOrZero(position.quantity),
 		strategy: position.strategy ?? null,
+		position_source: position.position_source ?? null,
 		industry_label_1: labels[0] ?? null,
 		industry_label_2: labels[1] ?? null,
 		industry_label_3: labels[2] ?? null,
@@ -243,6 +251,7 @@ async function upsertPortfolioStats(
 		sort_index: null,
 		quantity: null,
 		strategy: null,
+		position_source: null,
 		industry_label_1: null,
 		industry_label_2: null,
 		industry_label_3: null,

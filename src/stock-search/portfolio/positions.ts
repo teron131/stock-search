@@ -4,7 +4,12 @@ import type { BackendStore, PositionRow } from "../api/data-store.js";
 import { safeFloat } from "../common-utils.js";
 import { fetchYahooIndicators } from "../indicators.js";
 import { normalizeTicker } from "../utils.js";
-import { portfolioTickers } from "./shared.js";
+import {
+	POSITION_SOURCE_DASHBOARD_MANUAL,
+	POSITION_SOURCE_DASHBOARD_WATCHLIST,
+	POSITION_SOURCE_FIELD,
+	portfolioTickers,
+} from "./shared.js";
 
 async function forgetRemovedPortfolioTickers(
 	store: BackendStore,
@@ -77,6 +82,10 @@ export async function patchPortfolioPosition(
 
 	if (patch.quantity !== undefined) {
 		current.quantity = patch.quantity ?? 0;
+		current[POSITION_SOURCE_FIELD] =
+			current.quantity > 0
+				? POSITION_SOURCE_DASHBOARD_MANUAL
+				: POSITION_SOURCE_DASHBOARD_WATCHLIST;
 	}
 	if (patch.strategy !== undefined) {
 		if (patch.strategy === null || patch.strategy === "") {
