@@ -272,6 +272,24 @@ export function usePortfolioData() {
 		],
 	);
 
+	const refreshAfterPortfolioMutation = useCallback(async () => {
+		cancelSync();
+		try {
+			const apiResult = await readPortfolioPayload({
+				background: true,
+				colorStandards,
+				scope: LIVE_PORTFOLIO_SCOPE,
+			});
+			applyApiResult(apiResult);
+			return { ok: true };
+		} catch (error) {
+			if (!isAbortError(error)) {
+				setLastError(error);
+			}
+			return { ok: false, reason: "refresh_failed" };
+		}
+	}, [applyApiResult, cancelSync, colorStandards]);
+
 	const sync = useCallback(
 		async ({
 			background = false,
@@ -421,10 +439,12 @@ export function usePortfolioData() {
 			}
 
 			const payload = await res.json();
-			await sync({ scope: LIVE_PORTFOLIO_SCOPE });
-			return { ok: true, payload };
+			const refreshed = await refreshAfterPortfolioMutation();
+			return refreshed.ok
+				? { ok: true, payload }
+				: { ok: false, reason: refreshed.reason, payload };
 		},
-		[isUsingDemoData, sync],
+		[isUsingDemoData, refreshAfterPortfolioMutation],
 	);
 
 	const remove = useCallback(

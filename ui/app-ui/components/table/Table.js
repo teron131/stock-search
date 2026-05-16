@@ -638,7 +638,7 @@ export function Table({
 				maxWidth: `${headerTableWidth}px`,
 			}
 		: null;
-	const tableResetKey = `${tab}:${sortCol}:${sortDir}:${cols.map((col) => col.key).join(",")}`;
+	const tableLayoutKey = `${tab}:${cols.map((col) => col.key).join(",")}`;
 	const effectiveRowWindow = {
 		start: Math.min(rowWindow.start, sorted.length),
 		end: Math.min(Math.max(rowWindow.end, rowWindow.start), sorted.length),
@@ -912,7 +912,7 @@ export function Table({
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
 		if (!scrollEl) return;
-		scrollEl.dataset.resetKey = tableResetKey;
+		scrollEl.dataset.layoutKey = tableLayoutKey;
 
 		scrollEl.scrollTop = 0;
 		scrollEl.scrollLeft = 0;
@@ -922,7 +922,7 @@ export function Table({
 		if (summaryScrollRef.current) {
 			summaryScrollRef.current.scrollLeft = 0;
 		}
-	}, [tableResetKey]);
+	}, [tableLayoutKey]);
 
 	useEffect(() => {
 		if (!normalizedSearchQuery || targetRowIndex < 0) return;
