@@ -88,6 +88,10 @@ const ETF_PROXY_HARMONIC_MEAN_FIELDS = new Set<string>([
 	"ps",
 	"ps_forward",
 ]);
+const ETF_PROXY_POSITIVE_RATIO_FIELDS = new Set<string>([
+	...ETF_PROXY_HARMONIC_MEAN_FIELDS,
+	"peg",
+]);
 const ETF_PROXY_INTERPOLATED_VALUE_FIELDS = new Set<string>([
 	"market_cap",
 	"revenue",
@@ -308,7 +312,7 @@ function isUsableEtfProxyValue(field: string, value: number): boolean {
 	if (ETF_PROXY_ZERO_IS_MISSING_FIELDS.has(field) && value === 0) {
 		return false;
 	}
-	return !(ETF_PROXY_HARMONIC_MEAN_FIELDS.has(field) && value <= 0);
+	return !(ETF_PROXY_POSITIVE_RATIO_FIELDS.has(field) && value <= 0);
 }
 
 function hasUsableEtfProxyStats(indicators: Record<string, unknown>): boolean {
@@ -415,13 +419,8 @@ function shouldProxyEtfField(
 	if (previouslyProxiedFields.has(field)) {
 		return true;
 	}
-	if (
-		ETF_PROXY_ZERO_IS_MISSING_FIELDS.has(field) &&
-		asNumber(indicators[field]) === 0
-	) {
-		return true;
-	}
-	return asNumber(indicators[field]) == null;
+	const value = asNumber(indicators[field]);
+	return value == null || !isUsableEtfProxyValue(field, value);
 }
 
 function roundProxyValue(value: number): number {

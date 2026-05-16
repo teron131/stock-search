@@ -192,10 +192,7 @@ export function mergeFamilyRow(
 		if (!(field in nextRow)) {
 			continue;
 		}
-		const nextValue = nextRow[field];
-		if (nextValue != null || !(field in merged) || merged[field] == null) {
-			merged[field] = nextValue;
-		}
+		merged[field] = nextRow[field];
 	}
 	merged[FAMILY_TIMESTAMP_FIELD[family]] = new Date(timestamp).toISOString();
 	return merged;
