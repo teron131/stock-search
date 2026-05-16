@@ -1,5 +1,7 @@
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { changedFields } from "./flat_diff";
 
 type GenericRow = Record<string, unknown>;
 type StoredNewsRow = {
@@ -8,6 +10,9 @@ type StoredNewsRow = {
 	row: GenericRow;
 	updatedAt: number;
 };
+type NewsDocument = Doc<"news">;
+type NewsPayload = Omit<NewsDocument, "_creationTime" | "_id">;
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const NEWS_FETCH_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const NEWS_PUBLISHED_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
@@ -155,6 +160,66 @@ function normalizeNewsEntries(
 	}));
 }
 
+function optionalString(value: unknown): string | null {
+	return typeof value === "string" ? value : null;
+}
+
+function optionalNumber(value: unknown): number | null {
+	const number = Number(value);
+	return Number.isFinite(number) ? number : null;
+}
+
+function newsPayload(
+	key: string,
+	ticker: string,
+	row: GenericRow,
+	updatedAt: number,
+): NewsPayload {
+	const metadata = isRecord(row.metadata) ? row.metadata : {};
+	return {
+		key,
+		ticker,
+		url: typeof row.url === "string" ? row.url : "",
+		title: optionalString(row.title),
+		date: optionalString(row.date),
+		days_ago: optionalNumber(row.days_ago),
+		summary: typeof row.summary === "string" ? row.summary : "",
+		relevancy: typeof row.relevancy === "string" ? row.relevancy : "low",
+		category: typeof row.category === "string" ? row.category : "other",
+		sentiment: typeof row.sentiment === "string" ? row.sentiment : "neutral",
+		metadata_provider: optionalString(metadata.provider),
+		metadata_source_domain: optionalString(metadata.source_domain),
+		metadata_published_at: optionalString(metadata.published_at),
+		metadata_fetched_at: optionalString(metadata.fetched_at),
+		updatedAt,
+	};
+}
+
+function newsRowFromDocument(row: NewsDocument): GenericRow {
+	const metadata: GenericRow = {};
+	for (const [key, value] of [
+		["provider", row.metadata_provider],
+		["source_domain", row.metadata_source_domain],
+		["published_at", row.metadata_published_at],
+		["fetched_at", row.metadata_fetched_at],
+	] as const) {
+		if (value !== undefined) {
+			metadata[key] = value;
+		}
+	}
+	return {
+		url: row.url ?? "",
+		title: row.title ?? null,
+		date: row.date ?? null,
+		days_ago: row.days_ago ?? null,
+		summary: row.summary ?? "",
+		relevancy: row.relevancy ?? "low",
+		category: row.category ?? "other",
+		sentiment: row.sentiment ?? "neutral",
+		metadata,
+	};
+}
+
 function normalizeTickers(tickers: unknown): string[] {
 	if (!Array.isArray(tickers)) {
 		return [];
@@ -182,7 +247,7 @@ export const list = query({
 			.collect();
 		return rows
 			.map((row) => {
-				const prunedRow = pruneNewsPayload(row.row, now);
+				const prunedRow = pruneNewsPayload(newsRowFromDocument(row), now);
 				if (!isRecord(prunedRow)) {
 					return null;
 				}
@@ -218,22 +283,16 @@ export const replaceAll = mutation({
 			}
 			nextTickers.add(entry.ticker);
 			const existingRow = existingByTicker.get(entry.ticker);
+			const payload = newsPayload(key, entry.ticker, prunedRow, now);
 			if (existingRow) {
-				if (JSON.stringify(existingRow.row) !== JSON.stringify(prunedRow)) {
-					await ctx.db.patch(existingRow._id, {
-						row: prunedRow,
-						updatedAt: now,
-					});
+				const patch = changedFields(existingRow as GenericRow, payload);
+				if (patch) {
+					await ctx.db.patch(existingRow._id, patch);
 				}
 				continue;
 			}
 
-			await ctx.db.insert("news", {
-				key,
-				ticker: entry.ticker,
-				row: prunedRow,
-				updatedAt: now,
-			});
+			await ctx.db.insert("news", payload);
 		}
 
 		for (const row of existing) {

@@ -11,6 +11,10 @@ import { normalizeTicker } from "../../utils.js";
 import { normalizeStockIndicators } from "../schemas.js";
 import { ConvexApiError, ConvexHttpClient } from "./client.js";
 import {
+	CONVEX_PORTFOLIO_POSITION_FIELDS,
+	normalizePortfolioPositions,
+} from "./convex-schemas.js";
+import {
 	CONVEX_META_GET,
 	CONVEX_META_SET,
 	CONVEX_NEWS_DELETE_BY_TICKERS,
@@ -37,6 +41,58 @@ function normalizeLabels(value: unknown): string[] {
 		return [];
 	}
 	return value.map((label) => String(label ?? "").trim()).filter(Boolean);
+}
+
+function normalizeObject(value: unknown): Record<string, unknown> {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return {};
+	}
+	return value as Record<string, unknown>;
+}
+
+function extraFields(value: Record<string, unknown>): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(value)
+			.filter(([, fieldValue]) => fieldValue !== undefined)
+			.filter(([key]) => !CONVEX_PORTFOLIO_POSITION_FIELDS.has(key)),
+	);
+}
+
+function normalizePosition(value: unknown): PositionRow | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return null;
+	}
+	const row = value as Record<string, unknown>;
+	const ticker = normalizeTicker(row.ticker);
+	if (!ticker) {
+		return null;
+	}
+	const position: PositionRow = {
+		...normalizeObject(row.extra),
+		...extraFields(row),
+		ticker,
+	};
+	const quantity = Number(row.quantity);
+	if (Number.isFinite(quantity)) {
+		position.quantity = quantity;
+	}
+	if (typeof row.strategy === "string" && row.strategy.trim()) {
+		position.strategy = row.strategy.trim();
+	}
+	const industryLabels = normalizeLabels(row.industry_labels);
+	if (industryLabels.length > 0) {
+		position.industry_labels = industryLabels;
+	}
+	return position;
+}
+
+function normalizePositionRows(value: unknown): PositionRow[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map(normalizePosition)
+		.filter((position): position is PositionRow => position !== null);
 }
 
 function normalizeStockEntry(value: unknown): StockEntry | null {
@@ -98,13 +154,8 @@ export class ConvexStore implements BackendStore {
 			CONVEX_PORTFOLIO_GET,
 			{ key },
 		);
-		const positions = Array.isArray(payload?.positions)
-			? (payload.positions.filter(
-					(row) => typeof row === "object" && row !== null,
-				) as PositionRow[])
-			: [];
 		return {
-			positions,
+			positions: normalizePositionRows(payload?.positions),
 			portfolioStats:
 				typeof payload?.portfolioStats === "object" &&
 				payload.portfolioStats !== null
@@ -120,7 +171,7 @@ export class ConvexStore implements BackendStore {
 	}: PortfolioRecord & { key?: string }): Promise<void> {
 		await this.client.mutation(CONVEX_PORTFOLIO_SET, {
 			key,
-			positions,
+			positions: normalizePortfolioPositions(positions),
 			portfolioStats,
 		});
 	}
@@ -143,11 +194,7 @@ export class ConvexStore implements BackendStore {
 				CONVEX_PORTFOLIO_GET_POSITIONS,
 				{ key: "default" },
 			);
-			return Array.isArray(payload)
-				? (payload.filter(
-						(row) => typeof row === "object" && row !== null,
-					) as PositionRow[])
-				: [];
+			return normalizePositionRows(payload);
 		} catch (error) {
 			if (!this.isMissingFunctionError(error)) {
 				throw error;
@@ -162,7 +209,7 @@ export class ConvexStore implements BackendStore {
 		try {
 			await this.client.mutation(CONVEX_PORTFOLIO_SET_POSITIONS, {
 				key: "default",
-				positions,
+				positions: normalizePortfolioPositions(positions),
 			});
 			return;
 		} catch (error) {

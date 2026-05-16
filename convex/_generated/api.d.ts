@@ -13,6 +13,7 @@ import type {
 	FilterApi,
 	FunctionReference,
 } from "convex/server";
+import type * as flat_diff from "../flat_diff.js";
 import type * as meta_versions from "../meta_versions.js";
 import type * as news from "../news.js";
 import type * as portfolio from "../portfolio.js";
@@ -20,6 +21,7 @@ import type * as sectors from "../sectors.js";
 import type * as stock from "../stock.js";
 
 declare const fullApi: ApiFromModules<{
+	flat_diff: typeof flat_diff;
 	meta_versions: typeof meta_versions;
 	news: typeof news;
 	portfolio: typeof portfolio;

@@ -99,8 +99,6 @@ const STOCK_NUMERIC_EVALUATION_COLUMNS = [
 	"upside_score",
 	"market_cap_score",
 	"tactical_score",
-	"bull_probability",
-	"bear_probability",
 ] as const;
 
 const STOCK_EVALUATION_REASON_COLUMNS = [
@@ -150,7 +148,6 @@ const STOCK_COLUMN_NAMES = [
 	...STOCK_SERIALIZED_INDICATOR_COLUMNS,
 ];
 const STOCK_SELECT_COLUMNS = ["ticker", ...STOCK_COLUMN_NAMES].join(", ");
-
 const POSITION_COLUMN_NAMES = new Set([
 	"ticker",
 	"quantity",

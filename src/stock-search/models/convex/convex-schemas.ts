@@ -15,6 +15,8 @@ export type ConvexPortfolioPosition = {
 	ticker: string;
 	quantity: number;
 	strategy?: string;
+	industry_labels?: string[];
+	extra?: Record<string, unknown>;
 };
 
 export type ConvexPortfolioRow = {
@@ -44,22 +46,63 @@ export type ConvexSectorSnapshotRow = {
 	updatedAt?: number | null;
 };
 
-/** Normalize Convex portfolio rows into local position dicts. */
+export const CONVEX_PORTFOLIO_POSITION_FIELDS = new Set([
+	"ticker",
+	"quantity",
+	"strategy",
+	"industry_labels",
+	"extra",
+]);
+
+function normalizeStringArray(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value
+		.map((item) => (typeof item === "string" ? item.trim() : ""))
+		.filter(Boolean);
+}
+
+function normalizeObject(value: unknown): Record<string, unknown> {
+	if (typeof value !== "object" || value == null || Array.isArray(value)) {
+		return {};
+	}
+	return value as Record<string, unknown>;
+}
+
+function extraFields(row: Record<string, unknown>): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(row)
+			.filter(([, value]) => value !== undefined)
+			.filter(([key]) => !CONVEX_PORTFOLIO_POSITION_FIELDS.has(key)),
+	);
+}
+
+function finiteNumberOrZero(value: unknown): number {
+	const number = Number(value);
+	return Number.isFinite(number) ? number : 0;
+}
+
+/** Normalize local portfolio rows into Convex-safe position records. */
 export function normalizePortfolioPositions(
 	rows: Array<Record<string, unknown>>,
-): Array<Record<string, unknown>> {
-	const normalized: Array<Record<string, unknown>> = [];
+): ConvexPortfolioPosition[] {
+	const normalized: ConvexPortfolioPosition[] = [];
 	for (const row of rows) {
 		const ticker = normalizeTicker(String(row.ticker ?? ""));
 		if (!ticker) {
 			continue;
 		}
+		const industryLabels = normalizeStringArray(row.industry_labels);
+		const extra = { ...normalizeObject(row.extra), ...extraFields(row) };
 		normalized.push({
 			ticker,
-			quantity: Number(row.quantity ?? 0),
+			quantity: finiteNumberOrZero(row.quantity),
 			...(typeof row.strategy === "string" && row.strategy.trim()
 				? { strategy: row.strategy.trim() }
 				: {}),
+			...(industryLabels.length > 0 ? { industry_labels: industryLabels } : {}),
+			...(Object.keys(extra).length > 0 ? { extra } : {}),
 		});
 	}
 	return normalized;

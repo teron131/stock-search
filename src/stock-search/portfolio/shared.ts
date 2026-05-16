@@ -25,8 +25,6 @@ export const EVAL_KEYS = [
 	"valuation_score",
 	"moat_score",
 	"upside_score",
-	"bull_probability",
-	"bear_probability",
 	"market_cap_score",
 	"tactical_score",
 ] as const;

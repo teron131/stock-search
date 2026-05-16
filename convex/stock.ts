@@ -1,17 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type MutationCtx, mutation, query } from "./_generated/server";
+import { changedFields } from "./flat_diff";
 
 type GenericRow = Record<string, unknown>;
 type StockDocument = Doc<"stocks">;
-type StoredStockFamilies = Pick<
-	StockDocument,
-	"indicators" | "evaluation" | "labels"
->;
-type StockPayload = {
+type StockPayload = GenericRow & {
 	ticker: string;
-	indicators: GenericRow;
-	evaluation: GenericRow;
 	labels: string[];
 	updatedAt: number;
 };
@@ -19,8 +14,127 @@ type NormalizedStockEntry = GenericRow & { ticker: string };
 type StockWrite =
 	| { kind: "skip" }
 	| { kind: "insert"; payload: StockPayload }
-	| { kind: "patch"; id: Id<"stocks">; payload: StockPayload };
+	| { kind: "patch"; id: Id<"stocks">; payload: Partial<StockPayload> };
+type StockScalarColumn = {
+	name: string;
+	kind: "number" | "text";
+	group: "indicator" | "evaluation";
+};
+
 const ETF_MARKET_CAP_FIELDS = ["market_cap", "fx"] as const;
+
+const STOCK_TEXT_INDICATOR_COLUMNS = [
+	"name",
+	"strategy",
+	"quote_type",
+	"equity_type",
+	"fx",
+	"sector_name",
+	"industry_name",
+	"earning_direction",
+	"market_data_fetched_at",
+	"market_snapshot_fetched_at",
+	"statistics_fetched_at",
+	"financials_fetched_at",
+	"ratings_fetched_at",
+	"industry_labels_fetched_at",
+	"etf_holdings_fetched_at",
+] as const;
+
+const STOCK_NUMERIC_INDICATOR_COLUMNS = [
+	"price",
+	"change",
+	"change_percent_1d",
+	"change_percent_1m",
+	"change_percent_3m",
+	"change_percent_6m",
+	"change_percent_1y",
+	"change_percent_mtd",
+	"change_percent_ytd",
+	"fifty_day_change_percent",
+	"one_hundred_day_change_percent",
+	"two_hundred_day_change_percent",
+	"market_cap",
+	"pe",
+	"pe_forward",
+	"ps",
+	"ps_forward",
+	"peg",
+	"beta",
+	"iv",
+	"rsi",
+	"median_upside",
+	"revenue",
+	"revenue_growth",
+	"revenue_growth_1y",
+	"revenue_cagr_3y",
+	"eps_growth",
+	"fcf_growth_1y",
+	"fcf_cagr_3y",
+	"gross_margin",
+	"gross_margin_median_3y",
+	"operating_margin",
+	"operating_margin_median_3y",
+	"operating_margin_delta_vs_3y",
+	"operating_margin_std_3y",
+	"roe",
+	"roic",
+	"debt_to_equity",
+	"free_cash_flow",
+	"fcf_margin_median_3y",
+	"shares_change_1y",
+	"shares_change_cagr_3y",
+	"shareholder_yield",
+	"research_and_development",
+	"rd_intensity",
+	"rd_knowledge_capital",
+] as const;
+
+const STOCK_NUMERIC_EVALUATION_COLUMNS = [
+	"overall_score",
+	"quality_score",
+	"valuation_score",
+	"moat_score",
+	"upside_score",
+	"market_cap_score",
+	"tactical_score",
+] as const;
+
+const STOCK_EVALUATION_REASON_COLUMNS = [
+	["moat_score", "moat_reasons"],
+	["quality_score", "quality_reasons"],
+	["upside_score", "upside_reasons"],
+] as const;
+
+const STOCK_FUTURE_OUTLOOK_COLUMNS = {
+	score: "future_score",
+	reasons: "future_reasons",
+} as const;
+
+const STOCK_ARRAY_INDICATOR_COLUMNS = [
+	"industry_labels",
+	"ratings",
+	"etf_holdings",
+	"etf_sectors",
+] as const;
+
+const STOCK_SCALAR_COLUMNS: readonly StockScalarColumn[] = [
+	...STOCK_TEXT_INDICATOR_COLUMNS.map((name) => ({
+		name,
+		kind: "text" as const,
+		group: "indicator" as const,
+	})),
+	...STOCK_NUMERIC_INDICATOR_COLUMNS.map((name) => ({
+		name,
+		kind: "number" as const,
+		group: "indicator" as const,
+	})),
+	...STOCK_NUMERIC_EVALUATION_COLUMNS.map((name) => ({
+		name,
+		kind: "number" as const,
+		group: "evaluation" as const,
+	})),
+];
 
 function normalizeTicker(value: unknown): string {
 	return typeof value === "string" ? value.toUpperCase().trim() : "";
@@ -36,7 +150,7 @@ function normalizeLabels(labels: unknown): string[] {
 }
 
 function normalizeObject(value: unknown): GenericRow {
-	if (typeof value !== "object" || value === null) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		return {};
 	}
 	return value as GenericRow;
@@ -101,10 +215,149 @@ function normalizeTickers(tickers: unknown): string[] {
 }
 
 function normalizeStockEntry(value: unknown): GenericRow | null {
-	if (typeof value !== "object" || value === null) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		return null;
 	}
 	return value as GenericRow;
+}
+
+function scoreFromValue(value: unknown): number | null {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+		return scoreFromValue((value as GenericRow).score);
+	}
+	return null;
+}
+
+function textValue(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const text = value.trim();
+	return text ? text : null;
+}
+
+function arrayValue(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function scoreReasons(value: unknown): string[] | undefined {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return undefined;
+	}
+	const reasons = normalizeLabels((value as GenericRow).reasons);
+	return reasons.length > 0 ? reasons : undefined;
+}
+
+function applyScalarColumns(
+	row: GenericRow,
+	indicators: GenericRow,
+	evaluation: GenericRow,
+): void {
+	for (const column of STOCK_SCALAR_COLUMNS) {
+		const value = row[column.name];
+		if (value === undefined) {
+			continue;
+		}
+		if (column.group === "indicator") {
+			indicators[column.name] = value;
+		} else {
+			evaluation[column.name] = value;
+		}
+	}
+}
+
+function applyEvaluationReasons(row: GenericRow, evaluation: GenericRow): void {
+	for (const [scoreField, reasonsField] of STOCK_EVALUATION_REASON_COLUMNS) {
+		const reasons = normalizeLabels(row[reasonsField]);
+		if (reasons.length > 0) {
+			evaluation[scoreField] = {
+				score: evaluation[scoreField] ?? null,
+				reasons,
+			};
+		}
+	}
+}
+
+function applyFutureOutlook(row: GenericRow, evaluation: GenericRow): void {
+	if (row[STOCK_FUTURE_OUTLOOK_COLUMNS.score] !== undefined) {
+		evaluation.score = row[STOCK_FUTURE_OUTLOOK_COLUMNS.score];
+	}
+	const reasons = normalizeLabels(row[STOCK_FUTURE_OUTLOOK_COLUMNS.reasons]);
+	if (reasons.length > 0) {
+		evaluation.reasons = reasons;
+	}
+}
+
+function applyArrayIndicators(row: GenericRow, indicators: GenericRow): void {
+	for (const field of STOCK_ARRAY_INDICATOR_COLUMNS) {
+		const value = row[field];
+		if (Array.isArray(value) && value.length > 0) {
+			indicators[field] = value;
+		}
+	}
+}
+
+function toStockPayload(
+	row: GenericRow & { ticker: string; updatedAt: number },
+) {
+	const indicators = normalizeIndicators(row.indicators);
+	const evaluation = normalizeEvaluation(row.evaluation);
+	applyScalarColumns(row, indicators, evaluation);
+	applyEvaluationReasons(row, evaluation);
+	applyFutureOutlook(row, evaluation);
+	applyArrayIndicators(row, indicators);
+	return {
+		ticker: row.ticker,
+		indicators,
+		evaluation,
+		labels: normalizeLabels(row.labels),
+		updatedAt: row.updatedAt,
+	};
+}
+
+function flattenStockPayload({
+	ticker,
+	indicators,
+	evaluation,
+	labels,
+	updatedAt,
+}: {
+	ticker: string;
+	indicators: GenericRow;
+	evaluation: GenericRow;
+	labels: string[];
+	updatedAt: number;
+}): StockPayload {
+	const payload: StockPayload = {
+		ticker,
+		labels,
+		updatedAt,
+	};
+
+	for (const column of STOCK_SCALAR_COLUMNS) {
+		const source = column.group === "indicator" ? indicators : evaluation;
+		payload[column.name] =
+			column.kind === "number"
+				? scoreFromValue(source[column.name])
+				: textValue(source[column.name]);
+	}
+	for (const [scoreField, reasonsField] of STOCK_EVALUATION_REASON_COLUMNS) {
+		payload[reasonsField] = scoreReasons(evaluation[scoreField]) ?? [];
+	}
+	payload[STOCK_FUTURE_OUTLOOK_COLUMNS.score] = scoreFromValue(
+		evaluation.score,
+	);
+	payload[STOCK_FUTURE_OUTLOOK_COLUMNS.reasons] = normalizeLabels(
+		evaluation.reasons,
+	);
+	for (const field of STOCK_ARRAY_INDICATOR_COLUMNS) {
+		payload[field] = arrayValue(indicators[field]);
+	}
+
+	return payload;
 }
 
 function buildStockPayload(
@@ -113,40 +366,37 @@ function buildStockPayload(
 		existing,
 		now,
 	}: {
-		existing?: StoredStockFamilies | null;
+		existing?: StockDocument | null;
 		now: number;
 	},
 ): StockPayload {
-	return {
+	const existingPayload = existing
+		? toStockPayload(
+				existing as GenericRow & {
+					ticker: string;
+					updatedAt: number;
+				},
+			)
+		: null;
+	const indicators =
+		entry.indicators === undefined
+			? normalizeIndicators(existingPayload?.indicators)
+			: normalizeIndicators(entry.indicators);
+	const evaluation =
+		entry.evaluation === undefined
+			? normalizeEvaluation(existingPayload?.evaluation)
+			: normalizeEvaluation(entry.evaluation);
+	const labels =
+		entry.labels === undefined
+			? normalizeLabels(existingPayload?.labels)
+			: normalizeLabels(entry.labels);
+	return flattenStockPayload({
 		ticker: normalizeTicker(entry.ticker),
-		indicators:
-			entry.indicators === undefined
-				? normalizeIndicators(existing?.indicators)
-				: normalizeIndicators(entry.indicators),
-		evaluation:
-			entry.evaluation === undefined
-				? normalizeEvaluation(existing?.evaluation)
-				: normalizeEvaluation(entry.evaluation),
-		labels:
-			entry.labels === undefined
-				? normalizeLabels(existing?.labels)
-				: normalizeLabels(entry.labels),
+		indicators,
+		evaluation,
+		labels,
 		updatedAt: now,
-	};
-}
-
-function stockPayloadChanged(
-	existing: StoredStockFamilies,
-	payload: StockPayload,
-): boolean {
-	return (
-		JSON.stringify(normalizeObject(existing.indicators)) !==
-			JSON.stringify(payload.indicators) ||
-		JSON.stringify(normalizeObject(existing.evaluation)) !==
-			JSON.stringify(payload.evaluation) ||
-		JSON.stringify(normalizeLabels(existing.labels)) !==
-			JSON.stringify(payload.labels)
-	);
+	});
 }
 
 function buildStockWrite(
@@ -157,11 +407,10 @@ function buildStockWrite(
 		return { kind: "insert", payload };
 	}
 
-	if (!stockPayloadChanged(existing, payload)) {
-		return { kind: "skip" };
-	}
-
-	return { kind: "patch", id: existing._id, payload };
+	const patch = changedFields(existing as GenericRow, payload);
+	return patch
+		? { kind: "patch", id: existing._id, payload: patch }
+		: { kind: "skip" };
 }
 
 function buildExistingStocksByTicker(rows: StockDocument[]) {
@@ -210,28 +459,16 @@ function normalizeStockEntries(rows: unknown): NormalizedStockEntry[] {
 	return Array.from(normalizedByTicker.values());
 }
 
-function toStockPayload(row: {
-	ticker: string;
-	indicators?: unknown;
-	evaluation?: unknown;
-	labels?: unknown;
-	updatedAt: number;
-}) {
-	return {
-		ticker: row.ticker,
-		indicators: normalizeIndicators(row.indicators),
-		evaluation: normalizeEvaluation(row.evaluation),
-		labels: normalizeLabels(row.labels),
-		updatedAt: row.updatedAt,
-	};
-}
-
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
 		const rows = await ctx.db.query("stocks").collect();
 		return rows
-			.map(toStockPayload)
+			.map((row) =>
+				toStockPayload(
+					row as GenericRow & { ticker: string; updatedAt: number },
+				),
+			)
 			.sort((a, b) => a.ticker.localeCompare(b.ticker));
 	},
 });
@@ -259,7 +496,11 @@ export const get = query({
 		if (!row) {
 			return null;
 		}
-		return toStockPayload({ ...row, ticker });
+		return toStockPayload({
+			...(row as GenericRow),
+			ticker,
+			updatedAt: row.updatedAt,
+		});
 	},
 });
 
@@ -282,7 +523,11 @@ export const getMany = query({
 
 		return rows
 			.filter((row): row is NonNullable<(typeof rows)[number]> => row !== null)
-			.map((row) => toStockPayload(row))
+			.map((row) =>
+				toStockPayload(
+					row as GenericRow & { ticker: string; updatedAt: number },
+				),
+			)
 			.sort((a, b) => a.ticker.localeCompare(b.ticker));
 	},
 });
@@ -319,13 +564,14 @@ export const upsert = mutation({
 		const write = buildStockWrite(existing, payload);
 		if (write.kind === "patch") {
 			await ctx.db.patch(write.id, write.payload);
-		}
-		if (write.kind !== "insert") {
 			return { ok: true, updated: true };
+		}
+		if (write.kind === "skip") {
+			return { ok: true, updated: false };
 		}
 
 		await ctx.db.insert("stocks", write.payload);
-		return { ok: true, updated: false };
+		return { ok: true, updated: true };
 	},
 });
 
