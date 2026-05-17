@@ -6,6 +6,7 @@ import {
 	bucketFromEvaluation,
 	deriveEvaluationScores,
 } from "../evaluation/normalization.js";
+import { REQUIRED_FAMILY_FIELDS } from "../stats-families.js";
 import { asNumber, normalizeTicker } from "../utils.js";
 import {
 	ALL_UNIVERSE_SCOPES,
@@ -28,6 +29,8 @@ const NON_US_TICKER_SUFFIXES = new Set([
 	"TW",
 ]);
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
+const REQUIRED_STATISTICS_FIELDS = REQUIRED_FAMILY_FIELDS.statistics ?? [];
+const REQUIRED_FINANCIAL_FIELDS = REQUIRED_FAMILY_FIELDS.financials ?? [];
 
 function positionQuantity(position: PositionRow): number {
 	const quantity = Number(position.quantity ?? 0);
@@ -50,6 +53,37 @@ function isNonUsTicker(tickerInput: unknown): boolean {
 	}
 	const suffix = ticker.match(/\.([A-Z]{1,4})$/)?.[1];
 	return suffix ? NON_US_TICKER_SUFFIXES.has(suffix) : false;
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+	if (value == null) {
+		return false;
+	}
+	if (typeof value === "string") {
+		return value.trim() !== "";
+	}
+	return true;
+}
+
+function hasMissingRequiredFields(
+	indicators: Record<string, unknown>,
+	fields: readonly string[],
+): boolean {
+	return fields.some((field) => !hasMeaningfulValue(indicators[field]));
+}
+
+function needsPriorityRefresh(stock: StockEntry | undefined): boolean {
+	const indicators = stock?.indicators ?? {};
+	const quoteType = String(indicators.quote_type ?? "")
+		.trim()
+		.toUpperCase();
+	if (quoteType === "ETF" || quoteType === "MUTUALFUND") {
+		return false;
+	}
+	return (
+		hasMissingRequiredFields(indicators, REQUIRED_STATISTICS_FIELDS) ||
+		hasMissingRequiredFields(indicators, REQUIRED_FINANCIAL_FIELDS)
+	);
 }
 
 export function clearEtfMarketCapFields(row: Record<string, unknown>): void {
@@ -321,7 +355,20 @@ export function liveTickersForScope(
 	positions: PositionRow[],
 	evalTickers: Set<string>,
 	scope: PortfolioScope,
+	stocksMap: Record<string, StockEntry> = {},
 ): string[] {
+	if (scope === "priority") {
+		return [
+			...new Set(
+				positions.flatMap((position) => {
+					const ticker = normalizeTicker(position.ticker);
+					return ticker && needsPriorityRefresh(stocksMap[ticker])
+						? [ticker]
+						: [];
+				}),
+			),
+		];
+	}
 	if (scope !== "portfolio_live" && scope !== "all") {
 		return [];
 	}

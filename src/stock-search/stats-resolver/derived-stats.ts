@@ -7,6 +7,7 @@ export const PEG_SOURCE_STOCKANALYSIS = "stockanalysis";
 
 const DERIVED_PEG_EXCLUDED_QUOTE_TYPES = new Set(["ETF", "MUTUALFUND"]);
 const MIN_DERIVED_PEG_NTM_GROWTH_PERCENT = 5;
+const PEG_SOURCE_MATCH_TOLERANCE = 0.005;
 const TRUSTED_PEG_SOURCES = new Set([
 	PEG_SOURCE_DERIVED_NTM_FORWARD_PE,
 	PEG_SOURCE_STOCKANALYSIS,
@@ -22,6 +23,17 @@ function assignDerivedPeg(indicators: Record<string, unknown>): void {
 	indicators.peg = derivedPeg;
 	indicators.peg_source =
 		derivedPeg == null ? null : PEG_SOURCE_DERIVED_NTM_FORWARD_PE;
+}
+
+function isDerivedPegValue(
+	indicators: Record<string, unknown>,
+	peg: number,
+): boolean {
+	const derivedPeg = derivePegFromNtmForwardPe(indicators);
+	return (
+		derivedPeg != null &&
+		Math.abs(derivedPeg - peg) <= PEG_SOURCE_MATCH_TOLERANCE
+	);
 }
 
 export function derivePegFromNtmForwardPe(
@@ -77,8 +89,11 @@ export function applyCachedPegFallback(
 	if (TRUSTED_PEG_SOURCES.has(String(indicators.peg_source ?? ""))) {
 		return;
 	}
-	if (asPositiveNumber(indicators.peg) != null) {
-		indicators.peg_source = indicators.peg_source ?? null;
+	const cachedPeg = asPositiveNumber(indicators.peg);
+	if (cachedPeg != null) {
+		indicators.peg_source = isDerivedPegValue(indicators, cachedPeg)
+			? PEG_SOURCE_DERIVED_NTM_FORWARD_PE
+			: null;
 		return;
 	}
 

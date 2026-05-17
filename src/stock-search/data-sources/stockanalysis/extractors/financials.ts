@@ -481,7 +481,8 @@ export async function loadFinancialsSnapshot(
 	tickerLower: string,
 ): Promise<Record<string, unknown>> {
 	const url = stockDataUrl(STOCKANALYSIS_FINANCIALS_URL, tickerLower);
-	const financialsText = await loadStockAnalysisText(url);
+	const maxCharacters = 60_000;
+	const financialsText = await loadStockAnalysisText(url, maxCharacters);
 	const parsedFinancials =
 		financialsText == null
 			? {}
@@ -493,12 +494,14 @@ export async function loadFinancialsSnapshot(
 		urls: url,
 		outputSchema: FinancialsSchema,
 		defaultValue: {},
+		maxCharacters,
 		instruction: [
 			`Extract the StockAnalysis financials schema for ${tickerLower.toUpperCase()}.`,
 			`Source URL: ${url}`,
-			"Use only the first/current data column in the table.",
-			"Ignore older columns to the right.",
+			"Use the first/current fiscal-year column for current values like revenue, free_cash_flow, gross_margin, and operating_margin.",
+			"Use older fiscal-year columns to compute 1Y growth, 3Y CAGR, and 3Y median fields when the table provides enough periods.",
 			"Use revenue_growth, eps_growth, gross_margin, and operating_margin as 0-100 numeric values.",
+			"Use fcf_growth_1y and fcf_cagr_3y from displayed Free Cash Flow growth rows when present; otherwise compute them from Free Cash Flow values when the sign makes the calculation meaningful.",
 			"eps_growth must come from the EPS Growth row only; do not use EPS (Diluted), EPS (Basic), or Shares Change (YoY).",
 		].join("\n"),
 	});

@@ -106,7 +106,12 @@ export async function buildPortfolioPayload(
 			.filter(([, stock]) => hasOwnEvaluation(stock.evaluation))
 			.map(([ticker]) => ticker),
 	);
-	const liveTickers = liveTickersForScope(scopedPositions, evalTickers, scope);
+	const liveTickers = liveTickersForScope(
+		scopedPositions,
+		evalTickers,
+		scope,
+		stocksMap,
+	);
 	const fxRefreshTickers = fxRefreshTickersForScope(
 		scopedPositions,
 		stocksMap,

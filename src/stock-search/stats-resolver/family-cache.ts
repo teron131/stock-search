@@ -131,16 +131,12 @@ function hasRequiredFamilyFields(
 		return true;
 	}
 	const requiredFields = REQUIRED_FAMILY_FIELDS[family] ?? [];
-	if (
-		requiredFields.length > 0 &&
-		!requiredFields.every((field) => hasMeaningfulPayload(row[field]))
-	) {
-		return false;
+	if (requiredFields.length === 0) {
+		return family === "statistics" || family === "financials"
+			? hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family])
+			: true;
 	}
-	if (family === "statistics" || family === "financials") {
-		return hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family]);
-	}
-	return true;
+	return requiredFields.every((field) => hasMeaningfulPayload(row[field]));
 }
 
 export function chooseCachedSnapshot(
@@ -209,6 +205,9 @@ export function mergeFamilyRow(
 	const merged = { ...baseRow };
 	for (const field of FAMILY_FIELDS[family]) {
 		if (!(field in nextRow)) {
+			continue;
+		}
+		if (nextRow[field] == null && merged[field] != null) {
 			continue;
 		}
 		merged[field] = nextRow[field];

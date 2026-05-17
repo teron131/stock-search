@@ -73,7 +73,13 @@ export const FAMILY_FIELDS: Record<StatsFamily, string[]> = {
 };
 
 export const REQUIRED_FAMILY_FIELDS: Partial<Record<StatsFamily, string[]>> = {
-	statistics: ["market_cap", "pe"],
+	statistics: ["market_cap", "pe", "peg"],
+	financials: [
+		"revenue_growth_1y",
+		"eps_growth",
+		"gross_margin",
+		"operating_margin",
+	],
 };
 
 export const FAMILY_TIMESTAMP_FIELD: Record<StatsFamily, string> = {

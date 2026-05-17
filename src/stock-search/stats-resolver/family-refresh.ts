@@ -86,6 +86,21 @@ async function persistIndicators(
 	]);
 }
 
+function cacheMergedFamilyRow(
+	ticker: string,
+	family: StatsFamily,
+	mergedIndicators: Record<string, unknown>,
+	updatedAt: number,
+): Record<string, unknown> {
+	const mergedFamilyRow = familyRow(mergedIndicators, family);
+	familyCaches[family].set(ticker, {
+		value: mergedFamilyRow,
+		updatedAt,
+		lastFailureAt: null,
+	});
+	return mergedFamilyRow;
+}
+
 async function queueRefresh(
 	store: BackendStore,
 	ticker: string,
@@ -112,17 +127,13 @@ async function queueRefresh(
 		const refreshedAt = Date.now();
 		try {
 			const refreshedRow = await refreshFamilyRow(bundle, family);
-			familyCaches[family].set(ticker, {
-				value: refreshedRow,
-				updatedAt: refreshedAt,
-				lastFailureAt: null,
-			});
 			const mergedIndicators = mergeFamilyRow(
 				persistedRow,
 				family,
 				refreshedRow,
 				refreshedAt,
 			);
+			cacheMergedFamilyRow(ticker, family, mergedIndicators, refreshedAt);
 			await persistIndicators(store, ticker, mergedIndicators, stockEntry);
 		} catch {
 			familyCaches[family].set(ticker, {
@@ -204,22 +215,23 @@ export async function resolveFamily({
 	const refreshedAt = Date.now();
 	try {
 		const refreshedRow = await refreshFamilyRow(bundle, family);
-		familyCaches[family].set(ticker, {
-			value: refreshedRow,
-			updatedAt: refreshedAt,
-			lastFailureAt: null,
-		});
 		const mergedIndicators = mergeFamilyRow(
 			persistedRow,
 			family,
 			refreshedRow,
 			refreshedAt,
 		);
+		const mergedFamilyRow = cacheMergedFamilyRow(
+			ticker,
+			family,
+			mergedIndicators,
+			refreshedAt,
+		);
 		await persistIndicators(store, ticker, mergedIndicators, stockEntry);
 		Object.assign(persistedRow, mergedIndicators);
 		return {
 			family,
-			row: refreshedRow,
+			row: mergedFamilyRow,
 			decision: "inline_refresh",
 			sourceTier: "live",
 			timestamp: refreshedAt,
