@@ -77,6 +77,10 @@ export function applyCachedPegFallback(
 	if (TRUSTED_PEG_SOURCES.has(String(indicators.peg_source ?? ""))) {
 		return;
 	}
+	if (asPositiveNumber(indicators.peg) != null) {
+		indicators.peg_source = indicators.peg_source ?? null;
+		return;
+	}
 
 	assignDerivedPeg(indicators);
 }
