@@ -24,6 +24,11 @@ function finiteNumber(value: unknown): number {
 }
 
 const ETF_MARKET_CAP_FIELDS = ["market_cap", "fx"] as const;
+const ETF_PROXY_METADATA_FIELDS = [
+	"proxied_stat_fields",
+	"proxied_stat_coverage",
+	"stats_proxy_source",
+] as const;
 
 function isEtfIndicatorRow(row: Record<string, unknown>): boolean {
 	return (
@@ -56,6 +61,12 @@ function normalizeEtfHoldings(value: unknown): Array<Record<string, unknown>> {
 	return holdings;
 }
 
+function clearEtfProxyMetadata(indicators: Record<string, unknown>): void {
+	for (const field of ETF_PROXY_METADATA_FIELDS) {
+		delete indicators[field];
+	}
+}
+
 /** Normalize indicator payloads before they are cached, persisted, or rendered. */
 export function normalizeStockIndicators(
 	value: unknown,
@@ -68,6 +79,8 @@ export function normalizeStockIndicators(
 		for (const field of ETF_MARKET_CAP_FIELDS) {
 			indicators[field] = null;
 		}
+	} else {
+		clearEtfProxyMetadata(indicators);
 	}
 	if (Array.isArray(indicators.etf_holdings)) {
 		indicators.etf_holdings = normalizeEtfHoldings(indicators.etf_holdings);

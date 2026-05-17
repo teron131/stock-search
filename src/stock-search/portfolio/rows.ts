@@ -152,6 +152,46 @@ export function rankRows(rows: Array<Record<string, unknown>>): void {
 	}
 }
 
+function clearRefreshedProxyFields(
+	indicators: Record<string, unknown>,
+	refreshedRow: Record<string, unknown>,
+): void {
+	if (!Array.isArray(indicators.proxied_stat_fields)) {
+		return;
+	}
+	const previousProxiedFields = indicators.proxied_stat_fields.map((field) =>
+		String(field),
+	);
+	const remainingProxiedFields = previousProxiedFields.filter(
+		(field) => !(field in refreshedRow && refreshedRow[field] != null),
+	);
+	if (remainingProxiedFields.length === previousProxiedFields.length) {
+		return;
+	}
+
+	if (remainingProxiedFields.length === 0) {
+		delete indicators.proxied_stat_fields;
+		delete indicators.proxied_stat_coverage;
+		delete indicators.stats_proxy_source;
+		return;
+	}
+
+	const remainingProxiedFieldSet = new Set(remainingProxiedFields);
+	const coverage =
+		typeof indicators.proxied_stat_coverage === "object" &&
+		indicators.proxied_stat_coverage !== null &&
+		!Array.isArray(indicators.proxied_stat_coverage)
+			? { ...(indicators.proxied_stat_coverage as Record<string, unknown>) }
+			: {};
+	for (const field of previousProxiedFields) {
+		if (!remainingProxiedFieldSet.has(field)) {
+			delete coverage[field];
+		}
+	}
+	indicators.proxied_stat_fields = remainingProxiedFields;
+	indicators.proxied_stat_coverage = coverage;
+}
+
 export function mergeLiveResultsIntoStocks(
 	stocksMap: Record<string, StockEntry>,
 	liveResults: Record<
@@ -172,11 +212,13 @@ export function mergeLiveResultsIntoStocks(
 
 	for (const [ticker, result] of Object.entries(liveResults)) {
 		const existing = mergedMap[ticker];
+		const indicators = {
+			...(existing?.indicators ?? {}),
+			...result.row,
+		};
+		clearRefreshedProxyFields(indicators, result.row);
 		mergedMap[ticker] = {
-			indicators: {
-				...(existing?.indicators ?? {}),
-				...result.row,
-			},
+			indicators,
 			evaluation: existing?.evaluation ?? {},
 			labels: existing?.labels ?? [],
 		};
