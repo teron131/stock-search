@@ -12,11 +12,6 @@ data/
 *.db-wal
 *.ipynb
 *test*
-!tests/
-!tests/*.py
-!tests/**/*.py
-!server/test/
-!server/test/cli.test.ts
 *.png
 !ui/logo.png
 *.jpg
