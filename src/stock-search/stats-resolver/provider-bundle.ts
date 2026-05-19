@@ -1,6 +1,7 @@
 /** Memoize provider calls needed to resolve one ticker's stat families. */
 
 import {
+	fetchFinvizStatistics,
 	fetchStockAnalysisFinancials,
 	fetchStockAnalysisStatistics,
 	fetchYahooIndicators,
@@ -11,6 +12,8 @@ export class ProviderBundle {
 	private yahooPromise: Promise<Record<string, unknown>> | null = null;
 	private yahooMetaPromise: Promise<Record<string, unknown>> | null = null;
 	private statisticsPromise: Promise<Record<string, unknown>> | null = null;
+	private finvizStatisticsPromise: Promise<Record<string, unknown>> | null =
+		null;
 	private financialsPromise: Promise<Record<string, unknown>> | null = null;
 
 	constructor(private readonly ticker: string) {}
@@ -31,6 +34,14 @@ export class ProviderBundle {
 	getStatistics(): Promise<Record<string, unknown>> {
 		this.statisticsPromise ??= fetchStockAnalysisStatistics(this.ticker);
 		return this.statisticsPromise;
+	}
+
+	/** Return throttled Finviz slow-statistics fields, falling back to empty on provider limits. */
+	getFinvizStatistics(): Promise<Record<string, unknown>> {
+		this.finvizStatisticsPromise ??= fetchFinvizStatistics(this.ticker).catch(
+			() => ({}),
+		);
+		return this.finvizStatisticsPromise;
 	}
 
 	/** Return the cached StockAnalysis financials payload. */

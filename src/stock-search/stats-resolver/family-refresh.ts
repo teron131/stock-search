@@ -11,7 +11,11 @@ import {
 	FAMILY_POLICIES,
 	type StatsFamily,
 } from "../stats-families.js";
-import { applyPrimaryPegFallback } from "./derived-stats.js";
+import {
+	applySourcePegFallback,
+	PEG_SOURCE_FINVIZ,
+	PEG_SOURCE_STOCKANALYSIS,
+} from "./derived-stats.js";
 import {
 	chooseCachedSnapshot,
 	completeKnownFamilyRow,
@@ -24,6 +28,19 @@ import { ProviderBundle } from "./provider-bundle.js";
 import type { FamilyResolution, StatsResolutionMode } from "./types.js";
 
 const runningRefreshes = new Set<string>();
+
+function fillMissingFields(
+	primary: Record<string, unknown>,
+	fallback: Record<string, unknown>,
+): Record<string, unknown> {
+	const output = { ...primary };
+	for (const [field, value] of Object.entries(fallback)) {
+		if (output[field] == null && value != null) {
+			output[field] = value;
+		}
+	}
+	return output;
+}
 
 async function refreshFamilyRow(
 	bundle: ProviderBundle,
@@ -41,12 +58,25 @@ async function refreshFamilyRow(
 		return familyRow({ ...yahoo, ...metadata }, family);
 	}
 	if (family === "statistics") {
-		const [statistics, yahoo] = await Promise.all([
+		const [statistics, finviz, yahoo] = await Promise.all([
 			bundle.getStatistics(),
+			bundle.getFinvizStatistics(),
 			bundle.getYahooIndicators(),
 		]);
-		const merged = mergeAndNormalizeMonetaryFields(statistics, yahoo);
-		applyPrimaryPegFallback(merged, statistics);
+		const providerStatistics = fillMissingFields(statistics, finviz);
+		const merged = mergeAndNormalizeMonetaryFields(providerStatistics, yahoo);
+		applySourcePegFallback(merged, [
+			{
+				source: PEG_SOURCE_STOCKANALYSIS,
+				pe_forward: statistics.pe_forward,
+				peg: statistics.peg,
+			},
+			{
+				source: PEG_SOURCE_FINVIZ,
+				pe_forward: finviz.pe_forward,
+				peg: finviz.peg,
+			},
+		]);
 		return completeKnownFamilyRow(merged, family);
 	}
 	if (family === "financials") {

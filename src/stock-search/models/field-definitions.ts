@@ -256,11 +256,53 @@ export const FIELD_METADATA: Record<string, FieldMetadata> = {
 		description:
 			"Latest fiscal-year revenue growth versus the prior fiscal year.",
 	},
+	sales_past_3y_growth: {
+		label: "Sales Growth Past 3Y",
+		shortLabel: "SALE%3Y",
+		description:
+			"Finviz trailing annual sales growth over the past three years.",
+	},
+	sales_past_5y_growth: {
+		label: "Sales Growth Past 5Y",
+		shortLabel: "SALE%5Y",
+		description:
+			"Finviz trailing annual sales growth over the past five years.",
+	},
 	eps_growth: {
 		label: "EPS Growth",
 		shortLabel: "EPS%",
 		description:
 			"Per-share earnings growth after margins, interest, tax, and dilution.",
+	},
+	eps_this_y_growth: {
+		label: "EPS Growth This Year",
+		shortLabel: "EPS%TY",
+		description: "Finviz EPS growth estimate for the current fiscal year.",
+	},
+	eps_next_y_growth: {
+		label: "EPS Growth Next Year",
+		shortLabel: "EPS%NY",
+		description: "Finviz EPS growth estimate for the next fiscal year.",
+	},
+	eps_next_5y_growth: {
+		label: "EPS Growth Next 5Y",
+		shortLabel: "EPS%5Y",
+		description: "Finviz expected annual EPS growth over the next five years.",
+	},
+	eps_past_3y_growth: {
+		label: "EPS Growth Past 3Y",
+		shortLabel: "EPS%3Y",
+		description: "Finviz trailing annual EPS growth over the past three years.",
+	},
+	eps_past_5y_growth: {
+		label: "EPS Growth Past 5Y",
+		shortLabel: "EPS%P5Y",
+		description: "Finviz trailing annual EPS growth over the past five years.",
+	},
+	eps_yoy_ttm_growth: {
+		label: "EPS YoY TTM Growth",
+		shortLabel: "EPSTTM%",
+		description: "Finviz trailing-twelve-month EPS growth versus prior year.",
 	},
 	rd_intensity: {
 		label: "R&D Intensity",

@@ -1,12 +1,17 @@
 /** Compatibility wrappers over the dedicated backend data-source adapters. */
 
+import { FinvizSource } from "./data-sources/finviz/index.js";
 import { StockAnalysisSource } from "./data-sources/stockanalysis/index.js";
 import { YahooFinanceSource } from "./data-sources/yahoo-finance.js";
 import {
 	mergeStockAnalysisSnapshots,
 	normalizeMonetaryFields,
 } from "./monetary-fields.js";
-import { applyPrimaryPegFallback } from "./stats-resolver/derived-stats.js";
+import {
+	applySourcePegFallback,
+	PEG_SOURCE_FINVIZ,
+	PEG_SOURCE_STOCKANALYSIS,
+} from "./stats-resolver/derived-stats.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -41,6 +46,14 @@ const STATISTICS_PRIORITY_FIELDS = new Set([
 	"free_cash_flow",
 	"shareholder_yield",
 	"rsi",
+	"eps_this_y_growth",
+	"eps_next_y_growth",
+	"eps_next_5y_growth",
+	"eps_past_3y_growth",
+	"eps_past_5y_growth",
+	"sales_past_3y_growth",
+	"sales_past_5y_growth",
+	"eps_yoy_ttm_growth",
 ]);
 const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"revenue_growth",
@@ -71,6 +84,13 @@ export async function fetchStockAnalysisStatistics(
 	return new StockAnalysisSource(ticker).getStatisticsSnapshot();
 }
 
+/** Fetch Finviz statistics fields for one ticker through the throttled queue. */
+export async function fetchFinvizStatistics(
+	ticker: string,
+): Promise<Record<string, unknown>> {
+	return new FinvizSource(ticker).getStatisticsSnapshot();
+}
+
 /** Fetch StockAnalysis financial fields for one ticker. */
 export async function fetchStockAnalysisFinancials(
 	ticker: string,
@@ -91,11 +111,13 @@ export async function fetchLiveIndicators(
 	const [
 		yahooFields,
 		stockAnalysisStatistics,
+		finvizStatistics,
 		stockAnalysisFinancials,
 		yahooSymbolMetadata,
 	] = await Promise.all([
 		fetchYahooIndicators(ticker),
 		fetchStockAnalysisStatistics(ticker),
+		fetchFinvizStatistics(ticker).catch((): Record<string, unknown> => ({})),
 		fetchStockAnalysisFinancials(ticker),
 		fetchYahooSymbolMetadata(ticker),
 	]);
@@ -133,9 +155,19 @@ export async function fetchLiveIndicators(
 			STATISTICS_PRIORITY_FIELDS.has(field) ||
 			FINANCIALS_PRIORITY_FIELDS.has(field)
 		) {
-			return [stockAnalysisPayload, cachedIndicators, yahooPayload];
+			return [
+				stockAnalysisPayload,
+				finvizStatistics,
+				cachedIndicators,
+				yahooPayload,
+			];
 		}
-		return [cachedIndicators, stockAnalysisPayload, yahooPayload];
+		return [
+			cachedIndicators,
+			stockAnalysisPayload,
+			finvizStatistics,
+			yahooPayload,
+		];
 	}
 
 	function resolveField(field: string): unknown {
@@ -158,11 +190,23 @@ export async function fetchLiveIndicators(
 	for (const field of new Set([
 		...Object.keys(yahooPayload),
 		...Object.keys(stockAnalysisPayload),
+		...Object.keys(finvizStatistics),
 	])) {
 		liveFields[field] = resolveField(field);
 	}
 	normalizeMonetaryFields(liveFields);
-	applyPrimaryPegFallback(liveFields, stockAnalysisPayload);
+	applySourcePegFallback(liveFields, [
+		{
+			source: PEG_SOURCE_STOCKANALYSIS,
+			pe_forward: stockAnalysisPayload.pe_forward,
+			peg: stockAnalysisPayload.peg,
+		},
+		{
+			source: PEG_SOURCE_FINVIZ,
+			pe_forward: finvizStatistics.pe_forward,
+			peg: finvizStatistics.peg,
+		},
+	]);
 
 	const hasLiveField = Object.values(liveFields).some(
 		(value) => value !== null && value !== undefined,
