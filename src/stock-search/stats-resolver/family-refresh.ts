@@ -25,21 +25,48 @@ import {
 	mergeFamilyRow,
 } from "./family-cache.js";
 import { ProviderBundle } from "./provider-bundle.js";
+import {
+	mergeSourceFields,
+	SAME_DEFINITION_BLEND_FIELDS,
+	SOURCE_FINVIZ,
+	SOURCE_STOCKANALYSIS,
+	type SourceFieldPolicy,
+	sourceFieldPolicies,
+} from "./source-merge.js";
 import type { FamilyResolution, StatsResolutionMode } from "./types.js";
 
 const runningRefreshes = new Set<string>();
+const STATISTICS_PROVIDER_POLICIES = sourceFieldPolicies(
+	{
+		fields: ["revenue"],
+		mode: "mean",
+		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+	},
+	{
+		fields: SAME_DEFINITION_BLEND_FIELDS,
+		mode: "mean",
+		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+	},
+);
+const FINANCIALS_PROVIDER_POLICIES = sourceFieldPolicies({
+	fields: ["revenue", "revenue_growth", "eps_growth"],
+	mode: "mean",
+	sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+});
 
-function fillMissingFields(
-	primary: Record<string, unknown>,
-	fallback: Record<string, unknown>,
+function mergeStockAnalysisFinvizFields(
+	stockAnalysis: Record<string, unknown>,
+	finviz: Record<string, unknown>,
+	policies: SourceFieldPolicy[],
 ): Record<string, unknown> {
-	const output = { ...primary };
-	for (const [field, value] of Object.entries(fallback)) {
-		if (output[field] == null && value != null) {
-			output[field] = value;
-		}
-	}
-	return output;
+	return mergeSourceFields({
+		fields: new Set([...Object.keys(stockAnalysis), ...Object.keys(finviz)]),
+		sources: [
+			{ source: SOURCE_STOCKANALYSIS, fields: stockAnalysis },
+			{ source: SOURCE_FINVIZ, fields: finviz },
+		],
+		policies,
+	});
 }
 
 async function refreshFamilyRow(
@@ -63,7 +90,11 @@ async function refreshFamilyRow(
 			bundle.getFinvizStatistics(),
 			bundle.getYahooIndicators(),
 		]);
-		const providerStatistics = fillMissingFields(statistics, finviz);
+		const providerStatistics = mergeStockAnalysisFinvizFields(
+			statistics,
+			finviz,
+			STATISTICS_PROVIDER_POLICIES,
+		);
 		const merged = mergeAndNormalizeMonetaryFields(providerStatistics, yahoo);
 		applySourcePegFallback(merged, [
 			{
@@ -80,18 +111,26 @@ async function refreshFamilyRow(
 		return completeKnownFamilyRow(merged, family);
 	}
 	if (family === "financials") {
-		const [financials, statistics, yahoo] = await Promise.all([
+		const [financials, statistics, finviz, yahoo] = await Promise.all([
 			bundle.getFinancials(),
 			bundle.getStatistics(),
+			bundle.getFinvizStatistics(),
 			bundle.getYahooIndicators(),
 		]);
-		const merged = {
+		const stockAnalysisFinancials = {
 			...mergeStockAnalysisSnapshots(statistics, financials),
 			revenue_growth: financials.revenue_growth ?? null,
 			eps_growth: financials.eps_growth ?? null,
 			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
 			operating_margin:
 				financials.operating_margin ?? statistics.operating_margin ?? null,
+		};
+		const merged = {
+			...mergeStockAnalysisFinvizFields(
+				stockAnalysisFinancials,
+				finviz,
+				FINANCIALS_PROVIDER_POLICIES,
+			),
 			fx: yahoo.fx,
 		};
 		normalizeMonetaryFields(merged);

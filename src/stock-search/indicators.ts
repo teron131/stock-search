@@ -12,6 +12,15 @@ import {
 	PEG_SOURCE_FINVIZ,
 	PEG_SOURCE_STOCKANALYSIS,
 } from "./stats-resolver/derived-stats.js";
+import {
+	mergeSourceFields,
+	SAME_DEFINITION_BLEND_FIELDS,
+	SOURCE_CACHE,
+	SOURCE_FINVIZ,
+	SOURCE_STOCKANALYSIS,
+	SOURCE_YAHOO,
+	sourceFieldPolicies,
+} from "./stats-resolver/source-merge.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -62,6 +71,33 @@ const FINANCIALS_PRIORITY_FIELDS = new Set([
 	"operating_margin",
 ]);
 const FX_SOURCE_FIELDS = new Set(["market_cap", "free_cash_flow"]);
+const LIVE_FIELD_POLICIES = sourceFieldPolicies(
+	{
+		fields: YAHOO_PRIORITY_FIELDS,
+		mode: "first",
+		sources: [SOURCE_YAHOO, SOURCE_STOCKANALYSIS, SOURCE_CACHE],
+	},
+	{
+		fields: ["revenue"],
+		mode: "mean",
+		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+		fallbackSources: [SOURCE_CACHE],
+	},
+	{
+		fields: SAME_DEFINITION_BLEND_FIELDS,
+		mode: "mean",
+		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+		fallbackSources: [SOURCE_CACHE, SOURCE_YAHOO],
+	},
+	{
+		fields: new Set([
+			...STATISTICS_PRIORITY_FIELDS,
+			...FINANCIALS_PRIORITY_FIELDS,
+		]),
+		mode: "first",
+		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE, SOURCE_YAHOO],
+	},
+);
 
 /** Fetch indicator-shaped Yahoo fields for one ticker. */
 export async function fetchYahooIndicators(
@@ -144,56 +180,28 @@ export async function fetchLiveIndicators(
 		debt_to_equity: stockAnalysisStatistics.debt_to_equity ?? null,
 	};
 
-	function sourcesForField(field: string): Array<Record<string, unknown>> {
-		if (field === "revenue") {
-			return [stockAnalysisPayload, cachedIndicators];
+	const liveFields = mergeSourceFields({
+		fields: new Set([
+			...Object.keys(cachedIndicators),
+			...Object.keys(yahooPayload),
+			...Object.keys(stockAnalysisPayload),
+			...Object.keys(finvizStatistics),
+		]),
+		sources: [
+			{ source: SOURCE_CACHE, fields: cachedIndicators },
+			{ source: SOURCE_YAHOO, fields: yahooPayload },
+			{ source: SOURCE_STOCKANALYSIS, fields: stockAnalysisPayload },
+			{ source: SOURCE_FINVIZ, fields: finvizStatistics },
+		],
+		policies: LIVE_FIELD_POLICIES,
+	});
+
+	if (yahooPayload.fx != null) {
+		for (const field of FX_SOURCE_FIELDS) {
+			liveFields[field] = yahooPayload[field] ?? null;
 		}
-		if (YAHOO_PRIORITY_FIELDS.has(field)) {
-			return [yahooPayload, stockAnalysisPayload, cachedIndicators];
-		}
-		if (
-			STATISTICS_PRIORITY_FIELDS.has(field) ||
-			FINANCIALS_PRIORITY_FIELDS.has(field)
-		) {
-			return [
-				stockAnalysisPayload,
-				finvizStatistics,
-				cachedIndicators,
-				yahooPayload,
-			];
-		}
-		return [
-			cachedIndicators,
-			stockAnalysisPayload,
-			finvizStatistics,
-			yahooPayload,
-		];
 	}
 
-	function resolveField(field: string): unknown {
-		const hasYahooFx =
-			yahooPayload.fx !== null && yahooPayload.fx !== undefined;
-		if (hasYahooFx && FX_SOURCE_FIELDS.has(field)) {
-			return yahooPayload[field] ?? null;
-		}
-
-		for (const source of sourcesForField(field)) {
-			const value = source[field];
-			if (value !== null && value !== undefined) {
-				return value;
-			}
-		}
-		return null;
-	}
-
-	const liveFields = { ...cachedIndicators };
-	for (const field of new Set([
-		...Object.keys(yahooPayload),
-		...Object.keys(stockAnalysisPayload),
-		...Object.keys(finvizStatistics),
-	])) {
-		liveFields[field] = resolveField(field);
-	}
 	normalizeMonetaryFields(liveFields);
 	applySourcePegFallback(liveFields, [
 		{

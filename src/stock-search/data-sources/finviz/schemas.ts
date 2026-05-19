@@ -8,6 +8,7 @@ export type FinvizQuoteSnapshot = {
 	raw: Record<string, string>;
 	price: number | null;
 	market_cap: number | null;
+	revenue: number | null;
 	pe: number | null;
 	/** Finviz "Forward P/E" as displayed; the provider owns the exact FY1/NTM definition. */
 	pe_forward: number | null;
@@ -22,6 +23,7 @@ export type FinvizQuoteSnapshot = {
 	operating_margin: number | null;
 	profit_margin: number | null;
 	debt_to_equity: number | null;
+	revenue_growth: number | null;
 	/** Finviz growth values are parsed as percentage points, so "16.55%" becomes 16.55. */
 	eps_this_y_growth: number | null;
 	eps_next_y_growth: number | null;

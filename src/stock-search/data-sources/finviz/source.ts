@@ -143,12 +143,10 @@ export class FinvizSource {
 
 	/** Fetch and parse the Finviz quote snapshot once per source instance. */
 	async getQuoteSnapshot(): Promise<FinvizQuoteSnapshot> {
-		this.snapshotPromise ??= this.loadQuoteSnapshot();
+		this.snapshotPromise ??= finvizRequestQueue.schedule(() =>
+			this.fetchQuoteSnapshot(),
+		);
 		return this.snapshotPromise;
-	}
-
-	private async loadQuoteSnapshot(): Promise<FinvizQuoteSnapshot> {
-		return finvizRequestQueue.schedule(() => this.fetchQuoteSnapshot());
 	}
 
 	private async fetchQuoteSnapshot(): Promise<FinvizQuoteSnapshot> {
@@ -183,6 +181,7 @@ export class FinvizSource {
 		const snapshot = await this.getQuoteSnapshot();
 		return {
 			market_cap: snapshot.market_cap,
+			revenue: snapshot.revenue,
 			pe: snapshot.pe,
 			pe_forward: snapshot.pe_forward,
 			ps: snapshot.ps,
@@ -194,6 +193,8 @@ export class FinvizSource {
 			gross_margin: snapshot.gross_margin,
 			operating_margin: snapshot.operating_margin,
 			debt_to_equity: snapshot.debt_to_equity,
+			revenue_growth: snapshot.revenue_growth,
+			eps_growth: snapshot.eps_yoy_ttm_growth,
 			eps_this_y_growth: snapshot.eps_this_y_growth,
 			eps_next_y_growth: snapshot.eps_next_y_growth,
 			eps_next_5y_growth: snapshot.eps_next_5y_growth,
