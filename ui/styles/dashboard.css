@@ -433,6 +433,7 @@ body {
 	overflow-y: hidden;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
+	overscroll-behavior-x: contain;
 	background: var(--bg-surface-high);
 	border-top: 1px solid rgba(255, 255, 255, 0.03);
 }
@@ -805,6 +806,7 @@ tbody tr.search-target-row td:first-child {
 	overflow-y: hidden;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
+	overscroll-behavior-x: contain;
 	background: var(--bg-surface-high);
 }
 
@@ -890,7 +892,7 @@ tbody tr.search-target-row td:first-child {
 }
 
 .terminal-layout:has(.table-wrapper-window-scroll) {
-	min-width: 100vw;
+	min-width: 0;
 	height: auto;
 	min-height: 100dvh;
 	overflow: visible;
@@ -904,7 +906,7 @@ tbody tr.search-target-row td:first-child {
 .terminal-layout:has(.table-wrapper-window-scroll) .top-bar {
 	left: 0;
 	right: 0;
-	width: 100vw;
+	width: 100%;
 }
 
 .terminal-layout:has(.table-wrapper-window-scroll) .terminal-grid,
@@ -925,7 +927,7 @@ tbody tr.search-target-row td:first-child {
 	max-height: none;
 	overflow-x: auto;
 	overflow-y: clip;
-	overscroll-behavior-x: auto;
+	overscroll-behavior-x: contain;
 	overscroll-behavior-y: auto;
 	scroll-padding-top: calc(var(--header-height) + var(--table-header-height));
 }

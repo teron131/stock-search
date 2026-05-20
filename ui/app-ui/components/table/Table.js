@@ -897,11 +897,13 @@ export function Table({
 
 		const handleWheel = (event) => {
 			if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+			if (getMaxScrollLeft(scrollEl) <= 0) return;
+
+			event.preventDefault();
 
 			const nextScrollLeft = getNextScrollLeft(scrollEl, event.deltaX);
 			if (nextScrollLeft === scrollEl.scrollLeft) return;
 
-			event.preventDefault();
 			scrollEl.scrollLeft = nextScrollLeft;
 			markMirroredScrollTarget("header");
 			syncHorizontalScroll(scrollEl, headerScrollEl);
@@ -912,9 +914,11 @@ export function Table({
 
 		scrollEl.addEventListener("wheel", handleWheel, wheelOptions);
 		headerScrollEl?.addEventListener("wheel", handleWheel, wheelOptions);
+		summaryScrollEl?.addEventListener("wheel", handleWheel, wheelOptions);
 		return () => {
 			scrollEl.removeEventListener("wheel", handleWheel, wheelOptions);
 			headerScrollEl?.removeEventListener("wheel", handleWheel, wheelOptions);
+			summaryScrollEl?.removeEventListener("wheel", handleWheel, wheelOptions);
 		};
 	}, [markMirroredScrollTarget]);
 
