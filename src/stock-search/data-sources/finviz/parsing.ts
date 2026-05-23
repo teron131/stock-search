@@ -9,7 +9,6 @@ const NUMBER_SUFFIX_MULTIPLIERS: Record<string, number> = {
 	B: 1e9,
 	T: 1e12,
 };
-
 const FINVIZ_LABELS = {
 	price: "Price",
 	marketCap: "Market Cap",
@@ -129,6 +128,21 @@ function pickNumber(
 	return parseFinvizNumber(pairs[label]);
 }
 
+function pickText(html: string, filterPrefix: "sec_" | "ind_"): string | null {
+	const match = html.match(
+		new RegExp(
+			`<a\\b[^>]*href=["'][^"']*f=${filterPrefix}[^"']*["'][^>]*>([\\s\\S]*?)<\\/a>`,
+			"i",
+		),
+	);
+	const value = match?.[1] == null ? null : stripTags(match[1]);
+	return value && !NULL_TEXTS.has(value.toLowerCase()) ? value : null;
+}
+
+function normalizeFinvizSector(value: string | null): string | null {
+	return value === "Financial" ? "Financial Services" : value;
+}
+
 /** Parse the quote snapshot table from one Finviz quote HTML page. */
 export function parseFinvizQuoteSnapshot(
 	html: string,
@@ -144,6 +158,8 @@ export function parseFinvizQuoteSnapshot(
 		fetched_at: fetchedAt,
 		url,
 		raw,
+		sector_name: normalizeFinvizSector(pickText(html, "sec_")),
+		industry_name: pickText(html, "ind_"),
 		price: pickNumber(raw, FINVIZ_LABELS.price),
 		market_cap: pickNumber(raw, FINVIZ_LABELS.marketCap),
 		revenue: pickNumber(raw, FINVIZ_LABELS.revenue),

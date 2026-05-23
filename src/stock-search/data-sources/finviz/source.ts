@@ -180,6 +180,8 @@ export class FinvizSource {
 	async getStatisticsSnapshot(): Promise<Record<string, unknown>> {
 		const snapshot = await this.getQuoteSnapshot();
 		return {
+			sector_name: snapshot.sector_name,
+			industry_name: snapshot.industry_name,
 			market_cap: snapshot.market_cap,
 			revenue: snapshot.revenue,
 			pe: snapshot.pe,

@@ -6,6 +6,8 @@ export type FinvizQuoteSnapshot = {
 	fetched_at: string | null;
 	url: string;
 	raw: Record<string, string>;
+	sector_name: string | null;
+	industry_name: string | null;
 	price: number | null;
 	market_cap: number | null;
 	revenue: number | null;

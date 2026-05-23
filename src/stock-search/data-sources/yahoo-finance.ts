@@ -112,6 +112,17 @@ type NormalizedYahooRatingRow = Record<string, unknown> & {
 	prior_price_target: number | null;
 };
 
+function normalizeYahooSectorName(value: string): string {
+	return value.trim() === "Financial" ? "Financial Services" : value.trim();
+}
+
+function normalizeYahooIndustryName(value: string): string {
+	return value
+		.trim()
+		.replace(/\s*[—–]\s*/g, " - ")
+		.replace(/\s+/g, " ");
+}
+
 const YAHOO_CHART_URL =
 	"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1y&interval=1d&includePrePost=false";
 const YAHOO_INTRADAY_URL =
@@ -1110,11 +1121,11 @@ export class YahooFinanceSource {
 					: null,
 			sector_name:
 				typeof quote?.sector === "string" && quote.sector.trim()
-					? quote.sector.trim()
+					? normalizeYahooSectorName(quote.sector)
 					: null,
 			industry_name:
 				typeof quote?.industry === "string" && quote.industry.trim()
-					? quote.industry.trim()
+					? normalizeYahooIndustryName(quote.industry)
 					: null,
 		};
 	}

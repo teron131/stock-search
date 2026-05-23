@@ -75,7 +75,7 @@ const LIVE_FIELD_POLICIES = sourceFieldPolicies(
 	{
 		fields: YAHOO_PRIORITY_FIELDS,
 		mode: "first",
-		sources: [SOURCE_YAHOO, SOURCE_STOCKANALYSIS, SOURCE_CACHE],
+		sources: [SOURCE_YAHOO, SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE],
 	},
 	{
 		fields: ["revenue"],
