@@ -2,20 +2,15 @@
 
 import type { BackendStore, StockEntry } from "../api/data-store.js";
 import {
-	mergeAndNormalizeMonetaryFields,
-	mergeStockAnalysisSnapshots,
-	normalizeMonetaryFields,
-} from "../monetary-fields.js";
-import {
-	BLOCKING_AUTO_FAMILIES,
-	FAMILY_POLICIES,
-	type StatsFamily,
-} from "../stats-families.js";
-import {
 	applySourcePegFallback,
 	PEG_SOURCE_FINVIZ,
 	PEG_SOURCE_STOCKANALYSIS,
 } from "./derived-stats.js";
+import {
+	BLOCKING_AUTO_FAMILIES,
+	FAMILY_POLICIES,
+	type StatsFamily,
+} from "./families.js";
 import {
 	chooseCachedSnapshot,
 	completeKnownFamilyRow,
@@ -24,6 +19,11 @@ import {
 	familyTimestamp,
 	mergeFamilyRow,
 } from "./family-cache.js";
+import {
+	mergeAndNormalizeMonetaryFields,
+	mergeStockAnalysisSnapshots,
+	normalizeMonetaryFields,
+} from "./monetary-fields.js";
 import { ProviderBundle } from "./provider-bundle.js";
 import {
 	mergeSourceFields,

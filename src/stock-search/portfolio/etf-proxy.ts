@@ -7,7 +7,7 @@ import type {
 } from "../api/data-store.js";
 import { parseCacheTimestamp } from "../cache.js";
 import type { EtfResolutionResult } from "../etf/index.js";
-import type { StatsFamily } from "../stats-families.js";
+import type { StatsFamily } from "../stats-resolver/families.js";
 import {
 	resolveTickerStatsMap,
 	type StatsResolutionResult,

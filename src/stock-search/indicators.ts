@@ -4,14 +4,14 @@ import { FinvizSource } from "./data-sources/finviz/index.js";
 import { StockAnalysisSource } from "./data-sources/stockanalysis/index.js";
 import { YahooFinanceSource } from "./data-sources/yahoo-finance.js";
 import {
-	mergeStockAnalysisSnapshots,
-	normalizeMonetaryFields,
-} from "./monetary-fields.js";
-import {
 	applySourcePegFallback,
 	PEG_SOURCE_FINVIZ,
 	PEG_SOURCE_STOCKANALYSIS,
 } from "./stats-resolver/derived-stats.js";
+import {
+	mergeStockAnalysisSnapshots,
+	normalizeMonetaryFields,
+} from "./stats-resolver/monetary-fields.js";
 import {
 	mergeSourceFields,
 	SAME_DEFINITION_BLEND_FIELDS,

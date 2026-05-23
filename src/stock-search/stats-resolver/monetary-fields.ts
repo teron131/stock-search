@@ -1,6 +1,6 @@
 /** Normalize monetary fundamentals to the app's canonical USD shape. */
 
-import { asNumber } from "./utils.js";
+import { asNumber } from "../utils.js";
 
 const FX_MONETARY_FIELDS = [
 	"market_cap",

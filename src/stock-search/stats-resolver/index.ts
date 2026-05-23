@@ -2,8 +2,8 @@
 
 import type { BackendStore, StockEntry } from "../api/data-store.js";
 import { PortfolioConfig } from "../config.js";
-import { STAT_FAMILIES, type StatsFamily } from "../stats-families.js";
 import { normalizeTicker } from "../utils.js";
+import { STAT_FAMILIES, type StatsFamily } from "./families.js";
 import { mergeFamilyRow } from "./family-cache.js";
 import { resolveFamily } from "./family-refresh.js";
 import { ProviderBundle } from "./provider-bundle.js";

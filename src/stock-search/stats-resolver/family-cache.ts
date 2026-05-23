@@ -1,14 +1,14 @@
 /** Cache and freshness helpers for stat-family snapshots. */
 
 import { cacheFreshnessFromTimestamp, parseCacheTimestamp } from "../cache.js";
+import { applyCachedPegFallback } from "./derived-stats.js";
 import {
 	FAMILY_FIELDS,
 	FAMILY_POLICIES,
 	FAMILY_TIMESTAMP_FIELD,
 	REQUIRED_FAMILY_FIELDS,
 	type StatsFamily,
-} from "../stats-families.js";
-import { applyCachedPegFallback } from "./derived-stats.js";
+} from "./families.js";
 import type {
 	CachedFamilySnapshot,
 	FamilyCacheEntry,

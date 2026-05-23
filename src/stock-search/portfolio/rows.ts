@@ -7,7 +7,7 @@ import {
 	deriveEvaluationScores,
 } from "../evaluation/normalization.js";
 import type { PortfolioRefreshIntent } from "../policy.js";
-import { REQUIRED_FAMILY_FIELDS } from "../stats-families.js";
+import { REQUIRED_FAMILY_FIELDS } from "../stats-resolver/families.js";
 import { asNumber, normalizeTicker } from "../utils.js";
 import {
 	EVAL_KEYS,
