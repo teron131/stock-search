@@ -5,6 +5,7 @@ import {
 	type EtfSnapshotResult,
 	resolveEtfSnapshotCache,
 } from "../etf/index.js";
+import { DEFAULT_TICKER_SOURCE, type TickerSource } from "../policy.js";
 import {
 	applyEtfProxyStatsToStocks,
 	resolveEtfProxyStocks,
@@ -14,7 +15,6 @@ import { resolveTickerStats } from "../stats-resolver/index.js";
 import { normalizeTicker, nowIso } from "../utils.js";
 import type { BackendStore, PositionRow, StockEntry } from "./data-store.js";
 
-type StandaloneTickerSource = "auto" | "live" | "cache";
 type StandaloneTickerPayload = {
 	row: Record<string, unknown>;
 	meta: {
@@ -28,8 +28,6 @@ type StandaloneEtfEntry = {
 	stockEntry: StockEntry;
 	snapshot: EtfSnapshotResult | null;
 };
-
-const STANDALONE_ETF_PROXY_SCOPE = "portfolio_live";
 
 function makePosition(ticker: string): PositionRow {
 	return { ticker, quantity: 0, strategy: null };
@@ -159,7 +157,7 @@ async function applyStandaloneEtfProxyStats(
 		knownStocks: {
 			[ticker]: stockEntry,
 		},
-		scope: STANDALONE_ETF_PROXY_SCOPE,
+		liveRefresh: true,
 		normalRefreshTickers: new Set(),
 	});
 	return (
@@ -204,7 +202,7 @@ async function loadTickerContext(
 export async function buildStandaloneTickerPayload(
 	store: BackendStore,
 	ticker: string,
-	source: StandaloneTickerSource,
+	source: TickerSource,
 ): Promise<StandaloneTickerPayload> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
@@ -270,7 +268,7 @@ export async function buildEvaluateTickerPayload(
 	const { row, meta } = await buildStandaloneTickerPayload(
 		store,
 		tickerSymbol,
-		"auto",
+		DEFAULT_TICKER_SOURCE,
 	);
 	return {
 		ticker: tickerSymbol,

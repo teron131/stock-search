@@ -1,8 +1,9 @@
 /** Shared types for family-based ticker stat resolution. */
 
+import type { TickerSource } from "../policy.js";
 import type { StatsFamily } from "../stats-families.js";
 
-export type StatsResolutionMode = "auto" | "live" | "cache";
+export type StatsResolutionMode = TickerSource;
 
 export type FamilyDecision =
 	| "fresh"

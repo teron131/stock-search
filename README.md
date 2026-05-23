@@ -173,6 +173,10 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Shared schemas, labels/constants, and storage interfaces.
   - One canonical model layer for API, evaluation, and persistence code.
 
+- **`src/stock-search/policy.ts`**
+  - Central policy table for portfolio scopes and request workflow decisions.
+  - Keeps mode semantics separate from runtime config and execution code.
+
 - **`src/stock-search/models/convex/`**
   - Convex adapter, store facade, and import tooling.
   - Encapsulates cloud persistence details behind typed, app-level operations.

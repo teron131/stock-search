@@ -14,12 +14,7 @@ import {
 } from "../stats-resolver/index.js";
 import { asNumber, normalizeTicker, uniqueTickers } from "../utils.js";
 import { mergeLiveResultsIntoStocks } from "./rows.js";
-import {
-	LIVE_SCOPES,
-	POSITION_SOURCE_ETF_PROXY,
-	POSITION_SOURCE_FIELD,
-	type PortfolioScope,
-} from "./shared.js";
+import { POSITION_SOURCE_ETF_PROXY, POSITION_SOURCE_FIELD } from "./shared.js";
 
 type EtfRepresentativePosition = PositionRow & {
 	etf_holding_weight: number;
@@ -340,13 +335,13 @@ export async function resolveEtfProxyStocks({
 	store,
 	resolution,
 	knownStocks,
-	scope,
+	liveRefresh,
 	normalRefreshTickers,
 }: {
 	store: BackendStore;
 	resolution: EtfResolutionResult;
 	knownStocks: Record<string, StockEntry>;
-	scope: PortfolioScope;
+	liveRefresh: boolean;
 	normalRefreshTickers: Set<string>;
 }): Promise<{
 	stocks: Record<string, StockEntry>;
@@ -366,7 +361,7 @@ export async function resolveEtfProxyStocks({
 		...cachedStocks,
 		...knownStocks,
 	};
-	if (!LIVE_SCOPES.has(scope)) {
+	if (!liveRefresh) {
 		return {
 			stocks: Object.fromEntries(
 				tickers

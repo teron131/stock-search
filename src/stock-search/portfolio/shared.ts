@@ -3,18 +3,7 @@
 import type { PositionRow } from "../api/data-store.js";
 import { uniqueTickers } from "../utils.js";
 
-export type PortfolioScope =
-	| "priority"
-	| "all_cached"
-	| "portfolio_live"
-	| "all";
-
-export const LIVE_SCOPES = new Set<PortfolioScope>(["portfolio_live", "all"]);
-export const ALL_UNIVERSE_SCOPES = new Set<PortfolioScope>([
-	"all_cached",
-	"all",
-]);
-export const LABEL_REFRESH_SCOPES = new Set<PortfolioScope>(["all"]);
+export type { PortfolioScope } from "../policy.js";
 export const PORTFOLIO_LABEL_FIELD = "industry_labels";
 export const POSITION_SOURCE_FIELD = "position_source";
 export const POSITION_SOURCE_DASHBOARD_MANUAL = "dashboard_manual";

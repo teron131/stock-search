@@ -16,6 +16,14 @@ import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
 import {
+	DEFAULT_PORTFOLIO_SCOPE,
+	DEFAULT_TICKER_SOURCE,
+	PORTFOLIO_SCOPE_VALUES,
+	type PortfolioScope,
+	TICKER_SOURCE_VALUES,
+	type TickerSource,
+} from "../policy.js";
+import {
 	buildPortfolioPayload,
 	loadEvalMap,
 	loadStocksMap,
@@ -47,10 +55,8 @@ export type StockSearchTool = {
 	execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const PortfolioScopeSchema = z
-	.enum(["priority", "all_cached", "portfolio_live", "all"])
-	.optional();
-const TickerSourceSchema = z.enum(["auto", "live", "cache"]).optional();
+const PortfolioScopeSchema = z.enum(PORTFOLIO_SCOPE_VALUES).optional();
+const TickerSourceSchema = z.enum(TICKER_SOURCE_VALUES).optional();
 const NoArgsSchema = z.object({});
 
 export function toolHasParameters(parameters?: ZodType): parameters is ZodType {
@@ -147,11 +153,9 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		execute: async ({ scope }) =>
 			buildPortfolioPayload(
 				getStore(),
-				(typeof scope === "string" ? scope : "priority") as
-					| "priority"
-					| "all_cached"
-					| "portfolio_live"
-					| "all",
+				(typeof scope === "string"
+					? scope
+					: DEFAULT_PORTFOLIO_SCOPE) as PortfolioScope,
 			),
 	},
 	{
@@ -191,10 +195,9 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 			buildStandaloneTickerPayload(
 				getStore(),
 				String(ticker ?? ""),
-				(typeof source === "string" ? source : "auto") as
-					| "auto"
-					| "live"
-					| "cache",
+				(typeof source === "string"
+					? source
+					: DEFAULT_TICKER_SOURCE) as TickerSource,
 			),
 	},
 	{

@@ -6,16 +6,15 @@ import {
 	bucketFromEvaluation,
 	deriveEvaluationScores,
 } from "../evaluation/normalization.js";
+import type { PortfolioRefreshIntent } from "../policy.js";
 import { REQUIRED_FAMILY_FIELDS } from "../stats-families.js";
 import { asNumber, normalizeTicker } from "../utils.js";
 import {
-	ALL_UNIVERSE_SCOPES,
 	EVAL_KEYS,
 	normalizeLabels,
 	PORTFOLIO_LABEL_FIELD,
 	POSITION_SOURCE_CACHED_UNIVERSE,
 	POSITION_SOURCE_FIELD,
-	type PortfolioScope,
 	STAT_DERIVED_EVAL_KEYS,
 } from "./shared.js";
 
@@ -144,12 +143,12 @@ function mergeIndicatorLabels(
 	return indicatorLabels.length > 0 ? indicatorLabels : stockLabels;
 }
 
-export function buildRowsForScope(
+export function buildRowsForUniverse(
 	positions: PositionRow[],
 	stocksMap: Record<string, StockEntry>,
-	scope: PortfolioScope,
+	includeCachedUniverse: boolean,
 ): PositionRow[] {
-	if (!ALL_UNIVERSE_SCOPES.has(scope)) {
+	if (!includeCachedUniverse) {
 		return positions.map((position) => ({ ...position }));
 	}
 
@@ -351,13 +350,13 @@ export function calculatePortfolioStats(
 	};
 }
 
-export function liveTickersForScope(
+export function liveTickersForRefreshIntent(
 	positions: PositionRow[],
 	evalTickers: Set<string>,
-	scope: PortfolioScope,
+	refreshIntent: PortfolioRefreshIntent,
 	stocksMap: Record<string, StockEntry> = {},
 ): string[] {
-	if (scope === "priority") {
+	if (refreshIntent === "repair_missing_required") {
 		return [
 			...new Set(
 				positions.flatMap((position) => {
@@ -369,7 +368,7 @@ export function liveTickersForScope(
 			),
 		];
 	}
-	if (scope !== "portfolio_live" && scope !== "all") {
+	if (refreshIntent === "none") {
 		return [];
 	}
 	return [
@@ -385,12 +384,12 @@ export function liveTickersForScope(
 	];
 }
 
-export function fxRefreshTickersForScope(
+export function fxRefreshTickersForLivePolicy(
 	positions: PositionRow[],
 	stocksMap: Record<string, StockEntry>,
-	scope: PortfolioScope,
+	liveRefresh: boolean,
 ): string[] {
-	if (scope !== "portfolio_live" && scope !== "all") {
+	if (!liveRefresh) {
 		return [];
 	}
 	return [

@@ -11,6 +11,7 @@ import {
 } from "../etf/index.js";
 import { deriveEvaluationScores } from "../evaluation/normalization.js";
 import { Notional } from "../models/schemas.js";
+import { type PortfolioScope, portfolioScopePolicy } from "../policy.js";
 import {
 	aggregateTickerDataSource,
 	resolveTickerStatsMap,
@@ -30,24 +31,18 @@ import {
 import { applyPositionLabels, resolvePortfolioLabels } from "./labels.js";
 import {
 	applyRowWeights,
-	buildRowsForScope,
+	buildRowsForUniverse,
 	calculatePortfolioStats,
 	clearEtfMarketCapFields,
-	fxRefreshTickersForScope,
+	fxRefreshTickersForLivePolicy,
 	hasOwnEvaluation,
-	liveTickersForScope,
+	liveTickersForRefreshIntent,
 	mergeLiveResultsIntoStocks,
 	mergePortfolioRow,
 	rankRows,
 	weightPctByTicker,
 } from "./rows.js";
-import {
-	ALL_UNIVERSE_SCOPES,
-	LABEL_REFRESH_SCOPES,
-	LIVE_SCOPES,
-	type PortfolioScope,
-	portfolioTickers,
-} from "./shared.js";
+import { portfolioTickers } from "./shared.js";
 
 export {
 	patchPortfolioPosition,
@@ -59,13 +54,6 @@ export type { PortfolioScope } from "./shared.js";
 const PORTFOLIO_STATS_GENERATED_AT_META_KEY = "portfolio_stats_generated_at";
 const STATS_GENERATED_AT_META_KEY = "stats_generated_at";
 const STORED_PORTFOLIO_STATS_SYNC_MODE = "stored_portfolio_stats";
-
-/** Return the cache policy used for one portfolio scope. */
-export function cacheControlForScope(scope: PortfolioScope): string {
-	return scope === "all_cached"
-		? "private, max-age=30, stale-while-revalidate=300"
-		: "no-store";
-}
 
 /** Build the public portfolio payload for one scope. */
 export async function buildPortfolioPayload(
@@ -85,20 +73,22 @@ export async function buildPortfolioPayload(
 		sync_mode: string;
 	};
 }> {
+	const scopePolicy = portfolioScopePolicy(scope);
 	const portfolio = await store.loadPortfolio();
-	const stocksMap = ALL_UNIVERSE_SCOPES.has(scope)
-		? await store.loadStocks()
-		: await store.loadStocksByTickers(portfolioTickers(portfolio.positions));
-	const scopedPositions = buildRowsForScope(
+	const stocksMap =
+		scopePolicy.universe === "all_stored"
+			? await store.loadStocks()
+			: await store.loadStocksByTickers(portfolioTickers(portfolio.positions));
+	const scopedPositions = buildRowsForUniverse(
 		portfolio.positions,
 		stocksMap,
-		scope,
+		scopePolicy.universe === "all_stored",
 	);
 	const labelsByTicker = await resolvePortfolioLabels(
 		store,
 		portfolio.positions,
 		stocksMap,
-		LABEL_REFRESH_SCOPES.has(scope),
+		scopePolicy.refreshLabels,
 	);
 	applyPositionLabels(scopedPositions, labelsByTicker);
 	const evalTickers = new Set(
@@ -106,20 +96,25 @@ export async function buildPortfolioPayload(
 			.filter(([, stock]) => hasOwnEvaluation(stock.evaluation))
 			.map(([ticker]) => ticker),
 	);
-	const liveTickers = liveTickersForScope(
+	const liveTickers = liveTickersForRefreshIntent(
 		scopedPositions,
 		evalTickers,
-		scope,
+		scopePolicy.refreshIntent,
 		stocksMap,
 	);
-	const fxRefreshTickers = fxRefreshTickersForScope(
+	const fxRefreshTickers = fxRefreshTickersForLivePolicy(
 		scopedPositions,
 		stocksMap,
-		scope,
+		scopePolicy.liveRefresh,
 	);
 	const [liveResults, fxRefreshResults] = await Promise.all([
 		liveTickers.length > 0
-			? resolveTickerStatsMap(store, liveTickers, "auto", stocksMap)
+			? resolveTickerStatsMap(
+					store,
+					liveTickers,
+					scopePolicy.statsMode,
+					stocksMap,
+				)
 			: Promise.resolve({}),
 		fxRefreshTickers.length > 0
 			? resolveTickerStatsMap(store, fxRefreshTickers, "live", stocksMap)
@@ -137,7 +132,7 @@ export async function buildPortfolioPayload(
 		store,
 		portfolio.positions,
 		mergedStocks,
-		LIVE_SCOPES.has(scope),
+		scopePolicy.liveRefresh,
 	);
 	const proxyEtfResolution = etfProxyResolutionForRows(
 		etfResolution,
@@ -162,7 +157,7 @@ export async function buildPortfolioPayload(
 		store,
 		resolution: proxyEtfResolution,
 		knownStocks: mergedStocks,
-		scope,
+		liveRefresh: scopePolicy.liveRefresh,
 		normalRefreshTickers: new Set(
 			uniqueTickers([...liveTickers, ...etfRepresentativeTickers]),
 		),
@@ -237,7 +232,7 @@ export async function buildPortfolioPayload(
 	const [{ tickerTable, sectorTable, meta: tableMeta }, generatedAt] =
 		await Promise.all([
 			buildEtfTables(rows, etfResolution, heldTickers, notionalByTicker),
-			LIVE_SCOPES.has(scope)
+			scopePolicy.liveRefresh
 				? Promise.resolve(nowIso())
 				: store.getMetaValue(STATS_GENERATED_AT_META_KEY),
 		]);
@@ -245,10 +240,10 @@ export async function buildPortfolioPayload(
 		...resolvedLiveResults,
 		...proxyStockResolution.liveResults,
 	};
-	let dataSource = LIVE_SCOPES.has(scope)
+	let dataSource = scopePolicy.liveRefresh
 		? aggregateTickerDataSource(allLiveResults, "auto")
 		: "cache";
-	if (LIVE_SCOPES.has(scope) && dataSource === "live") {
+	if (scopePolicy.liveRefresh && dataSource === "live") {
 		const liveTickerSet = new Set(Object.keys(allLiveResults));
 		for (const row of rows) {
 			const ticker = normalizeTicker(row.ticker);
@@ -259,7 +254,7 @@ export async function buildPortfolioPayload(
 		}
 	}
 	const portfolioStats = calculatePortfolioStats(rows, sectorDistribution);
-	if (scope === "portfolio_live") {
+	if (scopePolicy.persistPortfolioStats) {
 		await Promise.all([
 			store.savePortfolioStats(portfolioStats),
 			store.setMetaValue(

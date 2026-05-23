@@ -2,6 +2,11 @@
 
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
 import { INDICATOR_FIELD_GROUPS } from "./models/field-definitions.js";
+import {
+	isTickerSource,
+	TICKER_SOURCE_VALUES,
+	type TickerSource,
+} from "./policy.js";
 
 type CliCommand = {
 	command: string;
@@ -237,11 +242,11 @@ function stockStatsPayload(row: JsonValue): JsonValue {
 function parseStocksArguments(argv: string[]): {
 	pretty: boolean;
 	tickers: string[];
-	source?: "auto" | "live" | "cache";
+	source?: TickerSource;
 } {
 	const pretty = argv.includes("--pretty");
 	const tickers: string[] = [];
-	let source: "auto" | "live" | "cache" | undefined;
+	let source: TickerSource | undefined;
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -250,12 +255,10 @@ function parseStocksArguments(argv: string[]): {
 		}
 		if (token === "--source") {
 			const rawSource = argv[index + 1];
-			if (
-				rawSource !== "auto" &&
-				rawSource !== "live" &&
-				rawSource !== "cache"
-			) {
-				throw new Error("Invalid source. Use auto, live, or cache.");
+			if (!isTickerSource(rawSource)) {
+				throw new Error(
+					`Invalid source. Use ${TICKER_SOURCE_VALUES.join(", ")}.`,
+				);
 			}
 			source = rawSource;
 			index += 1;
