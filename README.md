@@ -182,8 +182,9 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - One canonical model layer for API, evaluation, and provider/persistence adapters.
 
 - **`src/stock-search/policy.ts`**
-  - Central policy table for portfolio scopes and request workflow decisions.
-  - Keeps mode semantics separate from runtime config and execution code.
+  - Central `policy` facade for request workflows and stats-family refresh decisions.
+  - Keeps implementation classes in `src/stock-search/policies/`, with callers using `policy.request` and `policy.stats`.
+  - Keeps workflow decisions separate from runtime config, fetching, merging, and persistence code.
 
 - **`src/stock-search/models/convex/`**
   - Convex adapter, store facade, and import tooling.

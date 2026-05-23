@@ -6,7 +6,7 @@ import {
 } from "../etf/index.js";
 import { deriveEvaluationScores } from "../evaluation/normalization.js";
 import { Notional } from "../models/schemas.js";
-import { type PortfolioScope, portfolioScopePolicy } from "../policy.js";
+import { type PortfolioScope, policy } from "../policy.js";
 import {
 	aggregateTickerDataSource,
 	resolveTickerStatsMap,
@@ -73,7 +73,7 @@ export async function buildPortfolioPayload(
 		sync_mode: string;
 	};
 }> {
-	const scopePolicy = portfolioScopePolicy(scope);
+	const scopePolicy = policy.request.portfolioScope(scope);
 	const portfolio = await store.loadPortfolio();
 	const stocksMap =
 		scopePolicy.universe === "all_stored"

@@ -2,11 +2,7 @@
 
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
 import { INDICATOR_FIELD_GROUPS } from "./models/field-definitions.js";
-import {
-	isTickerSource,
-	TICKER_SOURCE_VALUES,
-	type TickerSource,
-} from "./policy.js";
+import { policy, type TickerSource } from "./policy.js";
 
 type CliCommand = {
 	command: string;
@@ -255,9 +251,9 @@ function parseStocksArguments(argv: string[]): {
 		}
 		if (token === "--source") {
 			const rawSource = argv[index + 1];
-			if (!isTickerSource(rawSource)) {
+			if (!policy.request.isTickerSource(rawSource)) {
 				throw new Error(
-					`Invalid source. Use ${TICKER_SOURCE_VALUES.join(", ")}.`,
+					`Invalid source. Use ${policy.request.tickerSourceValues.join(", ")}.`,
 				);
 			}
 			source = rawSource;

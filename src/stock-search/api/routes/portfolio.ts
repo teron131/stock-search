@@ -2,11 +2,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
-import {
-	DEFAULT_PORTFOLIO_SCOPE,
-	PORTFOLIO_SCOPE_VALUES,
-	portfolioCacheControl,
-} from "../../policy.js";
+import { policy } from "../../policy.js";
 import {
 	buildPortfolioPayload,
 	patchPortfolioPosition,
@@ -28,8 +24,8 @@ const PortfolioPositionPatchSchema = z.object({
 	strategy: z.string().nullable().optional(),
 });
 const PortfolioScopeSchema = z
-	.enum(PORTFOLIO_SCOPE_VALUES)
-	.catch(DEFAULT_PORTFOLIO_SCOPE);
+	.enum(policy.request.portfolioScopeValues)
+	.catch(policy.request.defaultPortfolioScope);
 const PORTFOLIO_STATS_CACHE_CONTROL =
 	"private, max-age=15, stale-while-revalidate=60";
 
@@ -44,7 +40,7 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 
 	router.get(PORTFOLIO, async (c) => {
 		const scope = PortfolioScopeSchema.parse(c.req.query("scope"));
-		c.header("Cache-Control", portfolioCacheControl(scope));
+		c.header("Cache-Control", policy.request.cacheControl(scope));
 		return c.json(await buildPortfolioPayload(store, scope));
 	});
 

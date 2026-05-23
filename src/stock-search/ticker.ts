@@ -5,7 +5,7 @@ import {
 	type EtfSnapshotResult,
 	resolveEtfSnapshotCache,
 } from "./etf/index.js";
-import { DEFAULT_TICKER_SOURCE, type TickerSource } from "./policy.js";
+import { policy, type TickerSource } from "./policy.js";
 import {
 	applyEtfProxyStatsToStocks,
 	resolveEtfProxyStocks,
@@ -268,7 +268,7 @@ export async function buildEvaluateTickerPayload(
 	const { row, meta } = await buildStandaloneTickerPayload(
 		store,
 		tickerSymbol,
-		DEFAULT_TICKER_SOURCE,
+		policy.request.defaultTickerSource,
 	);
 	return {
 		ticker: tickerSymbol,

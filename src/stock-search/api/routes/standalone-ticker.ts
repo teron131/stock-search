@@ -2,7 +2,7 @@
 
 import { Hono } from "hono";
 
-import { DEFAULT_TICKER_SOURCE, isTickerSource } from "../../policy.js";
+import { policy } from "../../policy.js";
 import type { BackendStore } from "../../storage/index.js";
 import {
 	buildEvaluateTickerPayload,
@@ -29,9 +29,7 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 	router.get(STOCK_STATS_ROUTE, async (c) => {
 		c.header("Cache-Control", "no-store");
 		const source = c.req.query("source");
-		const resolvedSource = isTickerSource(source)
-			? source
-			: DEFAULT_TICKER_SOURCE;
+		const resolvedSource = policy.request.tickerSource(source);
 		try {
 			return c.json(
 				await buildStandaloneTickerPayload(

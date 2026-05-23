@@ -1,16 +1,13 @@
 /** Refresh stat families and resolve cache-vs-live decisions. */
 
+import { policy } from "../policy.js";
 import type { BackendStore, StockEntry } from "../storage/index.js";
 import {
 	applySourcePegFallback,
 	PEG_SOURCE_FINVIZ,
 	PEG_SOURCE_STOCKANALYSIS,
 } from "./derived-stats.js";
-import {
-	BLOCKING_AUTO_FAMILIES,
-	FAMILY_POLICIES,
-	type StatsFamily,
-} from "./families.js";
+import { FAMILY_POLICIES, type StatsFamily } from "./families.js";
 import {
 	chooseCachedSnapshot,
 	completeKnownFamilyRow,
@@ -236,11 +233,12 @@ export async function resolveFamily({
 }): Promise<FamilyResolution> {
 	if (mode === "cache") {
 		const row = familyRow(persistedRow, family);
+		const cacheOnlyResolution = policy.stats.cacheOnlyResolution(row);
 		return {
 			family,
 			row,
-			decision: Object.keys(row).length > 0 ? "fresh" : "missing",
-			sourceTier: Object.keys(row).length > 0 ? "l2" : "missing",
+			decision: cacheOnlyResolution.decision,
+			sourceTier: cacheOnlyResolution.sourceTier,
 			timestamp: familyTimestamp(persistedRow, family),
 			queuedRefresh: false,
 		};
@@ -248,28 +246,28 @@ export async function resolveFamily({
 
 	const now = Date.now();
 	const cached = chooseCachedSnapshot(ticker, family, persistedRow, now);
-	if (mode === "auto" && cached.isFresh) {
+	const refreshDecision = policy.stats.familyRefreshDecision({
+		mode,
+		family,
+		cached,
+	});
+	if (refreshDecision.action === "serve_cache") {
 		return {
 			family,
 			row: cached.row,
-			decision: "fresh",
-			sourceTier: cached.sourceTier,
+			decision: refreshDecision.decision,
+			sourceTier: refreshDecision.sourceTier,
 			timestamp: cached.timestamp,
 			queuedRefresh: false,
 		};
 	}
 
-	if (
-		mode === "auto" &&
-		cached.isStale &&
-		cached.hasRequiredFields &&
-		!BLOCKING_AUTO_FAMILIES.has(family)
-	) {
+	if (refreshDecision.action === "serve_stale_and_queue") {
 		return {
 			family,
 			row: cached.row,
-			decision: "stale_served",
-			sourceTier: cached.sourceTier,
+			decision: refreshDecision.decision,
+			sourceTier: refreshDecision.sourceTier,
 			timestamp: cached.timestamp,
 			queuedRefresh: await queueRefresh(
 				store,
@@ -313,10 +311,14 @@ export async function resolveFamily({
 			updatedAt: previous?.updatedAt ?? refreshedAt,
 			lastFailureAt: refreshedAt,
 		});
-		if (mode === "live") {
+		const failureDecision = policy.stats.refreshFailureDecision({
+			mode,
+			cached,
+		});
+		if (failureDecision === "throw_live") {
 			throw new Error(`Live stats unavailable for ticker: ${ticker}`);
 		}
-		if (cached.isStale && cached.present) {
+		if (failureDecision === "serve_stale") {
 			return {
 				family,
 				row: cached.row,

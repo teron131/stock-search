@@ -10,14 +10,7 @@ import { appConfig } from "../api/config.js";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
-import {
-	DEFAULT_PORTFOLIO_SCOPE,
-	DEFAULT_TICKER_SOURCE,
-	PORTFOLIO_SCOPE_VALUES,
-	type PortfolioScope,
-	TICKER_SOURCE_VALUES,
-	type TickerSource,
-} from "../policy.js";
+import { policy } from "../policy.js";
 import {
 	buildPortfolioPayload,
 	loadEvalMap,
@@ -55,8 +48,10 @@ export type StockSearchTool = {
 	execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
-const PortfolioScopeSchema = z.enum(PORTFOLIO_SCOPE_VALUES).optional();
-const TickerSourceSchema = z.enum(TICKER_SOURCE_VALUES).optional();
+const PortfolioScopeSchema = z
+	.enum(policy.request.portfolioScopeValues)
+	.optional();
+const TickerSourceSchema = z.enum(policy.request.tickerSourceValues).optional();
 const NoArgsSchema = z.object({});
 
 export function toolHasParameters(parameters?: ZodType): parameters is ZodType {
@@ -153,9 +148,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		execute: async ({ scope }) =>
 			buildPortfolioPayload(
 				getStore(),
-				(typeof scope === "string"
-					? scope
-					: DEFAULT_PORTFOLIO_SCOPE) as PortfolioScope,
+				policy.request.portfolioScopeValue(scope),
 			),
 	},
 	{
@@ -195,9 +188,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 			buildStandaloneTickerPayload(
 				getStore(),
 				String(ticker ?? ""),
-				(typeof source === "string"
-					? source
-					: DEFAULT_TICKER_SOURCE) as TickerSource,
+				policy.request.tickerSource(source),
 			),
 	},
 	{
