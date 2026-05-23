@@ -158,20 +158,28 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Useful for one-shot live indicator fetches and source-level smoke checks.
 
 - **`src/stock-search/stats-resolver/`**
-  - Family-based cache, freshness, provider-bundle, and source-merge logic.
+  - Family-based cache, freshness, provider-bundle, source-merge, and monetary normalization logic.
   - This is the main path for portfolio, standalone ticker, CLI, and MCP stats reads.
+
+- **`src/stock-search/ticker.ts`**
+  - Shared standalone ticker payload builder used by HTTP routes and MCP tools.
+  - Keeps ticker response assembly independent from transport-specific routing.
 
 - **`src/stock-search/evaluation/`**
   - Scoring, normalization, and ranking logic.
   - Keeps decision logic deterministic and independent from raw fetching.
+
+- **`src/stock-search/storage/`**
+  - Backend persistence contract, store factory, and local SQLite implementation.
+  - Keeps API, MCP, portfolio, resolver, and scripts behind one storage boundary.
 
 - **`src/stock-search/api/`**
   - HTTP routes for portfolio flows, standalone ticker reads, and utility endpoints.
   - Clean boundary between UI contract and internal data orchestration.
 
 - **`src/stock-search/models/`**
-  - Shared schemas, labels/constants, and storage interfaces.
-  - One canonical model layer for API, evaluation, and persistence code.
+  - Shared schemas, labels/constants, and Convex transport models.
+  - One canonical model layer for API, evaluation, and provider/persistence adapters.
 
 - **`src/stock-search/policy.ts`**
   - Central policy table for portfolio scopes and request workflow decisions.
