@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
-import { SQLiteStore } from "../sqlite-store.js";
+import { SQLiteStore } from "../storage/sqlite.js";
 import { normalizeTicker } from "../utils.js";
 import { calibrationDbPath, resetScoreAnchorsCache } from "./anchors.js";
 

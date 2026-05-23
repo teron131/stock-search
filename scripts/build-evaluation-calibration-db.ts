@@ -15,11 +15,11 @@ import {
 	upsertCalibrationStatsRow,
 } from "../src/stock-search/evaluation/calibration-db.js";
 import { fetchStockAnalysisStatistics } from "../src/stock-search/indicators.js";
-import { SQLiteStore } from "../src/stock-search/sqlite-store.js";
 import {
 	resolveTickerStats,
 	type StatsResolutionMode,
 } from "../src/stock-search/stats-resolver/index.js";
+import { SQLiteStore } from "../src/stock-search/storage/sqlite.js";
 import { normalizeTicker, nowIso } from "../src/stock-search/utils.js";
 
 const DEFAULT_LIST_URL = "https://stockanalysis.com/list/sp-500-stocks/";

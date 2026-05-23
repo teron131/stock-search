@@ -3,12 +3,12 @@
 import { Hono } from "hono";
 
 import { DEFAULT_TICKER_SOURCE, isTickerSource } from "../../policy.js";
+import type { BackendStore } from "../../storage/index.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
 } from "../../ticker.js";
 import { normalizeTicker } from "../../utils.js";
-import type { BackendStore } from "../data-store.js";
 import { STOCK_EVALUATE_ROUTE, STOCK_STATS_ROUTE } from "../route-paths.js";
 
 export function createStandaloneTickerRouter(store: BackendStore): Hono {

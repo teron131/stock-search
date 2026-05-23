@@ -1,11 +1,11 @@
 /** Classify portfolio positions as ETF or stock and resolve ETF snapshots. */
 
+import { ETF_QUOTE_TYPE } from "../data-sources/yahoo-finance.js";
 import type {
 	BackendStore,
 	PositionRow,
 	StockEntry,
-} from "../api/data-store.js";
-import { ETF_QUOTE_TYPE } from "../data-sources/yahoo-finance.js";
+} from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import { loadAnyEtfCache, resolveEtfSnapshotCache } from "./cache.js";
 import { isEtfTicker } from "./sources.js";

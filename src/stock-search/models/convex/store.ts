@@ -1,12 +1,12 @@
+import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
+import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
 import type {
 	BackendStore,
 	CachedNewsRow,
 	PortfolioRecord,
 	PositionRow,
 	StockEntry,
-} from "../../api/data-store.js";
-import type { StockAnalysisSectorSnapshot } from "../../data-sources/stockanalysis/index.js";
-import { normalizeSectorSnapshot } from "../../data-sources/stockanalysis/sector-cache.js";
+} from "../../storage/index.js";
 import { normalizeTicker } from "../../utils.js";
 import { normalizeStockIndicators } from "../schemas.js";
 import { ConvexApiError, ConvexHttpClient } from "./client.js";

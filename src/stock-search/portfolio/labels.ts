@@ -1,12 +1,12 @@
 /** Refresh and apply portfolio industry labels. */
 
+import { isCacheTimestampFresh } from "../cache.js";
+import { agetLabels } from "../labeler.js";
 import type {
 	BackendStore,
 	PositionRow,
 	StockEntry,
-} from "../api/data-store.js";
-import { isCacheTimestampFresh } from "../cache.js";
-import { agetLabels } from "../labeler.js";
+} from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import {
 	LABEL_CACHE_MAX_AGE_MS,

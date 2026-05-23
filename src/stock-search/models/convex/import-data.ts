@@ -3,7 +3,7 @@
 import { config as loadDotenv } from "dotenv";
 
 import { DATA_SQLITE_PATH } from "../../config.js";
-import { SQLiteStore } from "../../sqlite-store.js";
+import { SQLiteStore } from "../../storage/sqlite.js";
 import { ConvexHttpClient } from "./client.js";
 import {
 	normalizePortfolioPositions,

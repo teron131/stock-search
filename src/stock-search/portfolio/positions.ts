@@ -1,8 +1,8 @@
 /** Mutate portfolio positions and clean up removed ticker data. */
 
-import type { BackendStore, PositionRow } from "../api/data-store.js";
 import { safeFloat } from "../common-utils.js";
 import { fetchYahooIndicators } from "../indicators.js";
+import type { BackendStore, PositionRow } from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import {
 	POSITION_SOURCE_DASHBOARD_MANUAL,

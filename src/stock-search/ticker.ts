@@ -1,10 +1,5 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
-import type {
-	BackendStore,
-	PositionRow,
-	StockEntry,
-} from "./api/data-store.js";
 import {
 	type EtfResolutionResult,
 	type EtfSnapshotResult,
@@ -17,6 +12,7 @@ import {
 } from "./portfolio/etf-proxy.js";
 import { mergePortfolioRow } from "./portfolio/index.js";
 import { resolveTickerStats } from "./stats-resolver/index.js";
+import type { BackendStore, PositionRow, StockEntry } from "./storage/index.js";
 import { normalizeTicker, nowIso } from "./utils.js";
 
 type StandaloneTickerPayload = {

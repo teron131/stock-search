@@ -1,6 +1,6 @@
 /** Refresh stat families and resolve cache-vs-live decisions. */
 
-import type { BackendStore, StockEntry } from "../api/data-store.js";
+import type { BackendStore, StockEntry } from "../storage/index.js";
 import {
 	applySourcePegFallback,
 	PEG_SOURCE_FINVIZ,

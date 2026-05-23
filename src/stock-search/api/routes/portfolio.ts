@@ -13,8 +13,8 @@ import {
 	readStoredPortfolioStatsPayload,
 	removePortfolioPosition,
 } from "../../portfolio/index.js";
+import type { BackendStore } from "../../storage/index.js";
 import { normalizeTicker } from "../../utils.js";
-import type { BackendStore } from "../data-store.js";
 import { importPortfolioImage } from "../import-image.js";
 import {
 	PORTFOLIO,

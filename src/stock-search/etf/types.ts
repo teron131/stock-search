@@ -1,6 +1,6 @@
 /** Shared ETF snapshot and resolution types. */
 
-import type { PositionRow } from "../api/data-store.js";
+import type { PositionRow } from "../storage/index.js";
 
 export type EtfHolding = {
 	ticker: string;

@@ -7,7 +7,6 @@ import { type ZodType, z } from "zod";
 
 import { buildColorStandardsPayload } from "../api/color-standards.js";
 import { appConfig } from "../api/config.js";
-import { convexRealtimeTopics, getStore } from "../api/data-store.js";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
@@ -26,6 +25,7 @@ import {
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "../portfolio/index.js";
+import { convexRealtimeTopics, getStore } from "../storage/index.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,

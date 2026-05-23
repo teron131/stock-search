@@ -1,7 +1,7 @@
 /** Resolve ticker stats with family-level freshness and background refreshes. */
 
-import type { BackendStore, StockEntry } from "../api/data-store.js";
 import { PortfolioConfig } from "../config.js";
+import type { BackendStore, StockEntry } from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import { STAT_FAMILIES, type StatsFamily } from "./families.js";
 import { mergeFamilyRow } from "./family-cache.js";

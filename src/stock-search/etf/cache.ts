@@ -1,8 +1,8 @@
 /** Resolve ETF snapshots with cache-first semantics. */
 
-import type { StockEntry } from "../api/data-store.js";
 import { isCacheTimestampFresh } from "../cache.js";
 import { ETF_QUOTE_TYPE } from "../data-sources/yahoo-finance.js";
+import type { StockEntry } from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import { normalizeEtfSectors } from "./sectors.js";
 import { getEtfSnapshot } from "./sources.js";

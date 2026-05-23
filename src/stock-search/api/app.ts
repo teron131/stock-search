@@ -4,9 +4,9 @@ import { readFile } from "node:fs/promises";
 
 import { Hono } from "hono";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
+import { type BackendStore, createLazyStore } from "../storage/index.js";
 import { authGuard } from "./auth.js";
 import { appConfig } from "./config.js";
-import { type BackendStore, createLazyStore } from "./data-store.js";
 import {
 	CALENDAR,
 	DASHBOARD,

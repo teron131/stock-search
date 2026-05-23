@@ -9,8 +9,8 @@ import {
 	POSITION_SOURCE_IMAGE_IMPORT,
 	POSITION_SOURCE_IMAGE_IMPORT_ABSENT,
 } from "../portfolio/shared.js";
+import type { BackendStore, PositionRow } from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
-import type { BackendStore, PositionRow } from "./data-store.js";
 
 const PortfolioImageExtractionSchema = z
 	.object({

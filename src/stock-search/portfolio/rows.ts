@@ -1,6 +1,5 @@
 /** Build dashboard portfolio rows from positions, indicators, and evaluation data. */
 
-import type { PositionRow, StockEntry } from "../api/data-store.js";
 import { ETF_HOLDINGS_FETCHED_AT_FIELD } from "../etf/index.js";
 import {
 	bucketFromEvaluation,
@@ -8,6 +7,7 @@ import {
 } from "../evaluation/normalization.js";
 import type { PortfolioRefreshIntent } from "../policy.js";
 import { REQUIRED_FAMILY_FIELDS } from "../stats-resolver/families.js";
+import type { PositionRow, StockEntry } from "../storage/index.js";
 import { asNumber, normalizeTicker } from "../utils.js";
 import {
 	EVAL_KEYS,

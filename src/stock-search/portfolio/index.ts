@@ -1,10 +1,5 @@
 /** Build portfolio payloads with cache-aware live refresh and ETF lookthrough. */
 
-import type {
-	BackendStore,
-	PositionRow,
-	StockEntry,
-} from "../api/data-store.js";
 import {
 	classifyAndResolveEtfs,
 	ETF_HOLDINGS_FETCHED_AT_FIELD,
@@ -16,6 +11,11 @@ import {
 	aggregateTickerDataSource,
 	resolveTickerStatsMap,
 } from "../stats-resolver/index.js";
+import type {
+	BackendStore,
+	PositionRow,
+	StockEntry,
+} from "../storage/index.js";
 import { normalizeTicker, nowIso, uniqueTickers } from "../utils.js";
 import {
 	applyEtfProxyStatsToStocks,

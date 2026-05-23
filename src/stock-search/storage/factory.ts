@@ -1,11 +1,11 @@
 /** Read and persist portfolio data through SQLite or Convex backends. */
 
+import { appConfig, type BackendName } from "../api/config.js";
 import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { queueEvaluationCalibrationRowsSync } from "../evaluation/calibration-db.js";
 import { ConvexApiError } from "../models/convex/client.js";
 import { ConvexStore, convexRealtimeTopics } from "../models/convex/store.js";
-import { SQLiteStore } from "../sqlite-store.js";
-import { appConfig, type BackendName } from "./config.js";
+import { SQLiteStore } from "./sqlite.js";
 
 export type PositionRow = Record<string, unknown> & {
 	ticker: string;

@@ -1,17 +1,17 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
+import { normalizeSectorSnapshot } from "../data-sources/stockanalysis/sector-cache.js";
+import { normalizeStockIndicators } from "../models/schemas.js";
+import { normalizeTicker } from "../utils.js";
 import type {
 	BackendStore,
 	CachedNewsRow,
 	PortfolioRecord,
 	PositionRow,
 	StockEntry,
-} from "./api/data-store.js";
-import type { StockAnalysisSectorSnapshot } from "./data-sources/stockanalysis/index.js";
-import { normalizeSectorSnapshot } from "./data-sources/stockanalysis/sector-cache.js";
-import { normalizeStockIndicators } from "./models/schemas.js";
-import { normalizeTicker } from "./utils.js";
+} from "./factory.js";
 
 /** Persists grouped stock API records as a wide SQLite table. */
 const SECTOR_SNAPSHOT_META_KEY = "sector_snapshot";

@@ -1,6 +1,6 @@
 /** Shared portfolio constants and small normalization helpers. */
 
-import type { PositionRow } from "../api/data-store.js";
+import type { PositionRow } from "../storage/index.js";
 import { uniqueTickers } from "../utils.js";
 
 export type { PortfolioScope } from "../policy.js";

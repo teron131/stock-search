@@ -1,10 +1,5 @@
 /** Resolve ETF lookthrough representatives and proxy ETF stats from holdings. */
 
-import type {
-	BackendStore,
-	PositionRow,
-	StockEntry,
-} from "../api/data-store.js";
 import { parseCacheTimestamp } from "../cache.js";
 import type { EtfResolutionResult } from "../etf/index.js";
 import type { StatsFamily } from "../stats-resolver/families.js";
@@ -12,6 +7,11 @@ import {
 	resolveTickerStatsMap,
 	type StatsResolutionResult,
 } from "../stats-resolver/index.js";
+import type {
+	BackendStore,
+	PositionRow,
+	StockEntry,
+} from "../storage/index.js";
 import { asNumber, normalizeTicker, uniqueTickers } from "../utils.js";
 import { mergeLiveResultsIntoStocks } from "./rows.js";
 import { POSITION_SOURCE_ETF_PROXY, POSITION_SOURCE_FIELD } from "./shared.js";
