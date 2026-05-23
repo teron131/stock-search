@@ -21,68 +21,131 @@ Run the backend only with:
 pnpm run server:start
 ```
 
-## Stats Resolution Flow
+## Core Data Contract
+
+The app keeps three ideas separate:
+
+- **Portfolio state** is the user's positions and strategies.
+- **Stock indicators** are cacheable market data, metadata, fundamentals, ratings, and ETF lookthrough fields.
+- **Evaluation** is derived from indicators, plus any stored research placeholders.
+
+Most reads are therefore cache-first at the storage boundary, but source-aware inside each stat family. A request chooses a freshness policy; the resolver decides which families need live work; provider-specific fetchers fill only the fields they own.
+
+## Request Modes
+
+Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `get_stock_stats` use `source`.
+
+| Surface | Knob | Values | Contract |
+| --- | --- | --- | --- |
+| Portfolio | `scope` | `priority` | Default dashboard path. Refreshes the tickers that matter for the prioritized view. |
+| Portfolio | `scope` | `all_cached` | Cache-only all-universe view. Loads every stored stock without live refresh, and lets the browser reuse the response briefly. |
+| Portfolio | `scope` | `portfolio_live` | Refreshes held portfolio rows and stores portfolio stats. |
+| Portfolio | `scope` | `all` | Broad live-capable all-universe view. |
+| Ticker / CLI / MCP | `source` | `auto` | Use fresh cache, serve usable stale slow families while queueing refresh, and refresh inline when required. |
+| Ticker / CLI / MCP | `source` | `live` | Force inline provider refresh; fail instead of silently falling back when live data is unavailable. |
+| Ticker / CLI / MCP | `source` | `cache` | Read the stored row only. |
+
+## Runtime Shape
+
+```mermaid
+flowchart LR
+    Client[UI / CLI / MCP] --> API[API routes]
+    API --> Resolver[stats-resolver]
+    Resolver --> Store[BackendStore]
+    Resolver --> Providers[provider loaders]
+    Resolver --> Eval[evaluation]
+```
+
+The important boundary is `stats-resolver`: clients describe freshness intent, the resolver enforces cache policy by family, provider loaders fill canonical fields, and evaluation consumes the merged indicator row.
+
+## Stats Resolution
+
+Stats are grouped into freshness families so fast market data can refresh aggressively without making slower fundamentals noisy or expensive.
+
+| Family | Main fields | Fresh | Stale allowed | Live owner |
+| --- | --- | --- | --- | --- |
+| `market_data` | price, day change | 1 minute | 10 minutes | Yahoo |
+| `market_snapshot` | name, type, sector, industry, momentum | 1 hour | 2 days | Yahoo metadata plus cache |
+| `statistics` | multiples, market cap, PEG, beta, balance sheet | 1 day | 2 days | StockAnalysis and Finviz blend |
+| `financials` | growth, margins, FCF, R&D | 1 day | 2 days | StockAnalysis and Finviz blend |
+| `ratings` | analyst median upside and rating rows | 1 day | 2 days | Yahoo |
 
 ```mermaid
 flowchart TD
-    accTitle: Family-based stats workflow
-    accDescr: Shows how portfolio and standalone requests resolve stats through mode selection, layered caches, family freshness checks, provider refreshes, and final payload assembly.
-
-    Request["Portfolio or standalone request"]
-    Request --> Mode{"Scope / source"}
-
-    Mode -->|`priority` or `cache`| CacheMode["Cache-only path"]
-    Mode -->|`auto`, `portfolio_live`, `all`| AutoMode["Auto path"]
-    Mode -->|`live`| LiveMode["Live-only path"]
-
-    CacheMode --> Load["Read persisted ticker row"]
-    AutoMode --> Load
-    LiveMode --> Load
-
-    Load --> Overlay["Overlay fresher in-memory family cache"]
-    Overlay --> Decision{"Family state?"}
-
-    Decision -->|Fresh| Fresh["Use cached family"]
-    Decision -->|Slow family stale in `auto`| Stale["Serve stale family"]
-    Stale -.-> Queue["Queue background refresh"]
-    Decision -->|Slow family missing| InlineSlow["Inline provider load"]
-    Decision -->|Market family expired| InlineFast["Inline market refresh"]
-    Decision -->|`live` mode| ForceLive["Force inline refresh"]
-
-    InlineSlow --> Provider["Provider fetch"]
-    InlineFast --> Provider
-    ForceLive --> Provider
-
-    Provider --> Piggyback["Reuse grouped page results"]
-    Piggyback --> Persist["Write through memory + persisted cache"]
-
-    Fresh --> Merge["Merge family results into one ticker row"]
-    Stale --> Merge
-    Persist --> Merge
-
-    Merge --> Standalone["Standalone ticker response"]
-    Merge --> Portfolio["Portfolio rows"]
-    Portfolio --> Enrich["Apply labels, eval, and ETF lookthrough tables"]
+    Request[family request] --> Check{cache state}
+    Check --> Fresh[fresh cache]
+    Check --> Stale[stale slow]
+    Check --> NeedLive[needs live]
+    Fresh --> Return[return row]
+    Stale --> Return
+    Stale -.-> Queue[queue refresh]
+    NeedLive --> Refresh[refresh inline]
+    Refresh --> Success[success]
+    Refresh --> AutoFail[auto failure]
+    Refresh --> LiveFail[live failure]
+    Success --> Persist[persist row]
+    AutoFail --> Fallback[fallback row]
+    LiveFail --> Error[error]
+    Persist --> Return
+    Fallback --> Return
 ```
+
+## Provider Priority
+
+Provider precedence is field-aware, not source-wide:
+
+- **Yahoo** owns fast market fields, option/ratings-oriented fields, and stock metadata labels (`name`, `quote_type`, `sector_name`, `industry_name`).
+- **StockAnalysis** owns fundamental statistics and financials when its public pages expose period-aligned values.
+- **Finviz** fills slow statistic gaps and can provide sector/industry labels as fallback. Its sector label `Financial` is normalized to `Financial Services`; industry labels keep the `" - "` separator.
+- **Cache** is a real tier, not a last-minute accident. If live refresh fails in `auto`, stale or persisted fields are used when they are known and meaningful.
+- **Yahoo fallback for sensitive fundamentals is limited.** Fundamental fields such as valuation and growth should prefer public web-source values; missing low-confidence values should stay missing rather than poisoning scores.
+
+| Family | Primary path | Cache and fallback behavior |
+| --- | --- | --- |
+| `market_data` | Yahoo quote/history indicators | Cache only in `cache` mode or after allowed auto fallback. Stale market data blocks inline in `auto`. |
+| `market_snapshot` | Yahoo metadata and indicators | Persisted labels and metadata are reused when fresh enough; fallback labels can come from Finviz. |
+| `statistics` | StockAnalysis plus Finviz field merge | Cache can fill known fields; Yahoo is a limited final fallback for compatible scalar fields. |
+| `financials` | StockAnalysis plus Finviz field merge | Cache can fill known fields; low-confidence Yahoo growth values are not forced into period-aligned fields. |
+| `ratings` | Yahoo ratings and analyst fields | Cache protects the dashboard when ratings endpoints are unavailable. |
+
+## Portfolio Workflow
+
+Portfolio payloads start from positions, then attach stock rows, labels, live stats, ETF lookthrough, and deterministic scores. ETFs are treated as wrappers unless holdings-proxy stats are available.
 
 ```mermaid
-flowchart TD
-    accTitle: Source priority by stat family
-    accDescr: Shows which provider is preferred for each stat family and where cache fallback fits.
+sequenceDiagram
+    participant Client
+    participant API
+    participant Store
+    participant Resolver
+    participant Providers
+    participant Eval
 
-    subgraph YahooLed["Yahoo-led families"]
-        direction LR
-        Market["Realtime market data"] --> MarketFlow["Yahoo first -> cache fallback"]
-        Snapshot["Market snapshot"] --> SnapshotFlow["Yahoo first -> cache fallback"]
-        Ratings["Ratings"] --> RatingsFlow["Yahoo first -> fresh cache second"]
-    end
-
-    subgraph ScrapeLed["Scrape-led families"]
-        direction LR
-        Stats["Statistics"] --> StatsFlow["StockAnalysis Exa load -> fresh cache -> Yahoo fallback"]
-        Financials["Financials"] --> FinancialsFlow["StockAnalysis Exa load -> fresh cache -> Yahoo fallback"]
-    end
+    Client->>API: scope
+    API->>Store: positions + stocks
+    API->>Resolver: selected tickers
+    Resolver->>Store: cached families
+    Resolver-->>Providers: refresh
+    Providers-->>Resolver: source rows
+    Resolver->>Store: persist
+    Resolver-->>API: indicators
+    API->>Eval: scores + exposures
+    Eval-->>API: rows + tables
+    API-->>Client: payload
 ```
+
+## Evaluation Anchors
+
+Scores are deterministic and recomputed from current indicators. Valuation is intentionally sector-relative; the other lanes stay mostly absolute.
+
+| Score lane | Anchor policy |
+| --- | --- |
+| `valuation_score` | Directly sector-relative through valuation anchors selected from `sector_name`. |
+| `quality_score` | Uses global dynamic anchors, not sector anchors. |
+| `moat_score` | Uses mostly absolute/global rules, not sector anchors. |
+| `upside_score` | Uses its own inputs, with valuation influencing support/caps indirectly. |
+| `tactical_score` | Includes valuation as one component, so sector anchoring enters indirectly. |
+| `overall_score` | Blends derived lanes, so sector anchoring enters only through valuation-weighted parts. |
 
 ## Module Overview
 
@@ -91,8 +154,12 @@ flowchart TD
   - Keeps external provider variability out of business logic.
 
 - **`src/stock-search/indicators.ts`**
-  - Unified indicator resolver across sources.
-  - Centralizes field-level precedence and cache fallback so callers stay source-agnostic.
+  - Compatibility wrapper over provider adapters and the source-merge policy.
+  - Useful for one-shot live indicator fetches and source-level smoke checks.
+
+- **`src/stock-search/stats-resolver/`**
+  - Family-based cache, freshness, provider-bundle, and source-merge logic.
+  - This is the main path for portfolio, standalone ticker, CLI, and MCP stats reads.
 
 - **`src/stock-search/evaluation/`**
   - Scoring, normalization, and ranking logic.
@@ -120,14 +187,17 @@ flowchart TD
   - Statistics/financial statement aligned fields and ETF holdings context.
   - Better alignment for valuation/fundamental fields where API feeds can diverge.
 
+- **Finviz**
+  - Slow quote-page statistics fallback for valuation and growth fields.
+  - Also supplies sector/industry labels when Yahoo metadata is missing.
+
 - **Fallback policy**
   - Prefer higher-quality source per field group, then cache, then fallback provider.
   - Improves consistency while remaining resilient during source failures.
 
-## Convex
+## Storage
 
-- Primary persistence backend for stocks, portfolio state, news, and metadata.
-- Gives a single cloud-backed source of truth and supports realtime-friendly integration.
+`BackendStore` hides persistence behind one app-level interface. Non-Convex mode uses SQLite directly at `data/stock_search.db`. Convex mode uses Convex for writes; local development wraps Convex reads with SQLite fallback so the dashboard remains usable during remote read failures.
 
 Current Convex function namespaces are intentionally singular to match the one-portfolio app model:
 
@@ -136,9 +206,7 @@ Current Convex function namespaces are intentionally singular to match the one-p
 - `news:list`, `news:replaceAll`
 - `meta_versions:get`, `meta_versions:set`
 
-## Local SQLite
-
-- Local fallback and non-Convex mode now use `data/stock_search.db`.
+Local SQLite also stores the active stock indicator cache used by the family resolver and the local calibration DB used by evaluation anchors.
 
 ## FastMCP
 
