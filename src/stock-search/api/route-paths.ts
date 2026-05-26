@@ -18,6 +18,7 @@ export const AUTH_SESSION = "/auth/session";
 
 export const PORTFOLIO = "/portfolio";
 export const PORTFOLIO_STATS = "/portfolio/stats";
+export const PORTFOLIO_CORRELATION = "/portfolio/correlation";
 export const PORTFOLIO_IMPORT_IMAGE = "/portfolio/import-image";
 export const PORTFOLIO_NEWS_SUMMARY = "/portfolio/news-summary";
 

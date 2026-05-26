@@ -2,6 +2,8 @@ import { html } from "htm/react";
 import { useEffect, useRef, useState } from "react";
 import { TableSection } from "./components/table/Section.js";
 import { CONFIG, DEFAULT_SORT_COLS, NOTIONAL_COLUMN_KEYS } from "./config.js";
+import { useCorrelationData } from "./correlation/useCorrelationData.js";
+import { CorrelationView } from "./correlation/View.js";
 import { useNewsData } from "./news/useNewsData.js";
 import { NewsView } from "./news/View.js";
 import { usePortfolioData } from "./portfolio/usePortfolioData.js";
@@ -34,6 +36,7 @@ import {
 const BACKGROUND_SYNC_INTERVAL_MS = 180_000;
 const NEWS_BACKGROUND_SYNC_INTERVAL_MS = CONFIG.newsAutoRefreshIntervalMs;
 const TABLE_DISPLAY_STORAGE_KEY = "stock-search:table-display-options";
+const CORRELATION_TAB = "correlation";
 const NOTIONAL_COLUMN_KEY_SET = new Set(NOTIONAL_COLUMN_KEYS);
 const HIDDEN_NOTIONAL_SORT_FALLBACKS = {
 	all: "weight_pct",
@@ -100,6 +103,7 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 	const [tab, setTab] = useState("all");
 	const [sortCol, setSortCol] = useState(DEFAULT_SORT_COLS.all);
 	const [sortDir, setSortDir] = useState("desc");
+	const [correlationMode, setCorrelationMode] = useState("raw");
 	const [tableDisplayOptions, setTableDisplayOptions] = useState(() =>
 		normalizeTableDisplayOptions(CONFIG.tableDisplayDefaults),
 	);
@@ -126,6 +130,11 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		enabled: view === NEWS_VIEW,
 		portfolioLoading: isLoading,
 		preferDemoData: isUsingDemoData,
+	});
+	const correlationData = useCorrelationData({
+		rows,
+		enabled: view === DASHBOARD_VIEW && tab === CORRELATION_TAB,
+		mode: correlationMode,
 	});
 
 	const syncRef = useRef(actions.sync);
@@ -520,5 +529,13 @@ export function App({ initialView = DASHBOARD_VIEW }) {
 		onAddOrUpdate=${onAddOrUpdate}
 		tableDisplayOptions=${tableDisplayOptions}
 		onToggleNotionalDisplay=${onToggleNotionalDisplay}
+		correlationView=${html`<${CorrelationView}
+			data=${correlationData.payload}
+			mode=${correlationMode}
+			setMode=${setCorrelationMode}
+			isLoading=${correlationData.isLoading}
+			lastError=${correlationData.lastError}
+			tickers=${correlationData.tickers}
+		/>`}
 	/>`;
 }

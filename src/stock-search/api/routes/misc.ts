@@ -2,6 +2,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
+import { runCorrelationReport } from "../../correlation.js";
 import {
 	PortfolioNewsSummaryRequestArticleSchema,
 	PortfolioNewsSummaryRequestRowSchema,
@@ -16,6 +17,7 @@ import { appConfig } from "../config.js";
 import {
 	COLOR_STANDARDS,
 	EVAL,
+	PORTFOLIO_CORRELATION,
 	PORTFOLIO_NEWS_SUMMARY,
 	REALTIME_CONFIG,
 	STOCK_NEWS_ROUTE,
@@ -34,6 +36,7 @@ const ARTICLE_CATEGORIES = new Set([
 ]);
 const ARTICLE_RELEVANCIES = new Set(["high", "medium", "low"]);
 const ARTICLE_SENTIMENTS = new Set(["bullish", "neutral", "bearish"]);
+const CORRELATION_MODES = new Set(["raw", "market_neutral"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
@@ -118,6 +121,15 @@ function parseTickersQuery(rawValue: string | undefined): string[] | undefined {
 	return tickers.length > 0 ? tickers : undefined;
 }
 
+function parseCorrelationMode(
+	rawValue: string | undefined,
+): "raw" | "market_neutral" {
+	const mode = String(rawValue || "raw").trim();
+	return CORRELATION_MODES.has(mode)
+		? (mode as "raw" | "market_neutral")
+		: "raw";
+}
+
 const PortfolioNewsSummaryPayloadSchema = z
 	.object({
 		rows: z
@@ -166,6 +178,16 @@ export function createMiscRouter(store: BackendStore): Hono {
 		c.header("Cache-Control", "no-store");
 		return c.json(
 			await loadEvalMap(store, parseTickersQuery(c.req.query("tickers"))),
+		);
+	});
+
+	router.get(PORTFOLIO_CORRELATION, async (c) => {
+		c.header("Cache-Control", "no-store");
+		return c.json(
+			await runCorrelationReport({
+				tickers: parseTickersQuery(c.req.query("tickers")),
+				correlationMode: parseCorrelationMode(c.req.query("mode")),
+			}),
 		);
 	});
 

@@ -50,6 +50,7 @@
 		"@langchain/openai": "1.4.4",
 		"@modelcontextprotocol/sdk": "^1.29.0",
 		"@types/turndown": "^5.0.6",
+		"d3": "^7.9.0",
 		"dotenv": "^17.2.3",
 		"exa-js": "^2.11.0",
 		"fastmcp": "^4.0.0",

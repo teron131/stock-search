@@ -78,15 +78,14 @@ export async function runCorrelationReport(
 		);
 	}
 
-	const correlationMode = options.correlationMode ?? "market_neutral";
+	const correlationMode = options.correlationMode ?? "raw";
 	const blendWeightMode = options.blendWeightMode ?? "hybrid";
 	const marketTicker = normalizeTicker(
 		options.marketProxyTicker ?? MARKET_PROXY_TICKER,
 	);
-	const fetchTickers =
-		correlationMode === "market_neutral" && marketTicker
-			? [...new Set([...portfolioTickers, marketTicker])]
-			: portfolioTickers;
+	const fetchTickers = marketTicker
+		? [...new Set([...portfolioTickers, marketTicker])]
+		: portfolioTickers;
 	const { frame, names } = await buildCloseRowsAndNames(
 		fetchTickers,
 		options.historyFetcher ?? fetchYahooCloseHistory,
@@ -110,7 +109,7 @@ export async function runCorrelationReport(
 		isFiniteNumber(row.values.get(marketTicker)),
 	);
 	const correlationTickers =
-		correlationMode === "market_neutral" && marketTicker && hasMarketHistory
+		marketTicker && hasMarketHistory
 			? [...activeTickers, marketTicker]
 			: activeTickers;
 	const correlationFrame = selectTickerRows(frame, correlationTickers);

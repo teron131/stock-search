@@ -45,6 +45,7 @@ export const CONFIG = {
 		authLogout: apiPath("/auth/logout"),
 		authSession: apiPath("/auth/session"),
 		portfolio: apiPath("/portfolio"),
+		portfolioCorrelation: apiPath("/portfolio/correlation"),
 		portfolioImportImage: apiPath("/portfolio/import-image"),
 		portfolioNewsSummary: apiPath("/portfolio/news-summary"),
 		sectors: apiPath("/sectors"),
@@ -75,6 +76,7 @@ export const CONFIG = {
 		portfolioBackground: 120_000,
 		sectors: 30_000,
 		news: 30_000,
+		correlation: 45_000,
 	},
 
 	newsConcurrency: 4,

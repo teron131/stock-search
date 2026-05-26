@@ -4,5 +4,6 @@
 @import "./styles/table-base.css";
 @import "./styles/widgets-layout.css";
 @import "./styles/dashboard.css";
+@import "./styles/correlation.css";
 @import "./styles/sectors.css";
 @import "./styles/news.css";
