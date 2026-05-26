@@ -422,10 +422,22 @@ export function usePortfolioData() {
 				formData.append("strategy", strategy);
 			}
 
-			const res = await fetch(CONFIG.endpoints.portfolioImportImage, {
-				method: "POST",
-				body: formData,
-			});
+			let res;
+			try {
+				res = await fetch(CONFIG.endpoints.portfolioImportImage, {
+					method: "POST",
+					body: formData,
+				});
+			} catch (error) {
+				return {
+					ok: false,
+					reason: "server",
+					detail:
+						error instanceof Error
+							? `Image import request failed: ${error.message}`
+							: "Image import request failed.",
+				};
+			}
 			if (!res.ok) {
 				const payload = await res.json().catch(() => null);
 				return {

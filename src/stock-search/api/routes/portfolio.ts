@@ -35,6 +35,26 @@ function parseOptionalFormText(
 	return typeof value === "string" ? value.trim() || null : null;
 }
 
+function logPortfolioImageImport(
+	level: "info" | "error",
+	message: string,
+	start: number,
+	requestId: string | null,
+	fields: Record<string, unknown> = {},
+): void {
+	const logger = level === "error" ? console.error : console.log;
+	logger(
+		JSON.stringify({
+			level,
+			msg: message,
+			route: PORTFOLIO_IMPORT_IMAGE,
+			requestId,
+			...fields,
+			ms: Date.now() - start,
+		}),
+	);
+}
+
 export function createPortfolioRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
@@ -74,30 +94,67 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 	});
 
 	router.post(PORTFOLIO_IMPORT_IMAGE, async (c) => {
+		const start = Date.now();
+		const requestId = c.req.header("x-vercel-id") ?? null;
 		c.header("Cache-Control", "no-store");
 		const formData = await c.req.raw.formData().catch(() => null);
 		if (!formData) {
+			logPortfolioImageImport(
+				"error",
+				"portfolio image import invalid form data",
+				start,
+				requestId,
+			);
 			return c.json({ detail: "Invalid upload payload." }, 400);
 		}
 
 		const file = formData.get("file");
 		if (!(file instanceof File)) {
+			logPortfolioImageImport(
+				"error",
+				"portfolio image import missing file",
+				start,
+				requestId,
+			);
 			return c.json({ detail: "Image file is required." }, 400);
 		}
 
 		try {
-			return c.json(
-				await importPortfolioImage(store, {
-					file,
-					strategy: parseOptionalFormText(formData.get("strategy")),
-					model: parseOptionalFormText(formData.get("model")),
-				}),
+			logPortfolioImageImport(
+				"info",
+				"portfolio image import start",
+				start,
+				requestId,
+				{
+					fileType: file.type || null,
+					fileSize: file.size,
+				},
 			);
+			const result = await importPortfolioImage(store, {
+				file,
+				strategy: parseOptionalFormText(formData.get("strategy")),
+				model: parseOptionalFormText(formData.get("model")),
+			});
+			logPortfolioImageImport(
+				"info",
+				"portfolio image import done",
+				start,
+				requestId,
+				{ appliedCount: result.applied_count },
+			);
+			return c.json(result);
 		} catch (error) {
 			const message =
 				error instanceof Error
 					? error.message
 					: "Portfolio image import failed.";
+			logPortfolioImageImport(
+				"error",
+				"portfolio image import failed",
+				start,
+				requestId,
+				{ error: message },
+			);
 			return c.json({ detail: message }, 400);
 		}
 	});

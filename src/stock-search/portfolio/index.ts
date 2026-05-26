@@ -186,12 +186,15 @@ export async function buildPortfolioPayload(
 		clearEtfMarketCapFields(row);
 		row.etf_holdings = snapshot.holdings;
 		row.etf_sectors = snapshot.sectors;
-		row.etf_holdings_fetched_at =
-			typeof proxiedStocks[ticker]?.indicators[
-				ETF_HOLDINGS_FETCHED_AT_FIELD
-			] === "string"
-				? proxiedStocks[ticker]?.indicators[ETF_HOLDINGS_FETCHED_AT_FIELD]
-				: nowIso();
+		const holdingsFetchedAt =
+			proxiedStocks[ticker]?.indicators[ETF_HOLDINGS_FETCHED_AT_FIELD];
+		if (typeof holdingsFetchedAt === "string") {
+			row.etf_holdings_fetched_at = holdingsFetchedAt;
+		} else if (snapshot.holdings.length > 0 || snapshot.sectors.length > 0) {
+			row.etf_holdings_fetched_at = nowIso();
+		} else {
+			row.etf_holdings_fetched_at = null;
+		}
 	}
 	for (const position of etfRepresentativePositions) {
 		const ticker = normalizeTicker(position.ticker);

@@ -44,6 +44,9 @@ type ImageImportResult = {
 	applied: ImportedHolding[];
 };
 
+const PORTFOLIO_IMAGE_EXTRACTION_PROMPT =
+	"Read this portfolio image and extract holdings. Keep ticker uppercase. Quantity must be the numeric share/unit count from columns such as Shares, Quantity, Qty, Units, or Position. Do not use price, market value, cost basis, weight, allocation, day change, or profit/loss as quantity. Skip rows if ticker or quantity is unreadable. Return only holdings.";
+
 function validatePortfolioImageFile(file: File): void {
 	if (!file.name) {
 		throw new Error("Image filename is required.");
@@ -173,8 +176,7 @@ async function extractPortfolioImage(
 	try {
 		const mediaMessage = await MediaMessage.fromPathAsync({
 			paths: tempPath,
-			description:
-				"Read this portfolio image and extract holdings. Keep ticker uppercase. Quantity must be numeric. Skip rows if ticker or quantity is unreadable. Return only holdings.",
+			description: PORTFOLIO_IMAGE_EXTRACTION_PROMPT,
 		});
 		const response = await ChatOpenAI({
 			model,
@@ -189,8 +191,9 @@ async function extractPortfolioImage(
 				},
 			]);
 		return PortfolioImageExtractionSchema.parse(response);
-	} catch {
-		throw new Error("Failed to extract holdings from image.");
+	} catch (error) {
+		const detail = error instanceof Error ? error.message : String(error);
+		throw new Error(`Failed to extract holdings from image: ${detail}`);
 	} finally {
 		await unlink(tempPath).catch(() => undefined);
 	}
