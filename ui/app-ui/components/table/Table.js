@@ -119,17 +119,13 @@ function getNextScrollLeft(scrollEl, deltaX) {
 	return Math.min(Math.max(scrollEl.scrollLeft + deltaX, 0), maxScrollLeft);
 }
 
-function mapScrollLeft(sourceEl, targetEl) {
-	const sourceMax = getMaxScrollLeft(sourceEl);
-	const targetMax = getMaxScrollLeft(targetEl);
-	if (sourceMax <= 0 || targetMax <= 0) return 0;
-	return (sourceEl.scrollLeft / sourceMax) * targetMax;
-}
-
 function syncHorizontalScroll(sourceEl, targetEl) {
 	if (!targetEl) return false;
 
-	const nextScrollLeft = mapScrollLeft(sourceEl, targetEl);
+	const nextScrollLeft = Math.min(
+		Math.max(sourceEl.scrollLeft, 0),
+		getMaxScrollLeft(targetEl),
+	);
 	if (
 		Math.abs(targetEl.scrollLeft - nextScrollLeft) <= SCROLL_SYNC_THRESHOLD_PX
 	) {
@@ -796,6 +792,34 @@ export function Table({
 			</th>`;
 			}),
 		);
+	const measureHeaderColumnWidths = useCallback(() => {
+		const tableEl = bodyTableRef.current;
+		if (!tableEl || !hasRows) {
+			setHeaderColumnWidths((currentWidths) =>
+				currentWidths.length === 0 ? currentWidths : [],
+			);
+			return;
+		}
+
+		const firstDataRow = tableEl.querySelector(
+			"tbody tr:not(.portfolio-summary-row):not(.table-virtual-spacer):not(.table-empty-row):not(.table-skeleton-row)",
+		);
+		if (!firstDataRow) return;
+
+		const nextWidths = Array.from(firstDataRow.children).map(
+			(cell) => Math.round(cell.getBoundingClientRect().width * 100) / 100,
+		);
+		if (nextWidths.length !== cols.length) return;
+
+		setHeaderColumnWidths((currentWidths) => {
+			const isSameWidthSet =
+				currentWidths.length === nextWidths.length &&
+				currentWidths.every(
+					(width, index) => Math.abs(width - nextWidths[index]) < 0.5,
+				);
+			return isSameWidthSet ? currentWidths : nextWidths;
+		});
+	}, [cols.length, hasRows]);
 
 	useEffect(() => {
 		const scrollEl = scrollRef.current;
@@ -851,31 +875,43 @@ export function Table({
 	}, [sorted.length]);
 
 	useLayoutEffect(() => {
+		measureHeaderColumnWidths();
+	});
+
+	useEffect(() => {
 		const tableEl = bodyTableRef.current;
-		if (!tableEl || !hasRows) {
-			setHeaderColumnWidths((currentWidths) =>
-				currentWidths.length === 0 ? currentWidths : [],
-			);
-			return;
+		if (!tableEl) return undefined;
+
+		let animationFrameId = 0;
+		const scheduleMeasurement = () => {
+			window.cancelAnimationFrame(animationFrameId);
+			animationFrameId = window.requestAnimationFrame(() => {
+				measureHeaderColumnWidths();
+			});
+		};
+
+		const resizeObserver =
+			typeof ResizeObserver === "undefined"
+				? null
+				: new ResizeObserver(scheduleMeasurement);
+		resizeObserver?.observe(tableEl);
+		if (scrollRef.current) {
+			resizeObserver?.observe(scrollRef.current);
 		}
 
-		const firstDataRow = tableEl.querySelector(
-			"tbody tr:not(.portfolio-summary-row):not(.table-virtual-spacer):not(.table-empty-row)",
-		);
-		const nextWidths = Array.from(firstDataRow?.children || []).map(
-			(cell) => Math.round(cell.getBoundingClientRect().width * 100) / 100,
-		);
-		if (nextWidths.length !== cols.length) return;
+		window.addEventListener("resize", scheduleMeasurement);
+		window.visualViewport?.addEventListener("resize", scheduleMeasurement);
+		document.fonts?.ready.then(scheduleMeasurement).catch(() => {});
 
-		setHeaderColumnWidths((currentWidths) => {
-			const isSameWidthSet =
-				currentWidths.length === nextWidths.length &&
-				currentWidths.every(
-					(width, index) => Math.abs(width - nextWidths[index]) < 0.5,
-				);
-			return isSameWidthSet ? currentWidths : nextWidths;
-		});
-	});
+		scheduleMeasurement();
+
+		return () => {
+			window.cancelAnimationFrame(animationFrameId);
+			resizeObserver?.disconnect();
+			window.removeEventListener("resize", scheduleMeasurement);
+			window.visualViewport?.removeEventListener("resize", scheduleMeasurement);
+		};
+	}, [measureHeaderColumnWidths]);
 
 	useLayoutEffect(() => {
 		const scrollEl = scrollRef.current;
