@@ -172,20 +172,22 @@ function renderInsightCards(cards) {
 	`;
 }
 
-function renderMatrixTicker(ticker) {
+function renderTradingViewTickerTag(ticker, variant) {
+	const classPrefix =
+		variant === "matrix" ? "correlation-matrix" : "correlation-rail";
 	const symbol = getTradingViewTickerTagSymbol(ticker, { allowFunds: true });
 	if (!symbol) {
 		return html`
-			<span className="correlation-matrix-ticker-fallback" title=${ticker}>
+			<span className=${`${classPrefix}-ticker-fallback`} title=${ticker}>
 				${ticker}
 			</span>
 		`;
 	}
 
 	return html`
-		<span className="correlation-matrix-ticker-icon" title=${ticker}>
+		<span className=${`${classPrefix}-ticker-icon`} title=${ticker}>
 			<tv-ticker-tag
-				className="correlation-matrix-ticker-tag"
+				className=${`${classPrefix}-ticker-tag`}
 				symbol=${symbol}
 				preserve-text
 				hide-change
@@ -218,7 +220,7 @@ function renderMatrixAxis(tickers, cellSize, axisSize, orientation) {
 				width=${isColumn ? cellSize : MATRIX_ICON_SIZE}
 				height=${isColumn ? MATRIX_ICON_SIZE : cellSize}
 			>
-				${renderMatrixTicker(ticker)}
+				${renderTradingViewTickerTag(ticker, "matrix")}
 			</foreignObject>
 		`,
 	);
@@ -360,15 +362,22 @@ function renderStats(statsPercent) {
 		<section className="correlation-panel">
 			<div className="correlation-panel-title">
 				${renderIcon("returns")}
-				<span>RETURN / VOL</span>
+				<span>ANNUALIZED RETURN / VOL</span>
 			</div>
 			<div className="correlation-stat-table">
+				<div className="correlation-stat-row correlation-stat-header">
+					<span>Ticker</span>
+					<span title="Compounded annualized return">Ann return</span>
+					<span title="Annualized volatility from daily returns">Ann vol</span>
+				</div>
 				${rows.map((row) => {
 					const annualVol = parsePercent(row.annualizedStdDev);
 					const bar = annualVol == null ? 0 : Math.min(100, annualVol * 1.5);
 					return html`
 						<div key=${row.ticker} className="correlation-stat-row">
-							<span>${row.ticker}</span>
+							<span className="correlation-stat-ticker">
+								${renderTradingViewTickerTag(row.ticker, "rail")}
+							</span>
 							<span>${row.annualizedReturn}</span>
 							<span>
 								${row.annualizedStdDev}
@@ -396,7 +405,9 @@ function renderBetas(marketBetas) {
 				${entries.map(
 					([ticker, beta]) => html`
 						<div key=${ticker} className="correlation-beta-item">
-							<span>${ticker}</span>
+							<span className="correlation-beta-ticker">
+								${renderTradingViewTickerTag(ticker, "rail")}
+							</span>
 							<strong>${formatCorrelation(beta)}</strong>
 						</div>
 					`,
