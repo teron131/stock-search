@@ -47,6 +47,8 @@ Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `g
 
 For external portfolio reads, prefer MCP `get_portfolio` with no `scope` or REST `/portfolio?scope=portfolio_live`. The stored `/portfolio/stats` payload is a cache snapshot and can be stale.
 
+In local development with `DATA_STORE_BACKEND=convex`, successful Convex reads and writes mirror into the local SQLite store so the network fallback is a warm private cache instead of an unrelated old snapshot.
+
 ## Runtime Shape
 
 ```mermaid

@@ -140,9 +140,14 @@ class FallbackConvexStore implements BackendStore {
 		operation: string,
 		loader: () => Promise<T>,
 		fallback: () => Promise<T>,
+		mirror?: (value: T) => Promise<void>,
 	): Promise<T> {
 		try {
-			return await loader();
+			const value = await loader();
+			if (mirror) {
+				await this.mirrorLocal(operation, () => mirror(value));
+			}
+			return value;
 		} catch (error) {
 			if (!(error instanceof Error || error instanceof ConvexApiError)) {
 				throw error;
@@ -155,23 +160,52 @@ class FallbackConvexStore implements BackendStore {
 		}
 	}
 
+	private async mirrorLocal(
+		operation: string,
+		action: () => Promise<void>,
+	): Promise<void> {
+		try {
+			await action();
+		} catch (error) {
+			console.warn(`SQLite mirror ${operation} failed.`, error);
+		}
+	}
+
+	private async writePrimaryAndMirror(
+		operation: string,
+		writer: () => Promise<void>,
+		mirror: () => Promise<void>,
+	): Promise<void> {
+		await writer();
+		await this.mirrorLocal(operation, mirror);
+	}
+
 	loadPortfolio(key?: string): Promise<PortfolioRecord> {
 		return this.readOrFallback(
 			"portfolio",
 			() => this.convexStore.loadPortfolio(key),
 			() => this.sqliteStore.loadPortfolio(key),
+			(portfolio) => this.sqliteStore.savePortfolio(portfolio),
 		);
 	}
 
 	savePortfolio(input: PortfolioRecord & { key?: string }): Promise<void> {
-		return this.convexStore.savePortfolio(input);
+		return this.writePrimaryAndMirror(
+			"portfolio write",
+			() => this.convexStore.savePortfolio(input),
+			() => this.sqliteStore.savePortfolio(input),
+		);
 	}
 
 	savePortfolioStats(
 		portfolioStats: Record<string, unknown> | null,
 		key?: string,
 	): Promise<void> {
-		return this.convexStore.savePortfolioStats(portfolioStats, key);
+		return this.writePrimaryAndMirror(
+			"portfolio stats write",
+			() => this.convexStore.savePortfolioStats(portfolioStats, key),
+			() => this.sqliteStore.savePortfolioStats(portfolioStats),
+		);
 	}
 
 	loadPositions(): Promise<PositionRow[]> {
@@ -179,11 +213,16 @@ class FallbackConvexStore implements BackendStore {
 			"positions",
 			() => this.convexStore.loadPositions(),
 			() => this.sqliteStore.loadPositions(),
+			(positions) => this.sqliteStore.savePositions(positions),
 		);
 	}
 
 	savePositions(positions: PositionRow[]): Promise<void> {
-		return this.convexStore.savePositions(positions);
+		return this.writePrimaryAndMirror(
+			"positions write",
+			() => this.convexStore.savePositions(positions),
+			() => this.sqliteStore.savePositions(positions),
+		);
 	}
 
 	loadStocks(): Promise<Record<string, StockEntry>> {
@@ -191,6 +230,13 @@ class FallbackConvexStore implements BackendStore {
 			"stocks",
 			() => this.convexStore.loadStocks(),
 			() => this.sqliteStore.loadStocks(),
+			(stocks) =>
+				this.sqliteStore.upsertStocks(
+					Object.entries(stocks).map(([ticker, stock]) => ({
+						ticker,
+						...stock,
+					})),
+				),
 		);
 	}
 
@@ -199,6 +245,13 @@ class FallbackConvexStore implements BackendStore {
 			"stocks",
 			() => this.convexStore.loadStocksByTickers(tickers),
 			() => this.sqliteStore.loadStocksByTickers(tickers),
+			(stocks) =>
+				this.sqliteStore.upsertStocks(
+					Object.entries(stocks).map(([ticker, stock]) => ({
+						ticker,
+						...stock,
+					})),
+				),
 		);
 	}
 
@@ -207,6 +260,10 @@ class FallbackConvexStore implements BackendStore {
 			"stock",
 			() => this.convexStore.loadStock(ticker),
 			() => this.sqliteStore.loadStock(ticker),
+			(stock) =>
+				stock
+					? this.sqliteStore.upsertStocks([{ ticker, ...stock }])
+					: Promise.resolve(),
 		);
 	}
 
@@ -218,11 +275,19 @@ class FallbackConvexStore implements BackendStore {
 			labels?: string[];
 		}>,
 	): Promise<void> {
-		return this.convexStore.upsertStocks(rows);
+		return this.writePrimaryAndMirror(
+			"stocks write",
+			() => this.convexStore.upsertStocks(rows),
+			() => this.sqliteStore.upsertStocks(rows),
+		);
 	}
 
 	deleteStocksByTickers(tickers: string[]): Promise<void> {
-		return this.convexStore.deleteStocksByTickers(tickers);
+		return this.writePrimaryAndMirror(
+			"stocks delete",
+			() => this.convexStore.deleteStocksByTickers(tickers),
+			() => this.sqliteStore.deleteStocksByTickers(tickers),
+		);
 	}
 
 	loadNews(key?: string): Promise<CachedNewsRow[]> {
@@ -230,15 +295,24 @@ class FallbackConvexStore implements BackendStore {
 			"news",
 			() => this.convexStore.loadNews(key),
 			() => this.sqliteStore.loadNews(key),
+			(rows) => this.sqliteStore.saveNews(rows, key),
 		);
 	}
 
 	saveNews(rows: CachedNewsRow[], key?: string): Promise<void> {
-		return this.convexStore.saveNews(rows, key);
+		return this.writePrimaryAndMirror(
+			"news write",
+			() => this.convexStore.saveNews(rows, key),
+			() => this.sqliteStore.saveNews(rows, key),
+		);
 	}
 
 	deleteNewsByTickers(tickers: string[], key?: string): Promise<void> {
-		return this.convexStore.deleteNewsByTickers(tickers, key);
+		return this.writePrimaryAndMirror(
+			"news delete",
+			() => this.convexStore.deleteNewsByTickers(tickers, key),
+			() => this.sqliteStore.deleteNewsByTickers(tickers, key),
+		);
 	}
 
 	loadSectorSnapshot(
@@ -248,6 +322,10 @@ class FallbackConvexStore implements BackendStore {
 			"sector snapshot",
 			() => this.convexStore.loadSectorSnapshot(key),
 			() => this.sqliteStore.loadSectorSnapshot(key),
+			(snapshot) =>
+				snapshot
+					? this.sqliteStore.saveSectorSnapshot(snapshot, key)
+					: Promise.resolve(),
 		);
 	}
 
@@ -255,7 +333,11 @@ class FallbackConvexStore implements BackendStore {
 		snapshot: StockAnalysisSectorSnapshot,
 		key?: string,
 	): Promise<void> {
-		return this.convexStore.saveSectorSnapshot(snapshot, key);
+		return this.writePrimaryAndMirror(
+			"sector snapshot write",
+			() => this.convexStore.saveSectorSnapshot(snapshot, key),
+			() => this.sqliteStore.saveSectorSnapshot(snapshot, key),
+		);
 	}
 
 	getMetaValue(key: string): Promise<string | null> {
@@ -263,11 +345,19 @@ class FallbackConvexStore implements BackendStore {
 			"meta",
 			() => this.convexStore.getMetaValue(key),
 			() => this.sqliteStore.getMetaValue(key),
+			(value) =>
+				value != null
+					? this.sqliteStore.setMetaValue(key, value)
+					: Promise.resolve(),
 		);
 	}
 
 	setMetaValue(key: string, value: string): Promise<void> {
-		return this.convexStore.setMetaValue(key, value);
+		return this.writePrimaryAndMirror(
+			"meta write",
+			() => this.convexStore.setMetaValue(key, value),
+			() => this.sqliteStore.setMetaValue(key, value),
+		);
 	}
 }
 

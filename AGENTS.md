@@ -15,6 +15,7 @@ This file guides agentic coding assistants working in this repo.
 
 - Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `get_stock_stats` use `source`.
 - External MCP `get_portfolio` defaults to `scope=portfolio_live`; REST callers should pass `/portfolio?scope=portfolio_live` when they need a current portfolio snapshot.
+- Local Convex development mirrors successful reads and writes into SQLite, so network fallback should stay warm rather than becoming an old portfolio snapshot.
 - `source=auto`: use fresh cache, serve usable stale slow families while queueing refresh, and refresh inline when required.
 - `source=live`: force inline provider refresh; fail instead of silently falling back when live data is unavailable.
 - `source=cache`: read the stored row only.
