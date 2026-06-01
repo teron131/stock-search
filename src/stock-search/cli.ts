@@ -6,6 +6,7 @@ import { policy, type TickerSource } from "./policy.js";
 
 type CliCommand = {
 	command: string;
+	usage: string;
 	toolName: string;
 	description: string;
 };
@@ -13,21 +14,25 @@ type CliCommand = {
 export const CLI_COMMANDS: readonly CliCommand[] = [
 	{
 		command: "stocks",
+		usage: `stocks TICKER... [--source ${policy.request.tickerSourceValues.join("|")}] [--pretty]`,
 		toolName: "get_stock_stats",
 		description: "Return flattened stats for one or many tickers.",
 	},
 	{
 		command: "sectors",
+		usage: "sectors [--pretty]",
 		toolName: "sectors_api_sectors_get",
 		description: "Return the current StockAnalysis sector snapshot.",
 	},
 	{
 		command: "news",
+		usage: "news TICKER [--pretty]",
 		toolName: "get_stock_news",
 		description: "Return recent news articles for a ticker.",
 	},
 	{
 		command: "evaluate",
+		usage: "evaluate TICKER [--pretty]",
 		toolName: "evaluate_stock",
 		description: "Return the evaluation payload for a ticker.",
 	},
@@ -136,9 +141,27 @@ export function resolveCliToolName(command: string): string | undefined {
 }
 
 function printCommandList(): void {
+	console.log("Usage:");
+	console.log("  help");
 	for (const cliCommand of CLI_COMMANDS) {
-		console.log(`${cliCommand.command}\t${cliCommand.description}`);
+		console.log(`  ${cliCommand.usage}`);
 	}
+	console.log("");
+	console.log("Commands:");
+	for (const cliCommand of CLI_COMMANDS) {
+		console.log(`  ${cliCommand.command}\t${cliCommand.description}`);
+	}
+	console.log("");
+	console.log("Notes:");
+	console.log(
+		"  stocks accepts separate tickers, comma-separated tickers, or both.",
+	);
+	console.log(
+		"  JSON is compact by default; pass --pretty for indented output.",
+	);
+	console.log(
+		"  When parsing stdout through pnpm, use pnpm --silent run cli <command>.",
+	);
 }
 
 function parseToolArguments(

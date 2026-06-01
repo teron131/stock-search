@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 
-loadDotenv();
+loadDotenv({ quiet: true });
 
 export type BackendName = "convex" | "sqlite";
 

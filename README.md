@@ -45,6 +45,8 @@ Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `g
 | Ticker / CLI / MCP | `source` | `live` | Force inline provider refresh; fail instead of silently falling back when live data is unavailable. |
 | Ticker / CLI / MCP | `source` | `cache` | Read the stored row only. |
 
+For external portfolio reads, prefer MCP `get_portfolio` with no `scope` or REST `/portfolio?scope=portfolio_live`. The stored `/portfolio/stats` payload is a cache snapshot and can be stale.
+
 ## Runtime Shape
 
 ```mermaid
@@ -255,3 +257,4 @@ pnpm run cli evaluate NVDA
 ```
 
 JSON output is compact by default; pass `--pretty` for indented output.
+For machine parsing through pnpm, use `pnpm --silent run cli ...` so stdout contains only command output.

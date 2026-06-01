@@ -48,9 +48,10 @@ export type StockSearchTool = {
 	execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
+const EXTERNAL_PORTFOLIO_DEFAULT_SCOPE = "portfolio_live";
 const PortfolioScopeSchema = z
 	.enum(policy.request.portfolioScopeValues)
-	.optional();
+	.default(EXTERNAL_PORTFOLIO_DEFAULT_SCOPE);
 const TickerSourceSchema = z.enum(policy.request.tickerSourceValues).optional();
 const NoArgsSchema = z.object({});
 
@@ -141,7 +142,8 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	},
 	{
 		name: "get_portfolio",
-		description: "Return the current portfolio payload.",
+		description:
+			"Return the current portfolio payload. Defaults to a live held-portfolio refresh for external callers.",
 		parameters: z.object({
 			scope: PortfolioScopeSchema,
 		}),
