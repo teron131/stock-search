@@ -560,16 +560,9 @@ function buildSessionMarketData(
 } {
 	const priceEntry = selectRealtimePriceEntry(priceModule);
 	const currentPrice = priceEntry.price ?? fallbackCurrentPrice;
-	let baseline =
+	const baseline =
 		quoteSummaryNumberField([priceModule], "regularMarketPreviousClose") ??
 		fallbackPreviousClose;
-	if (
-		priceEntry.key === "preMarketPrice" ||
-		priceEntry.key === "postMarketPrice"
-	) {
-		baseline =
-			quoteSummaryNumberField([priceModule], "regularMarketPrice") ?? baseline;
-	}
 
 	return {
 		currentPrice,
