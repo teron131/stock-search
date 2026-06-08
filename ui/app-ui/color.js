@@ -13,6 +13,8 @@ const INVERT_KEYS = new Set([
 	"rank",
 	"pe",
 	"pe_forward",
+	"ps",
+	"ps_forward",
 	"peg",
 	"debt_to_equity",
 ]);
