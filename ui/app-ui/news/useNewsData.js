@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG } from "../config.js";
 import {
 	normalizeDemoNewsPayload,
+	normalizePortfolioNewsSnapshotPayload,
 	normalizePortfolioNewsSummaryPayload,
 	normalizeTickerNewsPayload,
 } from "../dataContract.js";
@@ -67,8 +68,19 @@ async function postJsonWithTimeout(url, payload, timeoutMs) {
 	}
 }
 
-function shouldUseFallbackPortfolioNewsSummary({ allItems, preferDemoData }) {
-	return allItems.length === 0 || CONFIG.isDemoMode || preferDemoData;
+function buildPortfolioNewsSummaryRequestKey({ heldTickerKey, allItems }) {
+	return JSON.stringify({
+		heldTickerKey,
+		items: allItems.slice(0, 40).map((item) => ({
+			url: item.url || null,
+			title: item.title || null,
+			summary: String(item.summary || "").slice(0, 240),
+			relevancy: item.relevancy || "low",
+			category: item.category || "other",
+			sentiment: item.sentiment || "neutral",
+			sourceTickers: item.sourceTickers || [],
+		})),
+	});
 }
 
 export function useNewsData({
@@ -83,6 +95,8 @@ export function useNewsData({
 	const [generatedAt, setGeneratedAt] = useState(null);
 	const [failedTickers, setFailedTickers] = useState([]);
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
+	const [isUsingSharedNewsSnapshot, setIsUsingSharedNewsSnapshot] =
+		useState(false);
 	const [lastError, setLastError] = useState(null);
 	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
 	const [portfolioNewsSummaryResult, setPortfolioNewsSummaryResult] =
@@ -90,6 +104,7 @@ export function useNewsData({
 
 	const loadInFlightRef = useRef(false);
 	const portfolioNewsSummaryRequestRef = useRef(0);
+	const portfolioNewsSummaryFailureKeyRef = useRef(null);
 	const allItemsRef = useRef(allItems);
 	const heldTickerKey = useMemo(() => getHeldTickers(rows).join("|"), [rows]);
 	const heldTickers = useMemo(
@@ -107,8 +122,29 @@ export function useNewsData({
 		setFailedTickers([]);
 		setLastError(null);
 		setIsUsingDemoData(false);
+		setIsUsingSharedNewsSnapshot(false);
+		portfolioNewsSummaryFailureKeyRef.current = null;
 		setLoadingMode(LOADING_MODE_IDLE);
 	}, []);
+
+	const applyNewsResult = useCallback(
+		(
+			newsResult,
+			{ demo = false, shared = false, partialError = false } = {},
+		) => {
+			setAllItems(newsResult.items);
+			setGeneratedAt(newsResult.generatedAt);
+			setFailedTickers(newsResult.failedTickers || []);
+			setIsUsingDemoData(demo);
+			setIsUsingSharedNewsSnapshot(shared);
+			setLastError(
+				partialError && (newsResult.failedTickers || []).length > 0
+					? new Error("Partial news coverage")
+					: null,
+			);
+		},
+		[],
+	);
 
 	const loadDemoNews = useCallback(async () => {
 		const payload = await fetchJsonWithTimeout(
@@ -129,6 +165,30 @@ export function useNewsData({
 			generatedAt:
 				normalizedPayload.meta.generated_at || new Date().toISOString(),
 			failedTickers: [],
+		};
+	}, [heldTickers]);
+
+	const loadSharedNewsSnapshot = useCallback(async () => {
+		const payload = await fetchJsonWithTimeout(
+			CONFIG.endpoints.portfolioNewsCache,
+			CONFIG.requestTimeoutMs.news,
+		);
+		const normalizedPayload = normalizePortfolioNewsSnapshotPayload(payload);
+		if (!normalizedPayload) {
+			return null;
+		}
+
+		const snapshotTickers = new Set(normalizedPayload.tickers);
+		if (!heldTickers.every((ticker) => snapshotTickers.has(ticker))) {
+			return null;
+		}
+
+		const heldTickerSet = new Set(heldTickers);
+		return {
+			...normalizedPayload,
+			items: normalizedPayload.items.filter((item) =>
+				(item.sourceTickers || []).some((ticker) => heldTickerSet.has(ticker)),
+			),
 		};
 	}, [heldTickers]);
 
@@ -209,6 +269,20 @@ export function useNewsData({
 			const cacheSnapshot = preferDemoData
 				? null
 				: buildCacheSnapshot(heldTickers);
+
+			if (!preferDemoData && !force) {
+				const sharedSnapshot = await loadSharedNewsSnapshot().catch(() => null);
+				if (sharedSnapshot) {
+					applyNewsResult(sharedSnapshot, { shared: true });
+					if (sharedSnapshot.portfolioNewsSummary) {
+						setPortfolioNewsSummaryResult(sharedSnapshot.portfolioNewsSummary);
+					}
+					loadInFlightRef.current = false;
+					setLoadingMode(LOADING_MODE_IDLE);
+					return;
+				}
+			}
+
 			const hasCachedItems = Boolean(cacheSnapshot?.items.length);
 			const staleTickers = preferDemoData
 				? []
@@ -222,11 +296,11 @@ export function useNewsData({
 				hasCachedItems &&
 				(!background || allItemsRef.current.length === 0 || Boolean(force));
 			if (shouldHydrateFromCache) {
-				setAllItems(cacheSnapshot.items);
-				setGeneratedAt(cacheSnapshot.generatedAt);
-				setFailedTickers([]);
-				setLastError(null);
-				setIsUsingDemoData(false);
+				applyNewsResult({
+					items: cacheSnapshot.items,
+					generatedAt: cacheSnapshot.generatedAt,
+					failedTickers: [],
+				});
 			}
 			if (!preferDemoData && !shouldFetchLive) {
 				loadInFlightRef.current = false;
@@ -243,18 +317,14 @@ export function useNewsData({
 				const newsResult = preferDemoData
 					? await loadDemoNews()
 					: await loadLiveNews({ force, staleTickers });
-				setAllItems(newsResult.items);
-				setGeneratedAt(newsResult.generatedAt);
-				setFailedTickers(newsResult.failedTickers || []);
-				setIsUsingDemoData(Boolean(preferDemoData));
-				setLastError(
-					(newsResult.failedTickers || []).length > 0
-						? new Error("Partial news coverage")
-						: null,
-				);
+				applyNewsResult(newsResult, {
+					demo: Boolean(preferDemoData),
+					partialError: true,
+				});
 			} catch (error) {
 				if (hasCachedItems) {
 					setFailedTickers(heldTickers);
+					setIsUsingSharedNewsSnapshot(false);
 					setLastError(new Error("Using cached news snapshot"));
 					return;
 				}
@@ -262,11 +332,7 @@ export function useNewsData({
 				if (!preferDemoData) {
 					try {
 						const demoResult = await loadDemoNews();
-						setAllItems(demoResult.items);
-						setGeneratedAt(demoResult.generatedAt);
-						setFailedTickers([]);
-						setIsUsingDemoData(true);
-						setLastError(null);
+						applyNewsResult(demoResult, { demo: true });
 						return;
 					} catch {
 						// Keep the original live failure below.
@@ -277,13 +343,22 @@ export function useNewsData({
 				setGeneratedAt(null);
 				setFailedTickers([]);
 				setIsUsingDemoData(false);
+				setIsUsingSharedNewsSnapshot(false);
 				setLastError(error);
 			} finally {
 				loadInFlightRef.current = false;
 				setLoadingMode(LOADING_MODE_IDLE);
 			}
 		},
-		[heldTickers, loadDemoNews, loadLiveNews, preferDemoData, resetFeed],
+		[
+			applyNewsResult,
+			heldTickers,
+			loadDemoNews,
+			loadLiveNews,
+			loadSharedNewsSnapshot,
+			preferDemoData,
+			resetFeed,
+		],
 	);
 
 	useEffect(() => {
@@ -329,12 +404,11 @@ export function useNewsData({
 			return;
 		}
 
-		if (
-			shouldUseFallbackPortfolioNewsSummary({
-				allItems,
-				preferDemoData,
-			})
-		) {
+		if (isUsingSharedNewsSnapshot && portfolioNewsSummaryResult) {
+			return;
+		}
+
+		if (allItems.length === 0 || CONFIG.isDemoMode || preferDemoData) {
 			setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
 				preserveVisiblePortfolioNewsSummary(
 					fallbackPortfolioNewsSummary,
@@ -365,6 +439,13 @@ export function useNewsData({
 			),
 		);
 		const payload = buildPortfolioNewsSummaryRequestPayload(rows, allItems);
+		const requestKey = buildPortfolioNewsSummaryRequestKey({
+			heldTickerKey,
+			allItems,
+		});
+		if (portfolioNewsSummaryFailureKeyRef.current === requestKey) {
+			return;
+		}
 
 		(async () => {
 			try {
@@ -381,6 +462,7 @@ export function useNewsData({
 						normalizePortfolioNewsSummaryPayload(response),
 						fallbackPortfolioNewsSummary,
 					);
+				portfolioNewsSummaryFailureKeyRef.current = null;
 				writePortfolioNewsSummaryCache(
 					heldTickerKey,
 					normalizedPortfolioNewsSummary,
@@ -396,6 +478,7 @@ export function useNewsData({
 				if (portfolioNewsSummaryRequestRef.current !== requestId) {
 					return;
 				}
+				portfolioNewsSummaryFailureKeyRef.current = requestKey;
 				setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
 					preserveVisiblePortfolioNewsSummary(
 						fallbackPortfolioNewsSummary,
@@ -410,7 +493,9 @@ export function useNewsData({
 		fallbackPortfolioNewsSummary,
 		heldTickerKey,
 		heldTickers.length,
+		isUsingSharedNewsSnapshot,
 		preferDemoData,
+		portfolioNewsSummaryResult,
 		rows,
 	]);
 

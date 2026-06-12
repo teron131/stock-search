@@ -6,6 +6,7 @@ import { getFieldDescription } from "./field-definitions.js";
 import { INDUSTRY_LABELS } from "./labels.js";
 
 const relevancyValues = ["high", "medium", "low"] as const;
+const summaryRelevancyValues = ["high", "medium"] as const;
 const sentimentValues = ["bullish", "neutral", "bearish"] as const;
 const newsCategoryValues = [
 	"macro_economics",
@@ -16,6 +17,64 @@ const newsCategoryValues = [
 	"analyst_rating",
 	"analysis",
 	"other",
+] as const;
+const tickerSummaryCategoryValues = [
+	...newsCategoryValues,
+	"rates",
+	"inflation",
+	"fed_policy",
+	"geopolitics",
+	"regulation",
+	"fx",
+	"oil_energy",
+	"ai_capex",
+	"data_center_power",
+	"supply_chain",
+	"demand",
+	"pricing",
+	"margins",
+	"valuation",
+	"capital_allocation",
+	"guidance",
+] as const;
+const tickerNewsSummaryLabelExamples = [
+	"trump",
+	"election",
+	"tariff",
+	"china",
+	"taiwan",
+	"export_controls",
+	"war",
+	"middle_east",
+	"ukraine",
+	"oil_price",
+	"natural_gas",
+	"earnings",
+	"guidance",
+	"cpi",
+	"jobs_report",
+	"fed",
+	"rates",
+	"dollar",
+	"market_liquidity",
+	"credit_spreads",
+	"ai_capex",
+	"hbm",
+	"memory",
+	"cloud_capex",
+	"data_center_power",
+	"regulation",
+	"antitrust",
+	"lawsuit",
+	"m_and_a",
+	"buyback",
+	"dividend",
+	"supply_chain",
+	"demand",
+	"pricing",
+	"margins",
+	"inventory",
+	"product_cycle",
 ] as const;
 
 function finiteNumber(value: unknown): number {
@@ -501,6 +560,136 @@ export const PortfolioNewsSummaryResponseSchema = z
 	})
 	.describe("Final portfolio news summary response.");
 
+export const NewsSnapshotStatusSchema = z
+	.enum(["fresh", "partial", "failed"])
+	.default("fresh")
+	.describe("Refresh status for a persisted news snapshot.");
+
+export const NewsSnapshotProducerSchema = z
+	.enum(["external-agent", "app-local", "manual-import"])
+	.default("external-agent")
+	.describe("System that produced a persisted news snapshot.");
+
+export const TickerNewsSnapshotSchema = z
+	.object({
+		ticker: z.string().describe("Held ticker symbol."),
+		articles: z
+			.array(NewsArticleSchema)
+			.default([])
+			.describe("Display-ready raw-fast or analyzed news articles."),
+		refreshed_at: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Timestamp when this ticker news group was refreshed."),
+		status: NewsSnapshotStatusSchema,
+		error: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"Refresh error detail when this ticker group is partial or failed.",
+			),
+	})
+	.describe("Persisted news articles for one ticker in a portfolio snapshot.");
+
+export const TickerNewsSummarySnapshotSchema = z
+	.object({
+		ticker: z.string().describe("Held ticker symbol."),
+		headline: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Optional headline for the ticker-level news summary."),
+		summary: z
+			.string()
+			.describe(
+				"Overall news summary for this ticker over the snapshot window.",
+			),
+		relevancies: z
+			.array(z.enum(summaryRelevancyValues))
+			.default([])
+			.describe(
+				"Overall ticker-level news relevance labels in this snapshot. Use medium or high only; omit summaries that would be low relevance.",
+			),
+		categories: z
+			.array(z.enum(tickerSummaryCategoryValues))
+			.default([])
+			.describe(
+				"Primary ticker-level news categories covered by this summary.",
+			),
+		labels: z
+			.array(z.string())
+			.default([])
+			.describe(
+				`Free-form daily driver labels such as ${tickerNewsSummaryLabelExamples.join(", ")}.`,
+			),
+		sentiments: z
+			.array(z.enum(sentimentValues))
+			.default([])
+			.describe(
+				"Directional sentiment labels represented in this ticker summary.",
+			),
+		status: NewsSnapshotStatusSchema,
+		error: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"Refresh error detail when this ticker summary is partial or failed.",
+			),
+	})
+	.describe("Persisted overall news summary for one ticker.");
+
+export const PortfolioNewsSnapshotSchema = z
+	.object({
+		key: z
+			.string()
+			.default("default")
+			.describe("Portfolio or cache scope key."),
+		as_of_date: z
+			.string()
+			.describe("Market date this news snapshot represents."),
+		window_start: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Start date for the rolling news window."),
+		window_end: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("End date for the rolling news window."),
+		producer: NewsSnapshotProducerSchema,
+		refreshed_at: z
+			.string()
+			.default(() => new Date().toISOString())
+			.describe("Timestamp when the full snapshot was refreshed."),
+		status: NewsSnapshotStatusSchema,
+		ticker_summaries: z
+			.array(TickerNewsSummarySnapshotSchema)
+			.default([])
+			.describe(
+				"Preferred compact external-agent output: one overall summary per ticker.",
+			),
+		articles_by_ticker: z
+			.array(TickerNewsSnapshotSchema)
+			.default([])
+			.describe(
+				"Optional raw article evidence grouped by ticker. Not required for external-agent summary writes.",
+			),
+		summary: PortfolioNewsSummaryResponseSchema.nullable()
+			.optional()
+			.describe(
+				"Optional portfolio-level summary. Can be derived from ticker_summaries when omitted.",
+			),
+		warnings: z
+			.array(z.string())
+			.default([])
+			.describe("Non-fatal producer warnings."),
+	})
+	.describe("Shared DB payload for portfolio news articles and summary.");
+
 export type NewsAnalysis = z.infer<typeof NewsAnalysisSchema>;
 export type NotionalValue = z.infer<typeof NotionalSchema>;
 export type ScoredReason = z.infer<typeof ScoredReasonSchema>;
@@ -530,3 +719,10 @@ export type PortfolioNewsSummaryResponseTicker = z.infer<
 export type PortfolioNewsSummaryResponse = z.infer<
 	typeof PortfolioNewsSummaryResponseSchema
 >;
+export type NewsSnapshotStatus = z.infer<typeof NewsSnapshotStatusSchema>;
+export type NewsSnapshotProducer = z.infer<typeof NewsSnapshotProducerSchema>;
+export type TickerNewsSnapshot = z.infer<typeof TickerNewsSnapshotSchema>;
+export type TickerNewsSummarySnapshot = z.infer<
+	typeof TickerNewsSummarySnapshotSchema
+>;
+export type PortfolioNewsSnapshot = z.infer<typeof PortfolioNewsSnapshotSchema>;

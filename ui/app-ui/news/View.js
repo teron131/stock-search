@@ -1,5 +1,7 @@
 import { html } from "htm/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+const FACET_KEYS = ["relevancies", "categories", "sentiments", "labels"];
 
 function toTimestamp(article) {
 	const publishedAt =
@@ -52,6 +54,12 @@ function formatSentiment(sentiment) {
 	return String(sentiment || "neutral").toUpperCase();
 }
 
+function formatLabel(label) {
+	return String(label || "")
+		.replace(/_/g, " ")
+		.toUpperCase();
+}
+
 function formatDomain(article) {
 	return (
 		String(article?.metadata?.source_domain || "")
@@ -81,11 +89,226 @@ function getSentimentTone(sentiment) {
 	return "is-neutral";
 }
 
-function renderTickerPills(sourceTickers) {
-	return (sourceTickers || []).map(
-		(ticker) =>
-			html`<span key=${ticker} className="news-ticker-pill">${ticker}</span>`,
+function normalizedList(values, fallbackValue) {
+	const sourceValues = Array.isArray(values)
+		? values
+		: fallbackValue
+			? [fallbackValue]
+			: [];
+	return Array.from(
+		new Set(
+			sourceValues.map((value) => String(value || "").trim()).filter(Boolean),
+		),
 	);
+}
+
+function collectStoryFacets(item) {
+	return {
+		relevancies: normalizedList(item.relevancies, item.relevancy),
+		categories: normalizedList(item.categories, item.category),
+		sentiments: normalizedList(item.sentiments, item.sentiment),
+		labels: normalizedList(item.labels),
+		status: String(item.status || "").trim(),
+	};
+}
+
+function buildTickerFacetMap(items) {
+	const facetMap = new Map();
+	for (const item of items) {
+		const tickers = normalizedList(item.sourceTickers, item.sourceTicker);
+		if (tickers.length === 0) {
+			continue;
+		}
+		const facets = collectStoryFacets(item);
+		for (const ticker of tickers) {
+			const existingFacets = facetMap.get(ticker) || {
+				relevancies: new Set(),
+				categories: new Set(),
+				sentiments: new Set(),
+				labels: new Set(),
+			};
+			for (const facetKey of FACET_KEYS) {
+				for (const value of facets[facetKey]) {
+					existingFacets[facetKey].add(value);
+				}
+			}
+			facetMap.set(ticker, existingFacets);
+		}
+	}
+
+	return new Map(
+		Array.from(facetMap.entries()).map(([ticker, facets]) => [
+			ticker,
+			{
+				relevancies: Array.from(facets.relevancies),
+				categories: Array.from(facets.categories),
+				sentiments: Array.from(facets.sentiments),
+				labels: Array.from(facets.labels),
+			},
+		]),
+	);
+}
+
+function buildNewsSignals({ items, heldTickers }) {
+	const coveredTickers = new Set();
+	let recentStoryCount = 0;
+	let bullishCount = 0;
+	let bearishCount = 0;
+
+	for (const item of items) {
+		const facets = collectStoryFacets(item);
+		for (const ticker of normalizedList(
+			item.sourceTickers,
+			item.sourceTicker,
+		)) {
+			coveredTickers.add(ticker);
+		}
+		const daysAgo = Number(item.days_ago);
+		const timestamp = toTimestamp(item);
+		const isRecentByAge = Number.isFinite(daysAgo) && daysAgo <= 2;
+		const isRecentByTimestamp =
+			timestamp > 0 && Date.now() - timestamp <= 2 * 24 * 60 * 60 * 1000;
+		if (isRecentByAge || isRecentByTimestamp) {
+			recentStoryCount += 1;
+		}
+		if (facets.sentiments.includes("bullish")) {
+			bullishCount += 1;
+		}
+		if (facets.sentiments.includes("bearish")) {
+			bearishCount += 1;
+		}
+	}
+
+	const storyCount = items.length;
+	const sentimentCount = bullishCount + bearishCount;
+	const coveragePct =
+		heldTickers.length > 0
+			? Math.round((coveredTickers.size / heldTickers.length) * 100)
+			: 0;
+	const recentStoryPct =
+		storyCount > 0 ? Math.round((recentStoryCount / storyCount) * 100) : 0;
+	const bullishPct =
+		sentimentCount > 0 ? Math.round((bullishCount / sentimentCount) * 100) : 0;
+	const bearishPct =
+		sentimentCount > 0 ? Math.round((bearishCount / sentimentCount) * 100) : 0;
+	const toneSkewPct = bullishPct - bearishPct;
+
+	return {
+		coveragePct,
+		recentStoryPct,
+		toneSkewPct,
+	};
+}
+
+function renderPulseScale({ label, value, tone, caption }) {
+	const boundedValue = Math.max(0, Math.min(100, Math.abs(Number(value) || 0)));
+	const displayValue =
+		tone === "mixed" && value > 0 ? `+${value}%` : `${value}%`;
+
+	return html`
+		<div
+			key=${label}
+			className=${`news-pulse-scale ${tone ? `is-${tone}` : ""}`}
+			style=${{ "--news-pulse-value": `${boundedValue}%` }}
+		>
+			<div className="news-pulse-row">
+				<span className="news-pulse-label">${label}</span>
+				<span className="news-pulse-value">${displayValue}</span>
+			</div>
+			<div className="news-pulse-track" aria-hidden="true">
+				<div className="news-pulse-fill"></div>
+			</div>
+			<div className="news-pulse-caption">${caption}</div>
+		</div>
+	`;
+}
+
+function renderSignalStrip(signals) {
+	const toneLabel =
+		signals.toneSkewPct > 0
+			? "bullish skew"
+			: signals.toneSkewPct < 0
+				? "bearish skew"
+				: "balanced tone";
+	const pulseItems = [
+		{
+			label: "Coverage",
+			value: signals.coveragePct,
+			caption: "held tickers with news",
+		},
+		{
+			label: "Recency",
+			value: signals.recentStoryPct,
+			tone: "high",
+			caption: "published within 2 days",
+		},
+		{
+			label: "Tone",
+			value: signals.toneSkewPct,
+			tone: signals.toneSkewPct < 0 ? "bearish" : "mixed",
+			caption: toneLabel,
+		},
+	];
+
+	return html`
+		<section className="news-pulse-strip" aria-label="Portfolio news pulse">
+			${pulseItems.map((item) => renderPulseScale(item))}
+		</section>
+	`;
+}
+
+function ControlSelect({ label, value, options, onChange }) {
+	const [isOpen, setIsOpen] = useState(false);
+	const selectedOption =
+		options.find((option) => option.value === value) || options[0];
+
+	return html`
+		<div
+			className="news-control"
+			onBlur=${(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget)) {
+					setIsOpen(false);
+				}
+			}}
+		>
+			<span className="news-control-label">${label}</span>
+			<button
+				type="button"
+				className="news-control-select"
+				aria-haspopup="listbox"
+				aria-expanded=${isOpen ? "true" : "false"}
+				onClick=${() => setIsOpen((currentValue) => !currentValue)}
+			>
+				<span>${selectedOption?.label || value}</span>
+				<span className="news-control-arrow" aria-hidden="true"></span>
+			</button>
+			${
+				isOpen
+					? html`
+						<div className="news-control-menu" role="listbox">
+							${options.map(
+								(option) => html`
+									<button
+										key=${option.value}
+										type="button"
+										className=${`news-control-option ${option.value === value ? "is-selected" : ""}`}
+										role="option"
+										aria-selected=${option.value === value ? "true" : "false"}
+										onClick=${() => {
+											onChange(option.value);
+											setIsOpen(false);
+										}}
+									>
+										${option.label}
+									</button>
+								`,
+							)}
+						</div>
+					`
+					: null
+			}
+		</div>
+	`;
 }
 
 function formatWeight(weightPct) {
@@ -100,10 +323,6 @@ function formatWeight(weightPct) {
 		return `${numericWeight.toFixed(1)}%`;
 	}
 	return `${Math.round(numericWeight)}%`;
-}
-
-function shouldShowSummaryToggle(summary) {
-	return String(summary || "").trim().length > 160;
 }
 
 function escapeRegex(text) {
@@ -168,8 +387,52 @@ function renderSummaryChapters(chapters) {
 	`;
 }
 
-function renderTickerBriefLabel(ticker) {
-	return html`<div className="news-ticker-brief-ticker">${ticker}</div>`;
+function renderFacetTags(item, { compact = false } = {}) {
+	const facets = collectStoryFacets(item);
+	const labelLimit = compact ? 4 : 7;
+	const categoryLimit = compact ? 2 : 4;
+	const hiddenLabelCount = Math.max(facets.labels.length - labelLimit, 0);
+	const tags = [
+		...facets.relevancies.map((relevancy) => ({
+			key: `relevancy-${relevancy}`,
+			label: String(relevancy).toUpperCase(),
+			className: `news-story-tag ${getRelevanceTone(relevancy)}`,
+		})),
+		...facets.categories.slice(0, categoryLimit).map((category) => ({
+			key: `category-${category}`,
+			label: formatCategory(category),
+			className: "news-story-tag",
+		})),
+		...facets.sentiments.map((sentiment) => ({
+			key: `sentiment-${sentiment}`,
+			label: formatSentiment(sentiment),
+			className: `news-story-tag ${getSentimentTone(sentiment)}`,
+		})),
+		...facets.labels.slice(0, labelLimit).map((label) => ({
+			key: `label-${label}`,
+			label: formatLabel(label),
+			className: "news-story-tag news-story-label",
+		})),
+	];
+	if (hiddenLabelCount > 0) {
+		tags.push({
+			key: "labels-more",
+			label: `+${hiddenLabelCount}`,
+			className: "news-story-tag news-story-label",
+		});
+	}
+	if (facets.status && facets.status !== "fresh") {
+		tags.unshift({
+			key: `status-${facets.status}`,
+			label: formatLabel(facets.status),
+			className: "news-story-tag is-status",
+		});
+	}
+
+	return tags.map(
+		(tag) =>
+			html`<span key=${tag.key} className=${tag.className}>${tag.label}</span>`,
+	);
 }
 
 export function NewsView({
@@ -192,6 +455,11 @@ export function NewsView({
 	const hasItems = items.length > 0;
 	const hasHoldings = heldTickers.length > 0;
 	const hasMacroItems = (portfolioNewsSummary?.macros || []).length > 0;
+	const tickerFacetMap = useMemo(() => buildTickerFacetMap(items), [items]);
+	const newsSignals = useMemo(
+		() => buildNewsSignals({ items, heldTickers }),
+		[heldTickers, items],
+	);
 	const showFeedLoadingState =
 		!isWaitingOnPortfolio && hasHoldings && !hasItems && isLoading;
 	const coverageText =
@@ -199,15 +467,15 @@ export function NewsView({
 			? "Refreshing portfolio news..."
 			: `${items.length} stories across ${heldTickers.length} held tickers`;
 	const summaryPlaceholderTitle = !hasHoldings
-		? "Summary unavailable"
+		? "Pulse unavailable"
 		: isLoading
-			? "Summary pending"
-			: "Summary unavailable";
+			? "Pulse pending"
+			: "Pulse unavailable";
 	const summaryPlaceholderCopy = !hasHoldings
-		? "Add held positions to generate the portfolio news summary."
+		? "Add held positions to populate the portfolio news pulse."
 		: isLoading
-			? "Refreshing the held-position feed to generate the latest portfolio news summary."
-			: "Load the feed or sync again to generate the portfolio news summary.";
+			? "Refreshing the held-position feed."
+			: "Load the feed or sync again to populate this panel.";
 
 	const toggleExpanded = (articleKey) => {
 		setExpandedArticleKeys((currentKeys) => {
@@ -251,39 +519,36 @@ export function NewsView({
 				</div>
 
 				<div className="news-controls">
-					<label className="news-control">
-						<span className="news-control-label">Tickers</span>
-						<select
-							className="news-control-select"
-							value=${tickerFilter}
-							onChange=${(event) => setTickerFilter(event.target.value)}
-						>
-							<option value="ALL">ALL HELD</option>
-							${heldTickers.map(
-								(ticker) =>
-									html`<option key=${ticker} value=${ticker}>${ticker}</option>`,
-							)}
-						</select>
-					</label>
+					<${ControlSelect}
+						label="Tickers"
+						value=${tickerFilter}
+						options=${[
+							{ value: "ALL", label: "ALL HELD" },
+							...heldTickers.map((ticker) => ({
+								value: ticker,
+								label: ticker,
+							})),
+						]}
+						onChange=${setTickerFilter}
+					/>
 
-					<label className="news-control">
-						<span className="news-control-label">Relevance</span>
-						<select
-							className="news-control-select"
-							value=${relevanceFilter}
-							onChange=${(event) => setRelevanceFilter(event.target.value)}
-						>
-							<option value="all">ALL SIGNAL</option>
-							<option value="high">HIGH ONLY</option>
-						</select>
-					</label>
+					<${ControlSelect}
+						label="Signal"
+						value=${relevanceFilter}
+						options=${[
+							{ value: "all", label: "ALL SIGNAL" },
+							{ value: "high", label: "HIGH ONLY" },
+						]}
+						onChange=${setRelevanceFilter}
+					/>
 				</div>
 			</section>
+			${renderSignalStrip(newsSignals)}
 
 			<section className="news-workspace-shell">
 				<div className="news-summary-panel">
 					<div className="news-panel-header">
-						<div className="sector-section-label">Portfolio News Summary</div>
+						<div className="sector-section-label">Portfolio pulse</div>
 					</div>
 					${
 						portfolioNewsSummary?.hasNews
@@ -293,7 +558,7 @@ export function NewsView({
 										hasMacroItems
 											? html`
 												<div className="news-summary-section is-macros">
-													<div className="news-summary-title">Macros</div>
+													<div className="news-summary-title">Market drivers</div>
 													${renderSummaryChapters(portfolioNewsSummary.macros)}
 												</div>
 											`
@@ -301,27 +566,47 @@ export function NewsView({
 									}
 
 									<div className="news-summary-section is-top-tickers">
-										<div className="news-summary-title">Top tickers</div>
+										<div className="news-summary-title">Positions</div>
 										<div className="news-ticker-briefs">
-											${portfolioNewsSummary.topTickers.map(
-												(summaryItem) => html`
-													<article
-														key=${summaryItem.ticker}
-														className="news-ticker-brief"
-													>
-														<div className="news-ticker-brief-header">
-															${renderTickerBriefLabel(summaryItem.ticker)}
-															<div className="news-ticker-brief-weight">
+											${portfolioNewsSummary.topTickers.map((summaryItem) => {
+												const tickerFacets = tickerFacetMap.get(
+													summaryItem.ticker,
+												);
+												const weightLabel =
+													summaryItem.weightLabel ||
+													formatWeight(summaryItem.weightPct);
+												return html`
+														<article
+															key=${summaryItem.ticker}
+															className="news-ticker-brief"
+														>
+															<div className="news-ticker-brief-header">
+																<div className="news-ticker-brief-ticker">
+																	${summaryItem.ticker}
+																</div>
 																${
-																	summaryItem.weightLabel ||
-																	formatWeight(summaryItem.weightPct)
+																	weightLabel !== "--"
+																		? html`
+																			<div className="news-ticker-brief-weight">
+																				${weightLabel}
+																			</div>
+																		`
+																		: null
 																}
 															</div>
-														</div>
-														${renderSummaryChapters(summaryItem.chapters)}
-													</article>
-												`,
-											)}
+															${
+																tickerFacets
+																	? html`
+																		<div className="news-ticker-brief-facets">
+																			${renderFacetTags(tickerFacets, { compact: true })}
+																		</div>
+																	`
+																	: null
+															}
+															${renderSummaryChapters(summaryItem.chapters)}
+														</article>
+													`;
+											})}
 										</div>
 									</div>
 								</div>
@@ -412,8 +697,9 @@ export function NewsView({
 									${items.map((item) => {
 										const articleKey = item.url;
 										const summary =
-											item.summary || "No summary available for this article.";
-										const canToggleSummary = shouldShowSummaryToggle(summary);
+											item.summary || "No article note available.";
+										const canToggleSummary =
+											String(summary || "").trim().length > 160;
 										const isExpanded = expandedArticleKeys.has(articleKey);
 										return html`
 											<article
@@ -432,35 +718,43 @@ export function NewsView({
 											>
 												<div className="news-story-topline">
 													<div className="news-story-tickers">
-														${renderTickerPills(item.sourceTickers)}
+														${(item.sourceTickers || []).map(
+															(ticker) =>
+																html`<span key=${ticker} className="news-ticker-pill">${ticker}</span>`,
+														)}
 													</div>
-													<div className="news-story-age">${formatRelativeTime(item)}</div>
+													<div className="news-story-meta-cluster">
+														<span className="news-story-source">${formatDomain(item)}</span>
+														<span className="news-story-age">${formatRelativeTime(item)}</span>
+													</div>
 												</div>
 
-												<div className="news-story-headline">${item.title}</div>
-												<div
-													className=${`news-story-summary ${isExpanded ? "is-expanded" : ""}`}
-												>
-													${renderHighlightedText(summary, item.sourceTickers)}
+												<div className="news-story-body">
+													<div className="news-story-headline">${item.title}</div>
+													<div
+														className=${`news-story-summary ${isExpanded ? "is-expanded" : ""}`}
+													>
+														${renderHighlightedText(summary, item.sourceTickers)}
+													</div>
+													${
+														canToggleSummary
+															? html`
+																<div className="news-story-summary-actions">
+																	<button
+																		type="button"
+																		className="news-story-toggle"
+																		onClick=${(event) => {
+																			event.stopPropagation();
+																			toggleExpanded(articleKey);
+																		}}
+																	>
+																		${isExpanded ? "COLLAPSE" : "EXPAND"}
+																	</button>
+																</div>
+															`
+															: null
+													}
 												</div>
-												${
-													canToggleSummary
-														? html`
-															<div className="news-story-summary-actions">
-																<button
-																	type="button"
-																	className="news-story-toggle"
-																	onClick=${(event) => {
-																		event.stopPropagation();
-																		toggleExpanded(articleKey);
-																	}}
-																>
-																	${isExpanded ? "COLLAPSE" : "EXPAND"}
-																</button>
-															</div>
-														`
-														: null
-												}
 												${
 													isExpanded
 														? html`
@@ -480,16 +774,7 @@ export function NewsView({
 												}
 
 												<div className="news-story-footer">
-													<span className="news-story-source">${formatDomain(item)}</span>
-													<span className=${`news-story-tag ${getRelevanceTone(item.relevancy)}`}>
-														${String(item.relevancy || "low").toUpperCase()}
-													</span>
-													<span className="news-story-tag">
-														${formatCategory(item.category)}
-													</span>
-													<span className=${`news-story-tag ${getSentimentTone(item.sentiment)}`}>
-														${formatSentiment(item.sentiment)}
-													</span>
+													${renderFacetTags(item)}
 												</div>
 											</article>
 										`;

@@ -8,8 +8,16 @@ import { type ZodType, z } from "zod";
 import { buildColorStandardsPayload } from "../api/color-standards.js";
 import { appConfig } from "../api/config.js";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
-import { PortfolioNewsSummaryRequestSchema } from "../models/schemas.js";
+import {
+	PortfolioNewsSnapshotSchema,
+	PortfolioNewsSummaryRequestSchema,
+} from "../models/schemas.js";
 import * as newsOrchestrator from "../news/orchestrator.js";
+import {
+	buildPortfolioRawNewsBundle,
+	loadPortfolioNewsSnapshot,
+	savePortfolioNewsSnapshot,
+} from "../news/snapshots.js";
 import { policy } from "../policy.js";
 import {
 	buildPortfolioPayload,
@@ -56,6 +64,14 @@ const StockNewsWithModeToolParametersSchema =
 	StockNewsToolParametersSchema.extend({
 		mode: z.enum(["raw-fast", "analyzed-slow"]).optional(),
 	});
+const PortfolioRawNewsBundleParametersSchema = z.object({
+	tickers: z.array(z.string()).min(1).max(50),
+	n_days: z.number().int().min(1).max(7).optional(),
+	max_results_per_ticker: z.number().int().min(1).max(25).optional(),
+});
+const PortfolioNewsSnapshotKeySchema = z.object({
+	key: z.string().optional(),
+});
 
 const EXTERNAL_PORTFOLIO_DEFAULT_SCOPE = "portfolio_live";
 const PortfolioScopeSchema = z
@@ -280,6 +296,43 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		parameters: StockNewsToolParametersSchema,
 		execute: async (args) =>
 			callStockNewsTool(args, newsOrchestrator.getAnalyzedSlowNewsAsync),
+	},
+	{
+		name: "get_portfolio_news_raw_fast",
+		description:
+			"Return controlled raw-fast news bundles for portfolio tickers. Includes capped webloaded excerpts and no LLM analysis.",
+		parameters: PortfolioRawNewsBundleParametersSchema,
+		execute: async (args) => {
+			const { tickers, n_days, max_results_per_ticker } =
+				PortfolioRawNewsBundleParametersSchema.parse(args);
+			return buildPortfolioRawNewsBundle({
+				tickers,
+				nDays: n_days,
+				maxResultsPerTicker: max_results_per_ticker,
+				newsOptions: { resolveIdentity: true },
+			});
+		},
+	},
+	{
+		name: "get_portfolio_news_snapshot",
+		description:
+			"Return the latest persisted portfolio news articles and summary snapshot from the shared DB cache.",
+		parameters: PortfolioNewsSnapshotKeySchema,
+		execute: async (args) => {
+			const { key } = PortfolioNewsSnapshotKeySchema.parse(args);
+			return loadPortfolioNewsSnapshot(getStore(), key);
+		},
+	},
+	{
+		name: "save_portfolio_news_snapshot",
+		description:
+			"Persist externally produced portfolio news articles and ticker summaries into the shared DB cache.",
+		parameters: PortfolioNewsSnapshotSchema,
+		execute: async (args) =>
+			savePortfolioNewsSnapshot(
+				getStore(),
+				PortfolioNewsSnapshotSchema.parse(args),
+			),
 	},
 	{
 		name: "portfolio_news_summary_api_portfolio_news_summary_post",

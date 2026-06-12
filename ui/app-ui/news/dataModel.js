@@ -282,11 +282,15 @@ export function preserveVisiblePortfolioNewsSummary(
 		return portfolioNewsSummary;
 	}
 
-	return {
+	const nextPortfolioNewsSummary = {
 		...portfolioNewsSummary,
 		macros:
 			portfolioNewsSummary.macros.length > 0
 				? portfolioNewsSummary.macros
 				: previousPortfolioNewsSummary.macros,
 	};
+	return JSON.stringify(nextPortfolioNewsSummary) ===
+		JSON.stringify(previousPortfolioNewsSummary)
+		? previousPortfolioNewsSummary
+		: nextPortfolioNewsSummary;
 }

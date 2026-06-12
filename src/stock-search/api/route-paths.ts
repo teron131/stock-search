@@ -20,6 +20,7 @@ export const PORTFOLIO = "/portfolio";
 export const PORTFOLIO_STATS = "/portfolio/stats";
 export const PORTFOLIO_CORRELATION = "/portfolio/correlation";
 export const PORTFOLIO_IMPORT_IMAGE = "/portfolio/import-image";
+export const PORTFOLIO_NEWS_CACHE = "/portfolio/news-cache";
 export const PORTFOLIO_NEWS_SUMMARY = "/portfolio/news-summary";
 
 /** Backend-only Hono route patterns. Use the path helpers below for concrete URLs. */

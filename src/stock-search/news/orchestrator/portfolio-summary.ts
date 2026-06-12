@@ -1,5 +1,6 @@
 /** Build portfolio-level news summaries from analyzed article items. */
 
+import { z } from "zod";
 import {
 	type NewsArticle,
 	type PortfolioNewsChapter,
@@ -23,7 +24,10 @@ export type PortfolioSummaryDeps = {
 		temperature: number;
 		reasoningEffort: "low";
 	}) => {
-		withStructuredOutput(schema: unknown): {
+		withStructuredOutput(
+			schema: unknown,
+			options?: unknown,
+		): {
 			invoke(input: string): Promise<unknown> | unknown;
 		};
 	};
@@ -56,6 +60,38 @@ const RELEVANCY_ORDER: Record<NewsArticle["relevancy"], number> = {
 	medium: 1,
 	low: 2,
 };
+const STRUCTURED_OUTPUT_SCHEMA_KEYS_TO_DROP = new Set([
+	"$schema",
+	"description",
+	"default",
+	"title",
+]);
+
+function stripStructuredOutputSchemaMetadata(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(stripStructuredOutputSchemaMetadata);
+	}
+	if (!value || typeof value !== "object") {
+		return value;
+	}
+
+	const nextValue: Record<string, unknown> = {};
+	for (const [key, childValue] of Object.entries(
+		value as Record<string, unknown>,
+	)) {
+		if (STRUCTURED_OUTPUT_SCHEMA_KEYS_TO_DROP.has(key)) {
+			continue;
+		}
+		nextValue[key] = stripStructuredOutputSchemaMetadata(childValue);
+	}
+	return nextValue;
+}
+
+function portfolioNewsSummaryStructuredOutputSchema(): Record<string, unknown> {
+	return stripStructuredOutputSchemaMetadata(
+		z.toJSONSchema(PortfolioNewsSummaryModelSchema),
+	) as Record<string, unknown>;
+}
 
 function formatPrompt(
 	template: string,
@@ -453,7 +489,11 @@ export async function summarizePortfolioNews({
 			temperature: 0,
 			reasoningEffort: "low",
 		})
-		.withStructuredOutput(PortfolioNewsSummaryModelSchema);
+		.withStructuredOutput(portfolioNewsSummaryStructuredOutputSchema(), {
+			name: "portfolio_news_summary",
+			method: "jsonSchema",
+			strict: true,
+		});
 	const summary = PortfolioNewsSummaryModelSchema.parse(
 		await model.invoke(prompt),
 	);

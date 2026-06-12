@@ -4,10 +4,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { runCorrelationReport } from "../../correlation.js";
 import {
+	PortfolioNewsSnapshotSchema,
 	PortfolioNewsSummaryRequestArticleSchema,
 	PortfolioNewsSummaryRequestRowSchema,
 } from "../../models/schemas.js";
 import * as newsOrchestrator from "../../news/orchestrator.js";
+import {
+	loadPortfolioNewsSnapshot,
+	savePortfolioNewsSnapshot,
+} from "../../news/snapshots.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio/index.js";
 import type { BackendStore } from "../../storage/index.js";
 import { convexRealtimeTopics } from "../../storage/index.js";
@@ -18,6 +23,7 @@ import {
 	COLOR_STANDARDS,
 	EVAL,
 	PORTFOLIO_CORRELATION,
+	PORTFOLIO_NEWS_CACHE,
 	PORTFOLIO_NEWS_SUMMARY,
 	REALTIME_CONFIG,
 	STOCK_NEWS_ROUTE,
@@ -150,6 +156,11 @@ function parsePositiveInteger(
 	return Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined;
 }
 
+function parseCacheKey(rawValue: string | undefined): string {
+	const key = String(rawValue || "default").trim();
+	return key || "default";
+}
+
 const PortfolioNewsSummaryPayloadSchema = z
 	.object({
 		rows: z
@@ -176,6 +187,23 @@ const PortfolioNewsSummaryPayloadSchema = z
 
 export function createMiscRouter(store: BackendStore): Hono {
 	const router = new Hono();
+
+	router.get(PORTFOLIO_NEWS_CACHE, async (c) => {
+		c.header("Cache-Control", "no-store");
+		const snapshot = await loadPortfolioNewsSnapshot(
+			store,
+			parseCacheKey(c.req.query("key")),
+		);
+		return c.json(snapshot ?? null);
+	});
+
+	router.post(PORTFOLIO_NEWS_CACHE, async (c) => {
+		c.header("Cache-Control", "no-store");
+		const input = PortfolioNewsSnapshotSchema.parse(
+			await c.req.json().catch(() => null),
+		);
+		return c.json(await savePortfolioNewsSnapshot(store, input));
+	});
 
 	router.post(PORTFOLIO_NEWS_SUMMARY, async (c) => {
 		c.header("Cache-Control", "no-store");

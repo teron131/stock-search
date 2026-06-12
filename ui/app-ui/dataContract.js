@@ -11,7 +11,37 @@ const NEWS_CATEGORY_LEVELS = new Set([
 	"analysis",
 	"other",
 ]);
+const SUMMARY_RELEVANCY_LEVELS = new Set(["high", "medium"]);
+const TICKER_SUMMARY_CATEGORY_LEVELS = new Set([
+	...NEWS_CATEGORY_LEVELS,
+	"rates",
+	"inflation",
+	"fed_policy",
+	"geopolitics",
+	"regulation",
+	"fx",
+	"oil_energy",
+	"ai_capex",
+	"data_center_power",
+	"supply_chain",
+	"demand",
+	"pricing",
+	"margins",
+	"valuation",
+	"capital_allocation",
+	"guidance",
+]);
 const NEWS_SENTIMENT_LEVELS = new Set(["bullish", "neutral", "bearish"]);
+
+function readArrayProperty(payload, snakeKey, camelKey) {
+	if (Array.isArray(payload?.[snakeKey])) {
+		return payload[snakeKey];
+	}
+	if (Array.isArray(payload?.[camelKey])) {
+		return payload[camelKey];
+	}
+	return [];
+}
 
 function normalizeDashboardRowsPayload(payload) {
 	if (!payload || typeof payload !== "object") {
@@ -208,9 +238,7 @@ function normalizePortfolioNewsSummaryChapter(chapter) {
 
 	const rawRelatedTickers = Array.isArray(chapter.tickers)
 		? chapter.tickers
-		: Array.isArray(chapter.relatedTickers)
-			? chapter.relatedTickers
-			: [];
+		: readArrayProperty(chapter, "related_tickers", "relatedTickers");
 	const relatedTickers = rawRelatedTickers.map(normalizeTicker).filter(Boolean);
 
 	return {
@@ -218,6 +246,167 @@ function normalizePortfolioNewsSummaryChapter(chapter) {
 		paragraph,
 		relatedTickers,
 	};
+}
+
+function normalizeTickerSummarySnapshot(item) {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+
+	const ticker = normalizeTicker(item.ticker);
+	const summary =
+		typeof item.summary === "string" && item.summary.trim()
+			? item.summary.trim()
+			: null;
+	if (!ticker || !summary) {
+		return null;
+	}
+
+	const headline =
+		typeof item.headline === "string" && item.headline.trim()
+			? item.headline.trim()
+			: `${ticker} news`;
+	const sourceUrls = normalizeTextList(
+		readArrayProperty(item, "source_urls", "sourceUrls"),
+	);
+	const relevancies = normalizeEnumList({
+		values: item.relevancies,
+		fallbackValue: item.relevancy,
+		allowedValues: SUMMARY_RELEVANCY_LEVELS,
+		defaultValue: "medium",
+	});
+	const categories = normalizeEnumList({
+		values: item.categories,
+		fallbackValue: item.category,
+		allowedValues: TICKER_SUMMARY_CATEGORY_LEVELS,
+		defaultValue: "other",
+	});
+	const labels = normalizeTextList(item.labels);
+	const sentiments = normalizeEnumList({
+		values: item.sentiments,
+		fallbackValue: item.sentiment,
+		allowedValues: NEWS_SENTIMENT_LEVELS,
+		defaultValue: "neutral",
+	});
+
+	return {
+		ticker,
+		headline,
+		summary,
+		relevancies,
+		categories,
+		labels,
+		sentiments,
+		relevancy: preferredRelevancy(relevancies),
+		category: categories[0] || "other",
+		sentiment: preferredSentiment(sentiments),
+		sourceUrls,
+		status:
+			typeof item.status === "string" && item.status ? item.status : "fresh",
+	};
+}
+
+function articleFromTickerSummary(item, generatedAt) {
+	const url = item.sourceUrls[0] || `stock-search:news-summary:${item.ticker}`;
+	return {
+		url,
+		title: item.headline,
+		date: generatedAt,
+		days_ago: null,
+		summary: item.summary,
+		relevancies: item.relevancies,
+		relevancy: item.relevancy,
+		categories: item.categories,
+		category: item.category,
+		labels: item.labels,
+		sentiments: item.sentiments,
+		sentiment: item.sentiment,
+		status: item.status,
+		metadata: {
+			provider: "external-agent",
+			source_domain: item.sourceUrls.length > 0 ? null : "portfolio-summary",
+			published_at: generatedAt,
+			fetched_at: generatedAt,
+		},
+		sourceTicker: item.ticker,
+		sourceTickers: [item.ticker],
+	};
+}
+
+function summaryFromTickerSummaries(tickerSummaries) {
+	if (tickerSummaries.length === 0) {
+		return null;
+	}
+
+	return {
+		hasNews: true,
+		macros: [],
+		topTickers: tickerSummaries.map((item) => ({
+			ticker: item.ticker,
+			weightPct: 0,
+			weightLabel: null,
+			chapters: [
+				{
+					headline: item.headline,
+					paragraph: item.summary,
+					relatedTickers: [item.ticker],
+				},
+			],
+		})),
+	};
+}
+
+function normalizeTextList(values) {
+	if (!Array.isArray(values)) {
+		return [];
+	}
+	return Array.from(
+		new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
+	);
+}
+
+function normalizeEnumList({
+	values,
+	fallbackValue,
+	allowedValues,
+	defaultValue,
+}) {
+	const sourceValues = Array.isArray(values)
+		? values
+		: typeof fallbackValue === "string"
+			? [fallbackValue]
+			: [];
+	const normalizedValues = Array.from(
+		new Set(
+			sourceValues
+				.map((value) => String(value || "").trim())
+				.filter((value) => allowedValues.has(value)),
+		),
+	);
+	return normalizedValues.length > 0 ? normalizedValues : [defaultValue];
+}
+
+function preferredRelevancy(relevancies) {
+	if (relevancies.includes("high")) {
+		return "high";
+	}
+	if (relevancies.includes("medium")) {
+		return "medium";
+	}
+	return "low";
+}
+
+function preferredSentiment(sentiments) {
+	if (sentiments.includes("bearish") && sentiments.includes("bullish")) {
+		return "neutral";
+	}
+	if (sentiments.includes("bullish")) {
+		return "bullish";
+	}
+	if (sentiments.includes("bearish")) {
+		return "bearish";
+	}
+	return "neutral";
 }
 
 export function normalizePortfolioNewsSummaryPayload(payload) {
@@ -259,5 +448,73 @@ export function normalizePortfolioNewsSummaryPayload(payload) {
 					: [],
 			}))
 			.filter((item) => item.ticker),
+	};
+}
+
+export function normalizePortfolioNewsSnapshotPayload(payload) {
+	if (!payload || typeof payload !== "object") {
+		return null;
+	}
+
+	const rawGroups = readArrayProperty(
+		payload,
+		"articles_by_ticker",
+		"articlesByTicker",
+	);
+	const generatedAt =
+		typeof payload.refreshed_at === "string" && payload.refreshed_at
+			? payload.refreshed_at
+			: typeof payload.refreshedAt === "string" && payload.refreshedAt
+				? payload.refreshedAt
+				: null;
+	const tickerSummaries = readArrayProperty(
+		payload,
+		"ticker_summaries",
+		"tickerSummaries",
+	)
+		.map(normalizeTickerSummarySnapshot)
+		.filter(Boolean);
+	const groups = rawGroups
+		.filter((group) => group && typeof group === "object")
+		.map((group) => {
+			const ticker = normalizeTicker(group.ticker);
+			return {
+				ticker,
+				status:
+					typeof group.status === "string" && group.status
+						? group.status
+						: "fresh",
+				articles: normalizeTickerNewsPayload(group.articles, ticker),
+			};
+		})
+		.filter((group) => group.ticker);
+	const summaryItems = tickerSummaries.map((item) =>
+		articleFromTickerSummary(item, generatedAt),
+	);
+	const normalizedSummary = normalizePortfolioNewsSummaryPayload(
+		payload.summary,
+	);
+
+	return {
+		generatedAt,
+		tickers: [
+			...new Set([
+				...groups.map((group) => group.ticker),
+				...tickerSummaries.map((item) => item.ticker),
+			]),
+		],
+		items: [...groups.flatMap((group) => group.articles), ...summaryItems],
+		failedTickers: Array.from(
+			new Set([
+				...groups
+					.filter((group) => group.status === "failed")
+					.map((group) => group.ticker),
+				...tickerSummaries
+					.filter((item) => item.status === "failed")
+					.map((item) => item.ticker),
+			]),
+		),
+		portfolioNewsSummary:
+			normalizedSummary || summaryFromTickerSummaries(tickerSummaries),
 	};
 }

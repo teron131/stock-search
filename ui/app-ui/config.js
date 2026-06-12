@@ -1,8 +1,12 @@
 const isBrowser = typeof window !== "undefined";
+const demoParams = isBrowser
+	? new URLSearchParams(window.location.search)
+	: null;
 const isDemoMode =
 	isBrowser &&
 	(window.location.hostname.includes("github.io") ||
-		new URLSearchParams(window.location.search).get("demo") === "true");
+		demoParams?.get("demo") === "true" ||
+		demoParams?.get("") === "demo");
 const apiBase =
 	isBrowser &&
 	window.location.hostname === "localhost" &&
@@ -47,6 +51,7 @@ export const CONFIG = {
 		portfolio: apiPath("/portfolio"),
 		portfolioCorrelation: apiPath("/portfolio/correlation"),
 		portfolioImportImage: apiPath("/portfolio/import-image"),
+		portfolioNewsCache: apiPath("/portfolio/news-cache"),
 		portfolioNewsSummary: apiPath("/portfolio/news-summary"),
 		sectors: apiPath("/sectors"),
 		stock: apiPath("/stock"),

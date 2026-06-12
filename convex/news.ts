@@ -92,11 +92,10 @@ function pruneNewsPayload(value: unknown, now: number): unknown | null {
 
 	const looksLikeArticle =
 		"url" in value ||
-		"title" in value ||
-		"summary" in value ||
 		"days_ago" in value ||
 		"published_at" in value ||
-		"metadata" in value;
+		"metadata" in value ||
+		("title" in value && typeof value.summary === "string");
 	if (looksLikeArticle) {
 		return isRetainedNewsItem(value, now) ? value : null;
 	}
@@ -169,6 +168,26 @@ function optionalNumber(value: unknown): number | null {
 	return Number.isFinite(number) ? number : null;
 }
 
+function stringifyRow(row: GenericRow): string {
+	try {
+		return JSON.stringify(row);
+	} catch {
+		return "{}";
+	}
+}
+
+function parseRowJson(value: unknown): GenericRow | null {
+	if (typeof value !== "string" || !value.trim()) {
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(value);
+		return isRecord(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
 function newsPayload(
 	key: string,
 	ticker: string,
@@ -191,11 +210,17 @@ function newsPayload(
 		metadata_source_domain: optionalString(metadata.source_domain),
 		metadata_published_at: optionalString(metadata.published_at),
 		metadata_fetched_at: optionalString(metadata.fetched_at),
+		row_json: stringifyRow(row),
 		updatedAt,
 	};
 }
 
 function newsRowFromDocument(row: NewsDocument): GenericRow {
+	const storedRow = parseRowJson(row.row_json);
+	if (storedRow) {
+		return storedRow;
+	}
+
 	const metadata: GenericRow = {};
 	for (const [key, value] of [
 		["provider", row.metadata_provider],

@@ -167,6 +167,7 @@ export default defineSchema({
 		metadata_source_domain: v.optional(v.union(v.string(), v.null())),
 		metadata_published_at: v.optional(v.union(v.string(), v.null())),
 		metadata_fetched_at: v.optional(v.union(v.string(), v.null())),
+		row_json: v.optional(v.string()),
 		updatedAt: v.number(),
 	})
 		.index("by_key", ["key"])
