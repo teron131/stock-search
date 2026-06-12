@@ -1,4 +1,4 @@
-/** Analyze fetched articles into structured ticker news signals. */
+/** Optionally analyze fetched articles into structured ticker news signals. */
 
 import type { MemoryCache } from "../../cache.js";
 import {
@@ -9,21 +9,23 @@ import {
 } from "../../models/schemas.js";
 import { NEWS_ANALYSIS_PROMPT } from "../../prompts.js";
 import type { NewsTickerIdentity } from "./identity.js";
-import { FALLBACK_SUMMARIES, normalizeNewsUrl } from "./router.js";
+import { FALLBACK_SUMMARIES, normalizeNewsUrl } from "./selection.js";
 
 const MAX_ANALYSIS_WORKERS = 10;
 const MAX_PROVIDER_SUMMARY_CHARS = 1_200;
 
-export type AnalysisDeps = {
-	chatOpenAI: (input: {
-		model: string;
-		temperature: number;
-		reasoningEffort: "low";
-	}) => {
-		withStructuredOutput(schema: unknown): {
-			invoke(input: string): Promise<unknown> | unknown;
-		};
+type ChatOpenAIClient = (input: {
+	model: string;
+	temperature: number;
+	reasoningEffort: "low";
+}) => {
+	withStructuredOutput(schema: unknown): {
+		invoke(input: string): Promise<unknown> | unknown;
 	};
+};
+
+export type AnalysisDeps = {
+	chatOpenAI?: ChatOpenAIClient;
 	webloader: (urls: string[]) => Promise<Array<string | null | undefined>>;
 };
 
@@ -188,6 +190,19 @@ export function fallbackAnalysisFromProviders(
 	);
 }
 
+function fillUncachedAnalysisFromProviders(
+	results: NewsAnalysis[],
+	uncachedItems: ProviderBatchItem[],
+): NewsAnalysis[] {
+	const fallbacks = fallbackAnalysisFromProviders(
+		uncachedItems.map((item) => item.news),
+	);
+	uncachedItems.forEach((item, index) => {
+		results[item.index] = fallbacks[index];
+	});
+	return results;
+}
+
 export async function analyzeNews({
 	tickerIdentity,
 	newsList,
@@ -211,9 +226,14 @@ export async function analyzeNews({
 		return results;
 	}
 
+	const modelName = qualityModel || fastModel;
+	if (!deps.chatOpenAI || !modelName) {
+		return fillUncachedAnalysisFromProviders(results, uncachedItems);
+	}
+
 	const model = deps
 		.chatOpenAI({
-			model: qualityModel || fastModel || "",
+			model: modelName,
 			temperature: 0,
 			reasoningEffort: "low",
 		})
@@ -224,7 +244,7 @@ export async function analyzeNews({
 		deps,
 	);
 	if (readableItems.length === 0) {
-		return results;
+		return fillUncachedAnalysisFromProviders(results, uncachedItems);
 	}
 
 	const responses = await invokeStructuredBatch(model, prompts, (value) =>

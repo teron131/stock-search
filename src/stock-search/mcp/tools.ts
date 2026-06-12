@@ -9,15 +9,18 @@ import { buildColorStandardsPayload } from "../api/color-standards.js";
 import { appConfig } from "../api/config.js";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import {
-	PortfolioNewsSnapshotSchema,
 	PortfolioNewsSummaryRequestSchema,
+	PortfolioNewsSummaryWriteSchema,
+	PortfolioNewsWriteSchema,
 } from "../models/schemas.js";
-import * as newsOrchestrator from "../news/orchestrator.js";
+import * as newsPipeline from "../news/pipeline.js";
 import {
 	buildPortfolioRawNewsBundle,
-	loadPortfolioNewsSnapshot,
-	savePortfolioNewsSnapshot,
-} from "../news/snapshots.js";
+	loadPortfolioNews,
+	loadPortfolioNewsSummary,
+	savePortfolioNews,
+	savePortfolioNewsSummary,
+} from "../news/portfolio-news.js";
 import { policy } from "../policy.js";
 import {
 	buildPortfolioPayload,
@@ -60,16 +63,12 @@ const StockNewsToolParametersSchema = z.object({
 	ticker: z.string(),
 	max_results: z.number().int().min(1).max(25).optional(),
 });
-const StockNewsWithModeToolParametersSchema =
-	StockNewsToolParametersSchema.extend({
-		mode: z.enum(["raw-fast", "analyzed-slow"]).optional(),
-	});
 const PortfolioRawNewsBundleParametersSchema = z.object({
 	tickers: z.array(z.string()).min(1).max(50),
 	n_days: z.number().int().min(1).max(7).optional(),
 	max_results_per_ticker: z.number().int().min(1).max(25).optional(),
 });
-const PortfolioNewsSnapshotKeySchema = z.object({
+const PortfolioNewsKeySchema = z.object({
 	key: z.string().optional(),
 });
 
@@ -110,12 +109,13 @@ async function callStockNewsTool(
 	args: Record<string, unknown>,
 	fetchNews: (
 		ticker: string,
-		options: { maxResults?: number },
+		options: { maxResults?: number; resolveIdentity?: boolean },
 	) => Promise<unknown>,
 ): Promise<unknown> {
 	const { ticker, max_results } = StockNewsToolParametersSchema.parse(args);
 	return fetchNews(ticker, {
 		maxResults: max_results,
+		resolveIdentity: true,
 	});
 }
 
@@ -270,16 +270,10 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	{
 		name: "get_stock_news",
 		description:
-			"Return recent news articles for a ticker. Defaults to raw-fast unless mode is provided.",
-		parameters: StockNewsWithModeToolParametersSchema,
-		execute: async (args) => {
-			const { ticker, mode, max_results } =
-				StockNewsWithModeToolParametersSchema.parse(args);
-			return newsOrchestrator.getNewsAsync(ticker, {
-				mode,
-				maxResults: max_results,
-			});
-		},
+			"Compatibility alias for raw-fast ticker news. Does not run LLM analysis.",
+		parameters: StockNewsToolParametersSchema,
+		execute: async (args) =>
+			callStockNewsTool(args, newsPipeline.getRawFastNewsAsync),
 	},
 	{
 		name: "get_stock_news_raw_fast",
@@ -287,7 +281,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 			"Return capped raw provider news plus optional webloaded excerpts. No LLM analysis; faster and noisier.",
 		parameters: StockNewsToolParametersSchema,
 		execute: async (args) =>
-			callStockNewsTool(args, newsOrchestrator.getRawFastNewsAsync),
+			callStockNewsTool(args, newsPipeline.getRawFastNewsAsync),
 	},
 	{
 		name: "get_stock_news_analyzed_slow",
@@ -295,7 +289,7 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 			"Return LLM-analyzed ticker news with relevance, category, sentiment, and ticker-specific summaries. Slower and costlier.",
 		parameters: StockNewsToolParametersSchema,
 		execute: async (args) =>
-			callStockNewsTool(args, newsOrchestrator.getAnalyzedSlowNewsAsync),
+			callStockNewsTool(args, newsPipeline.getAnalyzedSlowNewsAsync),
 	},
 	{
 		name: "get_portfolio_news_raw_fast",
@@ -314,33 +308,51 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 		},
 	},
 	{
-		name: "get_portfolio_news_snapshot",
+		name: "get_portfolio_news",
 		description:
-			"Return the latest persisted portfolio news articles and summary snapshot from the shared DB cache.",
-		parameters: PortfolioNewsSnapshotKeySchema,
+			"Return the latest persisted portfolio news articles and summary from the shared DB.",
+		parameters: PortfolioNewsKeySchema,
 		execute: async (args) => {
-			const { key } = PortfolioNewsSnapshotKeySchema.parse(args);
-			return loadPortfolioNewsSnapshot(getStore(), key);
+			const { key } = PortfolioNewsKeySchema.parse(args);
+			return loadPortfolioNews(getStore(), key);
 		},
 	},
 	{
-		name: "save_portfolio_news_snapshot",
+		name: "save_portfolio_news",
 		description:
-			"Persist externally produced portfolio news articles and ticker summaries into the shared DB cache.",
-		parameters: PortfolioNewsSnapshotSchema,
+			"Persist externally produced ticker news summaries into the shared DB. System fields are filled automatically.",
+		parameters: PortfolioNewsWriteSchema,
 		execute: async (args) =>
-			savePortfolioNewsSnapshot(
+			savePortfolioNews(getStore(), PortfolioNewsWriteSchema.parse(args)),
+	},
+	{
+		name: "get_portfolio_news_summary",
+		description:
+			"Return the latest persisted portfolio-level news summary from the shared DB.",
+		parameters: PortfolioNewsKeySchema,
+		execute: async (args) => {
+			const { key } = PortfolioNewsKeySchema.parse(args);
+			return loadPortfolioNewsSummary(getStore(), key);
+		},
+	},
+	{
+		name: "save_portfolio_news_summary",
+		description:
+			"Persist an externally produced portfolio-level news summary into the shared DB, preserving ticker summaries and system fields.",
+		parameters: PortfolioNewsSummaryWriteSchema,
+		execute: async (args) =>
+			savePortfolioNewsSummary(
 				getStore(),
-				PortfolioNewsSnapshotSchema.parse(args),
+				PortfolioNewsSummaryWriteSchema.parse(args),
 			),
 	},
 	{
-		name: "portfolio_news_summary_api_portfolio_news_summary_post",
+		name: "summarize_portfolio_news",
 		description:
-			"Return a structured portfolio-level summary from merged article summaries.",
+			"Build a structured portfolio-level news summary from provided rows and article summaries. Does not write to the DB.",
 		parameters: PortfolioNewsSummaryRequestSchema,
 		execute: async ({ rows, items }) =>
-			newsOrchestrator.buildPortfolioNewsSummary(
+			newsPipeline.buildPortfolioNewsSummary(
 				Array.isArray(rows) ? rows : [],
 				Array.isArray(items) ? items : [],
 			),

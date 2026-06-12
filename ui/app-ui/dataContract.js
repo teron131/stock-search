@@ -248,7 +248,7 @@ function normalizePortfolioNewsSummaryChapter(chapter) {
 	};
 }
 
-function normalizeTickerSummarySnapshot(item) {
+function normalizeTickerNewsSummary(item) {
 	if (!item || typeof item !== "object") {
 		return null;
 	}
@@ -324,7 +324,7 @@ function articleFromTickerSummary(item, generatedAt) {
 		status: item.status,
 		metadata: {
 			provider: "external-agent",
-			source_domain: item.sourceUrls.length > 0 ? null : "portfolio-summary",
+			source_domain: item.sourceUrls.length > 0 ? null : "portfolio-news",
 			published_at: generatedAt,
 			fetched_at: generatedAt,
 		},
@@ -451,7 +451,7 @@ export function normalizePortfolioNewsSummaryPayload(payload) {
 	};
 }
 
-export function normalizePortfolioNewsSnapshotPayload(payload) {
+export function normalizePortfolioNewsPayload(payload) {
 	if (!payload || typeof payload !== "object") {
 		return null;
 	}
@@ -472,7 +472,7 @@ export function normalizePortfolioNewsSnapshotPayload(payload) {
 		"ticker_summaries",
 		"tickerSummaries",
 	)
-		.map(normalizeTickerSummarySnapshot)
+		.map(normalizeTickerNewsSummary)
 		.filter(Boolean);
 	const groups = rawGroups
 		.filter((group) => group && typeof group === "object")

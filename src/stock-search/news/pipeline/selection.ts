@@ -1,4 +1,4 @@
-/** Route raw news articles into ranked, retained, displayable feed items. */
+/** Select ranked, retained, displayable feed items from raw news candidates. */
 
 import type { NewsArticle } from "../../models/schemas.js";
 import { DAY_IN_MS, parseDateString } from "../providers/shared.js";

@@ -51,8 +51,8 @@ export const CONFIG = {
 		portfolio: apiPath("/portfolio"),
 		portfolioCorrelation: apiPath("/portfolio/correlation"),
 		portfolioImportImage: apiPath("/portfolio/import-image"),
-		portfolioNewsCache: apiPath("/portfolio/news-cache"),
-		portfolioNewsSummary: apiPath("/portfolio/news-summary"),
+		portfolioNews: apiPath("/portfolio/news"),
+		portfolioNewsSummarize: apiPath("/portfolio/news/summarize"),
 		sectors: apiPath("/sectors"),
 		stock: apiPath("/stock"),
 		stockStats: (ticker) =>

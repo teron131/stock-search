@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG } from "../config.js";
 import {
 	normalizeDemoNewsPayload,
-	normalizePortfolioNewsSnapshotPayload,
+	normalizePortfolioNewsPayload,
 	normalizePortfolioNewsSummaryPayload,
 	normalizeTickerNewsPayload,
 } from "../dataContract.js";
@@ -95,8 +95,7 @@ export function useNewsData({
 	const [generatedAt, setGeneratedAt] = useState(null);
 	const [failedTickers, setFailedTickers] = useState([]);
 	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
-	const [isUsingSharedNewsSnapshot, setIsUsingSharedNewsSnapshot] =
-		useState(false);
+	const [isUsingSharedNews, setIsUsingSharedNews] = useState(false);
 	const [lastError, setLastError] = useState(null);
 	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
 	const [portfolioNewsSummaryResult, setPortfolioNewsSummaryResult] =
@@ -122,7 +121,7 @@ export function useNewsData({
 		setFailedTickers([]);
 		setLastError(null);
 		setIsUsingDemoData(false);
-		setIsUsingSharedNewsSnapshot(false);
+		setIsUsingSharedNews(false);
 		portfolioNewsSummaryFailureKeyRef.current = null;
 		setLoadingMode(LOADING_MODE_IDLE);
 	}, []);
@@ -136,7 +135,7 @@ export function useNewsData({
 			setGeneratedAt(newsResult.generatedAt);
 			setFailedTickers(newsResult.failedTickers || []);
 			setIsUsingDemoData(demo);
-			setIsUsingSharedNewsSnapshot(shared);
+			setIsUsingSharedNews(shared);
 			setLastError(
 				partialError && (newsResult.failedTickers || []).length > 0
 					? new Error("Partial news coverage")
@@ -168,12 +167,12 @@ export function useNewsData({
 		};
 	}, [heldTickers]);
 
-	const loadSharedNewsSnapshot = useCallback(async () => {
+	const loadSharedNews = useCallback(async () => {
 		const payload = await fetchJsonWithTimeout(
-			CONFIG.endpoints.portfolioNewsCache,
+			CONFIG.endpoints.portfolioNews,
 			CONFIG.requestTimeoutMs.news,
 		);
-		const normalizedPayload = normalizePortfolioNewsSnapshotPayload(payload);
+		const normalizedPayload = normalizePortfolioNewsPayload(payload);
 		if (!normalizedPayload) {
 			return null;
 		}
@@ -271,11 +270,11 @@ export function useNewsData({
 				: buildCacheSnapshot(heldTickers);
 
 			if (!preferDemoData && !force) {
-				const sharedSnapshot = await loadSharedNewsSnapshot().catch(() => null);
-				if (sharedSnapshot) {
-					applyNewsResult(sharedSnapshot, { shared: true });
-					if (sharedSnapshot.portfolioNewsSummary) {
-						setPortfolioNewsSummaryResult(sharedSnapshot.portfolioNewsSummary);
+				const sharedNews = await loadSharedNews().catch(() => null);
+				if (sharedNews) {
+					applyNewsResult(sharedNews, { shared: true });
+					if (sharedNews.portfolioNewsSummary) {
+						setPortfolioNewsSummaryResult(sharedNews.portfolioNewsSummary);
 					}
 					loadInFlightRef.current = false;
 					setLoadingMode(LOADING_MODE_IDLE);
@@ -324,8 +323,8 @@ export function useNewsData({
 			} catch (error) {
 				if (hasCachedItems) {
 					setFailedTickers(heldTickers);
-					setIsUsingSharedNewsSnapshot(false);
-					setLastError(new Error("Using cached news snapshot"));
+					setIsUsingSharedNews(false);
+					setLastError(new Error("Using cached news"));
 					return;
 				}
 
@@ -343,7 +342,7 @@ export function useNewsData({
 				setGeneratedAt(null);
 				setFailedTickers([]);
 				setIsUsingDemoData(false);
-				setIsUsingSharedNewsSnapshot(false);
+				setIsUsingSharedNews(false);
 				setLastError(error);
 			} finally {
 				loadInFlightRef.current = false;
@@ -355,7 +354,7 @@ export function useNewsData({
 			heldTickers,
 			loadDemoNews,
 			loadLiveNews,
-			loadSharedNewsSnapshot,
+			loadSharedNews,
 			preferDemoData,
 			resetFeed,
 		],
@@ -404,7 +403,7 @@ export function useNewsData({
 			return;
 		}
 
-		if (isUsingSharedNewsSnapshot && portfolioNewsSummaryResult) {
+		if (isUsingSharedNews && portfolioNewsSummaryResult) {
 			return;
 		}
 
@@ -450,7 +449,7 @@ export function useNewsData({
 		(async () => {
 			try {
 				const response = await postJsonWithTimeout(
-					CONFIG.endpoints.portfolioNewsSummary,
+					CONFIG.endpoints.portfolioNewsSummarize,
 					payload,
 					CONFIG.requestTimeoutMs.news,
 				);
@@ -493,7 +492,7 @@ export function useNewsData({
 		fallbackPortfolioNewsSummary,
 		heldTickerKey,
 		heldTickers.length,
-		isUsingSharedNewsSnapshot,
+		isUsingSharedNews,
 		preferDemoData,
 		portfolioNewsSummaryResult,
 		rows,

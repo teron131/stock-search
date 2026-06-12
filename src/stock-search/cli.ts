@@ -11,6 +11,8 @@ type CliCommand = {
 	description: string;
 };
 
+type NewsCliMode = "raw-fast" | "analyzed-slow";
+
 export const CLI_COMMANDS: readonly CliCommand[] = [
 	{
 		command: "stocks",
@@ -297,6 +299,53 @@ function parseStocksArguments(argv: string[]): {
 	return { pretty, tickers, source };
 }
 
+function parseNewsArguments(argv: string[]): {
+	pretty: boolean;
+	ticker: string;
+	mode: NewsCliMode;
+	maxResults?: number;
+} {
+	const pretty = argv.includes("--pretty");
+	const tickers: string[] = [];
+	let mode: NewsCliMode = "raw-fast";
+	let maxResults: number | undefined;
+
+	for (let index = 0; index < argv.length; index += 1) {
+		const token = argv[index];
+		if (!token || token === "--pretty") {
+			continue;
+		}
+		if (token === "--mode") {
+			const rawMode = argv[index + 1];
+			if (rawMode !== "raw-fast" && rawMode !== "analyzed-slow") {
+				throw new Error("Invalid mode. Use raw-fast or analyzed-slow.");
+			}
+			mode = rawMode;
+			index += 1;
+			continue;
+		}
+		if (token === "--max-results") {
+			const value = Number(argv[index + 1]);
+			if (!Number.isFinite(value) || value <= 0) {
+				throw new Error("Invalid max results. Use a positive number.");
+			}
+			maxResults = Math.min(25, Math.floor(value));
+			index += 1;
+			continue;
+		}
+		if (token.startsWith("--")) {
+			throw new Error(`Unknown option for news: ${token}`);
+		}
+		tickers.push(...arrayArgument(token).map((value) => String(value)));
+	}
+
+	if (tickers.length !== 1) {
+		throw new Error("Exactly one ticker is required.");
+	}
+
+	return { pretty, ticker: tickers[0], mode, maxResults };
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<void> {
 	const [command, ...rest] = argv;
 	if (!command) {
@@ -332,6 +381,27 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 		console.log(
 			JSON.stringify(
 				Object.fromEntries(entries) as JsonValue,
+				null,
+				pretty ? 2 : undefined,
+			),
+		);
+		return;
+	}
+
+	if (command === "news") {
+		const { pretty, ticker, mode, maxResults } = parseNewsArguments(rest);
+		const payload = await mcp.callTool(
+			mode === "analyzed-slow"
+				? "get_stock_news_analyzed_slow"
+				: "get_stock_news_raw_fast",
+			{
+				ticker,
+				...(maxResults ? { max_results: maxResults } : {}),
+			},
+		);
+		console.log(
+			JSON.stringify(
+				payload.structuredContent ?? asJsonValue(payload.content),
 				null,
 				pretty ? 2 : undefined,
 			),

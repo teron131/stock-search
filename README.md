@@ -112,6 +112,14 @@ Provider precedence is field-aware, not source-wide:
 | `financials` | StockAnalysis plus Finviz field merge | Cache can fill known fields; low-confidence Yahoo growth values are not forced into period-aligned fields. |
 | `ratings` | Yahoo ratings and analyst fields | Cache protects the dashboard when ratings endpoints are unavailable. |
 
+## News Workflow
+
+News is split into a fast provider path and optional LLM stages.
+
+- **`raw-fast`** is the default ticker mode for UI, CLI, MCP, and `/stock/:ticker/news`. It fans out to configured news providers, always includes Yahoo Finance news, can fill shortfalls with Exa, dedupes and ranks by ticker/company identity, filters stale or unusable stories, and attaches bounded webloaded excerpts.
+- **`analyzed-slow`** uses the same source path, then runs LLM analysis for ticker-specific relevance, category, sentiment, and summary fields. If model analysis is unavailable, provider labels are used as fallback.
+- **Portfolio news** is stored separately from ticker fetches. Raw portfolio bundles can be built for held tickers, while `/portfolio/news`, `/portfolio/news/summary`, and `/portfolio/news/summarize` load, persist, or generate shared portfolio-level news payloads.
+
 ## Portfolio Workflow
 
 Portfolio payloads start from positions, then attach stock rows, labels, live stats, ETF lookthrough, and deterministic scores. ETFs are treated as wrappers unless holdings-proxy stats are available.
@@ -165,6 +173,10 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Family-based cache, freshness, provider-bundle, source-merge, and monetary normalization logic.
   - This is the main path for portfolio, standalone ticker, CLI, and MCP stats reads.
 
+- **`src/stock-search/news/`**
+  - Ticker and portfolio news pipeline, provider fan-out, source selection, optional LLM analysis, and portfolio summary persistence.
+  - Keeps news coordination out of API routes and UI data hooks.
+
 - **`src/stock-search/ticker.ts`**
   - Shared standalone ticker payload builder used by HTTP routes and MCP tools.
   - Keeps ticker response assembly independent from transport-specific routing.
@@ -208,6 +220,10 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Slow quote-page statistics fallback for valuation and growth fields.
   - Also supplies sector/industry labels when Yahoo metadata is missing.
 
+- **NewsData, Massive, NewsAPI, Exa, and Yahoo Finance news**
+  - News provider fan-out for ticker and portfolio news workflows.
+  - API-backed providers are used when their env vars are configured; Yahoo remains the baseline public source.
+
 - **Fallback policy**
   - Prefer higher-quality source per field group, then cache, then fallback provider.
   - Improves consistency while remaining resilient during source failures.
@@ -240,7 +256,7 @@ The MCP server currently exposes tools for:
 - portfolio reads and position updates
 - standalone stock stats
 - stored eval and stock maps
-- realtime config, stock news, and ticker evaluation
+- realtime config, raw-fast and analyzed-slow stock news, portfolio news bundles, persisted portfolio news summaries, and ticker evaluation
 
 ## CLI
 
@@ -254,7 +270,8 @@ pnpm run cli stocks NVDA
 pnpm run cli stocks NVDA MSFT
 pnpm run cli stocks NVDA,MSFT --source live
 pnpm run cli sectors
-pnpm run cli news NVDA
+pnpm run cli news NVDA --mode raw-fast --max-results 8
+pnpm run cli news NVDA --mode analyzed-slow --pretty
 pnpm run cli evaluate NVDA
 ```
 

@@ -4,15 +4,18 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { runCorrelationReport } from "../../correlation.js";
 import {
-	PortfolioNewsSnapshotSchema,
 	PortfolioNewsSummaryRequestArticleSchema,
 	PortfolioNewsSummaryRequestRowSchema,
+	PortfolioNewsSummaryWriteSchema,
+	PortfolioNewsWriteSchema,
 } from "../../models/schemas.js";
-import * as newsOrchestrator from "../../news/orchestrator.js";
+import * as newsPipeline from "../../news/pipeline.js";
 import {
-	loadPortfolioNewsSnapshot,
-	savePortfolioNewsSnapshot,
-} from "../../news/snapshots.js";
+	loadPortfolioNews,
+	loadPortfolioNewsSummary,
+	savePortfolioNews,
+	savePortfolioNewsSummary,
+} from "../../news/portfolio-news.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio/index.js";
 import type { BackendStore } from "../../storage/index.js";
 import { convexRealtimeTopics } from "../../storage/index.js";
@@ -23,7 +26,8 @@ import {
 	COLOR_STANDARDS,
 	EVAL,
 	PORTFOLIO_CORRELATION,
-	PORTFOLIO_NEWS_CACHE,
+	PORTFOLIO_NEWS,
+	PORTFOLIO_NEWS_SUMMARIZE,
 	PORTFOLIO_NEWS_SUMMARY,
 	REALTIME_CONFIG,
 	STOCK_NEWS_ROUTE,
@@ -44,6 +48,7 @@ const ARTICLE_RELEVANCIES = new Set(["high", "medium", "low"]);
 const ARTICLE_SENTIMENTS = new Set(["bullish", "neutral", "bearish"]);
 const CORRELATION_MODES = new Set(["raw", "market_neutral"]);
 const NEWS_MODES = new Set(["raw-fast", "analyzed-slow"]);
+const MAX_STOCK_NEWS_RESULTS = 25;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
@@ -139,10 +144,10 @@ function parseCorrelationMode(
 
 function parseNewsMode(
 	rawValue: string | undefined,
-): newsOrchestrator.NewsFetchMode {
+): newsPipeline.NewsFetchMode {
 	const mode = String(rawValue || "raw-fast").trim();
 	return NEWS_MODES.has(mode)
-		? (mode as newsOrchestrator.NewsFetchMode)
+		? (mode as newsPipeline.NewsFetchMode)
 		: "raw-fast";
 }
 
@@ -153,10 +158,12 @@ function parsePositiveInteger(
 		return undefined;
 	}
 	const value = Number(rawValue);
-	return Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined;
+	return Number.isFinite(value) && value > 0
+		? Math.min(MAX_STOCK_NEWS_RESULTS, Math.floor(value))
+		: undefined;
 }
 
-function parseCacheKey(rawValue: string | undefined): string {
+function parsePortfolioNewsKey(rawValue: string | undefined): string {
 	const key = String(rawValue || "default").trim();
 	return key || "default";
 }
@@ -188,31 +195,47 @@ const PortfolioNewsSummaryPayloadSchema = z
 export function createMiscRouter(store: BackendStore): Hono {
 	const router = new Hono();
 
-	router.get(PORTFOLIO_NEWS_CACHE, async (c) => {
+	router.get(PORTFOLIO_NEWS, async (c) => {
 		c.header("Cache-Control", "no-store");
-		const snapshot = await loadPortfolioNewsSnapshot(
+		const portfolioNews = await loadPortfolioNews(
 			store,
-			parseCacheKey(c.req.query("key")),
+			parsePortfolioNewsKey(c.req.query("key")),
 		);
-		return c.json(snapshot ?? null);
+		return c.json(portfolioNews ?? null);
 	});
 
-	router.post(PORTFOLIO_NEWS_CACHE, async (c) => {
+	router.post(PORTFOLIO_NEWS, async (c) => {
 		c.header("Cache-Control", "no-store");
-		const input = PortfolioNewsSnapshotSchema.parse(
+		const input = PortfolioNewsWriteSchema.parse(
 			await c.req.json().catch(() => null),
 		);
-		return c.json(await savePortfolioNewsSnapshot(store, input));
+		return c.json(await savePortfolioNews(store, input));
+	});
+
+	router.get(PORTFOLIO_NEWS_SUMMARY, async (c) => {
+		c.header("Cache-Control", "no-store");
+		return c.json(
+			await loadPortfolioNewsSummary(
+				store,
+				parsePortfolioNewsKey(c.req.query("key")),
+			),
+		);
 	});
 
 	router.post(PORTFOLIO_NEWS_SUMMARY, async (c) => {
 		c.header("Cache-Control", "no-store");
+		const input = PortfolioNewsSummaryWriteSchema.parse(
+			await c.req.json().catch(() => null),
+		);
+		return c.json(await savePortfolioNewsSummary(store, input));
+	});
+
+	router.post(PORTFOLIO_NEWS_SUMMARIZE, async (c) => {
+		c.header("Cache-Control", "no-store");
 		const { rows, items } = PortfolioNewsSummaryPayloadSchema.parse(
 			await c.req.json().catch(() => null),
 		);
-		return c.json(
-			await newsOrchestrator.buildPortfolioNewsSummary(rows, items),
-		);
+		return c.json(await newsPipeline.buildPortfolioNewsSummary(rows, items));
 	});
 
 	router.get(STOCKS, async (c) => {
@@ -261,7 +284,7 @@ export function createMiscRouter(store: BackendStore): Hono {
 	router.get(STOCK_NEWS_ROUTE, async (c) => {
 		c.header("Cache-Control", "no-store");
 		return c.json(
-			await newsOrchestrator.getNewsAsync(c.req.param("ticker"), {
+			await newsPipeline.getNewsAsync(c.req.param("ticker"), {
 				resolveIdentity: true,
 				mode: parseNewsMode(c.req.query("mode")),
 				maxResults: parsePositiveInteger(c.req.query("max_results")),

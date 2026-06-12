@@ -560,17 +560,17 @@ export const PortfolioNewsSummaryResponseSchema = z
 	})
 	.describe("Final portfolio news summary response.");
 
-export const NewsSnapshotStatusSchema = z
+export const NewsRefreshStatusSchema = z
 	.enum(["fresh", "partial", "failed"])
 	.default("fresh")
-	.describe("Refresh status for a persisted news snapshot.");
+	.describe("Refresh status for persisted portfolio news.");
 
-export const NewsSnapshotProducerSchema = z
+export const NewsProducerSchema = z
 	.enum(["external-agent", "app-local", "manual-import"])
 	.default("external-agent")
-	.describe("System that produced a persisted news snapshot.");
+	.describe("System that produced persisted portfolio news.");
 
-export const TickerNewsSnapshotSchema = z
+export const TickerNewsGroupSchema = z
 	.object({
 		ticker: z.string().describe("Held ticker symbol."),
 		articles: z
@@ -582,7 +582,7 @@ export const TickerNewsSnapshotSchema = z
 			.nullable()
 			.optional()
 			.describe("Timestamp when this ticker news group was refreshed."),
-		status: NewsSnapshotStatusSchema,
+		status: NewsRefreshStatusSchema,
 		error: z
 			.string()
 			.nullable()
@@ -591,9 +591,11 @@ export const TickerNewsSnapshotSchema = z
 				"Refresh error detail when this ticker group is partial or failed.",
 			),
 	})
-	.describe("Persisted news articles for one ticker in a portfolio snapshot.");
+	.describe(
+		"Persisted news articles for one ticker in a portfolio news payload.",
+	);
 
-export const TickerNewsSummarySnapshotSchema = z
+export const TickerNewsSummarySchema = z
 	.object({
 		ticker: z.string().describe("Held ticker symbol."),
 		headline: z
@@ -604,13 +606,13 @@ export const TickerNewsSummarySnapshotSchema = z
 		summary: z
 			.string()
 			.describe(
-				"Overall news summary for this ticker over the snapshot window.",
+				"Overall news summary for this ticker over the payload window.",
 			),
 		relevancies: z
 			.array(z.enum(summaryRelevancyValues))
 			.default([])
 			.describe(
-				"Overall ticker-level news relevance labels in this snapshot. Use medium or high only; omit summaries that would be low relevance.",
+				"Overall ticker-level news relevance labels in this payload. Use medium or high only; omit summaries that would be low relevance.",
 			),
 		categories: z
 			.array(z.enum(tickerSummaryCategoryValues))
@@ -624,13 +626,17 @@ export const TickerNewsSummarySnapshotSchema = z
 			.describe(
 				`Free-form daily driver labels such as ${tickerNewsSummaryLabelExamples.join(", ")}.`,
 			),
+		source_urls: z
+			.array(z.string())
+			.default([])
+			.describe("Optional article URLs used as references for this summary."),
 		sentiments: z
 			.array(z.enum(sentimentValues))
 			.default([])
 			.describe(
 				"Directional sentiment labels represented in this ticker summary.",
 			),
-		status: NewsSnapshotStatusSchema,
+		status: NewsRefreshStatusSchema,
 		error: z
 			.string()
 			.nullable()
@@ -641,7 +647,49 @@ export const TickerNewsSummarySnapshotSchema = z
 	})
 	.describe("Persisted overall news summary for one ticker.");
 
-export const PortfolioNewsSnapshotSchema = z
+export const TickerNewsSummaryWriteSchema = z
+	.object({
+		ticker: z.string().describe("Held ticker symbol."),
+		headline: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Optional headline for the ticker-level news summary."),
+		summary: z
+			.string()
+			.describe("Overall news summary for this ticker over the news window."),
+		relevancies: z
+			.array(z.enum(summaryRelevancyValues))
+			.default(["medium"])
+			.describe("Optional overall relevance labels; defaults to medium."),
+		categories: z
+			.array(z.enum(tickerSummaryCategoryValues))
+			.default([])
+			.describe(
+				"Optional ticker-level news categories covered by this summary.",
+			),
+		labels: z
+			.array(z.string())
+			.default([])
+			.describe(
+				`Optional free-form daily driver labels such as ${tickerNewsSummaryLabelExamples.join(", ")}.`,
+			),
+		source_urls: z
+			.array(z.string())
+			.default([])
+			.describe("Optional article URLs used as references for this summary."),
+		sentiments: z
+			.array(z.enum(sentimentValues))
+			.default([])
+			.describe(
+				"Optional directional sentiment labels represented in this summary.",
+			),
+	})
+	.describe(
+		"Minimal ticker news summary accepted by the portfolio news writer.",
+	);
+
+export const PortfolioNewsPayloadSchema = z
 	.object({
 		key: z
 			.string()
@@ -649,7 +697,7 @@ export const PortfolioNewsSnapshotSchema = z
 			.describe("Portfolio or cache scope key."),
 		as_of_date: z
 			.string()
-			.describe("Market date this news snapshot represents."),
+			.describe("Market date this portfolio news payload represents."),
 		window_start: z
 			.string()
 			.nullable()
@@ -660,35 +708,98 @@ export const PortfolioNewsSnapshotSchema = z
 			.nullable()
 			.optional()
 			.describe("End date for the rolling news window."),
-		producer: NewsSnapshotProducerSchema,
+		producer: NewsProducerSchema,
 		refreshed_at: z
 			.string()
 			.default(() => new Date().toISOString())
-			.describe("Timestamp when the full snapshot was refreshed."),
-		status: NewsSnapshotStatusSchema,
+			.describe(
+				"Timestamp when the full portfolio news payload was refreshed.",
+			),
+		status: NewsRefreshStatusSchema,
 		ticker_summaries: z
-			.array(TickerNewsSummarySnapshotSchema)
+			.array(TickerNewsSummarySchema)
 			.default([])
 			.describe(
 				"Preferred compact external-agent output: one overall summary per ticker.",
 			),
 		articles_by_ticker: z
-			.array(TickerNewsSnapshotSchema)
+			.array(TickerNewsGroupSchema)
 			.default([])
 			.describe(
 				"Optional raw article evidence grouped by ticker. Not required for external-agent summary writes.",
 			),
 		summary: PortfolioNewsSummaryResponseSchema.nullable()
 			.optional()
-			.describe(
-				"Optional portfolio-level summary. Can be derived from ticker_summaries when omitted.",
-			),
+			.describe("Optional externally written portfolio-level summary."),
 		warnings: z
 			.array(z.string())
 			.default([])
 			.describe("Non-fatal producer warnings."),
 	})
 	.describe("Shared DB payload for portfolio news articles and summary.");
+
+export const PortfolioNewsWriteSchema = z
+	.object({
+		key: z
+			.string()
+			.optional()
+			.describe("Optional portfolio news scope key; defaults to default."),
+		as_of_date: z
+			.string()
+			.optional()
+			.describe("Optional market date; defaults from window_end or today."),
+		window_start: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Optional start date for the rolling news window."),
+		window_end: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("Optional end date for the rolling news window."),
+		ticker_summaries: z
+			.array(TickerNewsSummaryWriteSchema)
+			.default([])
+			.describe("One externally written overall news summary per ticker."),
+	})
+	.describe(
+		"Minimal agent write payload for portfolio news; system fields are filled by the app.",
+	);
+
+export const PortfolioNewsSummaryWriteSchema = z
+	.object({
+		key: z
+			.string()
+			.optional()
+			.describe("Optional portfolio news scope key; defaults to default."),
+		as_of_date: z
+			.string()
+			.optional()
+			.describe(
+				"Optional market date; defaults from the existing payload or today.",
+			),
+		window_start: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"Optional start date for the rolling news window; preserves the existing value when omitted.",
+			),
+		window_end: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"Optional end date for the rolling news window; preserves the existing value when omitted.",
+			),
+		summary: PortfolioNewsSummaryResponseSchema.describe(
+			"Externally written portfolio-level news summary.",
+		),
+	})
+	.describe(
+		"Minimal agent write payload for the portfolio-level news summary.",
+	);
 
 export type NewsAnalysis = z.infer<typeof NewsAnalysisSchema>;
 export type NotionalValue = z.infer<typeof NotionalSchema>;
@@ -719,10 +830,15 @@ export type PortfolioNewsSummaryResponseTicker = z.infer<
 export type PortfolioNewsSummaryResponse = z.infer<
 	typeof PortfolioNewsSummaryResponseSchema
 >;
-export type NewsSnapshotStatus = z.infer<typeof NewsSnapshotStatusSchema>;
-export type NewsSnapshotProducer = z.infer<typeof NewsSnapshotProducerSchema>;
-export type TickerNewsSnapshot = z.infer<typeof TickerNewsSnapshotSchema>;
-export type TickerNewsSummarySnapshot = z.infer<
-	typeof TickerNewsSummarySnapshotSchema
+export type NewsRefreshStatus = z.infer<typeof NewsRefreshStatusSchema>;
+export type NewsProducer = z.infer<typeof NewsProducerSchema>;
+export type TickerNewsGroup = z.infer<typeof TickerNewsGroupSchema>;
+export type TickerNewsSummary = z.infer<typeof TickerNewsSummarySchema>;
+export type TickerNewsSummaryWrite = z.infer<
+	typeof TickerNewsSummaryWriteSchema
 >;
-export type PortfolioNewsSnapshot = z.infer<typeof PortfolioNewsSnapshotSchema>;
+export type PortfolioNewsPayload = z.infer<typeof PortfolioNewsPayloadSchema>;
+export type PortfolioNewsWrite = z.infer<typeof PortfolioNewsWriteSchema>;
+export type PortfolioNewsSummaryWrite = z.infer<
+	typeof PortfolioNewsSummaryWriteSchema
+>;

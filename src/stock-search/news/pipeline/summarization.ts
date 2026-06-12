@@ -1,4 +1,4 @@
-/** Build portfolio-level news summaries from analyzed article items. */
+/** Optionally summarize portfolio-level news from prepared article items. */
 
 import { z } from "zod";
 import {
@@ -17,21 +17,6 @@ import {
 } from "../../models/schemas.js";
 import { PORTFOLIO_NEWS_SUMMARY_PROMPT } from "../../prompts.js";
 import { normalizeTicker } from "../../utils.js";
-
-export type PortfolioSummaryDeps = {
-	chatOpenAI: (input: {
-		model: string;
-		temperature: number;
-		reasoningEffort: "low";
-	}) => {
-		withStructuredOutput(
-			schema: unknown,
-			options?: unknown,
-		): {
-			invoke(input: string): Promise<unknown> | unknown;
-		};
-	};
-};
 
 const MAX_PORTFOLIO_SUMMARY_TICKERS = 5;
 const MAX_PORTFOLIO_SUMMARY_ITEMS = 3;
@@ -66,6 +51,37 @@ const STRUCTURED_OUTPUT_SCHEMA_KEYS_TO_DROP = new Set([
 	"default",
 	"title",
 ]);
+
+type ChatOpenAIClient = (input: {
+	model: string;
+	temperature: number;
+	reasoningEffort: "low";
+}) => {
+	withStructuredOutput(
+		schema: unknown,
+		options?: unknown,
+	): {
+		invoke(input: string): Promise<unknown> | unknown;
+	};
+};
+
+export type PortfolioSummaryDeps = {
+	chatOpenAI?: ChatOpenAIClient;
+};
+
+type PortfolioSummaryRow = {
+	ticker: string;
+	weight_pct: number;
+};
+
+type NormalizedSummaryItem = {
+	title: string | null;
+	summary: string;
+	relevancy: NewsArticle["relevancy"];
+	category: NewsArticle["category"];
+	sentiment: NewsArticle["sentiment"];
+	source_tickers: string[];
+};
 
 function stripStructuredOutputSchemaMetadata(value: unknown): unknown {
 	if (Array.isArray(value)) {
@@ -104,8 +120,8 @@ function formatPrompt(
 
 function normalizePortfolioNewsSummaryRows(
 	rows: PortfolioNewsSummaryRequestRow[],
-): Array<{ ticker: string; weight_pct: number }> {
-	const normalizedRows: Array<{ ticker: string; weight_pct: number }> = [];
+): PortfolioSummaryRow[] {
+	const normalizedRows: PortfolioSummaryRow[] = [];
 	const seenTickers = new Set<string>();
 
 	const totalValue = rows.reduce((sum, row) => {
@@ -146,22 +162,8 @@ function normalizePortfolioNewsSummaryRows(
 function normalizePortfolioNewsSummaryItems(
 	items: PortfolioNewsSummaryRequestArticle[],
 	heldTickers: Set<string>,
-): Array<{
-	title: string | null;
-	summary: string;
-	relevancy: NewsArticle["relevancy"];
-	category: NewsArticle["category"];
-	sentiment: NewsArticle["sentiment"];
-	source_tickers: string[];
-}> {
-	const normalizedItems: Array<{
-		title: string | null;
-		summary: string;
-		relevancy: NewsArticle["relevancy"];
-		category: NewsArticle["category"];
-		sentiment: NewsArticle["sentiment"];
-		source_tickers: string[];
-	}> = [];
+): NormalizedSummaryItem[] {
+	const normalizedItems: NormalizedSummaryItem[] = [];
 
 	for (const item of items) {
 		const parsedItem = PortfolioNewsSummaryRequestArticleSchema.parse(item);
@@ -295,15 +297,8 @@ function buildPortfolioNewsSummaryPrompt({
 	normalizedItems,
 }: {
 	heldTickers: Set<string>;
-	topRows: Array<{ ticker: string; weight_pct: number }>;
-	normalizedItems: Array<{
-		title: string | null;
-		summary: string;
-		relevancy: NewsArticle["relevancy"];
-		category: NewsArticle["category"];
-		sentiment: NewsArticle["sentiment"];
-		source_tickers: string[];
-	}>;
+	topRows: PortfolioSummaryRow[];
+	normalizedItems: NormalizedSummaryItem[];
 }): string {
 	return formatPrompt(PORTFOLIO_NEWS_SUMMARY_PROMPT, {
 		held_tickers_json: JSON.stringify([...heldTickers].sort()),
@@ -322,7 +317,7 @@ function fallbackTickerChapters({
 	normalizedItems,
 }: {
 	ticker: string;
-	normalizedItems: Array<{ summary: string; source_tickers: string[] }>;
+	normalizedItems: NormalizedSummaryItem[];
 }): PortfolioNewsChapter[] {
 	const tickerItems = normalizedItems.filter((item) =>
 		item.source_tickers.includes(ticker),
@@ -350,13 +345,7 @@ function fallbackMacroChapters({
 	normalizedItems,
 	heldTickers,
 }: {
-	normalizedItems: Array<{
-		title: string | null;
-		summary: string;
-		relevancy: NewsArticle["relevancy"];
-		category: NewsArticle["category"];
-		source_tickers: string[];
-	}>;
+	normalizedItems: NormalizedSummaryItem[];
 	heldTickers: Set<string>;
 }): PortfolioNewsChapter[] {
 	const macroCandidates: Array<{
@@ -421,9 +410,9 @@ function buildTopTickerSummary({
 	normalizedItems,
 	heldTickers,
 }: {
-	row: { ticker: string; weight_pct: number };
+	row: PortfolioSummaryRow;
 	summaryByTicker: Map<string, PortfolioTickerNewsChapters>;
-	normalizedItems: Array<{ summary: string; source_tickers: string[] }>;
+	normalizedItems: NormalizedSummaryItem[];
 	heldTickers: Set<string>;
 }): PortfolioNewsSummaryResponseTicker {
 	const summaryEntry = summaryByTicker.get(row.ticker);
@@ -446,6 +435,33 @@ function buildTopTickerSummary({
 		weight_pct: row.weight_pct,
 		chapters,
 	};
+}
+
+function buildFallbackPortfolioNewsSummary({
+	topRows,
+	normalizedItems,
+	heldTickers,
+}: {
+	topRows: PortfolioSummaryRow[];
+	normalizedItems: NormalizedSummaryItem[];
+	heldTickers: Set<string>;
+}): PortfolioNewsSummaryResponse {
+	const summaryByTicker = new Map<string, PortfolioTickerNewsChapters>();
+	return PortfolioNewsSummaryResponseSchema.parse({
+		has_news: true,
+		macros: fallbackMacroChapters({
+			normalizedItems,
+			heldTickers,
+		}),
+		top_tickers: topRows.map((row) =>
+			buildTopTickerSummary({
+				row,
+				summaryByTicker,
+				normalizedItems,
+				heldTickers,
+			}),
+		),
+	});
 }
 
 export async function summarizePortfolioNews({
@@ -477,26 +493,40 @@ export async function summarizePortfolioNews({
 			has_news: false,
 		});
 	}
+	if (!deps.chatOpenAI || !fastModel) {
+		return buildFallbackPortfolioNewsSummary({
+			topRows,
+			normalizedItems,
+			heldTickers,
+		});
+	}
 
 	const prompt = buildPortfolioNewsSummaryPrompt({
 		heldTickers,
 		topRows,
 		normalizedItems,
 	});
-	const model = deps
-		.chatOpenAI({
-			model: fastModel ?? "",
-			temperature: 0,
-			reasoningEffort: "low",
-		})
-		.withStructuredOutput(portfolioNewsSummaryStructuredOutputSchema(), {
-			name: "portfolio_news_summary",
-			method: "jsonSchema",
-			strict: true,
+	let summary: z.infer<typeof PortfolioNewsSummaryModelSchema>;
+	try {
+		const model = deps
+			.chatOpenAI({
+				model: fastModel,
+				temperature: 0,
+				reasoningEffort: "low",
+			})
+			.withStructuredOutput(portfolioNewsSummaryStructuredOutputSchema(), {
+				name: "portfolio_news_summary",
+				method: "jsonSchema",
+				strict: true,
+			});
+		summary = PortfolioNewsSummaryModelSchema.parse(await model.invoke(prompt));
+	} catch {
+		return buildFallbackPortfolioNewsSummary({
+			topRows,
+			normalizedItems,
+			heldTickers,
 		});
-	const summary = PortfolioNewsSummaryModelSchema.parse(
-		await model.invoke(prompt),
-	);
+	}
 
 	let macros = cleanPortfolioNewsSummaryChapters(summary.macros, {
 		allowedTickers: heldTickers,
