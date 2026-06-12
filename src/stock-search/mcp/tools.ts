@@ -48,6 +48,15 @@ export type StockSearchTool = {
 	execute: (args: Record<string, unknown>) => Promise<unknown>;
 };
 
+const StockNewsToolParametersSchema = z.object({
+	ticker: z.string(),
+	max_results: z.number().int().min(1).max(25).optional(),
+});
+const StockNewsWithModeToolParametersSchema =
+	StockNewsToolParametersSchema.extend({
+		mode: z.enum(["raw-fast", "analyzed-slow"]).optional(),
+	});
+
 const EXTERNAL_PORTFOLIO_DEFAULT_SCOPE = "portfolio_live";
 const PortfolioScopeSchema = z
 	.enum(policy.request.portfolioScopeValues)
@@ -79,6 +88,19 @@ async function loadDashboardHtml(): Promise<string> {
 
 function redirectToolError(): never {
 	throw new Error("HTTP error 307: Temporary Redirect");
+}
+
+async function callStockNewsTool(
+	args: Record<string, unknown>,
+	fetchNews: (
+		ticker: string,
+		options: { maxResults?: number },
+	) => Promise<unknown>,
+): Promise<unknown> {
+	const { ticker, max_results } = StockNewsToolParametersSchema.parse(args);
+	return fetchNews(ticker, {
+		maxResults: max_results,
+	});
 }
 
 export const stockSearchTools: readonly StockSearchTool[] = [
@@ -231,12 +253,33 @@ export const stockSearchTools: readonly StockSearchTool[] = [
 	},
 	{
 		name: "get_stock_news",
-		description: "Return recent news articles for a ticker.",
-		parameters: z.object({
-			ticker: z.string(),
-		}),
-		execute: async ({ ticker }) =>
-			newsOrchestrator.getNewsAsync(String(ticker ?? "")),
+		description:
+			"Return recent news articles for a ticker. Defaults to raw-fast unless mode is provided.",
+		parameters: StockNewsWithModeToolParametersSchema,
+		execute: async (args) => {
+			const { ticker, mode, max_results } =
+				StockNewsWithModeToolParametersSchema.parse(args);
+			return newsOrchestrator.getNewsAsync(ticker, {
+				mode,
+				maxResults: max_results,
+			});
+		},
+	},
+	{
+		name: "get_stock_news_raw_fast",
+		description:
+			"Return capped raw provider news plus optional webloaded excerpts. No LLM analysis; faster and noisier.",
+		parameters: StockNewsToolParametersSchema,
+		execute: async (args) =>
+			callStockNewsTool(args, newsOrchestrator.getRawFastNewsAsync),
+	},
+	{
+		name: "get_stock_news_analyzed_slow",
+		description:
+			"Return LLM-analyzed ticker news with relevance, category, sentiment, and ticker-specific summaries. Slower and costlier.",
+		parameters: StockNewsToolParametersSchema,
+		execute: async (args) =>
+			callStockNewsTool(args, newsOrchestrator.getAnalyzedSlowNewsAsync),
 	},
 	{
 		name: "portfolio_news_summary_api_portfolio_news_summary_post",

@@ -37,6 +37,7 @@ const ARTICLE_CATEGORIES = new Set([
 const ARTICLE_RELEVANCIES = new Set(["high", "medium", "low"]);
 const ARTICLE_SENTIMENTS = new Set(["bullish", "neutral", "bearish"]);
 const CORRELATION_MODES = new Set(["raw", "market_neutral"]);
+const NEWS_MODES = new Set(["raw-fast", "analyzed-slow"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
@@ -130,6 +131,25 @@ function parseCorrelationMode(
 		: "raw";
 }
 
+function parseNewsMode(
+	rawValue: string | undefined,
+): newsOrchestrator.NewsFetchMode {
+	const mode = String(rawValue || "raw-fast").trim();
+	return NEWS_MODES.has(mode)
+		? (mode as newsOrchestrator.NewsFetchMode)
+		: "raw-fast";
+}
+
+function parsePositiveInteger(
+	rawValue: string | undefined,
+): number | undefined {
+	if (typeof rawValue !== "string" || !rawValue.trim()) {
+		return undefined;
+	}
+	const value = Number(rawValue);
+	return Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined;
+}
+
 const PortfolioNewsSummaryPayloadSchema = z
 	.object({
 		rows: z
@@ -215,6 +235,8 @@ export function createMiscRouter(store: BackendStore): Hono {
 		return c.json(
 			await newsOrchestrator.getNewsAsync(c.req.param("ticker"), {
 				resolveIdentity: true,
+				mode: parseNewsMode(c.req.query("mode")),
+				maxResults: parsePositiveInteger(c.req.query("max_results")),
 			}),
 		);
 	});

@@ -306,6 +306,13 @@ export const NewsMetadataSchema = z
 export const NewsArticleSchema = NewsAnalysisSchema.extend({
 	url: z.string().describe("Canonical or provider article URL."),
 	title: z.string().nullable().optional().describe("Article headline."),
+	content_excerpt: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"Capped excerpt from the webloaded article content when available.",
+		),
 	date: z
 		.string()
 		.nullable()

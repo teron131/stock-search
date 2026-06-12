@@ -26,7 +26,8 @@ export const CLI_COMMANDS: readonly CliCommand[] = [
 	},
 	{
 		command: "news",
-		usage: "news TICKER [--pretty]",
+		usage:
+			"news TICKER [--mode raw-fast|analyzed-slow] [--max-results N] [--pretty]",
 		toolName: "get_stock_news",
 		description: "Return recent news articles for a ticker.",
 	},

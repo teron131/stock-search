@@ -16,12 +16,6 @@ import {
 	analyzeNews,
 	fallbackAnalysisFromProviders,
 } from "./orchestrator/analysis.js";
-import {
-	createHttpClient,
-	fetchProviderBatch,
-	hasEnvValue,
-	type ProviderSpec,
-} from "./orchestrator/fetch.js";
 
 export {
 	PROVIDER_RATE_LIMITERS,
@@ -43,7 +37,6 @@ export {
 
 import {
 	balanceDomains,
-	dedupeNews,
 	finalizeNewsFeed,
 	rankNewsCandidates,
 } from "./orchestrator/router.js";
@@ -62,12 +55,17 @@ import {
 	type PortfolioSummaryDeps,
 	summarizePortfolioNews,
 } from "./orchestrator/portfolio-summary.js";
-import * as newsProviders from "./providers/index.js";
+import { buildRawFastNews } from "./orchestrator/raw-fast.js";
+import { fetchRawNewsFromSources } from "./orchestrator/sources.js";
 
 const FAST_LLM = process.env.FAST_LLM;
 const QUALITY_LLM = process.env.QUALITY_LLM;
 const MAX_NEWS_ANALYSIS_CANDIDATES = 25;
+const MAX_RAW_FAST_NEWS_CANDIDATES = 25;
 const DEFAULT_NEWS_DAYS = 3;
+const NEWS_FETCH_MODES = ["raw-fast", "analyzed-slow"] as const;
+
+export type NewsFetchMode = (typeof NEWS_FETCH_MODES)[number];
 
 export const ANALYSIS_CACHE = new MemoryCache<NewsAnalysis>({
 	staleSeconds: 30 * 24 * 60 * 60,
@@ -76,8 +74,18 @@ export const ANALYSIS_CACHE = new MemoryCache<NewsAnalysis>({
 export type NewsFetchOptions = {
 	nDays?: number;
 	maxResults?: number;
+	mode?: NewsFetchMode;
 	tickerIdentity?: NewsTickerIdentity;
 	resolveIdentity?: boolean;
+};
+
+type NewsPipelineOptions = Omit<NewsFetchOptions, "mode">;
+
+type NewsPipelineContext = {
+	ticker: string;
+	nDays: number;
+	maxResults: number;
+	tickerIdentity: NewsTickerIdentity;
 };
 
 export const newsPipelineDeps = {
@@ -126,20 +134,20 @@ export async function buildPortfolioNewsSummary(
 	});
 }
 
-export async function getNewsAsync(
+async function buildNewsPipelineContext(
 	tickerInput: string,
-	options: NewsFetchOptions = {},
-): Promise<NewsArticle[]> {
+	options: NewsPipelineOptions = {},
+): Promise<NewsPipelineContext | null> {
 	const ticker = normalizeTicker(tickerInput);
 	if (!ticker) {
-		return [];
+		return null;
 	}
 	const nDays = options.nDays ?? DEFAULT_NEWS_DAYS;
-	const boundedMaxResults = Number.isFinite(options.maxResults)
+	const maxResults = Number.isFinite(options.maxResults)
 		? Math.max(0, Math.floor(options.maxResults ?? 0))
 		: 10;
-	if (boundedMaxResults === 0) {
-		return [];
+	if (maxResults === 0) {
+		return null;
 	}
 
 	let tickerIdentity = options.tickerIdentity
@@ -155,104 +163,128 @@ export async function getNewsAsync(
 			tickerIdentity = buildNewsTickerIdentity(ticker);
 		}
 	}
-	const providerQuery = tickerIdentity.companyName
-		? tickerIdentity.label
-		: tickerIdentity.ticker;
-	const client = createHttpClient();
-	const primaryProviderSpecs: ProviderSpec[] = [];
-	if (hasEnvValue(process.env.NEWSDATA_API_KEY)) {
-		primaryProviderSpecs.push([
-			"newsdata",
-			() =>
-				newsProviders.getNewsNewsDataAsync({
-					query: providerQuery,
-					client,
-				}),
-		]);
-	}
-	if (hasEnvValue(process.env.MASSIVE_API_KEY)) {
-		primaryProviderSpecs.push([
-			"massive",
-			() =>
-				newsProviders.getNewsMassiveAsync({
-					ticker,
-					nDays,
-					client,
-				}),
-		]);
-	}
-	if (hasEnvValue(process.env.NEWS_API_KEY)) {
-		primaryProviderSpecs.push([
-			"newsapi",
-			() =>
-				newsProviders.getNewsNewsApiAsync({
-					query: providerQuery,
-					nDays,
-					client,
-				}),
-		]);
-	}
-	primaryProviderSpecs.push([
-		"yfinance",
-		() =>
-			newsProviders.getNewsYahooFinance({
-				ticker,
-			}),
-	]);
 
-	let rawNewsList = dedupeNews(await fetchProviderBatch(primaryProviderSpecs));
-	const primaryAnalysisLimit = Math.max(
-		boundedMaxResults,
-		Math.min(MAX_NEWS_ANALYSIS_CANDIDATES, rawNewsList.length),
+	return {
+		ticker,
+		nDays,
+		maxResults,
+		tickerIdentity,
+	};
+}
+
+function sortNewsCandidatesByMetadata(
+	rawNewsList: NewsArticle[],
+	{
+		tickerIdentity,
+		maxResults,
+		candidateLimit,
+	}: {
+		tickerIdentity: NewsTickerIdentity;
+		maxResults: number;
+		candidateLimit: number;
+	},
+): NewsArticle[] {
+	const candidateCount = Math.max(
+		maxResults,
+		Math.min(candidateLimit, rawNewsList.length),
 	);
-
-	if (
-		rawNewsList.length < primaryAnalysisLimit &&
-		hasEnvValue(process.env.EXA_API_KEY)
-	) {
-		const exaNewsList = await fetchProviderBatch([
-			[
-				"exa",
-				() =>
-					newsProviders.getNewsExaAsync({
-						query: providerQuery,
-						nDays,
-						client,
-					}),
-			],
-		]);
-		rawNewsList = dedupeNews([...rawNewsList, ...exaNewsList]);
-	}
-
-	const analysisLimit = Math.max(
-		boundedMaxResults,
-		Math.min(MAX_NEWS_ANALYSIS_CANDIDATES, rawNewsList.length),
-	);
-	rawNewsList = rankNewsCandidates(tickerIdentity, rawNewsList).slice(
+	return rankNewsCandidates(tickerIdentity, rawNewsList).slice(
 		0,
-		analysisLimit,
+		candidateCount,
 	);
+}
 
-	let newsAnalysisList: NewsAnalysis[];
+async function labelNewsWithLlm(
+	context: NewsPipelineContext,
+	newsList: NewsArticle[],
+): Promise<NewsAnalysis[]> {
 	try {
-		newsAnalysisList = await newsRuntime.analyzeNews(
-			ticker,
-			rawNewsList,
-			tickerIdentity,
+		return await newsRuntime.analyzeNews(
+			context.ticker,
+			newsList,
+			context.tickerIdentity,
 		);
 	} catch {
-		newsAnalysisList = fallbackAnalysisFromProviders(rawNewsList);
+		return fallbackAnalysisFromProviders(newsList);
 	}
-	const newsList = rawNewsList.map((news, index) =>
+}
+
+function mergeNewsLabels(
+	newsList: NewsArticle[],
+	newsAnalysisList: NewsAnalysis[],
+): NewsArticle[] {
+	return newsList.map((news, index) =>
 		NewsArticleSchema.parse({
 			...news,
 			...newsAnalysisList[index],
 		}),
 	);
+}
 
+function filterAndSortAnalyzedNews(
+	newsList: NewsArticle[],
+	{ nDays, maxResults }: { nDays: number; maxResults: number },
+): NewsArticle[] {
 	return finalizeNewsFeed(balanceDomains(newsList), {
 		retentionDays: nDays,
-	}).slice(0, boundedMaxResults);
+	}).slice(0, maxResults);
+}
+
+export async function getRawFastNewsAsync(
+	tickerInput: string,
+	options: NewsPipelineOptions = {},
+): Promise<NewsArticle[]> {
+	const context = await buildNewsPipelineContext(tickerInput, options);
+	if (!context) {
+		return [];
+	}
+	const rawNewsList = await fetchRawNewsFromSources(context);
+	const candidates = sortNewsCandidatesByMetadata(rawNewsList, {
+		tickerIdentity: context.tickerIdentity,
+		maxResults: context.maxResults,
+		candidateLimit: MAX_RAW_FAST_NEWS_CANDIDATES,
+	});
+	return buildRawFastNews({
+		newsList: candidates,
+		nDays: context.nDays,
+		maxResults: context.maxResults,
+		deps: newsPipelineDeps,
+	});
+}
+
+export async function getAnalyzedSlowNewsAsync(
+	tickerInput: string,
+	options: NewsPipelineOptions = {},
+): Promise<NewsArticle[]> {
+	const context = await buildNewsPipelineContext(tickerInput, options);
+	if (!context) {
+		return [];
+	}
+	const rawNewsList = await fetchRawNewsFromSources(context);
+	const candidates = sortNewsCandidatesByMetadata(rawNewsList, {
+		tickerIdentity: context.tickerIdentity,
+		maxResults: context.maxResults,
+		candidateLimit: MAX_NEWS_ANALYSIS_CANDIDATES,
+	});
+	const newsAnalysisList = await labelNewsWithLlm(context, candidates);
+	return filterAndSortAnalyzedNews(
+		mergeNewsLabels(candidates, newsAnalysisList),
+		{
+			nDays: context.nDays,
+			maxResults: context.maxResults,
+		},
+	);
+}
+
+export async function getNewsAsync(
+	tickerInput: string,
+	options: NewsFetchOptions = {},
+): Promise<NewsArticle[]> {
+	const mode = options.mode ?? "raw-fast";
+	if (mode === "analyzed-slow") {
+		return getAnalyzedSlowNewsAsync(tickerInput, options);
+	}
+	return getRawFastNewsAsync(tickerInput, options);
 }
 
 export function getNews(
