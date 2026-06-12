@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { changedFields } from "./flat_diff";
+import { changedFields, stableJsonStringify } from "./flat_diff";
 
 type GenericRow = Record<string, unknown>;
 type StoredNewsRow = {
@@ -170,7 +170,7 @@ function optionalNumber(value: unknown): number | null {
 
 function stringifyRow(row: GenericRow): string {
 	try {
-		return JSON.stringify(row);
+		return stableJsonStringify(row);
 	} catch {
 		return "{}";
 	}

@@ -16,10 +16,12 @@ function stableValue(value: unknown): unknown {
 	);
 }
 
+export function stableJsonStringify(value: unknown): string {
+	return JSON.stringify(stableValue(value));
+}
+
 function valuesEqual(left: unknown, right: unknown): boolean {
-	return (
-		JSON.stringify(stableValue(left)) === JSON.stringify(stableValue(right))
-	);
+	return stableJsonStringify(left) === stableJsonStringify(right);
 }
 
 export function changedFields<T extends TimestampedRow>(
