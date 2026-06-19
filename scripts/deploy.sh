@@ -9,6 +9,19 @@ TARGET="preview"
 SCOPE="${VERCEL_SCOPE:-teron131s-projects}"
 ALIAS_HOST=""
 RUN_BUILD=1
+FORCE_ENV=1
+ENV_FILE="${ENV_FILE:-.env}"
+REQUIRED_VERCEL_ENV_KEYS=(
+	DATA_STORE_BACKEND
+	D1_ACCOUNT_ID
+	D1_DATABASE_ID
+	D1_API_TOKEN
+	AUTH_ENABLED
+	AUTH_SECRET
+	AUTH_GOOGLE_ID
+	AUTH_GOOGLE_SECRET
+	ALLOWED_EMAIL
+)
 
 usage() {
 	cat <<'EOF'
@@ -21,6 +34,8 @@ Options:
   --prod              Deploy a production build
   --alias <host>      Point a production alias at the new deployment
   --skip-build        Skip local pnpm build verification
+  --skip-env          Do not force D1/auth environment variables on Vercel
+  --env-file <path>   Source deployment env values from a dotenv file (default: .env)
   --scope <team>      Override Vercel scope/team slug
   -h, --help          Show this help
 EOF
@@ -48,6 +63,18 @@ while [[ $# -gt 0 ]]; do
 			RUN_BUILD=0
 			shift
 			;;
+		--skip-env)
+			FORCE_ENV=0
+			shift
+			;;
+		--env-file)
+			ENV_FILE="${2:-}"
+			if [[ -z "$ENV_FILE" ]]; then
+				echo "Missing value for --env-file" >&2
+				exit 1
+			fi
+			shift 2
+			;;
 		--scope)
 			SCOPE="${2:-}"
 			if [[ -z "$SCOPE" ]]; then
@@ -73,6 +100,72 @@ if [[ -n "$ALIAS_HOST" && "$TARGET" != "production" ]]; then
 	exit 1
 fi
 
+dotenv_value() {
+	local key="$1"
+	node - "$ENV_FILE" "$key" <<'JS'
+const fs = require("fs");
+
+const envFile = process.argv[2];
+const key = process.argv[3];
+if (process.env[key]) {
+	console.log(process.env[key]);
+	process.exit(0);
+}
+
+let text = "";
+try {
+	text = fs.readFileSync(envFile, "utf8");
+} catch (error) {
+	if (error.code !== "ENOENT") {
+		throw error;
+	}
+}
+
+for (const line of text.split(/\r?\n/)) {
+	const trimmed = line.trim();
+	if (!trimmed || trimmed.startsWith("#")) {
+		continue;
+	}
+	const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+	if (!match || match[1] !== key) {
+		continue;
+	}
+	let value = match[2].trim();
+	if (
+		(value.startsWith('"') && value.endsWith('"')) ||
+		(value.startsWith("'") && value.endsWith("'"))
+	) {
+		value = value.slice(1, -1);
+	}
+	console.log(value);
+	process.exit(0);
+}
+JS
+}
+
+force_vercel_env() {
+	local environment="$1"
+	echo "==> Forcing Vercel environment values ($environment)"
+	for key in "${REQUIRED_VERCEL_ENV_KEYS[@]}"; do
+		local value
+		value="$(dotenv_value "$key")"
+		if [[ -z "$value" ]]; then
+			echo "Missing required deployment env value: $key" >&2
+			exit 1
+		fi
+		echo "    $key"
+		vercel env add "$key" "$environment" \
+			--force \
+			--value "$value" \
+			--yes \
+			--scope "$SCOPE" >/dev/null
+	done
+}
+
+if [[ "$FORCE_ENV" -eq 1 ]]; then
+	force_vercel_env "$TARGET"
+fi
+
 if [[ "$RUN_BUILD" -eq 1 ]]; then
 	echo "==> Building app"
 	pnpm run build
@@ -88,14 +181,10 @@ DEPLOY_JSON="$(vercel "${DEPLOY_ARGS[@]}")"
 echo "$DEPLOY_JSON"
 
 DEPLOY_URL="$(
-	DEPLOY_JSON="$DEPLOY_JSON" python3 - <<'PY'
-import json
-import os
-
-payload = json.loads(os.environ["DEPLOY_JSON"])
-url = payload.get("url") or payload.get("deployment", {}).get("url") or ""
-print(url)
-PY
+	DEPLOY_JSON="$DEPLOY_JSON" node - <<'JS'
+const payload = JSON.parse(process.env.DEPLOY_JSON);
+console.log(payload.url || payload.deployment?.url || "");
+JS
 )"
 
 if [[ -z "$DEPLOY_URL" ]]; then

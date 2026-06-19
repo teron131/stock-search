@@ -7,14 +7,7 @@ import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import { type BackendStore, createLazyStore } from "../storage/index.js";
 import { authGuard } from "./auth.js";
 import { appConfig } from "./config.js";
-import {
-	CALENDAR,
-	DASHBOARD,
-	DASHBOARD_PAGE_PATHS,
-	MARKETMAP,
-	ROOT,
-	SECTORS,
-} from "./route-paths.js";
+import { APP_PAGE_PATHS, SECTORS } from "./route-paths.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createMiscRouter } from "./routes/misc.js";
 import { createPortfolioRouter } from "./routes/portfolio.js";
@@ -56,11 +49,12 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	const app = new Hono();
 	app.use("*", authGuard);
 
-	for (const pagePath of DASHBOARD_PAGE_PATHS) {
+	for (const pagePath of APP_PAGE_PATHS) {
+		if (pagePath === SECTORS) {
+			continue;
+		}
 		app.get(pagePath, async () => serveIndex(deps.indexFile));
 	}
-	app.get(ROOT, async () => serveIndex(deps.indexFile));
-	app.get(DASHBOARD, async () => serveIndex(deps.indexFile));
 	app.get(SECTORS, async (c) => {
 		if (isPageNavigation(c.req.raw)) {
 			return serveIndex(deps.indexFile);
@@ -68,9 +62,6 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 		c.header("Cache-Control", "no-store");
 		return c.json(await getSectorSnapshot(deps.store));
 	});
-	app.get(MARKETMAP, async () => serveIndex(deps.indexFile));
-	app.get(CALENDAR, async () => serveIndex(deps.indexFile));
-
 	app.route("/", createAuthRouter());
 	app.route("/", createPortfolioRouter(deps.store));
 	app.route("/", createStandaloneTickerRouter(deps.store));

@@ -3,10 +3,13 @@ export const DASHBOARD = "/dashboard";
 export const SECTORS = "/sectors";
 export const MARKETMAP = "/marketmap";
 export const CALENDAR = "/calendar";
+export const NEWS = "/news";
 
-export const DASHBOARD_PAGE_PATHS = [
+export const APP_PAGE_PATHS = [
 	ROOT,
 	DASHBOARD,
+	NEWS,
+	SECTORS,
 	MARKETMAP,
 	CALENDAR,
 ] as const;

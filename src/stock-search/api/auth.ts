@@ -4,12 +4,12 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sanitizeNextPath } from "../utils.js";
 import { appConfig } from "./config.js";
 import {
+	APP_PAGE_PATHS,
 	AUTH_CALLBACK,
 	AUTH_LOGIN,
 	AUTH_LOGOUT,
 	AUTH_SESSION,
 	COLOR_STANDARDS,
-	DASHBOARD_PAGE_PATHS,
 	PUBLIC_STATIC_PREFIXES,
 	ROOT,
 } from "./route-paths.js";
@@ -86,6 +86,23 @@ function nowUnixSeconds(): number {
 	return Math.floor(Date.now() / 1000);
 }
 
+function isSecureRequest(c: Context): boolean {
+	const forwardedProto = c.req.header("x-forwarded-proto");
+	if (forwardedProto) {
+		return forwardedProto.split(",")[0]?.trim() === "https";
+	}
+	return new URL(c.req.url).protocol === "https:";
+}
+
+function isPageNavigationRequest(c: Context): boolean {
+	if (c.req.header("sec-fetch-dest") === "document") {
+		return true;
+	}
+
+	const accept = c.req.header("accept") ?? "";
+	return accept.includes("text/html") && !accept.includes("application/json");
+}
+
 function encodeSession(
 	user: Omit<SessionUser, "iat" | "exp">,
 	currentUnixSeconds = nowUnixSeconds(),
@@ -101,7 +118,7 @@ function encodeSession(
 }
 
 function decodeSession(cookieValue?: string): SessionUser | null {
-	if (!cookieValue || !cookieValue.includes(".")) {
+	if (!cookieValue?.includes(".")) {
 		return null;
 	}
 	const [payload, signature] = cookieValue.split(".", 2);
@@ -159,7 +176,7 @@ function setSessionCookie(
 		httpOnly: true,
 		path: "/",
 		sameSite: "Lax",
-		secure: appConfig.authEnabled,
+		secure: isSecureRequest(c),
 		maxAge: SESSION_MAX_AGE_SECONDS,
 	});
 }
@@ -184,10 +201,7 @@ export function isPublicRequestPath(pathname: string): boolean {
 	return PUBLIC_STATIC_EXTENSIONS.has(suffix);
 }
 
-export async function authGuard(
-	c: Context,
-	next: Next,
-): Promise<void | Response> {
+export async function authGuard(c: Context, next: Next) {
 	if (!appConfig.authEnabled || isPublicRequestPath(c.req.path)) {
 		return next();
 	}
@@ -198,7 +212,10 @@ export async function authGuard(
 	if (currentUser) {
 		return next();
 	}
-	if ((DASHBOARD_PAGE_PATHS as readonly string[]).includes(c.req.path)) {
+	if (
+		(APP_PAGE_PATHS as readonly string[]).includes(c.req.path) &&
+		isPageNavigationRequest(c)
+	) {
 		const url = new URL(c.req.url);
 		const nextPath = sanitizeNextPath(`${url.pathname}${url.search}`);
 		return c.redirect(
@@ -230,7 +247,7 @@ function setTemporaryAuthCookie(c: Context, name: string, value: string): void {
 		httpOnly: true,
 		path: "/",
 		sameSite: "Lax",
-		secure: appConfig.authEnabled,
+		secure: isSecureRequest(c),
 		maxAge: 10 * 60,
 	});
 }
