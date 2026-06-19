@@ -360,16 +360,6 @@ async function calibrationStatsSummary(dbPath: string): Promise<{
 	};
 }
 
-function dropCalibrationAuxiliaryTables(dbPath: string): void {
-	const database = new DatabaseSync(dbPath);
-	database.exec(`
-		DROP TABLE IF EXISTS meta;
-		DROP TABLE IF EXISTS news;
-		DROP TABLE IF EXISTS positions;
-	`);
-	database.close();
-}
-
 async function loadCalibrationRowState(
 	dbPath: string,
 	tickers: string[],
@@ -584,7 +574,6 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 	});
 
 	const flatTable = await calibrationStatsSummary(options.dbPath);
-	dropCalibrationAuxiliaryTables(options.dbPath);
 	console.log(
 		JSON.stringify(
 			{
@@ -642,14 +631,12 @@ async function main(): Promise<void> {
 
 	if (options.schemaOnly) {
 		const flatTable = await calibrationStatsSummary(options.dbPath);
-		dropCalibrationAuxiliaryTables(options.dbPath);
 		console.log(
 			JSON.stringify(
 				{
 					dbPath: options.dbPath,
 					mode: "schema-only",
 					flatTable: "calibration_stats",
-					removedTables: ["meta", "news", "positions"],
 					...flatTable,
 				},
 				null,
@@ -720,7 +707,6 @@ async function main(): Promise<void> {
 	const rows = Object.values(stocks).map((stock) => stock.indicators);
 	const counts = countFields(rows);
 	const flatTable = await calibrationStatsSummary(options.dbPath);
-	dropCalibrationAuxiliaryTables(options.dbPath);
 
 	console.log(
 		JSON.stringify(
@@ -738,7 +724,6 @@ async function main(): Promise<void> {
 				fieldCounts: counts,
 				flatTable: {
 					name: "calibration_stats",
-					removedTables: ["meta", "news", "positions"],
 					...flatTable,
 				},
 			},

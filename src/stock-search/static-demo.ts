@@ -9,7 +9,7 @@ import { getSectorSnapshot } from "./data-sources/stockanalysis/index.js";
 import { normalizeEvaluation } from "./evaluation/normalization.js";
 import { writeJson } from "./file-utils.js";
 import { getNewsAsync } from "./news/pipeline.js";
-import { SQLiteStore } from "./storage/sqlite.js";
+import { SQLiteStore } from "./storage/index.js";
 
 const DEMO_OUTPUT_DIR = path.join(RAW_UI_DIR, "public", "demo");
 const DEMO_RANDOM_SEED = 20260418;

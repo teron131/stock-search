@@ -9,13 +9,13 @@ This file guides agentic coding assistants working in this repo.
 - **UI**: Next frontend in `ui/`.
 - **CLI**: TypeScript CLI in `src/stock-search/cli.ts`, run with `pnpm run cli`.
 - **MCP**: `src/stock-search/mcp/` exposes the broader tool surface.
-- **Data**: `BackendStore` implementations. Local default is SQLite at `data/stock_search.db`; Convex is optional via env.
+- **Data**: `BackendStore` implementations. Local default is SQLite at `data/stock_search.db`; Cloud mode uses Cloudflare D1.
 
 ## Runtime Boundaries
 
 - Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `get_stock_stats` use `source`.
 - External MCP `get_portfolio` defaults to `scope=portfolio_live`; REST callers should pass `/portfolio?scope=portfolio_live` when they need a current portfolio snapshot.
-- Local Convex development mirrors successful reads and writes into SQLite, so network fallback should stay warm rather than becoming an old portfolio snapshot.
+- D1 and SQLite use the same SQL schema, but runtime reads and writes go only to the configured backend.
 - `source=auto`: use fresh cache, serve usable stale slow families while queueing refresh, and refresh inline when required.
 - `source=live`: force inline provider refresh; fail instead of silently falling back when live data is unavailable.
 - `source=cache`: read the stored row only.
@@ -80,9 +80,9 @@ pnpm --silent run cli stocks NVDA --source cache
 
 See `.env.example` and `src/stock-search/api/config.ts`.
 
-- `DATA_STORE_BACKEND`: `sqlite` or `convex`.
+- `DATA_STORE_BACKEND`: `sqlite` or `d1`.
 - `DATA_SQLITE_PATH`: local SQLite path override.
-- `CONVEX_URL`, `CONVEX_DEPLOY_KEY`, `CONVEX_AUDIENCE`, `CONVEX_SYNC_ENABLED`: Convex runtime.
+- `D1_ACCOUNT_ID`, `D1_DATABASE_ID`, `D1_API_TOKEN`: Cloudflare D1 runtime.
 - `AUTH_ENABLED`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ALLOWED_EMAIL`: auth controls.
 - `LLM_API_KEY`, `LLM_BASE_URL`, `FAST_LLM`, `QUALITY_LLM`, `GEMINI_API_KEY`: model clients.
 - `NEWS_API_KEY`, `NEWSDATA_API_KEY`: news providers.

@@ -18,10 +18,8 @@ import {
 } from "../../news/portfolio-news.js";
 import { loadEvalMap, loadStocksMap } from "../../portfolio/index.js";
 import type { BackendStore } from "../../storage/index.js";
-import { convexRealtimeTopics } from "../../storage/index.js";
 import { normalizeTicker } from "../../utils.js";
 import { buildColorStandardsPayload } from "../color-standards.js";
-import { appConfig } from "../config.js";
 import {
 	COLOR_STANDARDS,
 	EVAL,
@@ -273,11 +271,9 @@ export function createMiscRouter(store: BackendStore): Hono {
 	router.get(REALTIME_CONFIG, (c) => {
 		c.header("Cache-Control", "no-store");
 		return c.json({
-			provider: "convex",
-			enabled: Boolean(appConfig.convexSyncEnabled && appConfig.convexUrl),
-			convex_url: appConfig.convexUrl || null,
-			audience: appConfig.convexAudience || null,
-			topics: [...convexRealtimeTopics],
+			provider: "none",
+			enabled: false,
+			topics: [],
 		});
 	});
 

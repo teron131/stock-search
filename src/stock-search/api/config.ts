@@ -4,7 +4,7 @@ import { config as loadDotenv } from "dotenv";
 
 loadDotenv({ quiet: true });
 
-export type BackendName = "convex" | "sqlite";
+export type BackendName = "d1" | "sqlite";
 
 const repoRoot = process.cwd();
 const rawUiDir = path.join(repoRoot, "ui");
@@ -30,7 +30,7 @@ function truthy(value: string | undefined, fallback = false): boolean {
 }
 
 function resolveBackend(value: string | undefined): BackendName {
-	return value?.trim().toLowerCase() === "convex" ? "convex" : "sqlite";
+	return value?.trim().toLowerCase() === "d1" ? "d1" : "sqlite";
 }
 
 export const appConfig = {
@@ -45,10 +45,9 @@ export const appConfig = {
 		process.env.DATA_SQLITE_PATH ?? path.join(dataDir, "stock_search.db"),
 	),
 	dataStoreBackend: resolveBackend(process.env.DATA_STORE_BACKEND),
-	convexUrl: (process.env.CONVEX_URL ?? "").trim(),
-	convexDeployKey: (process.env.CONVEX_DEPLOY_KEY ?? "").trim(),
-	convexAudience: (process.env.CONVEX_AUDIENCE ?? "").trim(),
-	convexSyncEnabled: truthy(process.env.CONVEX_SYNC_ENABLED, true),
+	d1AccountId: (process.env.D1_ACCOUNT_ID ?? "").trim(),
+	d1DatabaseId: (process.env.D1_DATABASE_ID ?? "").trim(),
+	d1ApiToken: (process.env.D1_API_TOKEN ?? "").trim(),
 	authEnabled: truthy(process.env.AUTH_ENABLED, false),
 	authSecret: (process.env.AUTH_SECRET ?? "").trim(),
 	authGoogleId: (process.env.AUTH_GOOGLE_ID ?? "").trim(),

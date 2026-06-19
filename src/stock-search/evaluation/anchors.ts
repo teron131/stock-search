@@ -1,8 +1,8 @@
-/** Load opinionated score anchors from the local calibration database. */
+/** Load opinionated score anchors from cached backend calibration rows. */
 
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
+import type { CalibrationStatsRow } from "../storage/index.js";
 import {
 	CalibrationConfig,
 	MarketCapConfig,
@@ -15,9 +15,7 @@ const SECTOR_POSITIVE_PERCENTILES = [0.1, 0.5, 0.9] as const;
 const SECTOR_INVERSE_PERCENTILES = [0.1, 0.5, 0.9] as const;
 const MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE = 50;
 const MIN_SECTOR_ANCHOR_SAMPLE_SIZE = 15;
-const DEFAULT_CALIBRATION_DB_PATH = path.resolve(
-	"data/evaluation_calibration.db",
-);
+const DEFAULT_CALIBRATION_DB_PATH = path.resolve("data/stock_search.db");
 
 type PercentileSet = readonly [number, number, number];
 type DynamicAnchorOptions = {
@@ -115,6 +113,7 @@ const SECTOR_VALUATION_ANCHOR_KEYS = [
 
 let cachedAnchors: ScoreAnchors | null = null;
 let cachedSectorValuationAnchors = new Map<string, ScoreAnchors>();
+let cachedCalibrationRows: CalibrationStatsRow[] | null = null;
 
 export function calibrationDbPath(): string {
 	return path.resolve(
@@ -141,51 +140,40 @@ function percentile(values: number[], percentileValue: number): number | null {
 	return lowerValue + (upperValue - lowerValue) * (index - lowerIndex);
 }
 
-function calibrationQuery(anchorKey: ScoreAnchorKey): {
-	expression: string;
-	whereClause: string;
-} {
+function calibrationValue(
+	row: CalibrationStatsRow,
+	anchorKey: ScoreAnchorKey,
+): number | null {
 	if (anchorKey === "fcf_yield") {
-		return {
-			expression: "free_cash_flow / market_cap * 100",
-			whereClause:
-				"market_cap IS NOT NULL AND market_cap > 0 AND free_cash_flow IS NOT NULL",
-		};
+		const marketCap = finiteNumber(row.market_cap);
+		const freeCashFlow = finiteNumber(row.free_cash_flow);
+		if (marketCap == null || marketCap <= 0 || freeCashFlow == null) {
+			return null;
+		}
+		return (freeCashFlow / marketCap) * 100;
 	}
-	if (anchorKey === "free_cash_flow") {
-		return {
-			expression: "free_cash_flow",
-			whereClause: "free_cash_flow IS NOT NULL",
-		};
-	}
-	return {
-		expression: anchorKey,
-		whereClause: `${anchorKey} IS NOT NULL`,
-	};
+	return finiteNumber(row[anchorKey]);
+}
+
+function finiteNumber(value: unknown): number | null {
+	const number = Number(value);
+	return Number.isFinite(number) ? number : null;
 }
 
 function calibrationValues(
-	database: DatabaseSync,
+	rows: CalibrationStatsRow[],
 	anchorKey: ScoreAnchorKey,
 	sectorName: string | null = null,
 ): number[] {
-	const { expression, whereClause } = calibrationQuery(anchorKey);
-	const sectorClause = sectorName == null ? "" : " AND sector_name = ?";
-	const parameters = sectorName == null ? [] : [sectorName];
-	return database
-		.prepare(
-			`SELECT ${expression} AS value FROM calibration_stats WHERE ${whereClause}${sectorClause} ORDER BY value`,
-		)
-		.all(...parameters)
-		.map((row) => (row as { value: unknown }).value)
-		.filter(
-			(value): value is number =>
-				typeof value === "number" && Number.isFinite(value),
-		);
+	return rows
+		.filter((row) => sectorName == null || row.sector_name === sectorName)
+		.map((row) => calibrationValue(row, anchorKey))
+		.filter((value): value is number => value != null)
+		.sort((left, right) => left - right);
 }
 
 function dynamicAnchor(
-	database: DatabaseSync,
+	rows: CalibrationStatsRow[],
 	anchorKey: ScoreAnchorKey,
 	options: DynamicAnchorOptions = {},
 ): MinMedMax {
@@ -193,25 +181,21 @@ function dynamicAnchor(
 	if (anchorKey === "market_cap" && options.sectorName == null) {
 		return fallback;
 	}
-	try {
-		const values = calibrationValues(database, anchorKey, options.sectorName);
-		if (
-			values.length < (options.minSampleSize ?? MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE)
-		) {
-			return fallback;
-		}
-		const percentileSet = anchorPercentiles(anchorKey, options.sectorName);
-		const anchors = percentileSet.map((percentileValue) =>
-			percentile(values, percentileValue),
-		);
-		return [
-			anchors[0] ?? fallback[0],
-			anchors[1] ?? fallback[1],
-			anchors[2] ?? fallback[2],
-		];
-	} catch {
+	const values = calibrationValues(rows, anchorKey, options.sectorName);
+	if (
+		values.length < (options.minSampleSize ?? MIN_DYNAMIC_ANCHOR_SAMPLE_SIZE)
+	) {
 		return fallback;
 	}
+	const percentileSet = anchorPercentiles(anchorKey, options.sectorName);
+	const anchors = percentileSet.map((percentileValue) =>
+		percentile(values, percentileValue),
+	);
+	return [
+		anchors[0] ?? fallback[0],
+		anchors[1] ?? fallback[1],
+		anchors[2] ?? fallback[2],
+	];
 }
 
 function anchorPercentiles(
@@ -236,36 +220,37 @@ function sectorNameFromContext(context: AnchorContext): string | null {
 }
 
 function loadDynamicAnchors(): ScoreAnchors {
-	let database: DatabaseSync | null = null;
-	try {
-		database = new DatabaseSync(calibrationDbPath(), { readOnly: true });
-		return {
-			market_cap: dynamicAnchor(database, "market_cap"),
-			peg: dynamicAnchor(database, "peg"),
-			pe: dynamicAnchor(database, "pe"),
-			pe_forward: dynamicAnchor(database, "pe_forward"),
-			ps: dynamicAnchor(database, "ps"),
-			ps_forward: dynamicAnchor(database, "ps_forward"),
-			debt_to_equity: dynamicAnchor(database, "debt_to_equity"),
-			free_cash_flow: dynamicAnchor(database, "free_cash_flow"),
-			fcf_yield: dynamicAnchor(database, "fcf_yield"),
-			shareholder_yield: dynamicAnchor(database, "shareholder_yield"),
-			rd_knowledge_capital: dynamicAnchor(database, "rd_knowledge_capital"),
-			rd_intensity: dynamicAnchor(database, "rd_intensity"),
-			revenue: dynamicAnchor(database, "revenue"),
-			revenue_growth: dynamicAnchor(database, "revenue_growth"),
-			eps_growth: dynamicAnchor(database, "eps_growth"),
-			gross_margin: dynamicAnchor(database, "gross_margin"),
-			operating_margin: dynamicAnchor(database, "operating_margin"),
-			roe: dynamicAnchor(database, "roe"),
-			roic: dynamicAnchor(database, "roic"),
-			median_upside: dynamicAnchor(database, "median_upside"),
-		};
-	} catch {
+	if (cachedCalibrationRows == null) {
 		return STATIC_SCORE_ANCHORS;
-	} finally {
-		database?.close();
 	}
+	return {
+		market_cap: dynamicAnchor(cachedCalibrationRows, "market_cap"),
+		peg: dynamicAnchor(cachedCalibrationRows, "peg"),
+		pe: dynamicAnchor(cachedCalibrationRows, "pe"),
+		pe_forward: dynamicAnchor(cachedCalibrationRows, "pe_forward"),
+		ps: dynamicAnchor(cachedCalibrationRows, "ps"),
+		ps_forward: dynamicAnchor(cachedCalibrationRows, "ps_forward"),
+		debt_to_equity: dynamicAnchor(cachedCalibrationRows, "debt_to_equity"),
+		free_cash_flow: dynamicAnchor(cachedCalibrationRows, "free_cash_flow"),
+		fcf_yield: dynamicAnchor(cachedCalibrationRows, "fcf_yield"),
+		shareholder_yield: dynamicAnchor(
+			cachedCalibrationRows,
+			"shareholder_yield",
+		),
+		rd_knowledge_capital: dynamicAnchor(
+			cachedCalibrationRows,
+			"rd_knowledge_capital",
+		),
+		rd_intensity: dynamicAnchor(cachedCalibrationRows, "rd_intensity"),
+		revenue: dynamicAnchor(cachedCalibrationRows, "revenue"),
+		revenue_growth: dynamicAnchor(cachedCalibrationRows, "revenue_growth"),
+		eps_growth: dynamicAnchor(cachedCalibrationRows, "eps_growth"),
+		gross_margin: dynamicAnchor(cachedCalibrationRows, "gross_margin"),
+		operating_margin: dynamicAnchor(cachedCalibrationRows, "operating_margin"),
+		roe: dynamicAnchor(cachedCalibrationRows, "roe"),
+		roic: dynamicAnchor(cachedCalibrationRows, "roic"),
+		median_upside: dynamicAnchor(cachedCalibrationRows, "median_upside"),
+	};
 }
 
 export function getScoreAnchors(): ScoreAnchors {
@@ -275,23 +260,18 @@ export function getScoreAnchors(): ScoreAnchors {
 
 function loadSectorValuationAnchors(sectorName: string): ScoreAnchors {
 	const globalAnchors = getScoreAnchors();
-	let database: DatabaseSync | null = null;
-	try {
-		database = new DatabaseSync(calibrationDbPath(), { readOnly: true });
-		const anchors: ScoreAnchors = { ...globalAnchors };
-		for (const anchorKey of SECTOR_VALUATION_ANCHOR_KEYS) {
-			anchors[anchorKey] = dynamicAnchor(database, anchorKey, {
-				fallback: globalAnchors[anchorKey],
-				minSampleSize: MIN_SECTOR_ANCHOR_SAMPLE_SIZE,
-				sectorName,
-			});
-		}
-		return anchors;
-	} catch {
+	if (cachedCalibrationRows == null) {
 		return globalAnchors;
-	} finally {
-		database?.close();
 	}
+	const anchors: ScoreAnchors = { ...globalAnchors };
+	for (const anchorKey of SECTOR_VALUATION_ANCHOR_KEYS) {
+		anchors[anchorKey] = dynamicAnchor(cachedCalibrationRows, anchorKey, {
+			fallback: globalAnchors[anchorKey],
+			minSampleSize: MIN_SECTOR_ANCHOR_SAMPLE_SIZE,
+			sectorName,
+		});
+	}
+	return anchors;
 }
 
 export function getValuationScoreAnchors(context: AnchorContext): ScoreAnchors {
@@ -312,6 +292,12 @@ export function resetScoreAnchorsCache(): void {
 	cachedSectorValuationAnchors = new Map();
 }
 
+export function setCalibrationStatsRows(rows: CalibrationStatsRow[]): void {
+	cachedCalibrationRows = rows;
+	resetScoreAnchorsCache();
+}
+
 export function resetScoreAnchorsForTest(): void {
+	cachedCalibrationRows = null;
 	resetScoreAnchorsCache();
 }

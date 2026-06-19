@@ -29,7 +29,7 @@ import {
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "../portfolio/index.js";
-import { convexRealtimeTopics, getStore } from "../storage/index.js";
+import { getStore } from "../storage/index.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
@@ -89,11 +89,9 @@ function asJsonValue(value: unknown): JsonValue {
 
 function realtimeConfigPayload(): Record<string, unknown> {
 	return {
-		provider: "convex",
-		enabled: Boolean(appConfig.convexSyncEnabled && appConfig.convexUrl),
-		convex_url: appConfig.convexUrl || null,
-		audience: appConfig.convexAudience || null,
-		topics: [...convexRealtimeTopics],
+		provider: "none",
+		enabled: false,
+		topics: [],
 	};
 }
 

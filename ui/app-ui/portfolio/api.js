@@ -36,35 +36,6 @@ export async function fetchJsonWithTimeout(url, timeoutMs, signal) {
 	}
 }
 
-export function normalizeRealtimeTopics(value) {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value
-		.map((topic) => {
-			if (typeof topic === "string" && topic.trim().length > 0) {
-				return { name: topic, args: {} };
-			}
-			if (
-				typeof topic === "object" &&
-				topic !== null &&
-				typeof topic.name === "string" &&
-				topic.name.trim().length > 0
-			) {
-				return {
-					name: topic.name,
-					args:
-						typeof topic.args === "object" && topic.args !== null
-							? topic.args
-							: {},
-				};
-			}
-			return null;
-		})
-		.filter((topic) => topic != null);
-}
-
 export function getPortfolioUrl(scope) {
 	if (CONFIG.isDemoMode) {
 		return CONFIG.demoEndpoints.portfolio;

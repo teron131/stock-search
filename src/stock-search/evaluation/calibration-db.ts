@@ -4,79 +4,22 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
+import type { BackendStore, CalibrationStatsRow } from "../storage/index.js";
+import {
+	CALIBRATION_FETCHED_AT_FIELDS,
+	CALIBRATION_SCORE_FIELD_NAMES,
+	CALIBRATION_STATS_COLUMN_DEFINITIONS,
+	CALIBRATION_STATS_COLUMN_NAMES,
+} from "../storage/schemas.js";
 import { SQLiteStore } from "../storage/sqlite.js";
 import { normalizeTicker } from "../utils.js";
-import { calibrationDbPath, resetScoreAnchorsCache } from "./anchors.js";
+import {
+	calibrationDbPath,
+	resetScoreAnchorsCache,
+	setCalibrationStatsRows,
+} from "./anchors.js";
 
-export const CALIBRATION_SCORE_FIELD_NAMES = [
-	"market_cap",
-	"peg",
-	"pe",
-	"pe_forward",
-	"ps",
-	"ps_forward",
-	"debt_to_equity",
-	"free_cash_flow",
-	"shareholder_yield",
-	"revenue",
-	"revenue_growth",
-	"eps_growth",
-	"gross_margin",
-	"operating_margin",
-	"roe",
-	"roic",
-	"median_upside",
-] as const;
-
-const FAMILY_FETCHED_AT_FIELDS = [
-	"market_data_fetched_at",
-	"market_snapshot_fetched_at",
-	"statistics_fetched_at",
-	"financials_fetched_at",
-	"ratings_fetched_at",
-] as const;
-
-const CALIBRATION_STATS_COLUMNS = [
-	["ticker", "TEXT PRIMARY KEY"],
-	["name", "TEXT"],
-	["sector_name", "TEXT"],
-	["industry_name", "TEXT"],
-	["quote_type", "TEXT"],
-	["fx", "TEXT"],
-	["price", "REAL"],
-	["change", "REAL"],
-	["change_percent_1d", "REAL"],
-	["market_cap", "REAL"],
-	["peg", "REAL"],
-	["pe", "REAL"],
-	["pe_forward", "REAL"],
-	["ps", "REAL"],
-	["ps_forward", "REAL"],
-	["debt_to_equity", "REAL"],
-	["free_cash_flow", "REAL"],
-	["shareholder_yield", "REAL"],
-	["revenue", "REAL"],
-	["revenue_growth", "REAL"],
-	["eps_growth", "REAL"],
-	["gross_margin", "REAL"],
-	["operating_margin", "REAL"],
-	["roe", "REAL"],
-	["roic", "REAL"],
-	["median_upside", "REAL"],
-	["is_complete", "INTEGER NOT NULL DEFAULT 0"],
-	["missing_score_fields", "TEXT NOT NULL DEFAULT ''"],
-	["missing_score_field_count", "INTEGER NOT NULL DEFAULT 0"],
-	["market_data_fetched_at", "TEXT"],
-	["market_snapshot_fetched_at", "TEXT"],
-	["statistics_fetched_at", "TEXT"],
-	["financials_fetched_at", "TEXT"],
-	["ratings_fetched_at", "TEXT"],
-	["last_fetched_at", "TEXT"],
-] as const;
-
-const CALIBRATION_STATS_COLUMN_NAMES = CALIBRATION_STATS_COLUMNS.map(
-	([columnName]) => columnName,
-);
+export { CALIBRATION_SCORE_FIELD_NAMES };
 
 export type CalibrationStockRow = {
 	ticker: string;
@@ -89,6 +32,10 @@ type SyncEvaluationCalibrationOptions = {
 	dbPath?: string;
 	insertMissingRows?: boolean;
 	logWarnings?: boolean;
+	store?: Pick<
+		BackendStore,
+		"loadCalibrationStats" | "upsertCalibrationStatsRows"
+	>;
 };
 type ExistingCalibrationStock = {
 	indicators: Record<string, unknown>;
@@ -131,7 +78,7 @@ export function latestCalibrationFetchedAt(
 	indicators: Record<string, unknown>,
 ): string | null {
 	let latestTimestamp: number | null = null;
-	for (const fieldName of FAMILY_FETCHED_AT_FIELDS) {
+	for (const fieldName of CALIBRATION_FETCHED_AT_FIELDS) {
 		const timestamp = parseTimestamp(indicators[fieldName]);
 		if (
 			timestamp != null &&
@@ -178,12 +125,9 @@ export function indicatorsAreNewer(
 }
 
 export function ensureCalibrationStatsTable(database: DatabaseSync): void {
-	const definitions = CALIBRATION_STATS_COLUMNS.map(
-		([columnName, columnType]) => `${columnName} ${columnType}`,
-	).join(",\n\t\t\t");
 	database.exec(`
 		CREATE TABLE IF NOT EXISTS calibration_stats (
-			${definitions}
+			${CALIBRATION_STATS_COLUMN_DEFINITIONS.join(",\n\t\t\t")}
 		);
 	`);
 
@@ -194,12 +138,13 @@ export function ensureCalibrationStatsTable(database: DatabaseSync): void {
 			}>
 		).map((column) => column.name),
 	);
-	for (const [columnName, columnType] of CALIBRATION_STATS_COLUMNS) {
+	for (const definition of CALIBRATION_STATS_COLUMN_DEFINITIONS) {
+		const [columnName, ...columnType] = definition.split(/\s+/);
 		if (existingColumns.has(columnName) || columnName === "ticker") {
 			continue;
 		}
 		database.exec(
-			`ALTER TABLE calibration_stats ADD COLUMN ${columnName} ${columnType}`,
+			`ALTER TABLE calibration_stats ADD COLUMN ${columnName} ${columnType.join(" ")}`,
 		);
 	}
 	database.exec(`
@@ -210,48 +155,58 @@ export function ensureCalibrationStatsTable(database: DatabaseSync): void {
 	`);
 }
 
+export function calibrationStatsRowFromIndicators(
+	ticker: string,
+	indicators: Record<string, unknown>,
+): CalibrationStatsRow {
+	const missingFields = missingCalibrationScoreFields(indicators);
+	return {
+		ticker,
+		name: asText(indicators.name),
+		sector_name: asText(indicators.sector_name),
+		industry_name: asText(indicators.industry_name),
+		quote_type: asText(indicators.quote_type),
+		fx: asText(indicators.fx),
+		price: asNumber(indicators.price),
+		change: asNumber(indicators.change),
+		change_percent_1d: asNumber(indicators.change_percent_1d),
+		market_cap: asNumber(indicators.market_cap),
+		peg: asNumber(indicators.peg),
+		pe: asNumber(indicators.pe),
+		pe_forward: asNumber(indicators.pe_forward),
+		ps: asNumber(indicators.ps),
+		ps_forward: asNumber(indicators.ps_forward),
+		debt_to_equity: asNumber(indicators.debt_to_equity),
+		free_cash_flow: asNumber(indicators.free_cash_flow),
+		shareholder_yield: asNumber(indicators.shareholder_yield),
+		rd_knowledge_capital: asNumber(indicators.rd_knowledge_capital),
+		rd_intensity: asNumber(indicators.rd_intensity),
+		revenue: asNumber(indicators.revenue),
+		revenue_growth: asNumber(indicators.revenue_growth),
+		eps_growth: asNumber(indicators.eps_growth),
+		gross_margin: asNumber(indicators.gross_margin),
+		operating_margin: asNumber(indicators.operating_margin),
+		roe: asNumber(indicators.roe),
+		roic: asNumber(indicators.roic),
+		median_upside: asNumber(indicators.median_upside),
+		is_complete: missingFields.length === 0 ? 1 : 0,
+		missing_score_fields: missingFields.join(","),
+		missing_score_field_count: missingFields.length,
+		market_data_fetched_at: asText(indicators.market_data_fetched_at),
+		market_snapshot_fetched_at: asText(indicators.market_snapshot_fetched_at),
+		statistics_fetched_at: asText(indicators.statistics_fetched_at),
+		financials_fetched_at: asText(indicators.financials_fetched_at),
+		ratings_fetched_at: asText(indicators.ratings_fetched_at),
+		last_fetched_at: latestCalibrationFetchedAt(indicators),
+	};
+}
+
 function calibrationStatsValues(
 	ticker: string,
 	indicators: Record<string, unknown>,
 ): SQLInputValue[] {
-	const missingFields = missingCalibrationScoreFields(indicators);
-	return [
-		ticker,
-		asText(indicators.name),
-		asText(indicators.sector_name),
-		asText(indicators.industry_name),
-		asText(indicators.quote_type),
-		asText(indicators.fx),
-		asNumber(indicators.price),
-		asNumber(indicators.change),
-		asNumber(indicators.change_percent_1d),
-		asNumber(indicators.market_cap),
-		asNumber(indicators.peg),
-		asNumber(indicators.pe),
-		asNumber(indicators.pe_forward),
-		asNumber(indicators.ps),
-		asNumber(indicators.ps_forward),
-		asNumber(indicators.debt_to_equity),
-		asNumber(indicators.free_cash_flow),
-		asNumber(indicators.shareholder_yield),
-		asNumber(indicators.revenue),
-		asNumber(indicators.revenue_growth),
-		asNumber(indicators.eps_growth),
-		asNumber(indicators.gross_margin),
-		asNumber(indicators.operating_margin),
-		asNumber(indicators.roe),
-		asNumber(indicators.roic),
-		asNumber(indicators.median_upside),
-		missingFields.length === 0 ? 1 : 0,
-		missingFields.join(","),
-		missingFields.length,
-		asText(indicators.market_data_fetched_at),
-		asText(indicators.market_snapshot_fetched_at),
-		asText(indicators.statistics_fetched_at),
-		asText(indicators.financials_fetched_at),
-		asText(indicators.ratings_fetched_at),
-		latestCalibrationFetchedAt(indicators),
-	];
+	const row = calibrationStatsRowFromIndicators(ticker, indicators);
+	return CALIBRATION_STATS_COLUMN_NAMES.map((column) => row[column] ?? null);
 }
 
 function runCalibrationStatsRowUpsert(
@@ -289,6 +244,28 @@ function openWritableCalibrationDatabase(dbPath: string): DatabaseSync {
 	database.exec("PRAGMA busy_timeout=250");
 	ensureCalibrationStatsTable(database);
 	return database;
+}
+
+async function syncEvaluationCalibrationRowsToStore(
+	rows: CalibrationStockRow[],
+	store: Pick<
+		BackendStore,
+		"loadCalibrationStats" | "upsertCalibrationStatsRows"
+	>,
+): Promise<number> {
+	const calibrationRows = rows.flatMap((row) => {
+		const ticker = normalizeTicker(row.ticker);
+		if (!ticker || row.indicators == null) {
+			return [];
+		}
+		return [calibrationStatsRowFromIndicators(ticker, row.indicators)];
+	});
+	if (calibrationRows.length === 0) {
+		return 0;
+	}
+	await store.upsertCalibrationStatsRows(calibrationRows);
+	setCalibrationStatsRows(await store.loadCalibrationStats());
+	return calibrationRows.length;
 }
 
 async function loadExistingCalibrationStock(
@@ -335,6 +312,9 @@ export async function syncEvaluationCalibrationRows(
 	rows: CalibrationStockRow[],
 	options: SyncEvaluationCalibrationOptions = {},
 ): Promise<number> {
+	if (options.store) {
+		return syncEvaluationCalibrationRowsToStore(rows, options.store);
+	}
 	const dbPath = path.resolve(options.dbPath ?? calibrationDbPath());
 	if (options.insertMissingRows !== true && !existsSync(dbPath)) {
 		return 0;

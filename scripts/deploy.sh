@@ -9,20 +9,18 @@ TARGET="preview"
 SCOPE="${VERCEL_SCOPE:-teron131s-projects}"
 ALIAS_HOST=""
 RUN_BUILD=1
-RUN_CONVEX=1
 
 usage() {
 	cat <<'EOF'
 Usage: scripts/deploy.sh [options]
 
-Deploy the stock-search app with Convex functions kept in sync.
+Deploy the stock-search app.
 
 Options:
   --preview           Deploy a preview build (default)
   --prod              Deploy a production build
   --alias <host>      Point a production alias at the new deployment
   --skip-build        Skip local pnpm build verification
-  --skip-convex       Skip convex function/schema deploy
   --scope <team>      Override Vercel scope/team slug
   -h, --help          Show this help
 EOF
@@ -48,10 +46,6 @@ while [[ $# -gt 0 ]]; do
 			;;
 		--skip-build)
 			RUN_BUILD=0
-			shift
-			;;
-		--skip-convex)
-			RUN_CONVEX=0
 			shift
 			;;
 		--scope)
@@ -82,11 +76,6 @@ fi
 if [[ "$RUN_BUILD" -eq 1 ]]; then
 	echo "==> Building app"
 	pnpm run build
-fi
-
-if [[ "$RUN_CONVEX" -eq 1 ]]; then
-	echo "==> Deploying Convex functions"
-	pnpm run convex:deploy
 fi
 
 echo "==> Deploying to Vercel ($TARGET)"

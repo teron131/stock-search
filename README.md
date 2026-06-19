@@ -47,7 +47,7 @@ Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `g
 
 For external portfolio reads, prefer MCP `get_portfolio` with no `scope` or REST `/portfolio?scope=portfolio_live`. The stored `/portfolio/stats` payload is a cache snapshot and can be stale.
 
-In local development with `DATA_STORE_BACKEND=convex`, successful Convex reads and writes mirror into the local SQLite store so the network fallback is a warm private cache instead of an unrelated old snapshot.
+With `DATA_STORE_BACKEND=d1`, reads and writes go directly to Cloudflare D1. Local SQLite is used only when `DATA_STORE_BACKEND=sqlite`.
 
 ## Runtime Shape
 
@@ -186,7 +186,7 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Keeps decision logic deterministic and independent from raw fetching.
 
 - **`src/stock-search/storage/`**
-  - Backend persistence contract, store factory, and local SQLite implementation.
+  - Backend persistence contract, store factory, D1 adapter, and local SQLite implementation.
   - Keeps API, MCP, portfolio, resolver, and scripts behind one storage boundary.
 
 - **`src/stock-search/api/`**
@@ -194,17 +194,13 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
   - Clean boundary between UI contract and internal data orchestration.
 
 - **`src/stock-search/models/`**
-  - Shared schemas, labels/constants, and Convex transport models.
+  - Shared schemas, labels/constants, and provider-facing model helpers.
   - One canonical model layer for API, evaluation, and provider/persistence adapters.
 
 - **`src/stock-search/policy.ts`**
   - Central `policy` facade for request workflows and stats-family refresh decisions.
   - Keeps implementation classes in `src/stock-search/policies/`, with callers using `policy.request` and `policy.stats`.
   - Keeps workflow decisions separate from runtime config, fetching, merging, and persistence code.
-
-- **`src/stock-search/models/convex/`**
-  - Convex adapter, store facade, and import tooling.
-  - Encapsulates cloud persistence details behind typed, app-level operations.
 
 ## Data Sources
 
@@ -230,16 +226,20 @@ Scores are deterministic and recomputed from current indicators. Valuation is in
 
 ## Storage
 
-`BackendStore` hides persistence behind one app-level interface. Non-Convex mode uses SQLite directly at `data/stock_search.db`. Convex mode uses Convex for writes; local development wraps Convex reads with SQLite fallback so the dashboard remains usable during remote read failures.
+`BackendStore` hides persistence behind one app-level interface. Local mode uses SQLite directly at `data/stock_search.db`. Cloud mode uses Cloudflare D1 through the D1 REST API.
 
-Current Convex function namespaces are intentionally singular to match the one-portfolio app model:
+Configure D1 with:
 
-- `portfolio:get`, `portfolio:set`
-- `stock:list`, `stock:get`, `stock:replaceAll`
-- `news:list`, `news:replaceAll`
-- `meta_versions:get`, `meta_versions:set`
+```bash
+DATA_STORE_BACKEND=d1
+D1_ACCOUNT_ID=...
+D1_DATABASE_ID=...
+D1_API_TOKEN=...
+```
 
-Local SQLite also stores the active stock indicator cache used by the family resolver and the local calibration DB used by evaluation anchors.
+The app creates the current D1 tables idempotently at startup.
+
+The same store also owns evaluation calibration rows in `calibration_stats`, so D1 and local SQLite use the same tables for scoring anchors.
 
 ## FastMCP
 
@@ -256,7 +256,7 @@ The MCP server currently exposes tools for:
 - portfolio reads and position updates
 - standalone stock stats
 - stored eval and stock maps
-- realtime config, raw-fast and analyzed-slow stock news, portfolio news bundles, persisted portfolio news summaries, and ticker evaluation
+- raw-fast and analyzed-slow stock news, portfolio news bundles, persisted portfolio news summaries, and ticker evaluation
 
 ## CLI
 

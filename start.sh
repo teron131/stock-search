@@ -20,6 +20,15 @@ port_pid() {
 	lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -n 1
 }
 
+find_open_port() {
+	local host="$1"
+	local port="$2"
+	while is_port_open "${host}" "${port}"; do
+		port=$((port + 1))
+	done
+	echo "${port}"
+}
+
 http_is_healthy() {
 	local url="$1"
 	curl --silent --show-error --max-time 3 --output /dev/null "$url"
@@ -83,7 +92,19 @@ else
 fi
 
 if is_port_open "${FRONTEND_HOST}" "${FRONTEND_PORT}"; then
-	echo "Frontend already running on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+	if http_is_healthy "http://${FRONTEND_HOST}:${FRONTEND_PORT}/"; then
+		echo "Frontend already running on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+	elif kill_listener_if_matches "${FRONTEND_PORT}" "next dev ui"; then
+		FRONTEND_HOST="${FRONTEND_HOST}" FRONTEND_PORT="${FRONTEND_PORT}" pnpm run ui:dev &
+		frontend_pid=$!
+	else
+		frontend_command="$(command_for_pid "$(port_pid "${FRONTEND_PORT}")")"
+		echo "Frontend port ${FRONTEND_PORT} is in use by another process: ${frontend_command}"
+		FRONTEND_PORT="$(find_open_port "${FRONTEND_HOST}" "$((FRONTEND_PORT + 1))")"
+		echo "Starting frontend on http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+		FRONTEND_HOST="${FRONTEND_HOST}" FRONTEND_PORT="${FRONTEND_PORT}" pnpm run ui:dev &
+		frontend_pid=$!
+	fi
 else
 	FRONTEND_HOST="${FRONTEND_HOST}" FRONTEND_PORT="${FRONTEND_PORT}" pnpm run ui:dev &
 	frontend_pid=$!

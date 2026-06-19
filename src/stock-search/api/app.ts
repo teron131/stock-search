@@ -1,4 +1,4 @@
-/** Main API app composition for the mirrored stock-search TypeScript backend. */
+/** Main API app composition for the stock-search TypeScript backend. */
 
 import { readFile } from "node:fs/promises";
 

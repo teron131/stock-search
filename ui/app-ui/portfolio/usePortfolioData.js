@@ -9,7 +9,6 @@ import {
 	LOADING_MODE_BACKGROUND,
 	LOADING_MODE_IDLE,
 	normalizeQuantityInput,
-	normalizeRealtimeTopics,
 	readPortfolioPayload,
 	tryFetchJson,
 } from "./api.js";
@@ -48,11 +47,6 @@ export function usePortfolioData() {
 
 	const syncInFlightRef = useRef(false);
 	const syncAbortControllerRef = useRef(null);
-	const syncActionRef = useRef(null);
-	const realtimeClientRef = useRef(null);
-	const realtimeUnsubscribersRef = useRef([]);
-	const realtimeRefreshTimeoutRef = useRef(null);
-	const realtimeEnabledRef = useRef(false);
 
 	const stats = useMemo(
 		() => calculatePortfolioSummary(rows, portfolioStats),
@@ -93,78 +87,6 @@ export function usePortfolioData() {
 			return false;
 		}
 		controller.abort();
-		return true;
-	}, []);
-
-	const stopRealtimeSync = useCallback(async () => {
-		if (realtimeRefreshTimeoutRef.current != null) {
-			clearTimeout(realtimeRefreshTimeoutRef.current);
-			realtimeRefreshTimeoutRef.current = null;
-		}
-		realtimeUnsubscribersRef.current.forEach((unsubscribe) => {
-			try {
-				unsubscribe();
-			} catch {
-				// no-op
-			}
-		});
-		realtimeUnsubscribersRef.current = [];
-		const client = realtimeClientRef.current;
-		realtimeClientRef.current = null;
-		realtimeEnabledRef.current = false;
-		if (client && typeof client.close === "function") {
-			try {
-				await client.close();
-			} catch {
-				// no-op
-			}
-		}
-	}, []);
-
-	const startRealtimeSync = useCallback(async () => {
-		if (CONFIG.isDemoMode || realtimeEnabledRef.current) return false;
-		const realtimeConfig = await tryFetchJson(CONFIG.endpoints.realtimeConfig);
-		const topics = normalizeRealtimeTopics(realtimeConfig?.topics);
-		if (
-			!realtimeConfig?.enabled ||
-			!realtimeConfig?.convex_url ||
-			topics.length === 0
-		) {
-			return false;
-		}
-
-		const convex = await import("convex/browser");
-		const { BaseConvexClient } = convex || {};
-		if (!BaseConvexClient) {
-			return false;
-		}
-
-		const triggerSync = () => {
-			if (syncInFlightRef.current) return;
-			if (realtimeRefreshTimeoutRef.current != null) {
-				clearTimeout(realtimeRefreshTimeoutRef.current);
-			}
-			realtimeRefreshTimeoutRef.current = setTimeout(() => {
-				const sync = syncActionRef.current;
-				if (typeof sync === "function") {
-					sync({
-						background: true,
-						silent: true,
-						scope: LIVE_PORTFOLIO_SCOPE,
-					});
-				}
-			}, 250);
-		};
-
-		const client = new BaseConvexClient(realtimeConfig.convex_url, triggerSync);
-		const subscriptions = topics.map(({ name, args }) =>
-			client.subscribe(name, args),
-		);
-		realtimeUnsubscribersRef.current = subscriptions.map(
-			({ unsubscribe }) => unsubscribe,
-		);
-		realtimeClientRef.current = client;
-		realtimeEnabledRef.current = true;
 		return true;
 	}, []);
 
@@ -232,14 +154,12 @@ export function usePortfolioData() {
 					signal: abortController.signal,
 				});
 				applyApiResult(apiResult);
-				await startRealtimeSync();
 				return { ok: true };
 			} catch (e) {
 				if (isAbortError(e)) {
 					setLastError(null);
 					return { ok: false, reason: "cancelled" };
 				}
-				await stopRealtimeSync();
 				if (!background) {
 					setLastError(e);
 				}
@@ -267,8 +187,6 @@ export function usePortfolioData() {
 			finishSync,
 			loadingMode,
 			rows.length,
-			startRealtimeSync,
-			stopRealtimeSync,
 		],
 	);
 
@@ -319,14 +237,11 @@ export function usePortfolioData() {
 		[load, loadCachedSnapshot, rows.length],
 	);
 
-	syncActionRef.current = sync;
-
 	useEffect(() => {
 		return () => {
 			cancelSync();
-			stopRealtimeSync();
 		};
-	}, [cancelSync, stopRealtimeSync]);
+	}, [cancelSync]);
 
 	const patchPortfolioPosition = useCallback(
 		async ({ ticker, quantity, strategy, silent = false }) => {
