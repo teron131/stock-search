@@ -16,7 +16,6 @@ import { createStandaloneTickerRouter } from "./routes/standalone-ticker.js";
 export type AppDependencies = {
 	store: BackendStore;
 	indexFile: string;
-	clock: () => Date;
 };
 
 async function serveIndex(indexFile: string): Promise<Response> {
@@ -42,9 +41,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	const deps: AppDependencies = {
 		store: overrides.store ?? createLazyStore(),
 		indexFile: overrides.indexFile ?? appConfig.indexFile,
-		clock: overrides.clock ?? (() => new Date()),
 	};
-	void deps.clock;
 
 	const app = new Hono();
 	app.use("*", authGuard);

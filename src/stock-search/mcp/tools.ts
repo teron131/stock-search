@@ -2,7 +2,6 @@
 
 import { readFile } from "node:fs/promises";
 
-import { toJsonSchema } from "xsschema";
 import { type ZodType, z } from "zod";
 
 import { buildColorStandardsPayload } from "../api/color-standards.js";
@@ -382,7 +381,7 @@ export async function listTools(): Promise<OpenApiTool[]> {
 				name: tool.name,
 				description: tool.description,
 				parameters: toolHasParameters(parameters)
-					? ((await toJsonSchema(parameters)) as Record<string, unknown>)
+					? (z.toJSONSchema(parameters) as Record<string, unknown>)
 					: undefined,
 			};
 		}),

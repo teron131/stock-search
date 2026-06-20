@@ -36,8 +36,8 @@
 		"preui:dev": "pnpm run sync-logo",
 		"ui:dev": "next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
 		"preui:build": "pnpm run sync-logo",
-		"ui:build": "next build ui && rm -rf ui/dist && cp -R ui/out ui/dist",
-		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/dist",
+		"ui:build": "next build ui",
+		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/out",
 		"build": "pnpm run ui:build && pnpm run server:typecheck"
 	},
 	"dependencies": {
@@ -63,7 +63,6 @@
 		"react": "^19.2.5",
 		"react-dom": "^19.2.5",
 		"turndown": "^7.2.4",
-		"xsschema": "0.4.4",
 		"zod": "^4.1.12"
 	},
 	"devDependencies": {

@@ -8,12 +8,17 @@ export type BackendName = "d1" | "sqlite";
 
 const repoRoot = process.cwd();
 const rawUiDir = path.join(repoRoot, "ui");
+const outUiDir = path.join(rawUiDir, "out");
 const distUiDir = path.join(rawUiDir, "dist");
 
 export function getUiDir(uiRoot = rawUiDir): string {
-	const distDir = path.join(uiRoot, "dist");
-	const distIndex = path.join(distDir, "index.html");
-	return existsSync(distIndex) ? distDir : uiRoot;
+	for (const buildDirName of ["out", "dist"]) {
+		const buildDir = path.join(uiRoot, buildDirName);
+		if (existsSync(path.join(buildDir, "index.html"))) {
+			return buildDir;
+		}
+	}
+	return uiRoot;
 }
 
 export function getIndexFile(uiRoot = rawUiDir): string {
@@ -36,6 +41,7 @@ function resolveBackend(value: string | undefined): BackendName {
 export const appConfig = {
 	repoRoot,
 	rawUiDir,
+	outUiDir,
 	distUiDir,
 	uiDir: getUiDir(rawUiDir),
 	indexFile: getIndexFile(rawUiDir),
