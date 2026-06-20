@@ -17,6 +17,7 @@ import {
 	dedupePreserveOrder,
 	emptyTimeSeriesFrame,
 	frameFromRows,
+	hasAnyFiniteTickerValue,
 	isFiniteNumber,
 	pairCounts,
 	rowsFromFrame,
@@ -411,11 +412,7 @@ export function buildBlendedMatrix(
 				sliceRowsToLookback(horizonFrame, lookback.years),
 				tickers,
 			);
-			if (
-				!rowsFromFrame(lookbackRows).some((row) =>
-					tickers.some((ticker) => isFiniteNumber(row.values.get(ticker))),
-				)
-			) {
+			if (!hasAnyFiniteTickerValue(lookbackRows, tickers)) {
 				continue;
 			}
 			const componentName = `${horizon.name}_${lookback.years}y`;

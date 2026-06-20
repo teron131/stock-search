@@ -55,48 +55,51 @@ export function dedupePreserveOrder(values: string[]): string[] {
 	return [...new Set(values)];
 }
 
+function valueColumns(frame: TimeSeriesFrame): string[] {
+	return frame.columns.filter((column) => column !== DATE_COLUMN);
+}
+
+function presentTickerColumns(
+	frame: TimeSeriesFrame,
+	tickers: string[],
+): string[] {
+	const columns = new Set(frame.columns);
+	return tickers.filter((ticker) => columns.has(ticker));
+}
+
+function anyFiniteValue(columns: string[]) {
+	return pl.anyHorizontal(columns.map((column) => pl.col(column).isFinite()));
+}
+
+export function hasAnyFiniteTickerValue(
+	frame: TimeSeriesFrame,
+	tickers: string[] = valueColumns(frame),
+): boolean {
+	const columns = presentTickerColumns(frame, tickers);
+	return columns.length > 0 && frame.filter(anyFiniteValue(columns)).height > 0;
+}
+
 export function selectTickerRows(
 	frame: TimeSeriesFrame,
 	tickers: string[],
 ): TimeSeriesFrame {
-	return frameFromRows(
-		rowsFromFrame(frame).map((row) => ({
-			date: row.date,
-			values: new Map(
-				tickers.flatMap((ticker) => {
-					const value = row.values.get(ticker);
-					return isFiniteNumber(value) ? [[ticker, value] as const] : [];
-				}),
-			),
-		})),
-	);
+	return frame.select(DATE_COLUMN, ...presentTickerColumns(frame, tickers));
 }
 
 export function pctChangeRows(frame: TimeSeriesFrame): TimeSeriesFrame {
-	const previous = new Map<string, number>();
-	const tickerColumns = frame.columns.filter(
-		(column) => column !== DATE_COLUMN,
-	);
-	const returns: TimeSeriesRow[] = [];
-	for (const row of rowsFromFrame(frame.sort(DATE_COLUMN))) {
-		const values = new Map<string, number>();
-		for (const ticker of tickerColumns) {
-			const current = row.values.get(ticker);
-			const prior = previous.get(ticker);
-			if (isFiniteNumber(prior) && prior !== 0 && isFiniteNumber(current)) {
-				values.set(ticker, current / prior - 1);
-			}
-			if (isFiniteNumber(current)) {
-				previous.set(ticker, current);
-			} else {
-				previous.delete(ticker);
-			}
-		}
-		if (values.size > 0) {
-			returns.push({ date: row.date, values });
-		}
+	const columns = valueColumns(frame);
+	if (columns.length === 0) {
+		return emptyTimeSeriesFrame();
 	}
-	return frameFromRows(returns);
+	return frame
+		.sort(DATE_COLUMN)
+		.select(
+			DATE_COLUMN,
+			...columns.map((column) =>
+				pl.col(column).div(pl.col(column).shift(1)).sub(1).alias(column),
+			),
+		)
+		.filter(anyFiniteValue(columns));
 }
 
 export function weekEndingFriday(date: Date): Date {
@@ -180,19 +183,17 @@ export function pairCounts(
 	const result = Array.from({ length: tickers.length }, () =>
 		Array(tickers.length).fill(0),
 	);
-	const rows = rowsFromFrame(frame);
+	const present = new Set(frame.columns);
 	for (let leftIndex = 0; leftIndex < tickers.length; leftIndex += 1) {
 		for (let rightIndex = 0; rightIndex < tickers.length; rightIndex += 1) {
-			let count = 0;
-			for (const row of rows) {
-				if (
-					isFiniteNumber(row.values.get(tickers[leftIndex])) &&
-					isFiniteNumber(row.values.get(tickers[rightIndex]))
-				) {
-					count += 1;
-				}
+			const left = tickers[leftIndex];
+			const right = tickers[rightIndex];
+			if (!present.has(left) || !present.has(right)) {
+				continue;
 			}
-			result[leftIndex][rightIndex] = count;
+			result[leftIndex][rightIndex] = frame.filter(
+				pl.col(left).isFinite().and(pl.col(right).isFinite()),
+			).height;
 		}
 	}
 	return result;
@@ -202,47 +203,33 @@ export function correlationValues(
 	frame: TimeSeriesFrame,
 	tickers: string[],
 ): number[][] {
-	const rows = rowsFromFrame(frame);
 	const result = Array.from({ length: tickers.length }, () =>
 		Array(tickers.length).fill(Number.NaN),
 	);
+	const present = new Set(frame.columns);
 	for (let leftIndex = 0; leftIndex < tickers.length; leftIndex += 1) {
 		for (
 			let rightIndex = leftIndex;
 			rightIndex < tickers.length;
 			rightIndex += 1
 		) {
-			const pairs = rows
-				.map((row) => [
-					row.values.get(tickers[leftIndex]),
-					row.values.get(tickers[rightIndex]),
-				])
-				.filter(
-					(pair): pair is [number, number] =>
-						isFiniteNumber(pair[0]) && isFiniteNumber(pair[1]),
-				);
-			if (pairs.length < 2) {
+			const left = tickers[leftIndex];
+			const right = tickers[rightIndex];
+			if (!present.has(left) || !present.has(right)) {
 				continue;
 			}
-			const leftMean =
-				pairs.reduce((sum, [left]) => sum + left, 0) / pairs.length;
-			const rightMean =
-				pairs.reduce((sum, [, right]) => sum + right, 0) / pairs.length;
-			let numerator = 0;
-			let leftVariance = 0;
-			let rightVariance = 0;
-			for (const [left, right] of pairs) {
-				const leftCentered = left - leftMean;
-				const rightCentered = right - rightMean;
-				numerator += leftCentered * rightCentered;
-				leftVariance += leftCentered ** 2;
-				rightVariance += rightCentered ** 2;
-			}
-			const denominator = Math.sqrt(leftVariance * rightVariance);
-			if (denominator <= 0) {
+			const valid = frame.filter(
+				pl.col(left).isFinite().and(pl.col(right).isFinite()),
+			);
+			if (valid.height < 2) {
 				continue;
 			}
-			const correlation = numerator / denominator;
+			const correlation = valid
+				.select(pl.pearsonCorr(left, right).alias("correlation"))
+				.toRecords()[0]?.correlation;
+			if (!isFiniteNumber(correlation)) {
+				continue;
+			}
 			result[leftIndex][rightIndex] = correlation;
 			result[rightIndex][leftIndex] = correlation;
 		}
