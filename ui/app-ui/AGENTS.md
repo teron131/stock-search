@@ -27,7 +27,7 @@ Primary files:
   - `/stock/{ticker}` for row patch refresh
   - `/color-standards`
 - Preserve two-stage sync behavior:
-  - foreground `priority`, optional background `portfolio_live` backfill.
+  - foreground `portfolio_cached`, optional background `portfolio_live` backfill.
 - Keep ETF behavior:
   - ETF-like rows should not display evaluation scores (`overall_score`, `quality_score`, `valuation_score`, `moat_score`, `upside_score`, etc.).
 - Keep static compatibility for both split and dashboard-style payloads.

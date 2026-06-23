@@ -37,7 +37,8 @@ Portfolio routes use `scope`; standalone ticker routes, CLI `stocks`, and MCP `g
 
 | Surface | Knob | Values | Contract |
 | --- | --- | --- | --- |
-| Portfolio | `scope` | `priority` | Default dashboard path. Refreshes the tickers that matter for the prioritized view. |
+| Portfolio | `scope` | `portfolio_cached` | Cache-only held-portfolio view for painting the dashboard before live refresh. |
+| Portfolio | `scope` | `priority` | Default REST scope. Repairs missing required fields for held rows without forcing a full live refresh. |
 | Portfolio | `scope` | `all_cached` | Cache-only all-universe view. Loads every stored stock without live refresh, and lets the browser reuse the response briefly. |
 | Portfolio | `scope` | `portfolio_live` | Refreshes held portfolio rows and stores portfolio stats. |
 | Portfolio | `scope` | `all` | Broad live-capable all-universe view. |

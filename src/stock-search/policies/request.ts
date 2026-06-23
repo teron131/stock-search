@@ -1,6 +1,7 @@
 /** Request-level policy tables for modes and portfolio orchestration. */
 
 export const PORTFOLIO_SCOPE_VALUES = [
+	"portfolio_cached",
 	"priority",
 	"all_cached",
 	"portfolio_live",
@@ -36,6 +37,15 @@ export const PORTFOLIO_SCOPE_POLICIES: Record<
 	PortfolioScope,
 	PortfolioScopePolicy
 > = {
+	portfolio_cached: {
+		universe: "portfolio",
+		statsMode: "cache",
+		refreshIntent: "none",
+		liveRefresh: false,
+		refreshLabels: false,
+		persistPortfolioStats: false,
+		browserCache: "private_short",
+	},
 	priority: {
 		universe: "portfolio",
 		statsMode: "auto",

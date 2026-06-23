@@ -92,7 +92,7 @@ export const CONFIG = {
 	portfolioNewsCacheTtlMs: 24 * 60 * 60 * 1000,
 
 	portfolioScopes: {
-		initial: "priority",
+		initial: "portfolio_cached",
 		live: "portfolio_live",
 	},
 
