@@ -1,5 +1,5 @@
 import app from "../src/stock-search/api/app.js";
-import { verifyStoreStartup } from "../src/stock-search/storage/index.js";
+import { verifyStoreStartup } from "../src/stock-search/storage/startup.js";
 
 void verifyStoreStartup().catch((error) => {
 	console.warn(

@@ -1,10 +1,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
+import type { BackendName } from "../storage/index.js";
 
 loadDotenv({ quiet: true });
-
-export type BackendName = "d1" | "sqlite";
 
 const repoRoot = process.cwd();
 const rawUiDir = path.join(repoRoot, "ui");

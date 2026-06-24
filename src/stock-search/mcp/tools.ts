@@ -28,7 +28,7 @@ import {
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "../portfolio/index.js";
-import { getStore } from "../storage/index.js";
+import { getStore } from "../storage/startup.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,

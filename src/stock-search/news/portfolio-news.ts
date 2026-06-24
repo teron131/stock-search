@@ -1,13 +1,19 @@
 /** Build, persist, and load shared portfolio news payloads. */
 
+import { z } from "zod";
+
 import type {
 	PortfolioNewsPayload,
+	PortfolioNewsSummaryRequestArticle,
+	PortfolioNewsSummaryRequestRow,
 	PortfolioNewsSummaryWrite,
 	PortfolioNewsWrite,
 	TickerNewsGroup,
 } from "../models/schemas.js";
 import {
 	PortfolioNewsPayloadSchema,
+	PortfolioNewsSummaryRequestArticleSchema,
+	PortfolioNewsSummaryRequestRowSchema,
 	PortfolioNewsSummaryWriteSchema,
 	PortfolioNewsWriteSchema,
 } from "../models/schemas.js";
@@ -22,6 +28,18 @@ const DEFAULT_PORTFOLIO_NEWS_KEY = "default";
 const DEFAULT_RAW_BUNDLE_DAYS = 2;
 const DEFAULT_RAW_BUNDLE_MAX_RESULTS = 8;
 const MAX_RAW_BUNDLE_TICKERS = 50;
+const ARTICLE_CATEGORIES = new Set([
+	"macro_economics",
+	"industry_news",
+	"market_news",
+	"company_news",
+	"earnings",
+	"analyst_rating",
+	"analysis",
+	"other",
+]);
+const ARTICLE_RELEVANCIES = new Set(["high", "medium", "low"]);
+const ARTICLE_SENTIMENTS = new Set(["bullish", "neutral", "bearish"]);
 
 export type PortfolioRawNewsBundle = {
 	generated_at: string;
@@ -36,6 +54,111 @@ type RawTickerNewsResult = {
 	warning?: string;
 };
 
+/** Return object records while rejecting primitives and null. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return typeof value === "object" && value !== null
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+/** Convert request values into nullable finite numbers. */
+function toNullableFiniteNumber(value: unknown): number | null {
+	const number = Number(value ?? Number.NaN);
+	return Number.isFinite(number) ? number : null;
+}
+
+/** Normalize camelCase and snake_case source ticker fields from clients. */
+function normalizeSourceTickers(record: Record<string, unknown>): string[] {
+	const sourceTickers =
+		record.source_tickers ??
+		record.sourceTickers ??
+		(typeof record.sourceTicker === "string" ? [record.sourceTicker] : []);
+
+	return Array.isArray(sourceTickers)
+		? sourceTickers.map((value) => String(value))
+		: [];
+}
+
+/** Normalize one portfolio row before summary request schema validation. */
+function normalizePortfolioNewsSummaryRow(value: unknown): unknown {
+	const record = asRecord(value);
+	if (!record) {
+		return value;
+	}
+	return {
+		ticker: String(record.ticker ?? ""),
+		quantity: toNullableFiniteNumber(record.quantity),
+		total: toNullableFiniteNumber(record.total),
+		weight_pct: toNullableFiniteNumber(record.weight_pct),
+	};
+}
+
+/** Normalize one article before summary request schema validation. */
+function normalizePortfolioNewsSummaryArticle(value: unknown): unknown {
+	const record = asRecord(value);
+	if (!record) {
+		return value;
+	}
+
+	const relevancy =
+		typeof record.relevancy === "string" &&
+		ARTICLE_RELEVANCIES.has(record.relevancy)
+			? record.relevancy
+			: "low";
+	const category =
+		typeof record.category === "string" &&
+		ARTICLE_CATEGORIES.has(record.category)
+			? record.category
+			: "other";
+	const sentiment =
+		typeof record.sentiment === "string" &&
+		ARTICLE_SENTIMENTS.has(record.sentiment)
+			? record.sentiment
+			: "neutral";
+
+	return {
+		title: typeof record.title === "string" ? record.title : null,
+		summary: String(record.summary ?? ""),
+		relevancy,
+		category,
+		sentiment,
+		source_tickers: normalizeSourceTickers(record),
+	};
+}
+
+const PortfolioNewsSummaryPayloadSchema = z
+	.object({
+		rows: z
+			.array(
+				z.preprocess(
+					normalizePortfolioNewsSummaryRow,
+					PortfolioNewsSummaryRequestRowSchema,
+				),
+			)
+			.default([]),
+		items: z
+			.array(
+				z.preprocess(
+					normalizePortfolioNewsSummaryArticle,
+					PortfolioNewsSummaryRequestArticleSchema,
+				),
+			)
+			.default([]),
+	})
+	.catch({
+		rows: [],
+		items: [],
+	});
+
+/** Parse a portfolio news summary request payload from UI or external callers. */
+export function parsePortfolioNewsSummaryPayload(input: unknown): {
+	rows: PortfolioNewsSummaryRequestRow[];
+	items: PortfolioNewsSummaryRequestArticle[];
+} {
+	return PortfolioNewsSummaryPayloadSchema.parse(input);
+}
+
+/** Load the persisted portfolio news payload for one storage key. */
 export async function loadPortfolioNews(
 	store: BackendStore,
 	key = DEFAULT_PORTFOLIO_NEWS_KEY,
@@ -56,6 +179,7 @@ export async function loadPortfolioNews(
 	return parsedPortfolioNews.success ? parsedPortfolioNews.data : null;
 }
 
+/** Save a full externally produced portfolio news payload. */
 export async function savePortfolioNews(
 	store: BackendStore,
 	input: unknown,
@@ -73,6 +197,7 @@ export async function savePortfolioNews(
 	return portfolioNews;
 }
 
+/** Load only the persisted portfolio news summary for one storage key. */
 export async function loadPortfolioNewsSummary(
 	store: BackendStore,
 	key = DEFAULT_PORTFOLIO_NEWS_KEY,
@@ -81,6 +206,7 @@ export async function loadPortfolioNewsSummary(
 	return portfolioNews?.summary ?? null;
 }
 
+/** Save an externally produced portfolio news summary onto the existing payload. */
 export async function savePortfolioNewsSummary(
 	store: BackendStore,
 	input: unknown,
@@ -97,6 +223,7 @@ export async function savePortfolioNewsSummary(
 	return portfolioNews;
 }
 
+/** Fetch a raw news bundle for the bounded set of portfolio tickers. */
 export async function buildPortfolioRawNewsBundle({
 	tickers,
 	nDays = DEFAULT_RAW_BUNDLE_DAYS,
@@ -136,21 +263,25 @@ export async function buildPortfolioRawNewsBundle({
 	};
 }
 
+/** Normalize caller-provided portfolio news keys to the default storage key shape. */
 function normalizePortfolioNewsKey(key: string | undefined): string {
 	const trimmedKey = String(key || DEFAULT_PORTFOLIO_NEWS_KEY).trim();
 	return trimmedKey || DEFAULT_PORTFOLIO_NEWS_KEY;
 }
 
+/** Build the concrete backend cache key for one portfolio news payload. */
 function portfolioNewsStorageKey(key: string): string {
 	return `${PORTFOLIO_NEWS_STORAGE_KEY_PREFIX}:${normalizePortfolioNewsKey(key)}`;
 }
 
+/** Normalize and cap ticker lists before fetching portfolio news bundles. */
 function normalizeTickerList(tickers: string[]): string[] {
 	return Array.from(
 		new Set(tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean)),
 	).slice(0, MAX_RAW_BUNDLE_TICKERS);
 }
 
+/** Convert a portfolio news payload into the generic cached news row shape. */
 function portfolioNewsToRow(
 	portfolioNews: PortfolioNewsPayload,
 ): CachedNewsRow {
@@ -163,6 +294,7 @@ function portfolioNewsToRow(
 	};
 }
 
+/** Normalize a full portfolio news write payload into the persisted schema. */
 function normalizePortfolioNewsForStorage(
 	writePayload: PortfolioNewsWrite,
 	currentPortfolioNews: PortfolioNewsPayload | null,
@@ -191,6 +323,7 @@ function normalizePortfolioNewsForStorage(
 	return portfolioNews;
 }
 
+/** Normalize a summary write while preserving the current full news payload fields. */
 async function normalizePortfolioNewsSummaryForStorage(
 	store: BackendStore,
 	input: PortfolioNewsSummaryWrite,
@@ -218,6 +351,7 @@ async function normalizePortfolioNewsSummaryForStorage(
 	});
 }
 
+/** Choose the portfolio news as-of date from explicit dates before falling back to today. */
 function portfolioNewsAsOfDate(payload: PortfolioNewsWrite): string {
 	if (payload.as_of_date) {
 		return payload.as_of_date;
@@ -228,6 +362,7 @@ function portfolioNewsAsOfDate(payload: PortfolioNewsWrite): string {
 	return new Date().toISOString().slice(0, 10);
 }
 
+/** Fetch raw news for one ticker and turn provider failures into bundle warnings. */
 async function buildRawTickerNewsResult({
 	ticker,
 	generatedAt,

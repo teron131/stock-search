@@ -4,12 +4,14 @@ import { readFile } from "node:fs/promises";
 
 import { Hono } from "hono";
 import { getSectorSnapshot } from "../data-sources/stockanalysis/index.js";
-import { type BackendStore, createLazyStore } from "../storage/index.js";
+import type { BackendStore } from "../storage/index.js";
+import { createLazyStore } from "../storage/startup.js";
 import { authGuard } from "./auth.js";
 import { appConfig } from "./config.js";
 import { APP_PAGE_PATHS, SECTORS } from "./route-paths.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createMiscRouter } from "./routes/misc.js";
+import { createNewsRouter } from "./routes/news.js";
 import { createPortfolioRouter } from "./routes/portfolio.js";
 import { createStandaloneTickerRouter } from "./routes/standalone-ticker.js";
 
@@ -62,6 +64,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	app.route("/", createAuthRouter());
 	app.route("/", createPortfolioRouter(deps.store));
 	app.route("/", createStandaloneTickerRouter(deps.store));
+	app.route("/", createNewsRouter(deps.store));
 	app.route("/", createMiscRouter(deps.store));
 
 	app.notFound((c) => c.json({ detail: "Not found" }, 404));
