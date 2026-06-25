@@ -13,7 +13,7 @@ type CliCommand = {
 
 type NewsCliMode = "raw-fast" | "analyzed-slow";
 
-export const CLI_COMMANDS: readonly CliCommand[] = [
+const CLI_COMMANDS: readonly CliCommand[] = [
 	{
 		command: "stocks",
 		usage: `stocks TICKER... [--source ${policy.request.tickerSourceValues.join("|")}] [--pretty]`,
@@ -136,11 +136,6 @@ function parseArgumentValue(
 		return jsonArgument(value);
 	}
 	return value;
-}
-
-export function resolveCliToolName(command: string): string | undefined {
-	const cliCommand = CLI_COMMANDS.find((item) => item.command === command);
-	return cliCommand?.toolName;
 }
 
 function printCommandList(): void {
@@ -357,7 +352,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 		return;
 	}
 
-	const { mcp } = await import("./mcp/index.js");
+	const { mcp } = await import("./mcp/server.js");
 
 	if (command === "stocks") {
 		const { pretty, tickers, source } = parseStocksArguments(rest);
@@ -410,7 +405,9 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 	}
 
 	const tools = await mcp.listTools();
-	const toolName = resolveCliToolName(command);
+	const toolName = CLI_COMMANDS.find(
+		(item) => item.command === command,
+	)?.toolName;
 	const tool = toolName
 		? tools.find((candidate) => candidate.name === toolName)
 		: undefined;
