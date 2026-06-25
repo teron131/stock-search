@@ -1,73 +1,42 @@
+/** Coordinate React state for the portfolio news feed and summary panel. */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONFIG } from "../config.js";
+import { normalizePortfolioNewsSummaryPayload } from "../dataContract.js";
 import {
-	normalizeDemoNewsPayload,
-	normalizePortfolioNewsPayload,
-	normalizePortfolioNewsSummaryPayload,
-	normalizeTickerNewsPayload,
-} from "../dataContract.js";
-import {
-	buildCacheSnapshot,
-	isCacheFresh,
 	isPortfolioNewsSummaryFresh,
 	readPortfolioNewsSummaryCache,
 	writePortfolioNewsSummaryCache,
-	writeTickerNewsCache,
 } from "./cache.js";
 import {
 	buildPortfolioNewsSummaryRequestPayload,
 	filterNewsItems,
 	getHeldTickers,
-	mapWithConcurrency,
-	mergeNewsItems,
 	mergePortfolioNewsSummaryWithFallback,
 	preserveVisiblePortfolioNewsSummary,
-	pruneRetainedNewsItems,
 	sortNewsItems,
 } from "./dataModel.js";
+import {
+	loadFreshNewsFeed,
+	loadSharedNewsFeed,
+	planNewsFeedLoad,
+} from "./feed.js";
 import { buildPortfolioNewsSummary } from "./summary.js";
 
 const LOADING_MODE_IDLE = "idle";
 const LOADING_MODE_FOREGROUND = "foreground";
 const LOADING_MODE_BACKGROUND = "background";
+const INITIAL_FEED_STATE = {
+	allItems: [],
+	generatedAt: null,
+	failedTickers: [],
+	isUsingDemoData: false,
+	isUsingSharedNews: false,
+	lastError: null,
+	loadingMode: LOADING_MODE_IDLE,
+};
 
-async function fetchJsonWithTimeout(url, timeoutMs) {
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		const response = await fetch(url, {
-			signal: controller.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Request failed: ${response.status}`);
-		}
-		return await response.json();
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
-
-async function postJsonWithTimeout(url, payload, timeoutMs) {
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		const response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(payload),
-			signal: controller.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`Request failed: ${response.status}`);
-		}
-		return await response.json();
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
-
+/** Build a stable key for portfolio news summary requests and failures. */
 function buildPortfolioNewsSummaryRequestKey({ heldTickerKey, allItems }) {
 	return JSON.stringify({
 		heldTickerKey,
@@ -83,23 +52,70 @@ function buildPortfolioNewsSummaryRequestKey({ heldTickerKey, allItems }) {
 	});
 }
 
+/** Request and cache a live portfolio summary merged with the local fallback summary. */
+async function requestPortfolioNewsSummary({
+	allItems,
+	fallbackPortfolioNewsSummary,
+	heldTickerKey,
+	rows,
+}) {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(
+		() => controller.abort(),
+		CONFIG.requestTimeoutMs.news,
+	);
+	let responsePayload;
+	try {
+		const response = await fetch(CONFIG.endpoints.portfolioNewsSummarize, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(
+				buildPortfolioNewsSummaryRequestPayload(rows, allItems),
+			),
+			signal: controller.signal,
+		});
+		if (!response.ok) {
+			throw new Error(`Request failed: ${response.status}`);
+		}
+		responsePayload = await response.json();
+	} finally {
+		clearTimeout(timeoutId);
+	}
+	const portfolioNewsSummary = mergePortfolioNewsSummaryWithFallback(
+		normalizePortfolioNewsSummaryPayload(responsePayload),
+		fallbackPortfolioNewsSummary,
+	);
+	writePortfolioNewsSummaryCache(
+		heldTickerKey,
+		portfolioNewsSummary,
+		new Date().toISOString(),
+	);
+	return portfolioNewsSummary;
+}
+
+/** Return portfolio news state, filters, refresh controls, and summary data for the UI. */
 export function useNewsData({
 	rows,
 	enabled,
 	portfolioLoading = false,
 	preferDemoData = false,
 }) {
-	const [allItems, setAllItems] = useState([]);
+	const [feedState, setFeedState] = useState(INITIAL_FEED_STATE);
 	const [tickerFilter, setTickerFilter] = useState("ALL");
 	const [relevanceFilter, setRelevanceFilter] = useState("all");
-	const [generatedAt, setGeneratedAt] = useState(null);
-	const [failedTickers, setFailedTickers] = useState([]);
-	const [isUsingDemoData, setIsUsingDemoData] = useState(false);
-	const [isUsingSharedNews, setIsUsingSharedNews] = useState(false);
-	const [lastError, setLastError] = useState(null);
-	const [loadingMode, setLoadingMode] = useState(LOADING_MODE_IDLE);
 	const [portfolioNewsSummaryResult, setPortfolioNewsSummaryResult] =
 		useState(null);
+	const {
+		allItems,
+		generatedAt,
+		failedTickers,
+		isUsingDemoData,
+		isUsingSharedNews,
+		lastError,
+		loadingMode,
+	} = feedState;
 
 	const loadInFlightRef = useRef(false);
 	const portfolioNewsSummaryRequestRef = useRef(0);
@@ -116,14 +132,8 @@ export function useNewsData({
 	}, [allItems]);
 
 	const resetFeed = useCallback(() => {
-		setAllItems([]);
-		setGeneratedAt(null);
-		setFailedTickers([]);
-		setLastError(null);
-		setIsUsingDemoData(false);
-		setIsUsingSharedNews(false);
+		setFeedState(INITIAL_FEED_STATE);
 		portfolioNewsSummaryFailureKeyRef.current = null;
-		setLoadingMode(LOADING_MODE_IDLE);
 	}, []);
 
 	const applyNewsResult = useCallback(
@@ -131,127 +141,20 @@ export function useNewsData({
 			newsResult,
 			{ demo = false, shared = false, partialError = false } = {},
 		) => {
-			setAllItems(newsResult.items);
-			setGeneratedAt(newsResult.generatedAt);
-			setFailedTickers(newsResult.failedTickers || []);
-			setIsUsingDemoData(demo);
-			setIsUsingSharedNews(shared);
-			setLastError(
-				partialError && (newsResult.failedTickers || []).length > 0
-					? new Error("Partial news coverage")
-					: null,
-			);
+			setFeedState((currentFeedState) => ({
+				...currentFeedState,
+				allItems: newsResult.items,
+				generatedAt: newsResult.generatedAt,
+				failedTickers: newsResult.failedTickers || [],
+				isUsingDemoData: demo,
+				isUsingSharedNews: shared,
+				lastError:
+					partialError && (newsResult.failedTickers || []).length > 0
+						? new Error("Partial news coverage")
+						: null,
+			}));
 		},
 		[],
-	);
-
-	const loadDemoNews = useCallback(async () => {
-		const payload = await fetchJsonWithTimeout(
-			CONFIG.demoEndpoints.news,
-			CONFIG.requestTimeoutMs.news,
-		);
-		const normalizedPayload = normalizeDemoNewsPayload(payload);
-		if (!normalizedPayload) {
-			throw new Error("Invalid demo news payload");
-		}
-
-		return {
-			items: mergeNewsItems(
-				heldTickers.flatMap(
-					(ticker) => normalizedPayload.items_by_ticker[ticker] || [],
-				),
-			),
-			generatedAt:
-				normalizedPayload.meta.generated_at || new Date().toISOString(),
-			failedTickers: [],
-		};
-	}, [heldTickers]);
-
-	const loadSharedNews = useCallback(async () => {
-		const payload = await fetchJsonWithTimeout(
-			CONFIG.endpoints.portfolioNews,
-			CONFIG.requestTimeoutMs.news,
-		);
-		const normalizedPayload = normalizePortfolioNewsPayload(payload);
-		if (!normalizedPayload) {
-			return null;
-		}
-
-		const snapshotTickers = new Set(normalizedPayload.tickers);
-		if (!heldTickers.every((ticker) => snapshotTickers.has(ticker))) {
-			return null;
-		}
-
-		const heldTickerSet = new Set(heldTickers);
-		return {
-			...normalizedPayload,
-			items: normalizedPayload.items.filter((item) =>
-				(item.sourceTickers || []).some((ticker) => heldTickerSet.has(ticker)),
-			),
-		};
-	}, [heldTickers]);
-
-	const loadLiveNews = useCallback(
-		async ({ force = false, staleTickers = [] } = {}) => {
-			const cacheSnapshot = buildCacheSnapshot(heldTickers);
-			const tickersToFetch = force ? heldTickers : staleTickers;
-
-			if (tickersToFetch.length === 0) {
-				return {
-					items: cacheSnapshot.items,
-					generatedAt: cacheSnapshot.generatedAt,
-					failedTickers: [],
-					cacheSnapshot,
-				};
-			}
-
-			const fetchedAt = new Date().toISOString();
-			const results = await mapWithConcurrency(
-				tickersToFetch,
-				CONFIG.newsConcurrency,
-				async (ticker) => {
-					try {
-						const payload = await fetchJsonWithTimeout(
-							CONFIG.endpoints.stockNews(ticker),
-							CONFIG.requestTimeoutMs.news,
-						);
-						const items = pruneRetainedNewsItems(
-							normalizeTickerNewsPayload(payload, ticker),
-						);
-						writeTickerNewsCache(ticker, items, fetchedAt);
-						return { ticker, ok: true, items, fetchedAt };
-					} catch (error) {
-						return { ticker, ok: false, error };
-					}
-				},
-			);
-
-			const nextTickerItems = new Map(
-				cacheSnapshot.cacheEntries.map((entry) => [entry.ticker, entry.items]),
-			);
-			results
-				.filter((result) => result.ok)
-				.forEach((result) => {
-					nextTickerItems.set(result.ticker, result.items || []);
-				});
-
-			const failedTickers = results
-				.filter((result) => !result.ok)
-				.map((result) => result.ticker);
-
-			return {
-				items: mergeNewsItems(
-					Array.from(nextTickerItems.values()).flatMap((items) => items || []),
-				),
-				generatedAt:
-					results.find((result) => result.ok)?.fetchedAt ||
-					cacheSnapshot.generatedAt ||
-					null,
-				failedTickers,
-				cacheSnapshot,
-			};
-		},
-		[heldTickers],
 	);
 
 	const load = useCallback(
@@ -265,99 +168,75 @@ export function useNewsData({
 			}
 
 			loadInFlightRef.current = true;
-			const cacheSnapshot = preferDemoData
-				? null
-				: buildCacheSnapshot(heldTickers);
-
-			if (!preferDemoData && !force) {
-				const sharedNews = await loadSharedNews().catch(() => null);
-				if (sharedNews) {
-					applyNewsResult(sharedNews, { shared: true });
-					if (sharedNews.portfolioNewsSummary) {
-						setPortfolioNewsSummaryResult(sharedNews.portfolioNewsSummary);
-					}
-					loadInFlightRef.current = false;
-					setLoadingMode(LOADING_MODE_IDLE);
-					return;
-				}
-			}
-
-			const hasCachedItems = Boolean(cacheSnapshot?.items.length);
-			const staleTickers = preferDemoData
-				? []
-				: heldTickers.filter((ticker) => {
-						const cacheEntry = cacheSnapshot?.cacheEntryMap.get(ticker);
-						return !cacheEntry || !isCacheFresh(cacheEntry.fetchedAt);
-					});
-			const shouldFetchLive =
-				!preferDemoData && (force || staleTickers.length > 0);
-			const shouldHydrateFromCache =
-				hasCachedItems &&
-				(!background || allItemsRef.current.length === 0 || Boolean(force));
-			if (shouldHydrateFromCache) {
-				applyNewsResult({
-					items: cacheSnapshot.items,
-					generatedAt: cacheSnapshot.generatedAt,
-					failedTickers: [],
-				});
-			}
-			if (!preferDemoData && !shouldFetchLive) {
-				loadInFlightRef.current = false;
-				setLoadingMode(LOADING_MODE_IDLE);
-				return;
-			}
-			setLoadingMode(
-				background || allItemsRef.current.length > 0 || hasCachedItems
-					? LOADING_MODE_BACKGROUND
-					: LOADING_MODE_FOREGROUND,
-			);
-
 			try {
-				const newsResult = preferDemoData
-					? await loadDemoNews()
-					: await loadLiveNews({ force, staleTickers });
-				applyNewsResult(newsResult, {
-					demo: Boolean(preferDemoData),
-					partialError: true,
-				});
-			} catch (error) {
-				if (hasCachedItems) {
-					setFailedTickers(heldTickers);
-					setIsUsingSharedNews(false);
-					setLastError(new Error("Using cached news"));
-					return;
-				}
-
-				if (!preferDemoData) {
-					try {
-						const demoResult = await loadDemoNews();
-						applyNewsResult(demoResult, { demo: true });
+				if (!preferDemoData && !force) {
+					const sharedNews = await loadSharedNewsFeed(heldTickers).catch(
+						() => null,
+					);
+					if (sharedNews) {
+						applyNewsResult(sharedNews, { shared: true });
+						if (sharedNews.portfolioNewsSummary) {
+							setPortfolioNewsSummaryResult(sharedNews.portfolioNewsSummary);
+						}
 						return;
-					} catch {
-						// Keep the original live failure below.
 					}
 				}
 
-				setAllItems([]);
-				setGeneratedAt(null);
-				setFailedTickers([]);
-				setIsUsingDemoData(false);
-				setIsUsingSharedNews(false);
-				setLastError(error);
+				const feedPlan = planNewsFeedLoad({
+					background,
+					force,
+					heldTickers,
+					preferDemoData,
+					visibleItemCount: allItemsRef.current.length,
+				});
+				if (feedPlan.cachedResult) {
+					applyNewsResult(feedPlan.cachedResult);
+				}
+				if (!feedPlan.shouldFetchFresh) {
+					return;
+				}
+				setFeedState((currentFeedState) => ({
+					...currentFeedState,
+					loadingMode: feedPlan.shouldLoadInBackground
+						? LOADING_MODE_BACKGROUND
+						: LOADING_MODE_FOREGROUND,
+				}));
+
+				const freshNews = await loadFreshNewsFeed({
+					force,
+					hasCachedItems: feedPlan.hasCachedItems,
+					heldTickers,
+					preferDemoData,
+					staleTickers: feedPlan.staleTickers,
+				});
+				if (freshNews.kind === "result") {
+					applyNewsResult(freshNews.newsResult, freshNews.options);
+				} else if (freshNews.kind === "cached-error") {
+					setFeedState((currentFeedState) => ({
+						...currentFeedState,
+						failedTickers: freshNews.failedTickers,
+						isUsingSharedNews: false,
+						lastError: freshNews.error,
+					}));
+				} else {
+					setFeedState({
+						...INITIAL_FEED_STATE,
+						lastError: freshNews.error,
+					});
+				}
 			} finally {
 				loadInFlightRef.current = false;
-				setLoadingMode(LOADING_MODE_IDLE);
+				setFeedState((currentFeedState) =>
+					currentFeedState.loadingMode === LOADING_MODE_IDLE
+						? currentFeedState
+						: {
+								...currentFeedState,
+								loadingMode: LOADING_MODE_IDLE,
+							},
+				);
 			}
 		},
-		[
-			applyNewsResult,
-			heldTickers,
-			loadDemoNews,
-			loadLiveNews,
-			loadSharedNews,
-			preferDemoData,
-			resetFeed,
-		],
+		[applyNewsResult, heldTickers, preferDemoData, resetFeed],
 	);
 
 	useEffect(() => {
@@ -437,7 +316,7 @@ export function useNewsData({
 				currentPortfolioNewsSummary,
 			),
 		);
-		const payload = buildPortfolioNewsSummaryRequestPayload(rows, allItems);
+
 		const requestKey = buildPortfolioNewsSummaryRequestKey({
 			heldTickerKey,
 			allItems,
@@ -448,25 +327,17 @@ export function useNewsData({
 
 		(async () => {
 			try {
-				const response = await postJsonWithTimeout(
-					CONFIG.endpoints.portfolioNewsSummarize,
-					payload,
-					CONFIG.requestTimeoutMs.news,
-				);
+				const normalizedPortfolioNewsSummary =
+					await requestPortfolioNewsSummary({
+						allItems,
+						fallbackPortfolioNewsSummary,
+						heldTickerKey,
+						rows,
+					});
 				if (portfolioNewsSummaryRequestRef.current !== requestId) {
 					return;
 				}
-				const normalizedPortfolioNewsSummary =
-					mergePortfolioNewsSummaryWithFallback(
-						normalizePortfolioNewsSummaryPayload(response),
-						fallbackPortfolioNewsSummary,
-					);
 				portfolioNewsSummaryFailureKeyRef.current = null;
-				writePortfolioNewsSummaryCache(
-					heldTickerKey,
-					normalizedPortfolioNewsSummary,
-					new Date().toISOString(),
-				);
 				setPortfolioNewsSummaryResult((currentPortfolioNewsSummary) =>
 					preserveVisiblePortfolioNewsSummary(
 						normalizedPortfolioNewsSummary,
