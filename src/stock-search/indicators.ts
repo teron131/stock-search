@@ -1,8 +1,5 @@
-/** Compatibility wrappers over the dedicated backend data-source adapters. */
+/** Merge live indicator snapshots from backend data-source adapters. */
 
-import { FinvizSource } from "./data-sources/finviz/index.js";
-import { StockAnalysisSource } from "./data-sources/stockanalysis/index.js";
-import { YahooFinanceSource } from "./data-sources/yahoo-finance.js";
 import {
 	applySourcePegFallback,
 	PEG_SOURCE_FINVIZ,
@@ -12,6 +9,7 @@ import {
 	mergeStockAnalysisSnapshots,
 	normalizeMonetaryFields,
 } from "./stats-resolver/monetary-fields.js";
+import { ProviderBundle } from "./stats-resolver/provider-bundle.js";
 import {
 	mergeSourceFields,
 	SAME_DEFINITION_BLEND_FIELDS,
@@ -99,41 +97,6 @@ const LIVE_FIELD_POLICIES = sourceFieldPolicies(
 	},
 );
 
-/** Fetch indicator-shaped Yahoo fields for one ticker. */
-export async function fetchYahooIndicators(
-	ticker: string,
-): Promise<Record<string, unknown>> {
-	return new YahooFinanceSource(ticker).getIndicatorsSnapshot();
-}
-
-/** Fetch Yahoo search metadata fields for one ticker. */
-export async function fetchYahooSymbolMetadata(
-	ticker: string,
-): Promise<Record<string, unknown>> {
-	return new YahooFinanceSource(ticker).getSymbolMetadataSnapshot();
-}
-
-/** Fetch StockAnalysis statistics fields for one ticker. */
-export async function fetchStockAnalysisStatistics(
-	ticker: string,
-): Promise<Record<string, unknown>> {
-	return new StockAnalysisSource(ticker).getStatisticsSnapshot();
-}
-
-/** Fetch Finviz statistics fields for one ticker through the throttled queue. */
-export async function fetchFinvizStatistics(
-	ticker: string,
-): Promise<Record<string, unknown>> {
-	return new FinvizSource(ticker).getStatisticsSnapshot();
-}
-
-/** Fetch StockAnalysis financial fields for one ticker. */
-export async function fetchStockAnalysisFinancials(
-	ticker: string,
-): Promise<Record<string, unknown>> {
-	return new StockAnalysisSource(ticker).getFinancialsSnapshot();
-}
-
 /** Fetch the merged live indicator payload used by the public API layer. */
 export async function fetchLiveIndicators(
 	tickerInput: string,
@@ -144,18 +107,19 @@ export async function fetchLiveIndicators(
 		throw new Error("Invalid ticker");
 	}
 
+	const bundle = new ProviderBundle(ticker);
 	const [
 		yahooFields,
-		stockAnalysisStatistics,
-		finvizStatistics,
-		stockAnalysisFinancials,
 		yahooSymbolMetadata,
+		stockAnalysisStatistics,
+		stockAnalysisFinancials,
+		finvizStatistics,
 	] = await Promise.all([
-		fetchYahooIndicators(ticker),
-		fetchStockAnalysisStatistics(ticker),
-		fetchFinvizStatistics(ticker).catch((): Record<string, unknown> => ({})),
-		fetchStockAnalysisFinancials(ticker),
-		fetchYahooSymbolMetadata(ticker),
+		bundle.getYahooIndicators(),
+		bundle.getYahooMetadata(),
+		bundle.getStockAnalysisStatistics(),
+		bundle.getStockAnalysisFinancials(),
+		bundle.getFinvizStatistics(),
 	]);
 
 	const yahooPayload = {

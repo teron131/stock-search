@@ -1,7 +1,7 @@
 /** Mutate portfolio positions and clean up removed ticker data. */
 
 import { safeFloat } from "../common-utils.js";
-import { fetchYahooIndicators } from "../indicators.js";
+import { YahooFinanceSource } from "../data-sources/yahoo-finance.js";
 import type { BackendStore, PositionRow } from "../storage/index.js";
 import { normalizeTicker } from "../utils.js";
 import {
@@ -40,7 +40,9 @@ async function savePortfolioPositionsAndForgetRemoved(
 }
 
 async function ensureValidNewTicker(ticker: string): Promise<void> {
-	const indicators = await fetchYahooIndicators(ticker);
+	const indicators = await new YahooFinanceSource(
+		ticker,
+	).getIndicatorsSnapshot();
 	if (safeFloat(indicators.price) == null) {
 		throw new Error(`Invalid ticker: ${ticker}`);
 	}

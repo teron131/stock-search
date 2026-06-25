@@ -30,7 +30,11 @@ import {
 	type SourceFieldPolicy,
 	sourceFieldPolicies,
 } from "./source-merge.js";
-import type { FamilyResolution, StatsResolutionMode } from "./types.js";
+import type {
+	FamilyCacheEntry,
+	FamilyResolution,
+	StatsResolutionMode,
+} from "./types.js";
 
 const runningRefreshes = new Set<string>();
 const STATISTICS_PROVIDER_POLICIES = sourceFieldPolicies(
@@ -50,6 +54,11 @@ const FINANCIALS_PROVIDER_POLICIES = sourceFieldPolicies({
 	mode: "mean",
 	sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
 });
+
+type PersistedFamilyRefresh = {
+	mergedFamilyRow: Record<string, unknown>;
+	mergedIndicators: Record<string, unknown>;
+};
 
 function mergeStockAnalysisFinvizFields(
 	stockAnalysis: Record<string, unknown>,
@@ -82,50 +91,64 @@ async function refreshFamilyRow(
 		return familyRow({ ...yahoo, ...metadata }, family);
 	}
 	if (family === "statistics") {
-		const [statistics, finviz, yahoo] = await Promise.all([
-			bundle.getStatistics(),
-			bundle.getFinvizStatistics(),
-			bundle.getYahooIndicators(),
-		]);
+		const [yahoo, stockAnalysisStatistics, finvizStatistics] =
+			await Promise.all([
+				bundle.getYahooIndicators(),
+				bundle.getStockAnalysisStatistics(),
+				bundle.getFinvizStatistics(),
+			]);
 		const providerStatistics = mergeStockAnalysisFinvizFields(
-			statistics,
-			finviz,
+			stockAnalysisStatistics,
+			finvizStatistics,
 			STATISTICS_PROVIDER_POLICIES,
 		);
 		const merged = mergeAndNormalizeMonetaryFields(providerStatistics, yahoo);
 		applySourcePegFallback(merged, [
 			{
 				source: PEG_SOURCE_STOCKANALYSIS,
-				pe_forward: statistics.pe_forward,
-				peg: statistics.peg,
+				pe_forward: stockAnalysisStatistics.pe_forward,
+				peg: stockAnalysisStatistics.peg,
 			},
 			{
 				source: PEG_SOURCE_FINVIZ,
-				pe_forward: finviz.pe_forward,
-				peg: finviz.peg,
+				pe_forward: finvizStatistics.pe_forward,
+				peg: finvizStatistics.peg,
 			},
 		]);
 		return completeKnownFamilyRow(merged, family);
 	}
 	if (family === "financials") {
-		const [financials, statistics, finviz, yahoo] = await Promise.all([
-			bundle.getFinancials(),
-			bundle.getStatistics(),
-			bundle.getFinvizStatistics(),
+		const [
+			yahoo,
+			stockAnalysisStatistics,
+			stockAnalysisFinancialsSnapshot,
+			finvizStatistics,
+		] = await Promise.all([
 			bundle.getYahooIndicators(),
+			bundle.getStockAnalysisStatistics(),
+			bundle.getStockAnalysisFinancials(),
+			bundle.getFinvizStatistics(),
 		]);
 		const stockAnalysisFinancials = {
-			...mergeStockAnalysisSnapshots(statistics, financials),
-			revenue_growth: financials.revenue_growth ?? null,
-			eps_growth: financials.eps_growth ?? null,
-			gross_margin: financials.gross_margin ?? statistics.gross_margin ?? null,
+			...mergeStockAnalysisSnapshots(
+				stockAnalysisStatistics,
+				stockAnalysisFinancialsSnapshot,
+			),
+			revenue_growth: stockAnalysisFinancialsSnapshot.revenue_growth ?? null,
+			eps_growth: stockAnalysisFinancialsSnapshot.eps_growth ?? null,
+			gross_margin:
+				stockAnalysisFinancialsSnapshot.gross_margin ??
+				stockAnalysisStatistics.gross_margin ??
+				null,
 			operating_margin:
-				financials.operating_margin ?? statistics.operating_margin ?? null,
+				stockAnalysisFinancialsSnapshot.operating_margin ??
+				stockAnalysisStatistics.operating_margin ??
+				null,
 		};
 		const merged = {
 			...mergeStockAnalysisFinvizFields(
 				stockAnalysisFinancials,
-				finviz,
+				finvizStatistics,
 				FINANCIALS_PROVIDER_POLICIES,
 			),
 			fx: yahoo.fx,
@@ -152,19 +175,56 @@ async function persistIndicators(
 	]);
 }
 
-function cacheMergedFamilyRow(
-	ticker: string,
-	family: StatsFamily,
-	mergedIndicators: Record<string, unknown>,
-	updatedAt: number,
-): Record<string, unknown> {
+/** Refresh, merge, cache, and persist one stat family through the shared lifecycle. */
+async function refreshAndPersistFamily({
+	bundle,
+	store,
+	ticker,
+	family,
+	persistedRow,
+	stockEntry,
+	refreshedAt = Date.now(),
+}: {
+	bundle: ProviderBundle;
+	store: BackendStore;
+	ticker: string;
+	family: StatsFamily;
+	persistedRow: Record<string, unknown>;
+	stockEntry: StockEntry | null;
+	refreshedAt?: number;
+}): Promise<PersistedFamilyRefresh> {
+	const refreshedRow = await refreshFamilyRow(bundle, family);
+	const mergedIndicators = mergeFamilyRow(
+		persistedRow,
+		family,
+		refreshedRow,
+		refreshedAt,
+	);
 	const mergedFamilyRow = familyRow(mergedIndicators, family);
 	familyCaches[family].set(ticker, {
 		value: mergedFamilyRow,
-		updatedAt,
+		updatedAt: refreshedAt,
 		lastFailureAt: null,
 	});
-	return mergedFamilyRow;
+	await persistIndicators(store, ticker, mergedIndicators, stockEntry);
+	return {
+		mergedFamilyRow,
+		mergedIndicators,
+	};
+}
+
+/** Record refresh failure timing so later auto refreshes respect cooldowns. */
+function rememberFamilyRefreshFailure(
+	ticker: string,
+	family: StatsFamily,
+	refreshedAt: number,
+	previous: FamilyCacheEntry | undefined = familyCaches[family].get(ticker),
+): void {
+	familyCaches[family].set(ticker, {
+		value: previous?.value ?? {},
+		updatedAt: previous?.updatedAt ?? refreshedAt,
+		lastFailureAt: refreshedAt,
+	});
 }
 
 async function queueRefresh(
@@ -192,21 +252,17 @@ async function queueRefresh(
 		const bundle = new ProviderBundle(ticker);
 		const refreshedAt = Date.now();
 		try {
-			const refreshedRow = await refreshFamilyRow(bundle, family);
-			const mergedIndicators = mergeFamilyRow(
-				persistedRow,
+			await refreshAndPersistFamily({
+				bundle,
+				store,
+				ticker,
 				family,
-				refreshedRow,
+				persistedRow,
+				stockEntry,
 				refreshedAt,
-			);
-			cacheMergedFamilyRow(ticker, family, mergedIndicators, refreshedAt);
-			await persistIndicators(store, ticker, mergedIndicators, stockEntry);
-		} catch {
-			familyCaches[family].set(ticker, {
-				value: entry?.value ?? {},
-				updatedAt: entry?.updatedAt ?? refreshedAt,
-				lastFailureAt: refreshedAt,
 			});
+		} catch {
+			rememberFamilyRefreshFailure(ticker, family, refreshedAt, entry);
 		} finally {
 			runningRefreshes.delete(refreshKey);
 		}
@@ -281,20 +337,17 @@ export async function resolveFamily({
 
 	const refreshedAt = Date.now();
 	try {
-		const refreshedRow = await refreshFamilyRow(bundle, family);
-		const mergedIndicators = mergeFamilyRow(
-			persistedRow,
-			family,
-			refreshedRow,
-			refreshedAt,
+		const { mergedIndicators, mergedFamilyRow } = await refreshAndPersistFamily(
+			{
+				bundle,
+				store,
+				ticker,
+				family,
+				persistedRow,
+				stockEntry,
+				refreshedAt,
+			},
 		);
-		const mergedFamilyRow = cacheMergedFamilyRow(
-			ticker,
-			family,
-			mergedIndicators,
-			refreshedAt,
-		);
-		await persistIndicators(store, ticker, mergedIndicators, stockEntry);
 		Object.assign(persistedRow, mergedIndicators);
 		return {
 			family,
@@ -306,11 +359,7 @@ export async function resolveFamily({
 		};
 	} catch {
 		const previous = familyCaches[family].get(ticker);
-		familyCaches[family].set(ticker, {
-			value: previous?.value ?? {},
-			updatedAt: previous?.updatedAt ?? refreshedAt,
-			lastFailureAt: refreshedAt,
-		});
+		rememberFamilyRefreshFailure(ticker, family, refreshedAt, previous);
 		const failureDecision = policy.stats.refreshFailureDecision({
 			mode,
 			cached,

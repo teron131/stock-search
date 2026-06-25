@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { ExaLoadAgent } from "llm-harness-js/agents";
 
+import { StockAnalysisSource } from "../src/stock-search/data-sources/stockanalysis/index.js";
 import { calibrationDbPath } from "../src/stock-search/evaluation/anchors.js";
 import {
 	type CalibrationStockRow,
@@ -14,7 +15,6 @@ import {
 	syncEvaluationCalibrationRows,
 	upsertCalibrationStatsRow,
 } from "../src/stock-search/evaluation/calibration-db.js";
-import { fetchStockAnalysisStatistics } from "../src/stock-search/indicators.js";
 import {
 	resolveTickerStats,
 	type StatsResolutionMode,
@@ -537,7 +537,9 @@ async function backfillStockAnalysisPs(options: ScriptOptions): Promise<void> {
 					evaluation: {},
 					labels: [],
 				};
-				const statistics = await fetchStockAnalysisStatistics(ticker);
+				const statistics = await new StockAnalysisSource(
+					ticker,
+				).getStatisticsSnapshot();
 				const ps = asNumber(statistics.ps);
 				const psForward = asNumber(statistics.ps_forward);
 				completed += 1;

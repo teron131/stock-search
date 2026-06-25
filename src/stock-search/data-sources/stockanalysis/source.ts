@@ -3,11 +3,13 @@
 import {
 	loadEtfHoldingsSnapshot,
 	loadEtfSectorsSnapshot,
-	loadFinancialsSnapshot,
+} from "./extractors/etf.js";
+import { loadFinancialsSnapshot } from "./extractors/financials.js";
+import { loadSectorSnapshot } from "./extractors/sector-snapshot.js";
+import {
 	loadQuoteFields,
-	loadSectorSnapshot,
 	loadStatisticsSnapshot,
-} from "./extractors/index.js";
+} from "./extractors/statistics.js";
 import type {
 	StockAnalysisEtfSnapshot,
 	StockAnalysisFinancials,
@@ -126,10 +128,10 @@ export class StockAnalysisSource {
 			return this.indicatorsSnapshot;
 		}
 
-		const [statistics, financials, quoteFields] = await Promise.all([
+		const [quoteFields, statistics, financials] = await Promise.all([
+			loadQuoteFields(this.tickerLower),
 			this.getStatisticsSnapshot(),
 			this.getFinancialsSnapshot(),
-			loadQuoteFields(this.tickerLower),
 		]);
 		this.indicatorsSnapshot = {
 			...quoteFields,
