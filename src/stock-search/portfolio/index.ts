@@ -7,13 +7,9 @@ import {
 	aggregateTickerDataSource,
 	resolveTickerStatsMap,
 } from "../stats-resolver/index.js";
-import type {
-	BackendStore,
-	PositionRow,
-	StockEntry,
-} from "../storage/index.js";
+import type { BackendStore, StockEntry } from "../storage/index.js";
 import { normalizeTicker, nowIso } from "../utils.js";
-import { buildEtfTables, buildSectorDistribution } from "./exposure.js";
+import { buildPortfolioExposureTables } from "./exposure.js";
 import { applyPositionLabels, resolvePortfolioLabels } from "./labels.js";
 import { buildPortfolioEnrichedRows } from "./row-enrichment.js";
 import {
@@ -23,16 +19,15 @@ import {
 	hasOwnEvaluation,
 	liveTickersForRefreshIntent,
 	mergeLiveResultsIntoStocks,
-	mergePortfolioRow,
 } from "./rows.js";
 import { portfolioTickers } from "./shared.js";
 
+export type { PortfolioScope } from "../policy.js";
 export {
 	patchPortfolioPosition,
 	removePortfolioPosition,
 } from "./positions.js";
 export { mergePortfolioRow } from "./rows.js";
-export type { PortfolioScope } from "./shared.js";
 
 const PORTFOLIO_STATS_GENERATED_AT_META_KEY = "portfolio_stats_generated_at";
 const STATS_GENERATED_AT_META_KEY = "stats_generated_at";
@@ -58,58 +53,64 @@ export async function buildPortfolioPayload(
 }> {
 	const scopePolicy = policy.request.portfolioScope(scope);
 	const portfolio = await store.loadPortfolio();
-	const stocksMap =
+	const heldTickers = portfolioTickers(portfolio.positions);
+	const stockEntriesByTicker =
 		scopePolicy.universe === "all_stored"
 			? await store.loadStocks()
-			: await store.loadStocksByTickers(portfolioTickers(portfolio.positions));
+			: await store.loadStocksByTickers(heldTickers);
 	const scopedPositions = buildRowsForUniverse(
 		portfolio.positions,
-		stocksMap,
+		stockEntriesByTicker,
 		scopePolicy.universe === "all_stored",
 	);
 	const labelsByTicker = await resolvePortfolioLabels(
 		store,
 		portfolio.positions,
-		stocksMap,
+		stockEntriesByTicker,
 		scopePolicy.refreshLabels,
 	);
 	applyPositionLabels(scopedPositions, labelsByTicker);
-	const evalTickers = new Set(
-		Object.entries(stocksMap)
+	const tickersWithOwnEvaluation = new Set(
+		Object.entries(stockEntriesByTicker)
 			.filter(([, stock]) => hasOwnEvaluation(stock.evaluation))
 			.map(([ticker]) => ticker),
 	);
-	const liveTickers = liveTickersForRefreshIntent(
+	const normalRefreshTickers = liveTickersForRefreshIntent(
 		scopedPositions,
-		evalTickers,
+		tickersWithOwnEvaluation,
 		scopePolicy.refreshIntent,
-		stocksMap,
+		stockEntriesByTicker,
 	);
 	const fxRefreshTickers = fxRefreshTickersForLivePolicy(
 		scopedPositions,
-		stocksMap,
+		stockEntriesByTicker,
 		scopePolicy.liveRefresh,
 	);
 	const [liveResults, fxRefreshResults] = await Promise.all([
-		liveTickers.length > 0
+		normalRefreshTickers.length > 0
 			? resolveTickerStatsMap(
 					store,
-					liveTickers,
+					normalRefreshTickers,
 					scopePolicy.statsMode,
-					stocksMap,
+					stockEntriesByTicker,
 				)
 			: Promise.resolve({}),
 		fxRefreshTickers.length > 0
-			? resolveTickerStatsMap(store, fxRefreshTickers, "live", stocksMap)
+			? resolveTickerStatsMap(
+					store,
+					fxRefreshTickers,
+					"live",
+					stockEntriesByTicker,
+				)
 			: Promise.resolve({}),
 	]);
-	const resolvedLiveResults = {
+	const liveResultsByTicker = {
 		...liveResults,
 		...fxRefreshResults,
 	};
 	const mergedStocks = mergeLiveResultsIntoStocks(
-		stocksMap,
-		resolvedLiveResults,
+		stockEntriesByTicker,
+		liveResultsByTicker,
 	);
 	const etfResolution = await classifyAndResolveEtfs(
 		store,
@@ -123,39 +124,40 @@ export async function buildPortfolioPayload(
 		stocksMap: mergedStocks,
 		etfResolution,
 		liveRefresh: scopePolicy.liveRefresh,
-		normalRefreshTickers: liveTickers,
+		normalRefreshTickers,
 	});
 	const rows = rowResolution.rows;
 	const notionalByTicker = rowResolution.notionalByTicker;
-	const heldTickers = portfolio.positions
-		.map((position) => normalizeTicker(position.ticker))
-		.filter(Boolean);
-	const sectorDistribution = buildSectorDistribution(rows, etfResolution);
 	const [{ tickerTable, sectorTable, meta: tableMeta }, generatedAt] =
 		await Promise.all([
-			buildEtfTables(rows, etfResolution, heldTickers, notionalByTicker),
+			buildPortfolioExposureTables(
+				rows,
+				etfResolution,
+				heldTickers,
+				notionalByTicker,
+			),
 			scopePolicy.liveRefresh
 				? Promise.resolve(nowIso())
 				: store.getMetaValue(STATS_GENERATED_AT_META_KEY),
 		]);
-	const allLiveResults = {
-		...resolvedLiveResults,
+	const refreshedResultsByTicker = {
+		...liveResultsByTicker,
 		...rowResolution.proxyLiveResults,
 	};
 	let dataSource = scopePolicy.liveRefresh
-		? aggregateTickerDataSource(allLiveResults, "auto")
+		? aggregateTickerDataSource(refreshedResultsByTicker, "auto")
 		: "cache";
 	if (scopePolicy.liveRefresh && dataSource === "live") {
-		const liveTickerSet = new Set(Object.keys(allLiveResults));
+		const refreshedTickerSet = new Set(Object.keys(refreshedResultsByTicker));
 		for (const row of rows) {
 			const ticker = normalizeTicker(row.ticker);
-			if (ticker && !liveTickerSet.has(ticker)) {
+			if (ticker && !refreshedTickerSet.has(ticker)) {
 				dataSource = "live_with_cache_fallback";
 				break;
 			}
 		}
 	}
-	const portfolioStats = calculatePortfolioStats(rows, sectorDistribution);
+	const portfolioStats = calculatePortfolioStats(rows, sectorTable);
 	if (scopePolicy.persistPortfolioStats) {
 		await Promise.all([
 			store.savePortfolioStats(portfolioStats),
@@ -209,26 +211,6 @@ export async function readStoredPortfolioStatsPayload(
 			sync_mode: STORED_PORTFOLIO_STATS_SYNC_MODE,
 		},
 	};
-}
-
-/** Return one merged ticker row from the current cache only. */
-export async function getTickerRowFromCache(
-	store: BackendStore,
-	ticker: string,
-): Promise<Record<string, unknown> | null> {
-	const tickerSymbol = normalizeTicker(ticker);
-	if (!tickerSymbol) {
-		return null;
-	}
-
-	const [positions, stockEntry] = await Promise.all([
-		store.loadPositions(),
-		store.loadStock(tickerSymbol),
-	]);
-	const position =
-		positions.find((row) => normalizeTicker(row.ticker) === tickerSymbol) ??
-		({ ticker: tickerSymbol, quantity: 0, strategy: null } as PositionRow);
-	return mergePortfolioRow(position, stockEntry ?? undefined);
 }
 
 /** Load the evaluation map keyed by ticker. */

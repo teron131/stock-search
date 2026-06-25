@@ -1,12 +1,28 @@
-/** Build ETF lookthrough, notional, and sector exposure tables. */
+/** Build portfolio exposure tables with ETF lookthrough and notional detail. */
 
 import { safeFloat } from "../common-utils.js";
+import { YahooFinanceSource } from "../data-sources/yahoo-finance.js";
 import type { EtfResolutionResult } from "../etf/index.js";
 import { normalizeSectorName } from "../etf/index.js";
-import { fetchYahooSymbolMetadata } from "../indicators.js";
 import { Notional } from "../models/schemas.js";
 import { normalizeTicker } from "../utils.js";
 import { isStockLikeEtfRepresentativeTicker } from "./etf-proxy.js";
+
+type SectorExposureRow = {
+	sector: string;
+	portfolio_weight: number;
+	stock_weight: number;
+	etf_lookthrough_weight: number;
+	within_etf_sleeve_weight: number;
+};
+
+type TickerExposureRow = {
+	ticker: string;
+	direct_weight: number;
+	etf_lookthrough_weight: number;
+	combined_weight: number;
+	notional: Notional;
+};
 
 function normalizeWeightsTo100(
 	weights: Record<string, number>,
@@ -50,56 +66,6 @@ function normalizeWeightsTo100(
 	return rounded;
 }
 
-export function buildNotionalByTicker(
-	rows: Array<Record<string, unknown>>,
-	resolution: EtfResolutionResult,
-): Record<string, Notional> {
-	const notionalByTicker: Record<string, Notional> = {};
-	const rowByTicker = new Map(
-		rows.map((row) => [normalizeTicker(row.ticker), row] as const),
-	);
-
-	for (const row of rows) {
-		const ticker = normalizeTicker(row.ticker);
-		const total = safeFloat(row.total) ?? 0;
-		if (!ticker || total <= 0) {
-			continue;
-		}
-		notionalByTicker[ticker] ??= new Notional();
-		notionalByTicker[ticker].addFromStocks(total);
-	}
-
-	for (const etfPosition of resolution.etfPositions) {
-		const etfTicker = normalizeTicker(etfPosition.ticker);
-		const etfTotal = safeFloat(rowByTicker.get(etfTicker)?.total) ?? 0;
-		const snapshot = resolution.snapshotByTicker[etfTicker];
-		if (etfTotal <= 0 || !snapshot) {
-			continue;
-		}
-		for (const holding of snapshot.holdings) {
-			const holdingTicker = normalizeTicker(holding.ticker);
-			if (
-				!holdingTicker ||
-				!isStockLikeEtfRepresentativeTicker(holdingTicker) ||
-				!Number.isFinite(holding.weight)
-			) {
-				continue;
-			}
-			notionalByTicker[holdingTicker] ??= new Notional();
-			notionalByTicker[holdingTicker].addFromEtf(
-				etfTotal * (holding.weight / 100),
-			);
-		}
-	}
-
-	return Object.fromEntries(
-		Object.entries(notionalByTicker).map(([ticker, notional]) => [
-			ticker,
-			notional.rounded(),
-		]),
-	);
-}
-
 async function fetchEquitySector(
 	ticker: string,
 	rowByTicker: Map<string, Record<string, unknown>>,
@@ -115,7 +81,9 @@ async function fetchEquitySector(
 		return [ticker, normalizeSectorName(rawSector)];
 	}
 
-	const metadata = await fetchYahooSymbolMetadata(ticker);
+	const metadata = await new YahooFinanceSource(
+		ticker,
+	).getSymbolMetadataSnapshot();
 	return [
 		ticker,
 		normalizeSectorName(
@@ -129,28 +97,28 @@ async function fetchEquitySector(
 	];
 }
 
-export async function buildEtfTables(
+export async function buildPortfolioExposureTables(
 	rows: Array<Record<string, unknown>>,
-	resolution: EtfResolutionResult,
-	targetTickers: string[],
+	etfResolution: EtfResolutionResult,
+	heldTickers: string[],
 	notionalByTicker: Record<string, Notional>,
 ): Promise<{
-	tickerTable: Array<Record<string, unknown>>;
-	sectorTable: Array<Record<string, unknown>>;
+	tickerTable: TickerExposureRow[];
+	sectorTable: SectorExposureRow[];
 	meta: Record<string, number>;
 }> {
 	const rowByTicker = new Map(
 		rows.map((row) => [normalizeTicker(row.ticker), row] as const),
 	);
-	const stockTickers = resolution.stockPositions.map((position) =>
+	const directStockTickers = etfResolution.stockPositions.map((position) =>
 		normalizeTicker(position.ticker),
 	);
-	const etfTickers = resolution.etfPositions.map((position) =>
+	const etfTickers = etfResolution.etfPositions.map((position) =>
 		normalizeTicker(position.ticker),
 	);
-	const exposureTickers = new Set(targetTickers);
+	const exposureTickers = new Set(heldTickers);
 	for (const etfTicker of etfTickers) {
-		const snapshot = resolution.snapshotByTicker[etfTicker];
+		const snapshot = etfResolution.snapshotByTicker[etfTicker];
 		for (const holding of snapshot?.holdings ?? []) {
 			const holdingTicker = normalizeTicker(holding.ticker);
 			if (holdingTicker && isStockLikeEtfRepresentativeTicker(holdingTicker)) {
@@ -158,28 +126,28 @@ export async function buildEtfTables(
 			}
 		}
 	}
-	const portfolioTotal = targetTickers.reduce((sum, ticker) => {
+	const portfolioTotal = heldTickers.reduce((sum, ticker) => {
 		return sum + (safeFloat(rowByTicker.get(ticker)?.total) ?? 0);
 	}, 0);
-	const directWeights = Object.fromEntries(
-		targetTickers.map((ticker) => {
+	const directWeightsByTicker = Object.fromEntries(
+		heldTickers.map((ticker) => {
 			const total = safeFloat(rowByTicker.get(ticker)?.total) ?? 0;
 			return [ticker, portfolioTotal > 0 ? (total / portfolioTotal) * 100 : 0];
 		}),
 	);
-	const etfAllocation = Object.fromEntries(
+	const etfSleeveWeightsByTicker = Object.fromEntries(
 		etfTickers.map((ticker) => {
 			const total = safeFloat(rowByTicker.get(ticker)?.total) ?? 0;
 			return [ticker, portfolioTotal > 0 ? (total / portfolioTotal) * 100 : 0];
 		}),
 	);
-	const tickerExposure = Object.fromEntries(
+	const tickerWeightsByTicker = Object.fromEntries(
 		[...exposureTickers].map((ticker) => [
 			ticker,
 			{
-				direct_weight: directWeights[ticker] ?? 0,
+				direct_weight: directWeightsByTicker[ticker] ?? 0,
 				etf_lookthrough_weight: 0,
-				combined_weight: directWeights[ticker] ?? 0,
+				combined_weight: directWeightsByTicker[ticker] ?? 0,
 			},
 		]),
 	) as Record<
@@ -190,110 +158,111 @@ export async function buildEtfTables(
 			combined_weight: number;
 		}
 	>;
-	const etfDistributedWeights = Object.fromEntries(
+	const distributedEtfLookthroughWeights = Object.fromEntries(
 		etfTickers.map((ticker) => [ticker, 0]),
 	) as Record<string, number>;
-	const etfSectorExposure: Record<string, number> = {};
+	const etfSectorWeights: Record<string, number> = {};
 
 	for (const etfTicker of etfTickers) {
-		const snapshot = resolution.snapshotByTicker[etfTicker];
+		const snapshot = etfResolution.snapshotByTicker[etfTicker];
 		if (!snapshot) {
 			continue;
 		}
-		const etfWeight = etfAllocation[etfTicker] ?? 0;
+		const etfWeight = etfSleeveWeightsByTicker[etfTicker] ?? 0;
 		for (const holding of snapshot.holdings) {
 			const holdingTicker = normalizeTicker(holding.ticker);
-			if (!holdingTicker || !tickerExposure[holdingTicker]) {
+			if (!holdingTicker || !tickerWeightsByTicker[holdingTicker]) {
 				continue;
 			}
 			const contribution = etfWeight * (holding.weight / 100);
-			tickerExposure[holdingTicker].etf_lookthrough_weight += contribution;
-			tickerExposure[holdingTicker].combined_weight += contribution;
-			etfDistributedWeights[etfTicker] =
-				(etfDistributedWeights[etfTicker] ?? 0) + contribution;
+			tickerWeightsByTicker[holdingTicker].etf_lookthrough_weight +=
+				contribution;
+			tickerWeightsByTicker[holdingTicker].combined_weight += contribution;
+			distributedEtfLookthroughWeights[etfTicker] =
+				(distributedEtfLookthroughWeights[etfTicker] ?? 0) + contribution;
 		}
 		for (const sector of snapshot.sectors) {
 			const contribution = etfWeight * (sector.weight / 100);
-			etfSectorExposure[sector.name] =
-				(etfSectorExposure[sector.name] ?? 0) + contribution;
+			etfSectorWeights[sector.name] =
+				(etfSectorWeights[sector.name] ?? 0) + contribution;
 		}
 	}
 
 	for (const etfTicker of etfTickers) {
-		if (tickerExposure[etfTicker]) {
-			tickerExposure[etfTicker].combined_weight -=
-				etfDistributedWeights[etfTicker] ?? 0;
+		if (tickerWeightsByTicker[etfTicker]) {
+			tickerWeightsByTicker[etfTicker].combined_weight -=
+				distributedEtfLookthroughWeights[etfTicker] ?? 0;
 		}
 	}
 
 	const normalizedDirectWeights = normalizeWeightsTo100(
 		Object.fromEntries(
-			Object.entries(tickerExposure).map(([ticker, data]) => [
+			Object.entries(tickerWeightsByTicker).map(([ticker, weights]) => [
 				ticker,
-				data.direct_weight,
+				weights.direct_weight,
 			]),
 		),
 	);
 	const normalizedCombinedWeights = normalizeWeightsTo100(
 		Object.fromEntries(
-			Object.entries(tickerExposure).map(([ticker, data]) => [
+			Object.entries(tickerWeightsByTicker).map(([ticker, weights]) => [
 				ticker,
-				data.combined_weight,
+				weights.combined_weight,
 			]),
 		),
 	);
-	for (const [ticker, data] of Object.entries(tickerExposure)) {
-		data.direct_weight = normalizedDirectWeights[ticker] ?? 0;
-		data.etf_lookthrough_weight = Number(
-			data.etf_lookthrough_weight.toFixed(4),
+	for (const [ticker, weights] of Object.entries(tickerWeightsByTicker)) {
+		weights.direct_weight = normalizedDirectWeights[ticker] ?? 0;
+		weights.etf_lookthrough_weight = Number(
+			weights.etf_lookthrough_weight.toFixed(4),
 		);
-		data.combined_weight = normalizedCombinedWeights[ticker] ?? 0;
+		weights.combined_weight = normalizedCombinedWeights[ticker] ?? 0;
 	}
 
-	const stockSectorExposure: Record<string, number> = {};
+	const directSectorWeights: Record<string, number> = {};
 	const stockSectorResults = await Promise.all(
-		[...new Set(stockTickers)].map((ticker) =>
+		[...new Set(directStockTickers)].map((ticker) =>
 			fetchEquitySector(ticker, rowByTicker),
 		),
 	);
 	for (const [ticker, sector] of stockSectorResults) {
 		const directWeight = normalizedDirectWeights[ticker] ?? 0;
-		stockSectorExposure[sector] =
-			(stockSectorExposure[sector] ?? 0) + directWeight;
+		directSectorWeights[sector] =
+			(directSectorWeights[sector] ?? 0) + directWeight;
 	}
 
-	const tickerTable = Object.entries(tickerExposure)
-		.map(([ticker, data]) => ({
+	const tickerTable = Object.entries(tickerWeightsByTicker)
+		.map(([ticker, weights]) => ({
 			ticker,
-			direct_weight: Number(data.direct_weight.toFixed(4)),
-			etf_lookthrough_weight: Number(data.etf_lookthrough_weight.toFixed(4)),
-			combined_weight: Number(data.combined_weight.toFixed(4)),
+			direct_weight: Number(weights.direct_weight.toFixed(4)),
+			etf_lookthrough_weight: Number(weights.etf_lookthrough_weight.toFixed(4)),
+			combined_weight: Number(weights.combined_weight.toFixed(4)),
 			notional: notionalByTicker[ticker] ?? new Notional(),
 		}))
 		.sort((left, right) => right.combined_weight - left.combined_weight);
 
-	const combinedSectorExposure = { ...etfSectorExposure };
-	for (const [sector, weight] of Object.entries(stockSectorExposure)) {
-		combinedSectorExposure[sector] =
-			(combinedSectorExposure[sector] ?? 0) + weight;
+	const combinedSectorWeights = { ...etfSectorWeights };
+	for (const [sector, weight] of Object.entries(directSectorWeights)) {
+		combinedSectorWeights[sector] =
+			(combinedSectorWeights[sector] ?? 0) + weight;
 	}
-	const etfSleeveTotal = Object.values(etfSectorExposure).reduce(
+	const etfSleeveTotal = Object.values(etfSectorWeights).reduce(
 		(sum, value) => sum + value,
 		0,
 	);
-	const sectorTable = Object.entries(combinedSectorExposure)
+	const sectorTable = Object.entries(combinedSectorWeights)
 		.map(([sector, weight]) => ({
 			sector,
-			stock_weight: Number((stockSectorExposure[sector] ?? 0).toFixed(4)),
+			stock_weight: Number((directSectorWeights[sector] ?? 0).toFixed(4)),
 			etf_lookthrough_weight: Number(
-				(etfSectorExposure[sector] ?? 0).toFixed(4),
+				(etfSectorWeights[sector] ?? 0).toFixed(4),
 			),
 			portfolio_weight: Number(weight.toFixed(4)),
 			within_etf_sleeve_weight:
 				etfSleeveTotal > 0
 					? Number(
 							(
-								((etfSectorExposure[sector] ?? 0) / etfSleeveTotal) *
+								((etfSectorWeights[sector] ?? 0) / etfSleeveTotal) *
 								100
 							).toFixed(4),
 						)
@@ -327,68 +296,4 @@ export async function buildEtfTables(
 			),
 		},
 	};
-}
-
-export function buildSectorDistribution(
-	rows: Array<Record<string, unknown>>,
-	resolution: EtfResolutionResult,
-): Array<{
-	sector: string;
-	portfolio_weight: number;
-	stock_weight: number;
-	etf_lookthrough_weight: number;
-}> {
-	const directExposure = new Map<string, number>();
-	const etfExposure = new Map<string, number>();
-	const rowByTicker = new Map(
-		rows.map((row) => [normalizeTicker(row.ticker), row] as const),
-	);
-
-	for (const row of rows) {
-		if (Number(row.quantity ?? 0) <= 0) {
-			continue;
-		}
-		if (String(row.equity_type ?? "").toUpperCase() === "ETF") {
-			continue;
-		}
-		const weight = Number(row.weight_pct ?? 0);
-		if (!Number.isFinite(weight) || weight <= 0) {
-			continue;
-		}
-		const sector = normalizeSectorName(
-			typeof row.sector_name === "string" ? row.sector_name : null,
-		);
-		directExposure.set(sector, (directExposure.get(sector) ?? 0) + weight);
-	}
-
-	for (const position of resolution.etfPositions) {
-		const ticker = normalizeTicker(position.ticker);
-		const row = rowByTicker.get(ticker);
-		const sleeveWeight = Number(row?.weight_pct ?? 0);
-		if (!Number.isFinite(sleeveWeight) || sleeveWeight <= 0) {
-			continue;
-		}
-		const snapshot = resolution.snapshotByTicker[ticker];
-		for (const sector of snapshot?.sectors ?? []) {
-			const contribution = sleeveWeight * (sector.weight / 100);
-			etfExposure.set(
-				sector.name,
-				(etfExposure.get(sector.name) ?? 0) + contribution,
-			);
-		}
-	}
-
-	const allSectors = new Set([...directExposure.keys(), ...etfExposure.keys()]);
-	return [...allSectors]
-		.map((sector) => ({
-			sector,
-			stock_weight: Number((directExposure.get(sector) ?? 0).toFixed(4)),
-			etf_lookthrough_weight: Number((etfExposure.get(sector) ?? 0).toFixed(4)),
-			portfolio_weight: Number(
-				(
-					(directExposure.get(sector) ?? 0) + (etfExposure.get(sector) ?? 0)
-				).toFixed(4),
-			),
-		}))
-		.sort((left, right) => right.portfolio_weight - left.portfolio_weight);
 }

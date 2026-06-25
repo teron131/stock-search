@@ -1,5 +1,6 @@
 /** Build ETF-aware portfolio rows with proxy statistics and notional exposure. */
 
+import { safeFloat } from "../common-utils.js";
 import {
 	ETF_HOLDINGS_FETCHED_AT_FIELD,
 	type EtfResolutionResult,
@@ -16,9 +17,9 @@ import {
 	applyEtfProxyStatsToStocks,
 	buildEtfRepresentativePositions,
 	etfProxyResolutionForRows,
+	isStockLikeEtfRepresentativeTicker,
 	resolveEtfProxyStocks,
 } from "./etf-proxy.js";
-import { buildNotionalByTicker } from "./exposure.js";
 import {
 	applyRowWeights,
 	clearEtfMarketCapFields,
@@ -105,6 +106,57 @@ function applyNotionalFields(
 				? (rowNotional.total / heldTotal) * 100
 				: 0;
 	}
+}
+
+/** Build direct and ETF-lookthrough notional totals for enriched rows. */
+function buildNotionalByTicker(
+	rows: Array<Record<string, unknown>>,
+	etfResolution: EtfResolutionResult,
+): Record<string, Notional> {
+	const notionalByTicker: Record<string, Notional> = {};
+	const rowByTicker = new Map(
+		rows.map((row) => [normalizeTicker(row.ticker), row] as const),
+	);
+
+	for (const row of rows) {
+		const ticker = normalizeTicker(row.ticker);
+		const total = safeFloat(row.total) ?? 0;
+		if (!ticker || total <= 0) {
+			continue;
+		}
+		notionalByTicker[ticker] ??= new Notional();
+		notionalByTicker[ticker].addFromStocks(total);
+	}
+
+	for (const etfPosition of etfResolution.etfPositions) {
+		const etfTicker = normalizeTicker(etfPosition.ticker);
+		const etfTotal = safeFloat(rowByTicker.get(etfTicker)?.total) ?? 0;
+		const snapshot = etfResolution.snapshotByTicker[etfTicker];
+		if (etfTotal <= 0 || !snapshot) {
+			continue;
+		}
+		for (const holding of snapshot.holdings) {
+			const holdingTicker = normalizeTicker(holding.ticker);
+			if (
+				!holdingTicker ||
+				!isStockLikeEtfRepresentativeTicker(holdingTicker) ||
+				!Number.isFinite(holding.weight)
+			) {
+				continue;
+			}
+			notionalByTicker[holdingTicker] ??= new Notional();
+			notionalByTicker[holdingTicker].addFromEtf(
+				etfTotal * (holding.weight / 100),
+			);
+		}
+	}
+
+	return Object.fromEntries(
+		Object.entries(notionalByTicker).map(([ticker, notional]) => [
+			ticker,
+			notional.rounded(),
+		]),
+	);
 }
 
 /** Build portfolio rows after live stats are merged into stock entries. */
