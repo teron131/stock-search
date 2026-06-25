@@ -435,6 +435,50 @@ function renderFacetTags(item, { compact = false } = {}) {
 	);
 }
 
+/**
+ * Returns the highest-priority empty state for the portfolio news feed.
+ */
+function getNewsFeedEmptyState({
+	hasHoldings,
+	hasItems,
+	isLoading,
+	isWaitingOnPortfolio,
+	lastError,
+	showFeedLoadingState,
+}) {
+	if (isWaitingOnPortfolio) {
+		return {
+			title: "Loading portfolio scope",
+			copy: "Preparing the held-position set before the portfolio news feed comes online.",
+		};
+	}
+
+	if (showFeedLoadingState) {
+		return {
+			title: "Loading latest coverage",
+			copy: "Refreshing the portfolio news feed for the held-position set.",
+		};
+	}
+
+	if (!hasHoldings && !isLoading) {
+		return {
+			title: "No held positions in scope",
+			copy: "Add a portfolio position to populate the portfolio news feed.",
+		};
+	}
+
+	if (hasHoldings && !hasItems && !isLoading) {
+		return {
+			title: lastError ? "News feed unavailable" : "No stories in scope",
+			copy: lastError
+				? "The current feed could not be loaded for the held-position set. Try syncing again."
+				: "Try widening the ticker or relevance filter.",
+		};
+	}
+
+	return null;
+}
+
 export function NewsView({
 	items,
 	portfolioNewsSummary,
@@ -462,6 +506,14 @@ export function NewsView({
 	);
 	const showFeedLoadingState =
 		!isWaitingOnPortfolio && hasHoldings && !hasItems && isLoading;
+	const feedEmptyState = getNewsFeedEmptyState({
+		hasHoldings,
+		hasItems,
+		isLoading,
+		isWaitingOnPortfolio,
+		lastError,
+		showFeedLoadingState,
+	});
 	const coverageText =
 		isLoading && !hasItems
 			? "Refreshing portfolio news..."
@@ -629,62 +681,11 @@ export function NewsView({
 					</div>
 
 					${
-						isWaitingOnPortfolio
+						feedEmptyState
 							? html`
 								<div className="news-empty-state">
-									<div className="news-empty-title">Loading portfolio scope</div>
-									<div className="news-empty-copy">
-										Preparing the held-position set before the portfolio news feed comes online.
-									</div>
-								</div>
-							`
-							: null
-					}
-
-					${
-						showFeedLoadingState
-							? html`
-								<div className="news-empty-state">
-									<div className="news-empty-title">Loading latest coverage</div>
-									<div className="news-empty-copy">
-										Refreshing the portfolio news feed for the held-position set.
-									</div>
-								</div>
-							`
-							: null
-					}
-
-					${
-						!isWaitingOnPortfolio && !hasHoldings && !isLoading
-							? html`
-								<div className="news-empty-state">
-									<div className="news-empty-title">No held positions in scope</div>
-									<div className="news-empty-copy">
-										Add a portfolio position to populate the portfolio news feed.
-									</div>
-								</div>
-							`
-							: null
-					}
-
-					${
-						!showFeedLoadingState &&
-						!isWaitingOnPortfolio &&
-						hasHoldings &&
-						!hasItems &&
-						!isLoading
-							? html`
-								<div className="news-empty-state">
-									<div className="news-empty-title">
-										${lastError ? "News feed unavailable" : "No stories in scope"}
-									</div>
-									<div className="news-empty-copy">
-										${
-											lastError
-												? "The current feed could not be loaded for the held-position set. Try syncing again."
-												: "Try widening the ticker or relevance filter."
-										}
-									</div>
+									<div className="news-empty-title">${feedEmptyState.title}</div>
+									<div className="news-empty-copy">${feedEmptyState.copy}</div>
 								</div>
 							`
 							: null
