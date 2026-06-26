@@ -4,6 +4,9 @@
 	"version": "0.0.0",
 	"packageManager": "pnpm@10.28.1",
 	"type": "module",
+	"bin": {
+		"stock-search": "src/stock-search/cli.ts"
+	},
 	"workspaces": [
 		"llm-harness-js"
 	],
@@ -19,24 +22,16 @@
 		"deploy:prod": "bash ./scripts/deploy.sh --prod",
 		"deploy:prod:mauve": "bash ./scripts/deploy.sh --prod --alias stock-search-mauve.vercel.app",
 		"llm-harness:build": "pnpm --filter llm-harness-js run build",
-		"preserver:dev": "pnpm run llm-harness:build",
-		"server:dev": "tsx watch src/node.ts",
-		"preserver:start": "pnpm run llm-harness:build",
-		"server:start": "tsx src/node.ts",
+		"server:dev": "pnpm run llm-harness:build && tsx watch src/node.ts",
+		"server:start": "pnpm run llm-harness:build && tsx src/node.ts",
 		"calibration:build": "tsx scripts/build-evaluation-calibration-db.ts",
-		"premcp:start": "pnpm run llm-harness:build",
-		"mcp:start": "tsx src/stock-search/mcp/main.ts",
-		"precli": "pnpm run llm-harness:build",
-		"cli": "tsx src/stock-search/cli.ts",
-		"correlation": "tsx src/stock-search/correlation.ts",
-		"preserver:typecheck": "pnpm run llm-harness:build",
-		"server:typecheck": "tsc --noEmit",
+		"mcp:start": "pnpm run llm-harness:build && tsx src/stock-search/mcp/main.ts",
+		"cli": "pnpm run llm-harness:build && tsx src/stock-search/cli.ts",
+		"server:typecheck": "pnpm run llm-harness:build && tsc --noEmit",
 		"server:test": "vitest run --root . server/test",
 		"sync-logo": "mkdir -p ui/public && cp ui/logo.png ui/public/logo.png",
-		"preui:dev": "pnpm run sync-logo",
-		"ui:dev": "next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
-		"preui:build": "pnpm run sync-logo",
-		"ui:build": "next build ui",
+		"ui:dev": "pnpm run sync-logo && next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
+		"ui:build": "pnpm run sync-logo && next build ui",
 		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/out",
 		"build": "pnpm run ui:build && pnpm run server:typecheck"
 	},
@@ -62,6 +57,7 @@
 		"opencc-js": "^1.0.5",
 		"react": "^19.2.5",
 		"react-dom": "^19.2.5",
+		"tsx": "^4.20.6",
 		"turndown": "^7.2.4",
 		"zod": "^4.1.12"
 	},
@@ -71,7 +67,6 @@
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"playwright": "^1.59.1",
-		"tsx": "^4.20.6",
 		"typescript": "^5.9.3",
 		"vitest": "^4.0.7"
 	},

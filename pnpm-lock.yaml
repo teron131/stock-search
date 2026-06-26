@@ -74,6 +74,9 @@ importers:
       react-dom:
         specifier: ^19.2.5
         version: 19.2.5(react@19.2.5)
+      tsx:
+        specifier: ^4.20.6
+        version: 4.21.0
       turndown:
         specifier: ^7.2.4
         version: 7.2.4
@@ -96,9 +99,6 @@ importers:
       playwright:
         specifier: ^1.59.1
         version: 1.59.1
-      tsx:
-        specifier: ^4.20.6
-        version: 4.21.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

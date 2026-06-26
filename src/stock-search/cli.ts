@@ -1,5 +1,11 @@
+#!/usr/bin/env tsx
 /** CLI for calling the Stock Search MCP tools in-process. */
 
+import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config as loadDotenv } from "dotenv";
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
 import { INDICATOR_FIELD_GROUPS } from "./models/field-definitions.js";
 import { policy, type TickerSource } from "./policy.js";
@@ -12,6 +18,32 @@ type CliCommand = {
 };
 
 type NewsCliMode = "raw-fast" | "analyzed-slow";
+
+/** Load the user-level CLI env copy before app modules read configuration. */
+function loadCliEnv(): void {
+	const envFile =
+		process.env.STOCK_SEARCH_ENV_FILE ??
+		path.join(homedir(), ".config", "stock-search", ".env");
+	if (existsSync(envFile)) {
+		loadDotenv({
+			path: envFile,
+			quiet: true,
+		});
+	}
+}
+
+/** Detect direct execution even when npm invokes the CLI through a symlink. */
+function isCliEntrypoint(): boolean {
+	if (!process.argv[1]) {
+		return false;
+	}
+	return (
+		realpathSync(fileURLToPath(import.meta.url)) ===
+		realpathSync(process.argv[1])
+	);
+}
+
+loadCliEnv();
 
 const CLI_COMMANDS: readonly CliCommand[] = [
 	{
@@ -426,7 +458,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 	);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliEntrypoint()) {
 	main().catch((error) => {
 		console.error(error instanceof Error ? error.message : error);
 		process.exit(1);
