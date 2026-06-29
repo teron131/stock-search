@@ -19,6 +19,7 @@ import {
 	SOURCE_YAHOO,
 	sourceFieldPolicies,
 } from "./stats-resolver/source-merge.js";
+import { LiveStatsUnavailableError } from "./stats-resolver/types.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
@@ -184,7 +185,7 @@ export async function fetchLiveIndicators(
 		(value) => value !== null && value !== undefined,
 	);
 	if (!hasLiveField) {
-		throw new Error(`Live stats unavailable for ticker: ${ticker}`);
+		throw new LiveStatsUnavailableError(ticker);
 	}
 
 	return liveFields;

@@ -15,6 +15,16 @@ type StandaloneTickerPayload = {
 	};
 };
 
+export class InvalidTickerError extends Error {
+	readonly input: string;
+
+	constructor(input: string) {
+		super(`Invalid ticker: ${input}`);
+		this.name = "InvalidTickerError";
+		this.input = input;
+	}
+}
+
 /** Create the zero-quantity fallback position for standalone ticker requests. */
 function makePosition(ticker: string): PositionRow {
 	return { ticker, quantity: 0, strategy: null };
@@ -100,7 +110,7 @@ async function loadTickerContext(
 }> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
-		throw new Error("Invalid ticker");
+		throw new InvalidTickerError(ticker);
 	}
 
 	const [positions, stockEntry] = await Promise.all([
@@ -125,7 +135,7 @@ export async function buildStandaloneTickerPayload(
 ): Promise<StandaloneTickerPayload> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
-		throw new Error("Invalid ticker");
+		throw new InvalidTickerError(ticker);
 	}
 
 	const contextPromise = loadTickerContext(store, tickerSymbol);
@@ -169,7 +179,7 @@ export async function buildEvaluateTickerPayload(
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
-		throw new Error("Invalid ticker");
+		throw new InvalidTickerError(ticker);
 	}
 
 	const { row, meta } = await buildStandaloneTickerPayload(

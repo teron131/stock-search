@@ -5,6 +5,22 @@ import type { StatsFamily } from "./families.js";
 
 export type StatsResolutionMode = TickerSource;
 
+export class LiveStatsUnavailableError extends Error {
+	readonly ticker: string;
+
+	constructor(ticker: string, options?: ErrorOptions) {
+		super(`Live stats unavailable for ticker: ${ticker}`, options);
+		this.name = "LiveStatsUnavailableError";
+		this.ticker = ticker;
+	}
+}
+
+export function isLiveStatsUnavailableError(
+	error: unknown,
+): error is LiveStatsUnavailableError {
+	return error instanceof LiveStatsUnavailableError;
+}
+
 export type FamilyDecision =
 	| "fresh"
 	| "stale_served"

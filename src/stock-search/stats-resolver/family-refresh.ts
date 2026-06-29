@@ -35,6 +35,7 @@ import type {
 	FamilyResolution,
 	StatsResolutionMode,
 } from "./types.js";
+import { LiveStatsUnavailableError } from "./types.js";
 
 const runningRefreshes = new Set<string>();
 const STATISTICS_PROVIDER_POLICIES = sourceFieldPolicies(
@@ -357,7 +358,7 @@ export async function resolveFamily({
 			timestamp: refreshedAt,
 			queuedRefresh: false,
 		};
-	} catch {
+	} catch (error) {
 		const previous = familyCaches[family].get(ticker);
 		rememberFamilyRefreshFailure(ticker, family, refreshedAt, previous);
 		const failureDecision = policy.stats.refreshFailureDecision({
@@ -365,7 +366,7 @@ export async function resolveFamily({
 			cached,
 		});
 		if (failureDecision === "throw_live") {
-			throw new Error(`Live stats unavailable for ticker: ${ticker}`);
+			throw new LiveStatsUnavailableError(ticker, { cause: error });
 		}
 		if (failureDecision === "serve_stale") {
 			return {

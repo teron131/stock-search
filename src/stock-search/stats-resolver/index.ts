@@ -14,6 +14,10 @@ import type {
 } from "./types.js";
 
 export type { StatsResolutionMode, StatsResolutionResult } from "./types.js";
+export {
+	isLiveStatsUnavailableError,
+	LiveStatsUnavailableError,
+} from "./types.js";
 
 type StatsResolutionOptions = {
 	families?: readonly StatsFamily[];

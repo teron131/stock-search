@@ -3,12 +3,13 @@
 import { Hono } from "hono";
 
 import { policy } from "../../policy.js";
+import { isLiveStatsUnavailableError } from "../../stats-resolver/index.js";
 import type { BackendStore } from "../../storage/index.js";
 import {
 	buildEvaluateTickerPayload,
 	buildStandaloneTickerPayload,
+	InvalidTickerError,
 } from "../../ticker.js";
-import { normalizeTicker } from "../../utils.js";
 import { STOCK_EVALUATE_ROUTE, STOCK_STATS_ROUTE } from "../route-paths.js";
 
 export function createStandaloneTickerRouter(store: BackendStore): Hono {
@@ -40,19 +41,11 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown error";
-			if (message.includes("Live stats unavailable")) {
-				return c.json(
-					{
-						detail: `Live stats unavailable for ticker: ${normalizeTicker(c.req.param("ticker"))}`,
-					},
-					502,
-				);
+			if (isLiveStatsUnavailableError(error)) {
+				return c.json({ detail: error.message }, 502);
 			}
-			if (message.includes("Invalid ticker")) {
-				return c.json(
-					{ detail: `Invalid ticker: ${c.req.param("ticker")}` },
-					400,
-				);
+			if (error instanceof InvalidTickerError) {
+				return c.json({ detail: error.message }, 400);
 			}
 			return c.json({ detail: message }, 404);
 		}
