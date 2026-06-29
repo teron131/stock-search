@@ -1,3 +1,5 @@
+/** Import portfolio positions from an uploaded brokerage screenshot. */
+
 import { unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -36,6 +38,7 @@ type ImageImportOptions = {
 	file: File;
 	strategy: string | null;
 	model: string | null;
+	portfolioKey?: string;
 };
 
 type ImageImportResult = {
@@ -201,13 +204,13 @@ async function extractPortfolioImage(
 
 export async function importPortfolioImage(
 	store: BackendStore,
-	{ file, strategy, model }: ImageImportOptions,
+	{ file, strategy, model, portfolioKey }: ImageImportOptions,
 ): Promise<ImageImportResult> {
 	validatePortfolioImageFile(file);
 
 	const [extraction, positions] = await Promise.all([
 		extractPortfolioImage(file, model),
-		store.loadPositions(),
+		store.loadPositions(portfolioKey),
 	]);
 	const merged = reconcileImportedHoldings(
 		positions,
@@ -215,7 +218,7 @@ export async function importPortfolioImage(
 		strategy,
 	);
 
-	await store.savePositions(merged.positions);
+	await store.savePositions(merged.positions, portfolioKey);
 	return {
 		status: "ok",
 		applied_count: merged.applied.length,

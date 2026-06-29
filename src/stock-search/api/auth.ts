@@ -1,6 +1,8 @@
 import { createHmac, randomBytes } from "node:crypto";
 import type { Context, Next } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { portfolioKeyForGoogleSubject } from "../storage/portfolio-keys.js";
+import { DEFAULT_STORAGE_KEY } from "../storage/schemas.js";
 import { sanitizeNextPath } from "../utils.js";
 import { appConfig } from "./config.js";
 import {
@@ -17,7 +19,7 @@ import {
 type SessionUser = {
 	email: string;
 	name?: string | null;
-	sub?: string | null;
+	sub: string | null;
 	iat: number;
 	exp: number;
 };
@@ -132,12 +134,14 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 		const email = String(decoded.email ?? "")
 			.trim()
 			.toLowerCase();
+		const subject = String(decoded.sub ?? "").trim();
 		const issuedAt = Number(decoded.iat);
 		const expiresAt = Number(decoded.exp);
 		const currentUnixSeconds = nowUnixSeconds();
 		if (
 			!email ||
 			email !== appConfig.allowedEmail ||
+			(appConfig.authEnabled && !subject) ||
 			!Number.isFinite(issuedAt) ||
 			!Number.isFinite(expiresAt) ||
 			expiresAt <= currentUnixSeconds ||
@@ -149,7 +153,7 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 		return {
 			email,
 			name: decoded.name ?? null,
-			sub: decoded.sub ?? null,
+			sub: subject,
 			iat: issuedAt,
 			exp: expiresAt,
 		};
@@ -160,6 +164,15 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 
 export function getCurrentUser(c: Context): SessionUser | null {
 	return decodeSession(getCookie(c, SESSION_COOKIE));
+}
+
+/** Return the portfolio storage key bound to the authenticated Google account. */
+export function getCurrentPortfolioKey(c: Context): string {
+	if (!appConfig.authEnabled) {
+		return DEFAULT_STORAGE_KEY;
+	}
+	const currentUser = getCurrentUser(c);
+	return portfolioKeyForGoogleSubject(currentUser?.sub ?? "");
 }
 
 export function clearAuthCookies(c: Context): void {
@@ -297,13 +310,19 @@ function normalizeAllowedGoogleUser(
 	const email = String(userInfo.email ?? "")
 		.trim()
 		.toLowerCase();
-	if (!email || !userInfo.email_verified || email !== appConfig.allowedEmail) {
+	const subject = String(userInfo.sub ?? "").trim();
+	if (
+		!email ||
+		!subject ||
+		!userInfo.email_verified ||
+		email !== appConfig.allowedEmail
+	) {
 		return null;
 	}
 	return {
 		email,
 		name: userInfo.name ?? null,
-		sub: userInfo.sub ?? null,
+		sub: subject,
 	};
 }
 
@@ -370,6 +389,13 @@ export async function handleCallback(c: Context): Promise<Response> {
 				.toLowerCase();
 			if (!email) {
 				return authErrorResponse(c, "Google account is missing an email.", 403);
+			}
+			if (!userInfo.sub) {
+				return authErrorResponse(
+					c,
+					"Google account is missing a subject.",
+					403,
+				);
 			}
 			if (!userInfo.email_verified) {
 				return authErrorResponse(c, "Google email is not verified.", 403);

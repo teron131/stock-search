@@ -8,6 +8,10 @@ import {
 	resolveTickerStatsMap,
 } from "../stats-resolver/index.js";
 import type { BackendStore, StockEntry } from "../storage/index.js";
+import {
+	PORTFOLIO_STATS_GENERATED_AT_META_KEY,
+	portfolioScopedMetaKey,
+} from "../storage/portfolio-keys.js";
 import { normalizeTicker, nowIso } from "../utils.js";
 import { buildPortfolioExposureTables } from "./exposure.js";
 import { applyPositionLabels, resolvePortfolioLabels } from "./labels.js";
@@ -29,7 +33,6 @@ export {
 } from "./positions.js";
 export { mergePortfolioRow } from "./rows.js";
 
-const PORTFOLIO_STATS_GENERATED_AT_META_KEY = "portfolio_stats_generated_at";
 const STATS_GENERATED_AT_META_KEY = "stats_generated_at";
 const STORED_PORTFOLIO_STATS_SYNC_MODE = "stored_portfolio_stats";
 
@@ -37,6 +40,7 @@ const STORED_PORTFOLIO_STATS_SYNC_MODE = "stored_portfolio_stats";
 export async function buildPortfolioPayload(
 	store: BackendStore,
 	scope: PortfolioScope,
+	portfolioKey?: string,
 ): Promise<{
 	rows: Array<Record<string, unknown>>;
 	tables: {
@@ -52,7 +56,7 @@ export async function buildPortfolioPayload(
 	};
 }> {
 	const scopePolicy = policy.request.portfolioScope(scope);
-	const portfolio = await store.loadPortfolio();
+	const portfolio = await store.loadPortfolio(portfolioKey);
 	const heldTickers = portfolioTickers(portfolio.positions);
 	const stockEntriesByTicker =
 		scopePolicy.universe === "all_stored"
@@ -160,9 +164,12 @@ export async function buildPortfolioPayload(
 	const portfolioStats = calculatePortfolioStats(rows, sectorTable);
 	if (scopePolicy.persistPortfolioStats) {
 		await Promise.all([
-			store.savePortfolioStats(portfolioStats),
+			store.savePortfolioStats(portfolioStats, portfolioKey),
 			store.setMetaValue(
-				PORTFOLIO_STATS_GENERATED_AT_META_KEY,
+				portfolioScopedMetaKey(
+					PORTFOLIO_STATS_GENERATED_AT_META_KEY,
+					portfolioKey,
+				),
 				generatedAt ?? nowIso(),
 			),
 		]);
@@ -190,14 +197,20 @@ export async function buildPortfolioPayload(
 /** Read stored portfolio stats without refreshing portfolio rows. */
 export async function readStoredPortfolioStatsPayload(
 	store: BackendStore,
+	portfolioKey?: string,
 ): Promise<{
 	portfolio_stats: Record<string, unknown> | null;
 	meta: Record<string, unknown>;
 }> {
 	const [portfolio, generatedAt] = await Promise.all([
-		store.loadPortfolio(),
+		store.loadPortfolio(portfolioKey),
 		store
-			.getMetaValue(PORTFOLIO_STATS_GENERATED_AT_META_KEY)
+			.getMetaValue(
+				portfolioScopedMetaKey(
+					PORTFOLIO_STATS_GENERATED_AT_META_KEY,
+					portfolioKey,
+				),
+			)
 			.then(
 				(value) => value ?? store.getMetaValue(STATS_GENERATED_AT_META_KEY),
 			),

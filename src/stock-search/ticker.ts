@@ -262,9 +262,10 @@ async function buildStandalonePayloadFromContext({
 async function loadTickerContext(
 	store: BackendStore,
 	tickerSymbol: string,
+	portfolioKey?: string,
 ): Promise<LoadedTickerContext> {
 	const [positions, stockEntry] = await Promise.all([
-		store.loadPositions(),
+		store.loadPositions(portfolioKey),
 		store.loadStock(tickerSymbol),
 	]);
 
@@ -282,13 +283,14 @@ export async function buildStandaloneTickerPayload(
 	store: BackendStore,
 	ticker: string,
 	source: TickerSource,
+	portfolioKey?: string,
 ): Promise<StandaloneTickerPayload> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
 		throw new InvalidTickerError(ticker);
 	}
 
-	const context = await loadTickerContext(store, tickerSymbol);
+	const context = await loadTickerContext(store, tickerSymbol, portfolioKey);
 
 	if (source === "cache") {
 		return buildStandalonePayloadFromContext({
@@ -320,6 +322,7 @@ export async function buildStandaloneTickerPayload(
 export async function buildEvaluateTickerPayload(
 	store: BackendStore,
 	ticker: string,
+	portfolioKey?: string,
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
@@ -330,6 +333,7 @@ export async function buildEvaluateTickerPayload(
 		store,
 		tickerSymbol,
 		policy.request.defaultTickerSource,
+		portfolioKey,
 	);
 	return {
 		ticker: tickerSymbol,

@@ -11,6 +11,7 @@ import {
 } from "../../portfolio/index.js";
 import type { BackendStore } from "../../storage/index.js";
 import { normalizeTicker } from "../../utils.js";
+import { getCurrentPortfolioKey } from "../auth.js";
 import { importPortfolioImage } from "../import-image.js";
 import {
 	PORTFOLIO,
@@ -60,13 +61,15 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 
 	router.get(PORTFOLIO, async (c) => {
 		const scope = PortfolioScopeSchema.parse(c.req.query("scope"));
+		const portfolioKey = getCurrentPortfolioKey(c);
 		c.header("Cache-Control", policy.request.cacheControl(scope));
-		return c.json(await buildPortfolioPayload(store, scope));
+		return c.json(await buildPortfolioPayload(store, scope, portfolioKey));
 	});
 
 	router.get(PORTFOLIO_STATS, async (c) => {
+		const portfolioKey = getCurrentPortfolioKey(c);
 		c.header("Cache-Control", PORTFOLIO_STATS_CACHE_CONTROL);
-		return c.json(await readStoredPortfolioStatsPayload(store));
+		return c.json(await readStoredPortfolioStatsPayload(store, portfolioKey));
 	});
 
 	router.patch(PORTFOLIO_TICKER_ROUTE, async (c) => {
@@ -80,7 +83,14 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 			return c.json({ detail: `Invalid ticker: ${ticker}` }, 400);
 		}
 		try {
-			return c.json(await patchPortfolioPosition(store, ticker, parsed.data));
+			return c.json(
+				await patchPortfolioPosition(
+					store,
+					ticker,
+					parsed.data,
+					getCurrentPortfolioKey(c),
+				),
+			);
 		} catch (error) {
 			return c.json(
 				{ detail: error instanceof Error ? error.message : "Patch failed" },
@@ -90,7 +100,13 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 	});
 
 	router.delete(PORTFOLIO_TICKER_ROUTE, async (c) => {
-		return c.json(await removePortfolioPosition(store, c.req.param("ticker")));
+		return c.json(
+			await removePortfolioPosition(
+				store,
+				c.req.param("ticker"),
+				getCurrentPortfolioKey(c),
+			),
+		);
 	});
 
 	router.post(PORTFOLIO_IMPORT_IMAGE, async (c) => {
@@ -134,6 +150,7 @@ export function createPortfolioRouter(store: BackendStore): Hono {
 				file,
 				strategy: parseOptionalFormText(formData.get("strategy")),
 				model: parseOptionalFormText(formData.get("model")),
+				portfolioKey: getCurrentPortfolioKey(c),
 			});
 			logPortfolioImageImport(
 				"info",

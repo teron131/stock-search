@@ -10,6 +10,7 @@ import {
 	buildStandaloneTickerPayload,
 	InvalidTickerError,
 } from "../../ticker.js";
+import { getCurrentPortfolioKey } from "../auth.js";
 import { STOCK_EVALUATE_ROUTE, STOCK_STATS_ROUTE } from "../route-paths.js";
 
 export function createStandaloneTickerRouter(store: BackendStore): Hono {
@@ -18,7 +19,13 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 	router.get(STOCK_EVALUATE_ROUTE, async (c) => {
 		const ticker = c.req.param("ticker");
 		try {
-			return c.json(await buildEvaluateTickerPayload(store, ticker));
+			return c.json(
+				await buildEvaluateTickerPayload(
+					store,
+					ticker,
+					getCurrentPortfolioKey(c),
+				),
+			);
 		} catch (error) {
 			return c.json(
 				{ detail: error instanceof Error ? error.message : "Unknown error" },
@@ -37,6 +44,7 @@ export function createStandaloneTickerRouter(store: BackendStore): Hono {
 					store,
 					c.req.param("ticker"),
 					resolvedSource,
+					getCurrentPortfolioKey(c),
 				),
 			);
 		} catch (error) {

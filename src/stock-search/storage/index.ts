@@ -40,8 +40,8 @@ export interface BackendStore {
 		portfolioStats: Record<string, unknown> | null,
 		key?: string,
 	): Promise<void>;
-	loadPositions(): Promise<PositionRow[]>;
-	savePositions(positions: PositionRow[]): Promise<void>;
+	loadPositions(key?: string): Promise<PositionRow[]>;
+	savePositions(positions: PositionRow[], key?: string): Promise<void>;
 	loadStocks(): Promise<Record<string, StockEntry>>;
 	loadStocksByTickers(tickers: string[]): Promise<Record<string, StockEntry>>;
 	loadStock(ticker: string): Promise<StockEntry | null>;

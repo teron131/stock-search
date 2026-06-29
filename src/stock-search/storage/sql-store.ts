@@ -44,20 +44,10 @@ export abstract class SqlStore implements BackendStore {
 		await this.ready();
 		const [portfolioRows, positionRows] = await Promise.all([
 			this.query("SELECT * FROM portfolio_stats WHERE key = ?", [key]),
-			this.query(
-				`
-				SELECT ticker, quantity, strategy, industry_labels, extra
-				FROM positions
-				WHERE key = ?
-				ORDER BY sort_index ASC, ticker ASC
-				`,
-				[key],
-			),
+			this.loadPositionRows(key),
 		]);
 		return {
-			positions: positionRows
-				.map(positionFromRow)
-				.filter((position): position is PositionRow => position !== null),
+			positions: positionRows,
 			portfolioStats: portfolioStatsFromRow(portfolioRows[0]),
 		};
 	}
@@ -85,18 +75,22 @@ export abstract class SqlStore implements BackendStore {
 		await this.batch([this.portfolioStatsStatement(key, portfolioStats)]);
 	}
 
-	async loadPositions(): Promise<PositionRow[]> {
-		const portfolio = await this.loadPortfolio(DEFAULT_STORAGE_KEY);
-		return portfolio.positions;
+	async loadPositions(key = DEFAULT_STORAGE_KEY): Promise<PositionRow[]> {
+		await this.ready();
+		return this.loadPositionRows(key);
 	}
 
-	async savePositions(positions: PositionRow[]): Promise<void> {
-		const portfolio = await this.loadPortfolio(DEFAULT_STORAGE_KEY);
-		await this.savePortfolio({
-			key: DEFAULT_STORAGE_KEY,
-			positions,
-			portfolioStats: portfolio.portfolioStats,
-		});
+	async savePositions(
+		positions: PositionRow[],
+		key = DEFAULT_STORAGE_KEY,
+	): Promise<void> {
+		await this.ready();
+		await this.batch([
+			{ sql: "DELETE FROM positions WHERE key = ?", params: [key] },
+			...positions.flatMap((position, index) =>
+				this.positionStatement(key, position, index),
+			),
+		]);
 	}
 
 	async loadStocks(): Promise<Record<string, StockEntry>> {
@@ -357,6 +351,22 @@ export abstract class SqlStore implements BackendStore {
 
 	protected schemaStatements(): SqlStatement[] {
 		return tableSchemaQueries().map((sql) => ({ sql }));
+	}
+
+	private async loadPositionRows(key: string): Promise<PositionRow[]> {
+		return (
+			await this.query(
+				`
+				SELECT ticker, quantity, strategy, industry_labels, extra
+				FROM positions
+				WHERE key = ?
+				ORDER BY sort_index ASC, ticker ASC
+				`,
+				[key],
+			)
+		)
+			.map(positionFromRow)
+			.filter((position): position is PositionRow => position !== null);
 	}
 
 	private portfolioStatsStatement(

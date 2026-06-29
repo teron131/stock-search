@@ -1,4 +1,4 @@
-/** Mutate portfolio positions and clean up removed ticker data. */
+/** Mutate one portfolio's positions while shared ticker caches stay global. */
 
 import { safeFloat } from "../common-utils.js";
 import { YahooFinanceSource } from "../data-sources/yahoo-finance.js";
@@ -8,36 +8,7 @@ import {
 	POSITION_SOURCE_DASHBOARD_MANUAL,
 	POSITION_SOURCE_DASHBOARD_WATCHLIST,
 	POSITION_SOURCE_FIELD,
-	portfolioTickers,
 } from "./shared.js";
-
-async function forgetRemovedPortfolioTickers(
-	store: BackendStore,
-	previousTickers: string[],
-	nextPositions: PositionRow[],
-): Promise<void> {
-	const nextTickers = new Set(portfolioTickers(nextPositions));
-	const removedTickers = previousTickers.filter(
-		(ticker) => !nextTickers.has(ticker),
-	);
-	if (removedTickers.length === 0) {
-		return;
-	}
-
-	await Promise.all([
-		store.deleteStocksByTickers(removedTickers),
-		store.deleteNewsByTickers(removedTickers),
-	]);
-}
-
-async function savePortfolioPositionsAndForgetRemoved(
-	store: BackendStore,
-	positions: PositionRow[],
-	previousTickers: string[],
-): Promise<void> {
-	await store.savePositions(positions);
-	await forgetRemovedPortfolioTickers(store, previousTickers, positions);
-}
 
 async function ensureValidNewTicker(ticker: string): Promise<void> {
 	const indicators = await new YahooFinanceSource(
@@ -56,14 +27,14 @@ export async function patchPortfolioPosition(
 		quantity?: number | null;
 		strategy?: string | null;
 	},
+	portfolioKey?: string,
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
 		throw new Error(`Invalid ticker: ${ticker}`);
 	}
 
-	const positions = await store.loadPositions();
-	const previousTickers = portfolioTickers(positions);
+	const positions = await store.loadPositions(portfolioKey);
 	const index = positions.findIndex(
 		(position) => normalizeTicker(position.ticker) === tickerSymbol,
 	);
@@ -102,11 +73,7 @@ export async function patchPortfolioPosition(
 	} else {
 		positions.push(current);
 	}
-	await savePortfolioPositionsAndForgetRemoved(
-		store,
-		positions,
-		previousTickers,
-	);
+	await store.savePositions(positions, portfolioKey);
 	return {
 		status: "ok",
 		ticker: tickerSymbol,
@@ -118,17 +85,13 @@ export async function patchPortfolioPosition(
 export async function removePortfolioPosition(
 	store: BackendStore,
 	ticker: string,
+	portfolioKey?: string,
 ): Promise<Record<string, unknown>> {
 	const tickerSymbol = normalizeTicker(ticker);
-	const positions = await store.loadPositions();
-	const previousTickers = portfolioTickers(positions);
+	const positions = await store.loadPositions(portfolioKey);
 	const nextPositions = positions.filter(
 		(position) => normalizeTicker(position.ticker) !== tickerSymbol,
 	);
-	await savePortfolioPositionsAndForgetRemoved(
-		store,
-		nextPositions,
-		previousTickers,
-	);
+	await store.savePositions(nextPositions, portfolioKey);
 	return { status: "ok", ticker: tickerSymbol };
 }
