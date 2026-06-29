@@ -1,9 +1,30 @@
 /** Build standalone ticker payloads from cached and live resolver data. */
 
+import {
+	type EtfResolutionResult,
+	type EtfSnapshotResult,
+	resolveEtfSnapshotCache,
+} from "./etf/index.js";
 import { policy, type TickerSource } from "./policy.js";
-import { buildTickerRow } from "./portfolio/ticker-row.js";
+import {
+	applyEtfProxyStatsToStocks,
+	resolveEtfProxyStocks,
+} from "./portfolio/etf-proxy.js";
+import { mergePortfolioRow } from "./portfolio/rows.js";
+import { resolveTickerStats } from "./stats-resolver/index.js";
 import type { BackendStore, PositionRow, StockEntry } from "./storage/index.js";
 import { normalizeTicker, nowIso } from "./utils.js";
+
+type LoadedTickerContext = {
+	ticker: string;
+	position: PositionRow;
+	stockEntry: StockEntry;
+};
+
+type StandaloneTickerRowResult = {
+	row: Record<string, unknown>;
+	dataSource: string;
+};
 
 type StandaloneTickerPayload = {
 	row: Record<string, unknown>;
@@ -26,7 +47,7 @@ export class InvalidTickerError extends Error {
 }
 
 /** Create the zero-quantity fallback position for standalone ticker requests. */
-function makePosition(ticker: string): PositionRow {
+function makeStandalonePosition(ticker: string): PositionRow {
 	return { ticker, quantity: 0, strategy: null };
 }
 
@@ -41,19 +62,6 @@ function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
 	);
 }
 
-/** Build metadata for standalone ticker responses. */
-function buildStandaloneMeta(
-	store: BackendStore,
-	dataSource: string,
-): StandaloneTickerPayload["meta"] {
-	return {
-		generated_at: nowIso(),
-		data_source: dataSource,
-		backend_store: store.backendName,
-		sync_mode: "realtime_subscription",
-	};
-}
-
 /** Wrap a public ticker row with standalone response metadata. */
 function buildStandalonePayload(
 	store: BackendStore,
@@ -62,38 +70,189 @@ function buildStandalonePayload(
 ): StandaloneTickerPayload {
 	return {
 		row,
-		meta: buildStandaloneMeta(store, dataSource),
+		meta: {
+			generated_at: nowIso(),
+			data_source: dataSource,
+			backend_store: store.backendName,
+			sync_mode: "realtime_subscription",
+		},
 	};
 }
 
-/** Detect whether a built row represents a usable cached ticker response. */
-function hasCachedTicker(row: Record<string, unknown>): boolean {
-	return Boolean(row.ticker);
+/** Detect whether resolved indicators should trigger ETF snapshot enrichment. */
+function hasEtfSnapshotSignal(indicators: Record<string, unknown>): boolean {
+	const cachedHoldings = indicators.etf_holdings;
+	return (
+		String(indicators.quote_type ?? "")
+			.trim()
+			.toUpperCase() === "ETF" ||
+		(Array.isArray(cachedHoldings) && cachedHoldings.length > 0)
+	);
 }
 
-/** Build a payload from a loaded ticker context and enforce the cached-row invariant. */
-async function buildPayloadFromContext({
+/** Enrich one standalone ticker entry with ETF snapshot fields when available. */
+async function enrichTickerEtfEntry(
+	store: BackendStore,
+	ticker: string,
+	stockEntry: StockEntry,
+): Promise<{
+	stockEntry: StockEntry;
+	snapshot: EtfSnapshotResult | null;
+}> {
+	if (!hasEtfSnapshotSignal(stockEntry.indicators)) {
+		return { stockEntry, snapshot: null };
+	}
+
+	const snapshotCache = await resolveEtfSnapshotCache(ticker, stockEntry, true);
+	const snapshotHasData =
+		snapshotCache.snapshot.holdings.length > 0 ||
+		snapshotCache.snapshot.sectors.length > 0;
+	const indicators =
+		snapshotCache.refreshedIndicators ??
+		(snapshotHasData
+			? {
+					...stockEntry.indicators,
+					quote_type: "ETF",
+					etf_holdings: snapshotCache.snapshot.holdings,
+					etf_sectors: snapshotCache.snapshot.sectors,
+				}
+			: { ...stockEntry.indicators, quote_type: "ETF" });
+
+	if (snapshotCache.refreshedIndicators) {
+		await store.upsertStocks([
+			{
+				ticker,
+				indicators,
+				evaluation: stockEntry.evaluation,
+				labels: stockEntry.labels,
+			},
+		]);
+	}
+
+	return {
+		stockEntry: {
+			...stockEntry,
+			indicators,
+		},
+		snapshot: snapshotCache.snapshot,
+	};
+}
+
+/** Build the ETF resolution shape needed by standalone proxy calculations. */
+function standaloneEtfResolution(
+	ticker: string,
+	snapshot: EtfSnapshotResult,
+): EtfResolutionResult {
+	return {
+		stockPositions: [],
+		etfPositions: [makeStandalonePosition(ticker)],
+		snapshotByTicker: {
+			[ticker]: snapshot,
+		},
+		etfRefreshedCount: 0,
+		cacheChanged: false,
+		changedTickers: [],
+	};
+}
+
+/** Apply ETF proxy stats to one standalone ticker entry when holdings are available. */
+async function applyTickerEtfProxyStats(
+	store: BackendStore,
+	ticker: string,
+	stockEntry: StockEntry,
+	snapshot: EtfSnapshotResult | null,
+): Promise<StockEntry> {
+	if (!snapshot || snapshot.holdings.length === 0) {
+		return stockEntry;
+	}
+
+	const resolution = standaloneEtfResolution(ticker, snapshot);
+	const proxyStockResolution = await resolveEtfProxyStocks({
+		store,
+		resolution,
+		knownStocks: {
+			[ticker]: stockEntry,
+		},
+		liveRefresh: true,
+		normalRefreshTickers: new Set(),
+	});
+	return (
+		applyEtfProxyStatsToStocks(
+			{
+				[ticker]: stockEntry,
+			},
+			resolution,
+			proxyStockResolution.stocks,
+		)[ticker] ?? stockEntry
+	);
+}
+
+/** Build one public ticker row and report whether it came from cache or live resolution. */
+async function buildStandaloneTickerRow({
 	store,
 	ticker,
-	context,
+	position,
+	stockEntry,
 	source,
 }: {
 	store: BackendStore;
 	ticker: string;
-	context: {
-		position: PositionRow;
-		stockEntry: StockEntry;
+	position: PositionRow;
+	stockEntry: StockEntry;
+	source: TickerSource;
+}): Promise<StandaloneTickerRowResult> {
+	const tickerSymbol = normalizeTicker(ticker);
+	if (!tickerSymbol) {
+		throw new Error("Invalid ticker");
+	}
+
+	if (source === "cache") {
+		return {
+			row: mergePortfolioRow(position, stockEntry),
+			dataSource: "cache",
+		};
+	}
+
+	const resolved = await resolveTickerStats(
+		store,
+		tickerSymbol,
+		source,
+		stockEntry,
+	);
+	const etfEntry = await enrichTickerEtfEntry(store, tickerSymbol, {
+		...stockEntry,
+		indicators: resolved.row,
+	});
+	const resolvedStockEntry = await applyTickerEtfProxyStats(
+		store,
+		tickerSymbol,
+		etfEntry.stockEntry,
+		etfEntry.snapshot,
+	);
+	return {
+		row: mergePortfolioRow(position, resolvedStockEntry),
+		dataSource: resolved.dataSource,
 	};
+}
+
+/** Build a standalone payload from loaded ticker context and enforce the cached-row invariant. */
+async function buildStandalonePayloadFromContext({
+	store,
+	context,
+	source,
+}: {
+	store: BackendStore;
+	context: LoadedTickerContext;
 	source: TickerSource;
 }): Promise<StandaloneTickerPayload> {
-	const result = await buildTickerRow({
+	const result = await buildStandaloneTickerRow({
 		store,
-		ticker,
+		ticker: context.ticker,
 		position: context.position,
 		stockEntry: context.stockEntry,
 		source,
 	});
-	if (!hasCachedTicker(result.row)) {
+	if (!result.row.ticker) {
 		throw new Error("Ticker not found");
 	}
 	return buildStandalonePayload(store, result.row, result.dataSource);
@@ -102,17 +261,8 @@ async function buildPayloadFromContext({
 /** Load portfolio and cache context needed to build one standalone ticker row. */
 async function loadTickerContext(
 	store: BackendStore,
-	ticker: string,
-): Promise<{
-	ticker: string;
-	position: PositionRow;
-	stockEntry: StockEntry;
-}> {
-	const tickerSymbol = normalizeTicker(ticker);
-	if (!tickerSymbol) {
-		throw new InvalidTickerError(ticker);
-	}
-
+	tickerSymbol: string,
+): Promise<LoadedTickerContext> {
 	const [positions, stockEntry] = await Promise.all([
 		store.loadPositions(),
 		store.loadStock(tickerSymbol),
@@ -122,7 +272,7 @@ async function loadTickerContext(
 		ticker: tickerSymbol,
 		position:
 			positions.find((row) => normalizeTicker(row.ticker) === tickerSymbol) ??
-			makePosition(tickerSymbol),
+			makeStandalonePosition(tickerSymbol),
 		stockEntry: makeStockEntry(stockEntry),
 	};
 }
@@ -138,23 +288,19 @@ export async function buildStandaloneTickerPayload(
 		throw new InvalidTickerError(ticker);
 	}
 
-	const contextPromise = loadTickerContext(store, tickerSymbol);
+	const context = await loadTickerContext(store, tickerSymbol);
 
 	if (source === "cache") {
-		const context = await contextPromise;
-		return buildPayloadFromContext({
+		return buildStandalonePayloadFromContext({
 			store,
-			ticker: tickerSymbol,
 			context,
 			source,
 		});
 	}
 
 	try {
-		const context = await contextPromise;
-		return await buildPayloadFromContext({
+		return await buildStandalonePayloadFromContext({
 			store,
-			ticker: tickerSymbol,
 			context,
 			source,
 		});
@@ -162,10 +308,8 @@ export async function buildStandaloneTickerPayload(
 		if (source === "live") {
 			throw error;
 		}
-		const context = await contextPromise;
-		return buildPayloadFromContext({
+		return buildStandalonePayloadFromContext({
 			store,
-			ticker: tickerSymbol,
 			context,
 			source: "cache",
 		});
