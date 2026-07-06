@@ -1,3 +1,5 @@
+/** Define backend API and app page paths shared by routes and tool metadata. */
+
 export const ROOT = "/";
 export const DASHBOARD = "/dashboard";
 export const SECTORS = "/sectors";
@@ -39,6 +41,18 @@ export const COLOR_STANDARDS = "/color-standards";
 export const REALTIME_CONFIG = "/realtime-config";
 
 export const PUBLIC_STATIC_PREFIXES = ["/assets/", "/demo/", "/.well-known/"];
+
+export function normalizeAppPagePath(pathname: string): string | null {
+	const normalizedPath =
+		pathname === ROOT ? ROOT : pathname.replace(/\/+$/g, "");
+	return (APP_PAGE_PATHS as readonly string[]).includes(normalizedPath)
+		? normalizedPath
+		: null;
+}
+
+export function isAppPagePath(pathname: string): boolean {
+	return normalizeAppPagePath(pathname) !== null;
+}
 
 function encodePathSegment(value: string): string {
 	return encodeURIComponent(String(value || "").trim());

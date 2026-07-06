@@ -12,7 +12,7 @@
 			"dest": "/api/index"
 		},
 		{
-			"src": "/(dashboard|marketmap|calendar|sectors|news)",
+			"src": "/(dashboard|marketmap|calendar|sectors|news)/?",
 			"dest": "/api/index"
 		},
 		{

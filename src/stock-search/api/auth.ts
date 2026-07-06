@@ -1,3 +1,5 @@
+/** Authenticate Google OAuth sessions and guard private API/page routes. */
+
 import { createHmac, randomBytes } from "node:crypto";
 import type { Context, Next } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -6,12 +8,12 @@ import { DEFAULT_STORAGE_KEY } from "../storage/schemas.js";
 import { sanitizeNextPath } from "../utils.js";
 import { appConfig } from "./config.js";
 import {
-	APP_PAGE_PATHS,
 	AUTH_CALLBACK,
 	AUTH_LOGIN,
 	AUTH_LOGOUT,
 	AUTH_SESSION,
 	COLOR_STANDARDS,
+	isAppPagePath,
 	PUBLIC_STATIC_PREFIXES,
 	ROOT,
 } from "./route-paths.js";
@@ -225,10 +227,7 @@ export async function authGuard(c: Context, next: Next) {
 	if (currentUser) {
 		return next();
 	}
-	if (
-		(APP_PAGE_PATHS as readonly string[]).includes(c.req.path) &&
-		isPageNavigationRequest(c)
-	) {
+	if (isAppPagePath(c.req.path) && isPageNavigationRequest(c)) {
 		const url = new URL(c.req.url);
 		const nextPath = sanitizeNextPath(`${url.pathname}${url.search}`);
 		return c.redirect(
