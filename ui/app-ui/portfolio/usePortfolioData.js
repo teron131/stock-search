@@ -1,3 +1,5 @@
+/** Own portfolio dashboard state, mutations, and refresh scheduling for the UI. */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CONFIG } from "../config.js";
@@ -19,7 +21,6 @@ import {
 	getNormalizedPortfolioStats,
 	mergeRows,
 	removeRow,
-	upsertRow,
 } from "./dataModel.js";
 
 const { initial: INITIAL_PORTFOLIO_SCOPE, live: LIVE_PORTFOLIO_SCOPE } =
@@ -33,6 +34,41 @@ function setValueIfChanged(setter, nextValue, areEqual = Object.is) {
 	setter((currentValue) =>
 		areEqual(currentValue, nextValue) ? currentValue : nextValue,
 	);
+}
+
+function mergePositionRow(rows, position) {
+	const ticker = normalizeTicker(position?.ticker);
+	if (!ticker) return rows;
+
+	const nextPosition = {
+		...position,
+		ticker: position.ticker || ticker,
+		name: position.name || ticker,
+	};
+	const index = rows.findIndex(
+		(row) => normalizeTicker(row?.ticker) === ticker,
+	);
+	if (index === -1) return [...rows, nextPosition];
+
+	const nextRows = [...rows];
+	nextRows[index] = {
+		...nextRows[index],
+		...nextPosition,
+	};
+	return nextRows;
+}
+
+function replaceExistingRow(rows, nextRow) {
+	const ticker = normalizeTicker(nextRow?.ticker);
+	if (!ticker) return rows;
+
+	let didReplace = false;
+	const nextRows = rows.map((row) => {
+		if (normalizeTicker(row?.ticker) !== ticker) return row;
+		didReplace = true;
+		return nextRow;
+	});
+	return didReplace ? nextRows : rows;
 }
 
 export function usePortfolioData() {
@@ -208,6 +244,30 @@ export function usePortfolioData() {
 		}
 	}, [applyApiResult, cancelSync, colorStandards]);
 
+	const refreshPositionStats = useCallback(
+		async (ticker) => {
+			const rowPayload = await tryFetchJson(
+				CONFIG.endpoints.stockStats(ticker),
+			);
+			if (rowPayload?.row) {
+				setRows((prevRows) =>
+					calculateRanks(replaceExistingRow(prevRows, rowPayload.row)),
+				);
+				setPortfolioStats(null);
+				const generatedAt = rowPayload?.meta?.generated_at;
+				setGeneratedAt(
+					typeof generatedAt === "string" && generatedAt
+						? generatedAt
+						: new Date().toISOString(),
+				);
+				return;
+			}
+
+			await load({ background: true, silent: true });
+		},
+		[load],
+	);
+
 	const sync = useCallback(
 		async ({
 			background = false,
@@ -244,7 +304,7 @@ export function usePortfolioData() {
 	}, [cancelSync]);
 
 	const patchPortfolioPosition = useCallback(
-		async ({ ticker, quantity, strategy, silent = false }) => {
+		async ({ ticker, quantity, strategy }) => {
 			const normalizedTicker = normalizeTicker(ticker);
 			const normalizedQuantity = normalizeQuantityInput(quantity);
 			if (!normalizedTicker || normalizedQuantity == null) {
@@ -266,27 +326,26 @@ export function usePortfolioData() {
 			);
 
 			if (!res.ok) return { ok: false, reason: "server" };
-			const rowPayload = await tryFetchJson(
-				CONFIG.endpoints.stockStats(normalizedTicker),
-			);
-			if (rowPayload?.row) {
-				setRows((prevRows) =>
-					calculateRanks(upsertRow(prevRows, rowPayload.row)),
-				);
-				setPortfolioStats(null);
-				const generatedAt = rowPayload?.meta?.generated_at;
-				setGeneratedAt(
-					typeof generatedAt === "string" && generatedAt
-						? generatedAt
-						: new Date().toISOString(),
-				);
-				return { ok: true };
-			}
+			const payload = await res.json().catch(() => null);
+			const position =
+				payload?.position && typeof payload.position === "object"
+					? payload.position
+					: {
+							ticker: normalizedTicker,
+							quantity: normalizedQuantity,
+							...(strategy !== undefined ? { strategy } : {}),
+						};
 
-			await load({ background: true, silent });
-			return { ok: true, fallback: "full_reload" };
+			cancelSync();
+			setRows((prevRows) =>
+				calculateRanks(mergePositionRow(prevRows, position)),
+			);
+			setPortfolioStats(null);
+			setGeneratedAt(new Date().toISOString());
+			void refreshPositionStats(normalizedTicker);
+			return { ok: true, background: "stats_refresh" };
 		},
-		[load],
+		[cancelSync, refreshPositionStats],
 	);
 
 	const addOrUpdate = useCallback(

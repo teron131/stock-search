@@ -5,6 +5,7 @@ import {
 	type EtfSnapshotResult,
 	resolveEtfSnapshotCache,
 } from "./etf/index.js";
+import { isEtfTicker } from "./etf/sources.js";
 import { policy, type TickerSource } from "./policy.js";
 import {
 	applyEtfProxyStatsToStocks,
@@ -99,7 +100,10 @@ async function enrichTickerEtfEntry(
 	stockEntry: StockEntry;
 	snapshot: EtfSnapshotResult | null;
 }> {
-	if (!hasEtfSnapshotSignal(stockEntry.indicators)) {
+	if (
+		!hasEtfSnapshotSignal(stockEntry.indicators) &&
+		!(await isEtfTicker(ticker, stockEntry))
+	) {
 		return { stockEntry, snapshot: null };
 	}
 
