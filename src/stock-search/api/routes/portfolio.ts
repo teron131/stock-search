@@ -1,4 +1,4 @@
-/** Portfolio API route module. */
+/** Adapts authenticated portfolio HTTP routes to portfolio domain workflows. */
 
 import { Hono } from "hono";
 import { z } from "zod";

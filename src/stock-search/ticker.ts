@@ -1,4 +1,4 @@
-/** Build standalone ticker payloads from cached and live resolver data. */
+/** Owns public standalone ticker and evaluate payload assembly from resolver/cache data. */
 
 import {
 	type EtfResolutionResult,
@@ -47,12 +47,12 @@ export class InvalidTickerError extends Error {
 	}
 }
 
-/** Create the zero-quantity fallback position for standalone ticker requests. */
+/** Standalone ticker requests use a zero-quantity position when the portfolio lacks the ticker. */
 function makeStandalonePosition(ticker: string): PositionRow {
 	return { ticker, quantity: 0, strategy: null };
 }
 
-/** Normalize a possibly missing stock row into the shape expected by row builders. */
+/** Missing cached stock rows are represented as empty indicator/evaluation/label buckets. */
 function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
 	return (
 		stockEntry ?? {
@@ -63,7 +63,7 @@ function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
 	);
 }
 
-/** Wrap a public ticker row with standalone response metadata. */
+/** Public standalone responses carry resolver provenance beside the merged row. */
 function buildStandalonePayload(
 	store: BackendStore,
 	row: Record<string, unknown>,
@@ -80,7 +80,7 @@ function buildStandalonePayload(
 	};
 }
 
-/** Detect whether resolved indicators should trigger ETF snapshot enrichment. */
+/** ETF enrichment starts from quote type or cached holdings because providers disagree on ETF metadata. */
 function hasEtfSnapshotSignal(indicators: Record<string, unknown>): boolean {
 	const cachedHoldings = indicators.etf_holdings;
 	return (
@@ -91,7 +91,7 @@ function hasEtfSnapshotSignal(indicators: Record<string, unknown>): boolean {
 	);
 }
 
-/** Enrich one standalone ticker entry with ETF snapshot fields when available. */
+/** Persist refreshed ETF snapshot indicators when live enrichment supplies richer holdings. */
 async function enrichTickerEtfEntry(
 	store: BackendStore,
 	ticker: string,
@@ -142,7 +142,7 @@ async function enrichTickerEtfEntry(
 	};
 }
 
-/** Build the ETF resolution shape needed by standalone proxy calculations. */
+/** Standalone ETF proxying reuses the portfolio proxy shape without portfolio stock positions. */
 function standaloneEtfResolution(
 	ticker: string,
 	snapshot: EtfSnapshotResult,

@@ -1,4 +1,4 @@
-/** StockAnalysis data-source package. */
+/** Exposes the public StockAnalysis provider types and source entrypoint. */
 
 export type {
 	StockAnalysisEtfSnapshot,

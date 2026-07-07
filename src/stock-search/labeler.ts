@@ -1,4 +1,4 @@
-/** Generate label tags with the portfolio labeling graph. */
+/** Owns LLM-backed industry label generation and sync wrappers for non-async callers. */
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -229,6 +229,7 @@ function buildLabelGraph() {
 		.compile();
 }
 
+/** Bridge synchronous callers through a child tsx process because label generation is async-only. */
 function runLabelerSync<T>(command: string, payload: unknown): T {
 	const workerUrl = new URL("./labeler-sync-worker.ts", import.meta.url);
 	const workerPath = fileURLToPath(workerUrl);
@@ -271,7 +272,7 @@ function runLabelerSync<T>(command: string, payload: unknown): T {
 	return JSON.parse(result.stdout) as T;
 }
 
-/** Fetch labels for one ticker asynchronously. */
+/** Run the async label graph for one normalized ticker. */
 export async function agetLabel(ticker: string): Promise<TickerLabels> {
 	const tickerSymbol = normalizeTicker(ticker);
 	if (!tickerSymbol) {
@@ -291,7 +292,7 @@ export async function agetLabel(ticker: string): Promise<TickerLabels> {
 	return response.labels;
 }
 
-/** Fetch labels for multiple tickers asynchronously. */
+/** Batch async label graph calls while treating individual ticker failures as missing labels. */
 export async function agetLabels(
 	tickers: string[],
 	{ maxConcurrency = 4 }: { maxConcurrency?: number } = {},
@@ -328,12 +329,12 @@ export async function agetLabels(
 	return results;
 }
 
-/** Fetch labels for one ticker. */
+/** Expose sync label lookup for CLI and legacy synchronous entrypoints. */
 export function getLabel(ticker: string): TickerLabels {
 	return runLabelerSync<TickerLabels>("get-label", { ticker });
 }
 
-/** Fetch labels for multiple tickers. */
+/** Expose sync batched label lookup through the worker bridge. */
 export function getLabels(
 	tickers: string[],
 	options: { maxConcurrency?: number } = {},

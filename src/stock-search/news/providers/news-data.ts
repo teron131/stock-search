@@ -1,4 +1,4 @@
-/** NewsData
+/** Fetches recent NewsData business results and normalizes them into NewsArticle rows.
 Playground: https://newsdata.io/search-dashboard
 Documentation: https://newsdata.io/documentation#latest-news
 - Free

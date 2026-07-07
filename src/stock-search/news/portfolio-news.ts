@@ -1,4 +1,4 @@
-/** Build, persist, and load shared portfolio news payloads. */
+/** Owns persisted portfolio-news payloads and bounded raw-news bundle assembly. */
 
 import { z } from "zod";
 
@@ -54,14 +54,14 @@ type RawTickerNewsResult = {
 	warning?: string;
 };
 
-/** Return object records while rejecting primitives and null. */
+/** Summary request normalization only accepts object-shaped rows. */
 function asRecord(value: unknown): Record<string, unknown> | null {
 	return typeof value === "object" && value !== null
 		? (value as Record<string, unknown>)
 		: null;
 }
 
-/** Convert request values into nullable finite numbers. */
+/** UI numeric fields may arrive as strings but persist as finite numbers or null. */
 function toNullableFiniteNumber(value: unknown): number | null {
 	const number = Number(value ?? Number.NaN);
 	return Number.isFinite(number) ? number : null;
@@ -79,7 +79,7 @@ function normalizeSourceTickers(record: Record<string, unknown>): string[] {
 		: [];
 }
 
-/** Normalize one portfolio row before summary request schema validation. */
+/** Portfolio summary rows are normalized before Zod applies the public schema. */
 function normalizePortfolioNewsSummaryRow(value: unknown): unknown {
 	const record = asRecord(value);
 	if (!record) {
@@ -93,7 +93,7 @@ function normalizePortfolioNewsSummaryRow(value: unknown): unknown {
 	};
 }
 
-/** Normalize one article before summary request schema validation. */
+/** Summary articles tolerate legacy casing while constraining enum-like fields. */
 function normalizePortfolioNewsSummaryArticle(value: unknown): unknown {
 	const record = asRecord(value);
 	if (!record) {

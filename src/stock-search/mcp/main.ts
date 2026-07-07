@@ -1,4 +1,4 @@
-/** Run the Stock Search FastMCP server. */
+/** FastMCP executable entrypoint that starts the Stock Search tool server. */
 
 import { main } from "./server.js";
 

@@ -1,3 +1,5 @@
+/** Loads environment-backed backend and UI runtime configuration. */
+
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";

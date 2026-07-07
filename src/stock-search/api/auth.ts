@@ -164,6 +164,7 @@ function decodeSession(cookieValue?: string): SessionUser | null {
 	}
 }
 
+/** Decode the signed session cookie without throwing on absent or invalid sessions. */
 export function getCurrentUser(c: Context): SessionUser | null {
 	return decodeSession(getCookie(c, SESSION_COOKIE));
 }
@@ -177,6 +178,7 @@ export function getCurrentPortfolioKey(c: Context): string {
 	return portfolioKeyForGoogleSubject(currentUser?.sub ?? "");
 }
 
+/** Clear session and temporary OAuth cookies using the shared route path. */
 export function clearAuthCookies(c: Context): void {
 	deleteCookie(c, SESSION_COOKIE, { path: "/" });
 	deleteCookie(c, STATE_COOKIE, { path: "/" });
@@ -196,6 +198,7 @@ function setSessionCookie(
 	});
 }
 
+/** Keep auth bypasses limited to OAuth endpoints, static assets, and explicit public utilities. */
 export function isPublicRequestPath(pathname: string): boolean {
 	if (
 		pathname === AUTH_LOGIN ||
@@ -216,6 +219,7 @@ export function isPublicRequestPath(pathname: string): boolean {
 	return PUBLIC_STATIC_EXTENSIONS.has(suffix);
 }
 
+/** Gate private API/page requests while redirecting browser navigations back after login. */
 export async function authGuard(c: Context, next: Next) {
 	if (!appConfig.authEnabled || isPublicRequestPath(c.req.path)) {
 		return next();
@@ -325,6 +329,7 @@ function normalizeAllowedGoogleUser(
 	};
 }
 
+/** Start Google OAuth and remember the sanitized return path in short-lived cookies. */
 export async function handleLogin(c: Context): Promise<Response> {
 	const nextPath = sanitizeNextPath(c.req.query("next"));
 	if (!appConfig.authEnabled) {
@@ -339,6 +344,7 @@ export async function handleLogin(c: Context): Promise<Response> {
 	return c.redirect(buildGoogleAuthorizeUrl(c.req.url, state), 307);
 }
 
+/** Complete Google OAuth, enforce the allowed account, and issue the app session. */
 export async function handleCallback(c: Context): Promise<Response> {
 	if (!appConfig.authEnabled) {
 		return c.redirect(ROOT, 307);
@@ -410,11 +416,13 @@ export async function handleCallback(c: Context): Promise<Response> {
 	}
 }
 
+/** End the local session and route users back through auth when auth is enabled. */
 export async function handleLogout(c: Context): Promise<Response> {
 	clearAuthCookies(c);
 	return c.redirect(appConfig.authEnabled ? AUTH_LOGIN : ROOT, 307);
 }
 
+/** Return the minimal session state consumed by the frontend shell. */
 export async function handleSession(c: Context): Promise<Response> {
 	const currentUser = getCurrentUser(c);
 	c.header("Cache-Control", "no-store");

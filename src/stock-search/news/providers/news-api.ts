@@ -1,4 +1,4 @@
-/** NewsAPI
+/** Fetches delayed NewsAPI everything-search results and normalizes them into NewsArticle rows.
 Documentation: https://newsapi.org/docs/endpoints/everything
 - Free
 - 24 hours delay

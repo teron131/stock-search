@@ -1,4 +1,4 @@
-/** Public score-engine exports. */
+/** Exposes the public score-engine lanes and aggregate scoring surface. */
 
 export {
 	calculateOverallScore,

@@ -79,6 +79,7 @@ function isPageNavigation(request: Request): boolean {
 	return accept.includes("text/html") && !accept.includes("application/json");
 }
 
+/** Compose the Hono app with injectable store/index dependencies for tests and runtimes. */
 export function createApp(overrides: Partial<AppDependencies> = {}): Hono {
 	const deps: AppDependencies = {
 		store: overrides.store ?? createLazyStore(),

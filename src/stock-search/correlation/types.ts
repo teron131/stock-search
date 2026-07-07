@@ -1,3 +1,5 @@
+/** Defines the correlation report contracts shared by API, CLI, and tests. */
+
 import type { DataFrame } from "nodejs-polars";
 
 export type BlendWeightMode = "reliability" | "intent" | "hybrid";

@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-/** CLI for calling the Stock Search MCP tools in-process. */
+/** Adapts curated Stock Search CLI commands onto the in-process MCP tool surface. */
 
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";

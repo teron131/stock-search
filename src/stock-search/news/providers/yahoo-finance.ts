@@ -1,4 +1,4 @@
-/** yfinance
+/** Fetches Yahoo Finance ticker news and normalizes it into NewsArticle rows.
 Documentation: https://ranaroussi.github.io/yfinance/reference/api/yfinance.Search.html
 - Free
 */

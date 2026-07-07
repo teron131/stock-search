@@ -1,4 +1,4 @@
-/** Derived stat helpers used by live and family-based resolver paths. */
+/** Owns PEG fallback derivation shared by live and family-based resolver paths. */
 
 import { asNumber } from "../utils.js";
 

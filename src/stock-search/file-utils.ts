@@ -1,9 +1,9 @@
-/** Read and write JSON files for repo data stores. */
+/** Owns tolerant JSON reads and atomic-ish JSON writes for file-backed stores. */
 
 import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-/** Load JSON data from disk with a fallback default. */
+/** Missing or invalid JSON files fall back to the caller-owned default. */
 export async function loadJson<T>(
 	filePath: string,
 	defaultValue: T,
@@ -16,7 +16,7 @@ export async function loadJson<T>(
 	}
 }
 
-/** Write JSON data to disk with stable formatting. */
+/** Temp-file writes avoid leaving partially written JSON at the target path. */
 export async function writeJson(
 	filePath: string,
 	data: unknown,

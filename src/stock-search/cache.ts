@@ -1,4 +1,4 @@
-/** Shared cache helpers for memory and persisted JSON cache layers. */
+/** Owns freshness-window rules for in-memory and persisted JSON cache layers. */
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -22,7 +22,7 @@ function cacheNowMs(now: number | Date): number {
 	return now instanceof Date ? now.getTime() : now;
 }
 
-/** Parse a cache timestamp into epoch milliseconds. */
+/** Invalid or blank persisted timestamps are treated as missing cache state. */
 export function parseCacheTimestamp(value: unknown): number | null {
 	if (typeof value !== "string" || !value.trim()) {
 		return null;
@@ -31,7 +31,7 @@ export function parseCacheTimestamp(value: unknown): number | null {
 	return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-/** Return whether a cache timestamp is inside the supplied freshness window. */
+/** Collapse cache freshness into a boolean for callers that do not serve stale rows. */
 export function isCacheTimestampFresh(
 	value: unknown,
 	now: number | Date,
@@ -42,7 +42,7 @@ export function isCacheTimestampFresh(
 	}).isFresh;
 }
 
-/** Return fresh/stale state for an ISO timestamp and cache windows. */
+/** Fresh and stale windows may differ so auto mode can serve stale rows while refreshing. */
 export function cacheFreshness(
 	value: unknown,
 	now: number | Date,
@@ -61,7 +61,7 @@ export function cacheFreshness(
 	});
 }
 
-/** Return fresh/stale state for a parsed epoch-millisecond timestamp. */
+/** Accept pre-parsed timestamps for callers that already decoded persisted rows. */
 export function cacheFreshnessFromTimestamp(
 	timestamp: number | null,
 	now: number | Date,
@@ -84,7 +84,7 @@ export function cacheFreshnessFromTimestamp(
 	};
 }
 
-/** Return whether an in-memory cache entry is inside a freshness window. */
+/** In-memory cache entries use the same age comparison as persisted cache timestamps. */
 export function isCacheEntryFresh(
 	updatedAt: Date,
 	now: number | Date,
@@ -93,7 +93,7 @@ export function isCacheEntryFresh(
 	return updatedAt.getTime() >= cacheNowMs(now) - maxAgeMs;
 }
 
-/** Load a JSON cache file and validate its shape before returning it. */
+/** Invalid JSON cache contents fall back to the caller-owned default shape. */
 export async function loadJsonCache<T>(
 	filePath: string,
 	schema: ZodType<T>,
@@ -104,7 +104,7 @@ export async function loadJsonCache<T>(
 	return result.success ? result.data : createDefaultValue();
 }
 
-/** Write a JSON cache file, creating the parent directory if needed. */
+/** Persist validated cache payloads with parent-directory creation handled here. */
 export async function writeJsonCache(
 	filePath: string,
 	data: unknown,

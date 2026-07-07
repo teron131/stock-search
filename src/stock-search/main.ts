@@ -1,4 +1,4 @@
-/** Run the Stock Search CLI. */
+/** CLI executable entrypoint that delegates to the curated command adapter. */
 
 import { main } from "./cli.js";
 

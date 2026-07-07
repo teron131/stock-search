@@ -97,6 +97,7 @@ function imageImportedPosition({
 	};
 }
 
+/** Replace image-sourced quantities while preserving watchlist rows as zero-quantity positions. */
 export function reconcileImportedHoldings(
 	positions: PositionRow[],
 	holdings: PortfolioImageExtraction["holdings"],
@@ -202,6 +203,7 @@ async function extractPortfolioImage(
 	}
 }
 
+/** Extract holdings from an uploaded image and persist the reconciled portfolio positions. */
 export async function importPortfolioImage(
 	store: BackendStore,
 	{ file, strategy, model, portfolioKey }: ImageImportOptions,

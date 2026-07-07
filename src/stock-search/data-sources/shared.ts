@@ -1,4 +1,4 @@
-/** Shared provider parsing and fetch helpers for backend data sources. */
+/** Owns low-level fetch, number parsing, and embedded-object extraction for providers. */
 
 import { Script } from "node:vm";
 

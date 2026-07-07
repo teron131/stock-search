@@ -1,4 +1,4 @@
-/** Shared parsing helpers for StockAnalysis extractor text. */
+/** Owns StockAnalysis text-to-number and markdown-table parsing primitives. */
 
 const NULL_NUMBER_TEXTS = new Set(["-", "--", "n/a", "na", "none"]);
 const NUMBER_SUFFIX_MULTIPLIERS: Record<string, number> = {

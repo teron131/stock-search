@@ -1,4 +1,4 @@
-/** Massive
+/** Fetches Massive stock news results and normalizes them into NewsArticle rows.
 Documentation: https://massive.com/docs/rest/stocks/news
 - Free
 - 5 API Calls / Minute

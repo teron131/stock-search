@@ -1,3 +1,5 @@
+/** Loads portfolio tickers and Yahoo close history for correlation analysis. */
+
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -86,11 +88,13 @@ function loadPositionsFromSqlite(): Array<Record<string, unknown>> {
 	}
 }
 
+/** Load correlation positions from JSON first, falling back to the local SQLite store. */
 export function loadCorrelationPositions(): Array<Record<string, unknown>> {
 	const jsonPositions = loadPositionsFromJson();
 	return jsonPositions.length > 0 ? jsonPositions : loadPositionsFromSqlite();
 }
 
+/** Resolve explicit/default tickers before falling back to tickers from stored positions. */
 export function resolveCorrelationTickers(
 	tickers = DEFAULT_CORRELATION_TICKERS,
 ): string[] {
@@ -105,6 +109,7 @@ export function resolveCorrelationTickers(
 	);
 }
 
+/** Fetch adjusted Yahoo close history and drop dates without usable close values. */
 export async function fetchYahooCloseHistory(
 	ticker: string,
 ): Promise<CloseHistory> {
@@ -138,6 +143,7 @@ export async function fetchYahooCloseHistory(
 	};
 }
 
+/** Fetch close histories in bounded batches and align them into one time-series frame. */
 export async function buildCloseRowsAndNames(
 	tickers: string[],
 	historyFetcher: (ticker: string) => Promise<CloseHistory>,

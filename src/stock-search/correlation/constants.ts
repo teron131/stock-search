@@ -1,3 +1,5 @@
+/** Centralizes correlation model defaults, windows, and numerical tolerances. */
+
 import type { HorizonConfig, LookbackConfig } from "./types.js";
 
 export const HISTORY_RANGE = "5y";

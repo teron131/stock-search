@@ -1,4 +1,4 @@
-/** Shared portfolio constants and small normalization helpers. */
+/** Owns portfolio row field names and label normalization shared across row builders. */
 
 import type { PositionRow } from "../storage/index.js";
 import { uniqueTickers } from "../utils.js";

@@ -1,4 +1,4 @@
-/** Exa
+/** Fetches Exa news search results and normalizes them into NewsArticle rows.
 Playground: https://dashboard.exa.ai/playground/search
 Documentation: https://docs.exa.ai/reference/search
 - $5 per 1000 results when max results is up to 25

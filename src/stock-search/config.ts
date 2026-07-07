@@ -1,8 +1,4 @@
-/** Runtime configuration constants for the stock-search application.
-
-This module consolidates configuration values that were previously scattered
-across multiple files. Evaluation-specific constants remain in evaluation/constants.ts.
-*/
+/** Owns runtime constants that are shared outside narrower policy modules. */
 
 import { appConfig } from "./api/config.js";
 

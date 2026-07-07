@@ -1,3 +1,5 @@
+/** Defines official ETF holdings provider contracts. */
+
 export type OfficialEtfHolding = {
 	ticker: string;
 	name: string | null;

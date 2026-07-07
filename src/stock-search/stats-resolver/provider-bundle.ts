@@ -25,33 +25,33 @@ export class ProviderBundle {
 		this.finvizSource = new FinvizSource(ticker);
 	}
 
-	/** Return the cached Yahoo price and momentum payload. */
+	/** Memoize Yahoo price and momentum fields for all families in this ticker resolution. */
 	getYahooIndicators(): Promise<Record<string, unknown>> {
 		this.yahooPromise ??= this.yahooSource.getIndicatorsSnapshot();
 		return this.yahooPromise;
 	}
 
-	/** Return the cached Yahoo symbol metadata payload. */
+	/** Memoize Yahoo metadata so quote type and currency are fetched once per ticker. */
 	getYahooMetadata(): Promise<Record<string, unknown>> {
 		this.yahooMetaPromise ??= this.yahooSource.getSymbolMetadataSnapshot();
 		return this.yahooMetaPromise;
 	}
 
-	/** Return the cached StockAnalysis statistics payload. */
+	/** Memoize StockAnalysis statistics for field-policy merges. */
 	getStockAnalysisStatistics(): Promise<Record<string, unknown>> {
 		this.stockAnalysisStatisticsPromise ??=
 			this.stockAnalysisSource.getStatisticsSnapshot();
 		return this.stockAnalysisStatisticsPromise;
 	}
 
-	/** Return the cached StockAnalysis financials payload. */
+	/** Memoize StockAnalysis financials for slow fundamental fields. */
 	getStockAnalysisFinancials(): Promise<Record<string, unknown>> {
 		this.stockAnalysisFinancialsPromise ??=
 			this.stockAnalysisSource.getFinancialsSnapshot();
 		return this.stockAnalysisFinancialsPromise;
 	}
 
-	/** Return throttled Finviz slow-statistics fields, falling back to empty on provider limits. */
+	/** Finviz provider limits degrade to an empty slow-stat snapshot for resolver fallback. */
 	getFinvizStatistics(): Promise<Record<string, unknown>> {
 		this.finvizStatisticsPromise ??= this.finvizSource
 			.getStatisticsSnapshot()

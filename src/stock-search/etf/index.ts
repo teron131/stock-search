@@ -1,4 +1,4 @@
-/** Public ETF snapshot and classification exports. */
+/** Exposes the public ETF snapshot, classification, and sector-normalization surface. */
 
 export {
 	ETF_HOLDINGS_FETCHED_AT_FIELD,

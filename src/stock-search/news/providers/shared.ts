@@ -1,4 +1,4 @@
-/** Shared news provider parsing helpers. */
+/** Owns HTTP response, date, and URL normalization primitives for news providers. */
 
 export const DAY_IN_MS = 24 * 60 * 60 * 1000;
 export const NEWS_PROVIDER_MAX_RESULTS = 10;

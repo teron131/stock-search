@@ -1,4 +1,4 @@
-/** Miscellaneous API route module. */
+/** Wires read-only utility endpoints for sectors, field metadata, colors, and correlation. */
 
 import { Hono } from "hono";
 import { runCorrelationReport } from "../../correlation.js";

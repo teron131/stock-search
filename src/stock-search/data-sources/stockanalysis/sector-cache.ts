@@ -1,4 +1,4 @@
-/** Cache helpers for StockAnalysis sector snapshots. */
+/** Owns the JSON cache contract for StockAnalysis sector snapshots. */
 
 import { isCacheTimestampFresh } from "../../cache.js";
 import type {

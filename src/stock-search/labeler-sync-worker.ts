@@ -1,4 +1,4 @@
-/** Sync worker entrypoint for the labeler compatibility wrappers. */
+/** Child-process entrypoint that lets synchronous labeler wrappers call async graph code. */
 
 import { agetLabel, agetLabels } from "./labeler.js";
 

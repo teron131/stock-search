@@ -1,4 +1,4 @@
-/** Authentication route module. */
+/** Wires OAuth login, callback, logout, and session endpoints onto Hono. */
 
 import { Hono } from "hono";
 

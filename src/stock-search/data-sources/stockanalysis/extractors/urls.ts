@@ -1,4 +1,4 @@
-/** StockAnalysis URL helpers for extractor modules. */
+/** Owns StockAnalysis URL construction for stock and ETF extractor modules. */
 
 import { stockAnalysisStockPathForTicker } from "../../provider-symbols.js";
 

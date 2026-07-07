@@ -68,6 +68,7 @@ import type {
 } from "./correlation/types.js";
 import { normalizeTicker } from "./utils.js";
 
+/** Build the full correlation report from portfolio/default tickers and Yahoo close history. */
 export async function runCorrelationReport(
 	options: CorrelationReportOptions = {},
 ): Promise<CorrelationReport> {

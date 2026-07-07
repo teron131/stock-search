@@ -1,4 +1,4 @@
-/** Exa-backed StockAnalysis loading helpers. */
+/** Owns Exa Contents loading rules for StockAnalysis extractor modules. */
 
 import { ExaAnswerAgent, ExaLoadAgent } from "llm-harness-js/agents";
 import type { ZodType, z } from "zod";

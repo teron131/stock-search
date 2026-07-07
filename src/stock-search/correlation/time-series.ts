@@ -1,3 +1,5 @@
+/** Owns Polars-backed price and return time-series transforms for correlation. */
+
 import pl from "nodejs-polars";
 
 import { DATE_COLUMN } from "./constants.js";

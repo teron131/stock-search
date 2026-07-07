@@ -1,3 +1,5 @@
+/** Builds blended, market-neutral, and positive-semidefinite correlation matrices. */
+
 import pl from "nodejs-polars";
 
 import {

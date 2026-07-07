@@ -1,4 +1,4 @@
-/** Provide shared math helpers for evaluation scoring. */
+/** Owns bounded scoring math primitives used by evaluation lanes. */
 
 function approximateErrorFunction(value: number): number {
 	const sign = value < 0 ? -1 : 1;

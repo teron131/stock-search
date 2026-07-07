@@ -1,4 +1,4 @@
-/** Cache and freshness helpers for stat-family snapshots. */
+/** Owns completeness and freshness decisions for stat-family cache snapshots. */
 
 import { cacheFreshnessFromTimestamp, parseCacheTimestamp } from "../cache.js";
 import { applyCachedPegFallback } from "./derived-stats.js";

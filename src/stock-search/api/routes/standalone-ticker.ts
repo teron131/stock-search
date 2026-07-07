@@ -1,4 +1,4 @@
-/** Standalone ticker API route module. */
+/** Adapts standalone ticker stats and evaluation HTTP routes to ticker workflows. */
 
 import { Hono } from "hono";
 

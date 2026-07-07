@@ -1,3 +1,5 @@
+/** Scrapes Roundhill's official browser-rendered ETF holdings tables. */
+
 import { normalizeTicker } from "../../utils.js";
 import { parseNumberText } from "../shared.js";
 import type {

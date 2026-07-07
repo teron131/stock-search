@@ -1,4 +1,4 @@
-/** News API route module for ticker news and persisted portfolio news. */
+/** Wires ticker-news fetches and persisted portfolio-news payloads onto Hono. */
 
 import { Hono } from "hono";
 import {

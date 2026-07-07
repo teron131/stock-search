@@ -1,8 +1,4 @@
-/** Common utility functions used across the stock-search codebase.
-
-This module consolidates frequently duplicated helper functions to reduce
-code repetition and maintain consistent behavior.
-*/
+/** Owns cross-domain numeric parsing, clamping, rounding, and market-cap formatting. */
 
 const MARKET_CAP_UNITS: ReadonlyArray<readonly [number, string]> = [
 	[1_000_000_000_000, "T"],
@@ -11,13 +7,13 @@ const MARKET_CAP_UNITS: ReadonlyArray<readonly [number, string]> = [
 	[1_000, "K"],
 ];
 
-/** Safely parse finite float values from any input. */
+/** Non-finite numeric inputs become null instead of leaking NaN into scores. */
 export function safeFloat(value: unknown): number | null {
 	const converted = Number(value);
 	return Number.isFinite(converted) ? converted : null;
 }
 
-/** Round a float value to specified decimals, preserving null. */
+/** Nullable scoring inputs stay nullable while finite values get presentation rounding. */
 export function roundOptional(
 	value: number | null,
 	decimals = 2,
@@ -25,18 +21,18 @@ export function roundOptional(
 	return value == null ? null : Number(value.toFixed(decimals));
 }
 
-/** Clamp a value to a specified range. */
+/** Clamp callers share the same inclusive bound semantics. */
 export function clamp(value: number, minVal: number, maxVal: number): number {
 	return Math.max(minVal, Math.min(maxVal, value));
 }
 
-/** Convert value to float with a fallback default. */
+/** Parse a number with an explicit fallback for UI defaults and loose provider fields. */
 export function toFloat(value: unknown, defaultValue: number): number {
 	const converted = Number(value);
 	return Number.isFinite(converted) ? converted : defaultValue;
 }
 
-/** Format market cap with T/B/M/K suffix. */
+/** Format large market caps with compact suffixes while preserving missing values. */
 export function formatMarketCap(value: number | null): string | null {
 	if (value == null) {
 		return null;

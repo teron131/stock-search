@@ -1,4 +1,4 @@
-/** Public storage boundary for backend persistence contracts and adapter exports. */
+/** Defines the backend persistence contract shared by SQLite, D1, and callers. */
 
 import type { StockAnalysisSectorSnapshot } from "../data-sources/stockanalysis/index.js";
 import type { CalibrationStatsRow } from "./schemas.js";

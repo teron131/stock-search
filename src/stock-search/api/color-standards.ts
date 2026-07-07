@@ -1,3 +1,5 @@
+/** Owns dashboard color scale standards exposed by the utility API. */
+
 export function buildColorStandardsPayload(): {
 	standards: Record<string, { min: number; max: number }>;
 } {

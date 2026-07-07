@@ -1,3 +1,5 @@
+/** Builds user-facing correlation statistics and sleeve weight recommendations. */
+
 import {
 	DEFAULT_EFFECTIVE_SLEEVE_CAP,
 	TRADING_DAYS_PER_YEAR,

@@ -1,3 +1,5 @@
+/** Owns cross-cutting ticker, numeric, URL, and redirect normalization primitives. */
+
 import { ROOT } from "./api/route-paths.js";
 
 const CANONICAL_TICKERS: Record<string, string> = {
