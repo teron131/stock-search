@@ -47,11 +47,6 @@ export class InvalidTickerError extends Error {
 	}
 }
 
-/** Standalone ticker requests use a zero-quantity position when the portfolio lacks the ticker. */
-function makeStandalonePosition(ticker: string): PositionRow {
-	return { ticker, quantity: 0, strategy: null };
-}
-
 /** Missing cached stock rows are represented as empty indicator/evaluation/label buckets. */
 function makeStockEntry(stockEntry: StockEntry | null): StockEntry {
 	return (
@@ -142,23 +137,6 @@ async function enrichTickerEtfEntry(
 	};
 }
 
-/** Standalone ETF proxying reuses the portfolio proxy shape without portfolio stock positions. */
-function standaloneEtfResolution(
-	ticker: string,
-	snapshot: EtfSnapshotResult,
-): EtfResolutionResult {
-	return {
-		stockPositions: [],
-		etfPositions: [makeStandalonePosition(ticker)],
-		snapshotByTicker: {
-			[ticker]: snapshot,
-		},
-		etfRefreshedCount: 0,
-		cacheChanged: false,
-		changedTickers: [],
-	};
-}
-
 /** Apply ETF proxy stats to one standalone ticker entry when holdings are available. */
 async function applyTickerEtfProxyStats(
 	store: BackendStore,
@@ -170,7 +148,16 @@ async function applyTickerEtfProxyStats(
 		return stockEntry;
 	}
 
-	const resolution = standaloneEtfResolution(ticker, snapshot);
+	const resolution: EtfResolutionResult = {
+		stockPositions: [],
+		etfPositions: [{ ticker, quantity: 0, strategy: null }],
+		snapshotByTicker: {
+			[ticker]: snapshot,
+		},
+		etfRefreshedCount: 0,
+		cacheChanged: false,
+		changedTickers: [],
+	};
 	const proxyStockResolution = await resolveEtfProxyStocks({
 		store,
 		resolution,
@@ -275,9 +262,9 @@ async function loadTickerContext(
 
 	return {
 		ticker: tickerSymbol,
-		position:
-			positions.find((row) => normalizeTicker(row.ticker) === tickerSymbol) ??
-			makeStandalonePosition(tickerSymbol),
+		position: positions.find(
+			(row) => normalizeTicker(row.ticker) === tickerSymbol,
+		) ?? { ticker: tickerSymbol, quantity: 0, strategy: null },
 		stockEntry: makeStockEntry(stockEntry),
 	};
 }

@@ -2,11 +2,7 @@
 
 import type { ZodType, z } from "zod";
 import { fetchLiveIndicators } from "../indicators.js";
-import type {
-	Evaluation,
-	ResearchEvaluation,
-	ScoredReason,
-} from "../models/schemas.js";
+import type { Evaluation, ScoredReason } from "../models/schemas.js";
 import { FUTURE_OUTLOOK_DEFINITION, RESEARCH_DEFINITION } from "../prompts.js";
 import { normalizeTicker } from "../utils.js";
 import {
@@ -75,32 +71,6 @@ function blendedResearchSignal({
 	};
 }
 
-function blendedQuality(
-	research: ResearchEvaluation | null,
-	qualitySignalScore: number | null,
-): ScoredReason | null {
-	return blendedResearchSignal({
-		researchScore: research?.quality_score?.score ?? null,
-		signalScore: qualitySignalScore,
-		researchWeight: QUALITY_RESEARCH_WEIGHT,
-		signalWeight: QUALITY_SIGNAL_WEIGHT,
-		reasons: research?.quality_score?.reasons ?? [],
-	});
-}
-
-function blendedMoat(
-	research: ResearchEvaluation | null,
-	moatSignalScore: number | null,
-): ScoredReason | null {
-	return blendedResearchSignal({
-		researchScore: research?.moat_score?.score ?? null,
-		signalScore: moatSignalScore,
-		researchWeight: MOAT_RESEARCH_WEIGHT,
-		signalWeight: MOAT_SIGNAL_WEIGHT,
-		reasons: research?.moat_score?.reasons ?? [],
-	});
-}
-
 async function runOptionalLlmEvaluation<T extends ZodType>(
 	ticker: string,
 	systemPrompt: string,
@@ -150,8 +120,20 @@ export async function buildInputs(ticker: string): Promise<Evaluation> {
 			: null,
 	);
 
-	const quality = blendedQuality(research, qualitySignalScore);
-	const moat = blendedMoat(research, moatSignalScore);
+	const quality = blendedResearchSignal({
+		researchScore: research?.quality_score?.score ?? null,
+		signalScore: qualitySignalScore,
+		researchWeight: QUALITY_RESEARCH_WEIGHT,
+		signalWeight: QUALITY_SIGNAL_WEIGHT,
+		reasons: research?.quality_score?.reasons ?? [],
+	});
+	const moat = blendedResearchSignal({
+		researchScore: research?.moat_score?.score ?? null,
+		signalScore: moatSignalScore,
+		researchWeight: MOAT_RESEARCH_WEIGHT,
+		signalWeight: MOAT_SIGNAL_WEIGHT,
+		reasons: research?.moat_score?.reasons ?? [],
+	});
 
 	return {
 		score: outlook?.score ?? null,

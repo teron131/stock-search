@@ -101,8 +101,6 @@ const SectorTopTickerCacheSchema = z
 
 type SectorRow = z.output<typeof SectorRowSchema>;
 
-type SectorSnapshotCache = z.output<typeof SectorSnapshotCacheSchema>;
-
 type SectorTopTickerCache = z.output<typeof SectorTopTickerCacheSchema>;
 
 type SectorTopTickerCacheMatch = {
@@ -196,22 +194,6 @@ function toSectorCacheRows(rows: StockAnalysisSectorSummary[]): SectorRow[] {
 	);
 }
 
-async function loadSectorSnapshotCache(): Promise<SectorSnapshotCache> {
-	return loadJsonCache(
-		SECTOR_SNAPSHOT_CACHE_PATH,
-		SectorSnapshotCacheSchema,
-		() => ({ fetched_at: null, sectors: [] }),
-	);
-}
-
-async function loadSectorTopTickerCache(): Promise<SectorTopTickerCache> {
-	return loadJsonCache(
-		SECTOR_TOP_TICKER_CACHE_PATH,
-		SectorTopTickerCacheSchema,
-		() => ({ entries: {} }),
-	);
-}
-
 function readCachedSectorTopTickers(
 	cache: SectorTopTickerCache,
 	slug: string,
@@ -286,7 +268,11 @@ async function loadSectorRowsWithCache(): Promise<
 	StockAnalysisSectorSummary[]
 > {
 	const now = new Date();
-	const cache = await loadSectorSnapshotCache();
+	const cache = await loadJsonCache(
+		SECTOR_SNAPSHOT_CACHE_PATH,
+		SectorSnapshotCacheSchema,
+		() => ({ fetched_at: null, sectors: [] }),
+	);
 	const cachedRows = normalizeSectorRows(cache.sectors);
 	if (
 		cachedRows.length > 0 &&
@@ -315,7 +301,11 @@ async function enrichSectorsWithTopTickers(
 	sectors: StockAnalysisSectorSummary[],
 ): Promise<StockAnalysisSectorSummary[]> {
 	const now = new Date();
-	const cache = await loadSectorTopTickerCache();
+	const cache: SectorTopTickerCache = await loadJsonCache(
+		SECTOR_TOP_TICKER_CACHE_PATH,
+		SectorTopTickerCacheSchema,
+		() => ({ entries: {} }),
+	);
 	const tickersBySlug = new Map<string, string[]>();
 	const staleTickersBySlug = new Map<string, string[]>();
 	const missingSectorNames: string[] = [];

@@ -156,13 +156,15 @@ export async function getAnalyzedSlowNewsAsync(
 		candidateLimit: MAX_NEWS_ANALYSIS_CANDIDATES,
 	});
 	const newsAnalysisList = await labelNewsWithLlm(context, candidates);
-	return filterAndSortAnalyzedNews(
-		mergeNewsLabels(candidates, newsAnalysisList),
-		{
-			nDays: context.nDays,
-			maxResults: context.maxResults,
-		},
+	const analyzedNewsList = candidates.map((news, index) =>
+		NewsArticleSchema.parse({
+			...news,
+			...newsAnalysisList[index],
+		}),
 	);
+	return finalizeNewsFeed(balanceDomains(analyzedNewsList), {
+		retentionDays: context.nDays,
+	}).slice(0, context.maxResults);
 }
 
 export async function analyzeNewsAsync(
@@ -284,27 +286,6 @@ async function labelNewsWithLlm(
 	} catch {
 		return fallbackAnalysisFromProviders(newsList);
 	}
-}
-
-function mergeNewsLabels(
-	newsList: NewsArticle[],
-	newsAnalysisList: NewsAnalysis[],
-): NewsArticle[] {
-	return newsList.map((news, index) =>
-		NewsArticleSchema.parse({
-			...news,
-			...newsAnalysisList[index],
-		}),
-	);
-}
-
-function filterAndSortAnalyzedNews(
-	newsList: NewsArticle[],
-	{ nDays, maxResults }: { nDays: number; maxResults: number },
-): NewsArticle[] {
-	return finalizeNewsFeed(balanceDomains(newsList), {
-		retentionDays: nDays,
-	}).slice(0, maxResults);
 }
 
 function normalizeRawFastNewsText(text: string): string {
