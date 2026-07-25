@@ -4,5 +4,5 @@ import { ClientApp } from "../client-app.js";
 export const metadata = getMetadataForView("sectors");
 
 export default function SectorsPage() {
-	return <ClientApp initialView="sectors" />;
+  return <ClientApp initialView="sectors" />;
 }

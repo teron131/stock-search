@@ -3,215 +3,185 @@
 import { cacheFreshnessFromTimestamp, parseCacheTimestamp } from "../cache.js";
 import { applyCachedPegFallback } from "./derived-stats.js";
 import {
-	FAMILY_FIELDS,
-	FAMILY_POLICIES,
-	FAMILY_TIMESTAMP_FIELD,
-	REQUIRED_FAMILY_FIELDS,
-	type StatsFamily,
+  FAMILY_FIELDS,
+  FAMILY_POLICIES,
+  FAMILY_TIMESTAMP_FIELD,
+  REQUIRED_FAMILY_FIELDS,
+  type StatsFamily,
 } from "./families.js";
-import type {
-	CachedFamilySnapshot,
-	FamilyCacheEntry,
-	SourceTier,
-} from "./types.js";
+import type { CachedFamilySnapshot, FamilyCacheEntry, SourceTier } from "./types.js";
 
-export const familyCaches: Record<
-	StatsFamily,
-	Map<string, FamilyCacheEntry>
-> = {
-	market_data: new Map(),
-	market_snapshot: new Map(),
-	statistics: new Map(),
-	financials: new Map(),
-	ratings: new Map(),
+export const familyCaches: Record<StatsFamily, Map<string, FamilyCacheEntry>> = {
+  market_data: new Map(),
+  market_snapshot: new Map(),
+  statistics: new Map(),
+  financials: new Map(),
+  ratings: new Map(),
 };
 
 const FAMILY_SOURCE_METADATA_SUFFIX = "_source";
 const OPTIONAL_REQUIRED_FIELDS_QUOTE_TYPES = new Set(["ETF", "MUTUALFUND"]);
 const FAMILY_COMPLETENESS_FIELDS = Object.fromEntries(
-	Object.entries(FAMILY_FIELDS).map(([family, fields]) => [
-		family,
-		fields.filter((field) => !field.endsWith(FAMILY_SOURCE_METADATA_SUFFIX)),
-	]),
+  Object.entries(FAMILY_FIELDS).map(([family, fields]) => [
+    family,
+    fields.filter((field) => !field.endsWith(FAMILY_SOURCE_METADATA_SUFFIX)),
+  ]),
 ) as Record<StatsFamily, string[]>;
 
-export function familyTimestamp(
-	row: Record<string, unknown>,
-	family: StatsFamily,
-): number | null {
-	return parseCacheTimestamp(row[FAMILY_TIMESTAMP_FIELD[family]]);
+export function familyTimestamp(row: Record<string, unknown>, family: StatsFamily): number | null {
+  return parseCacheTimestamp(row[FAMILY_TIMESTAMP_FIELD[family]]);
 }
 
 export function familyRow(
-	row: Record<string, unknown>,
-	family: StatsFamily,
+  row: Record<string, unknown>,
+  family: StatsFamily,
 ): Record<string, unknown> {
-	const output: Record<string, unknown> = {};
-	for (const field of FAMILY_FIELDS[family]) {
-		if (field in row) {
-			output[field] = row[field];
-		}
-	}
-	if (family === "statistics") {
-		const hydratedOutput: Record<string, unknown> = {
-			quote_type: row.quote_type,
-			...output,
-		};
-		applyCachedPegFallback(hydratedOutput);
-		output.peg = hydratedOutput.peg;
-		output.peg_source = hydratedOutput.peg_source;
-	}
-	return output;
+  const output: Record<string, unknown> = {};
+  for (const field of FAMILY_FIELDS[family]) {
+    if (field in row) {
+      output[field] = row[field];
+    }
+  }
+  if (family === "statistics") {
+    const hydratedOutput: Record<string, unknown> = {
+      quote_type: row.quote_type,
+      ...output,
+    };
+    applyCachedPegFallback(hydratedOutput);
+    output.peg = hydratedOutput.peg;
+    output.peg_source = hydratedOutput.peg_source;
+  }
+  return output;
 }
 
 export function completeKnownFamilyRow(
-	row: Record<string, unknown>,
-	family: StatsFamily,
+  row: Record<string, unknown>,
+  family: StatsFamily,
 ): Record<string, unknown> {
-	return Object.fromEntries(
-		FAMILY_FIELDS[family].map((field) => [
-			field,
-			row[field] === undefined ? null : row[field],
-		]),
-	);
+  return Object.fromEntries(
+    FAMILY_FIELDS[family].map((field) => [field, row[field] === undefined ? null : row[field]]),
+  );
 }
 
 function hasMeaningfulPayload(value: unknown): boolean {
-	if (value == null) {
-		return false;
-	}
-	if (typeof value === "string") {
-		const normalized = value.trim().toUpperCase();
-		return normalized !== "" && normalized !== "NONE";
-	}
-	if (Array.isArray(value)) {
-		return value.length > 0;
-	}
-	if (typeof value === "object") {
-		return Object.keys(value as Record<string, unknown>).length > 0;
-	}
-	return true;
+  if (value == null) {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toUpperCase();
+    return normalized !== "" && normalized !== "NONE";
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === "object") {
+    return Object.keys(value as Record<string, unknown>).length > 0;
+  }
+  return true;
 }
 
-function hasKnownFields(
-	row: Record<string, unknown>,
-	fields: readonly string[],
-): boolean {
-	return fields.every((field) => field in row && row[field] !== undefined);
+function hasKnownFields(row: Record<string, unknown>, fields: readonly string[]): boolean {
+  return fields.every((field) => field in row && row[field] !== undefined);
 }
 
-function hasFamilyPayload(
-	row: Record<string, unknown>,
-	family: StatsFamily,
-): boolean {
-	return FAMILY_COMPLETENESS_FIELDS[family].some((field) =>
-		hasMeaningfulPayload(row[field]),
-	);
+function hasFamilyPayload(row: Record<string, unknown>, family: StatsFamily): boolean {
+  return FAMILY_COMPLETENESS_FIELDS[family].some((field) => hasMeaningfulPayload(row[field]));
 }
 
-function hasKnownFamilySnapshot(
-	row: Record<string, unknown>,
-	family: StatsFamily,
-): boolean {
-	return (
-		hasFamilyPayload(row, family) ||
-		((family === "statistics" || family === "financials") &&
-			hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family]))
-	);
+function hasKnownFamilySnapshot(row: Record<string, unknown>, family: StatsFamily): boolean {
+  return (
+    hasFamilyPayload(row, family) ||
+    ((family === "statistics" || family === "financials") &&
+      hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family]))
+  );
 }
 
-function hasRequiredFamilyFields(
-	row: Record<string, unknown>,
-	family: StatsFamily,
-): boolean {
-	const quoteType = String(row.quote_type ?? "")
-		.trim()
-		.toUpperCase();
-	if (OPTIONAL_REQUIRED_FIELDS_QUOTE_TYPES.has(quoteType)) {
-		return true;
-	}
-	const requiredFields = REQUIRED_FAMILY_FIELDS[family] ?? [];
-	if (requiredFields.length === 0) {
-		return family === "statistics" || family === "financials"
-			? hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family])
-			: true;
-	}
-	return requiredFields.every((field) => hasMeaningfulPayload(row[field]));
+function hasRequiredFamilyFields(row: Record<string, unknown>, family: StatsFamily): boolean {
+  const quoteType = String(row.quote_type ?? "")
+    .trim()
+    .toUpperCase();
+  if (OPTIONAL_REQUIRED_FIELDS_QUOTE_TYPES.has(quoteType)) {
+    return true;
+  }
+  const requiredFields = REQUIRED_FAMILY_FIELDS[family] ?? [];
+  if (requiredFields.length === 0) {
+    return family === "statistics" || family === "financials"
+      ? hasKnownFields(row, FAMILY_COMPLETENESS_FIELDS[family])
+      : true;
+  }
+  return requiredFields.every((field) => hasMeaningfulPayload(row[field]));
 }
 
 export function chooseCachedSnapshot(
-	ticker: string,
-	family: StatsFamily,
-	persistedRow: Record<string, unknown>,
-	now: number,
+  ticker: string,
+  family: StatsFamily,
+  persistedRow: Record<string, unknown>,
+  now: number,
 ): CachedFamilySnapshot {
-	const persistedFamilyRow = familyRow(persistedRow, family);
-	let sourceTier: SourceTier = "missing";
-	let chosenRow: Record<string, unknown> = {};
-	let chosenTimestamp = familyTimestamp(persistedRow, family);
+  const persistedFamilyRow = familyRow(persistedRow, family);
+  let sourceTier: SourceTier = "missing";
+  let chosenRow: Record<string, unknown> = {};
+  let chosenTimestamp = familyTimestamp(persistedRow, family);
 
-	if (hasKnownFamilySnapshot(persistedFamilyRow, family)) {
-		sourceTier = "l2";
-		chosenRow = persistedFamilyRow;
-	}
+  if (hasKnownFamilySnapshot(persistedFamilyRow, family)) {
+    sourceTier = "l2";
+    chosenRow = persistedFamilyRow;
+  }
 
-	const l1Entry = familyCaches[family].get(ticker);
-	if (
-		l1Entry &&
-		hasKnownFamilySnapshot(l1Entry.value, family) &&
-		(chosenTimestamp == null || l1Entry.updatedAt >= chosenTimestamp)
-	) {
-		sourceTier = "l1";
-		chosenRow = { ...l1Entry.value };
-		chosenTimestamp = l1Entry.updatedAt;
-	}
+  const l1Entry = familyCaches[family].get(ticker);
+  if (
+    l1Entry &&
+    hasKnownFamilySnapshot(l1Entry.value, family) &&
+    (chosenTimestamp == null || l1Entry.updatedAt >= chosenTimestamp)
+  ) {
+    sourceTier = "l1";
+    chosenRow = { ...l1Entry.value };
+    chosenTimestamp = l1Entry.updatedAt;
+  }
 
-	if (chosenTimestamp == null) {
-		return {
-			sourceTier,
-			row: chosenRow,
-			timestamp: null,
-			hasRequiredFields: false,
-			isFresh: false,
-			isStale: false,
-			present: Object.keys(chosenRow).length > 0,
-		};
-	}
+  if (chosenTimestamp == null) {
+    return {
+      sourceTier,
+      row: chosenRow,
+      timestamp: null,
+      hasRequiredFields: false,
+      isFresh: false,
+      isStale: false,
+      present: Object.keys(chosenRow).length > 0,
+    };
+  }
 
-	const policy = FAMILY_POLICIES[family];
-	const freshness = cacheFreshnessFromTimestamp(chosenTimestamp, now, policy);
-	const hasRequiredFields = hasRequiredFamilyFields(
-		{ ...persistedRow, ...chosenRow },
-		family,
-	);
-	const present = Object.keys(chosenRow).length > 0;
-	return {
-		sourceTier,
-		row: chosenRow,
-		timestamp: freshness.timestamp,
-		hasRequiredFields,
-		isFresh: hasRequiredFields && freshness.isFresh,
-		isStale: present && freshness.isStale,
-		present,
-	};
+  const policy = FAMILY_POLICIES[family];
+  const freshness = cacheFreshnessFromTimestamp(chosenTimestamp, now, policy);
+  const hasRequiredFields = hasRequiredFamilyFields({ ...persistedRow, ...chosenRow }, family);
+  const present = Object.keys(chosenRow).length > 0;
+  return {
+    sourceTier,
+    row: chosenRow,
+    timestamp: freshness.timestamp,
+    hasRequiredFields,
+    isFresh: hasRequiredFields && freshness.isFresh,
+    isStale: present && freshness.isStale,
+    present,
+  };
 }
 
 export function mergeFamilyRow(
-	baseRow: Record<string, unknown>,
-	family: StatsFamily,
-	nextRow: Record<string, unknown>,
-	timestamp: number,
+  baseRow: Record<string, unknown>,
+  family: StatsFamily,
+  nextRow: Record<string, unknown>,
+  timestamp: number,
 ): Record<string, unknown> {
-	const merged = { ...baseRow };
-	for (const field of FAMILY_FIELDS[family]) {
-		if (!(field in nextRow)) {
-			continue;
-		}
-		if (nextRow[field] == null && merged[field] != null) {
-			continue;
-		}
-		merged[field] = nextRow[field];
-	}
-	merged[FAMILY_TIMESTAMP_FIELD[family]] = new Date(timestamp).toISOString();
-	return merged;
+  const merged = { ...baseRow };
+  for (const field of FAMILY_FIELDS[family]) {
+    if (!(field in nextRow)) {
+      continue;
+    }
+    if (nextRow[field] == null && merged[field] != null) {
+      continue;
+    }
+    merged[field] = nextRow[field];
+  }
+  merged[FAMILY_TIMESTAMP_FIELD[family]] = new Date(timestamp).toISOString();
+  return merged;
 }

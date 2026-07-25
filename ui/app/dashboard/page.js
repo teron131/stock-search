@@ -4,5 +4,5 @@ import { ClientApp } from "../client-app.js";
 export const metadata = getMetadataForView("dashboard");
 
 export default function DashboardPage() {
-	return <ClientApp initialView="dashboard" />;
+  return <ClientApp initialView="dashboard" />;
 }

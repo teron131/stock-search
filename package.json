@@ -1,78 +1,79 @@
 {
-	"name": "stock-search",
-	"private": true,
-	"version": "0.0.0",
-	"packageManager": "pnpm@10.28.1",
-	"type": "module",
-	"bin": {
-		"stock-search": "src/stock-search/cli.ts"
-	},
-	"workspaces": [
-		"llm-harness-js"
-	],
-	"scripts": {
-		"dev": "bash ./start.sh",
-		"prepare:vercel-public": "node ./scripts/prepare-vercel-public.mjs",
-		"lint": "biome check package.json ui/app ui/app-ui ui/next.config.mjs",
-		"lint:fix": "biome check --write package.json ui/app ui/app-ui ui/next.config.mjs",
-		"format": "biome format --write package.json ui/app ui/app-ui ui/next.config.mjs ui/styles.css ui/styles",
-		"format:check": "biome format package.json ui/app ui/app-ui ui/next.config.mjs ui/styles.css ui/styles",
-		"deploy": "bash ./scripts/deploy.sh",
-		"deploy:preview": "bash ./scripts/deploy.sh --preview",
-		"deploy:prod": "bash ./scripts/deploy.sh --prod",
-		"deploy:prod:mauve": "bash ./scripts/deploy.sh --prod --alias stock-search-mauve.vercel.app",
-		"llm-harness:build": "pnpm --filter llm-harness-js run build",
-		"server:dev": "pnpm run llm-harness:build && tsx watch src/node.ts",
-		"server:start": "pnpm run llm-harness:build && tsx src/node.ts",
-		"calibration:build": "tsx scripts/build-evaluation-calibration-db.ts",
-		"mcp:start": "pnpm run llm-harness:build && tsx src/stock-search/mcp/main.ts",
-		"cli": "pnpm run llm-harness:build && tsx src/stock-search/cli.ts",
-		"server:typecheck": "pnpm run llm-harness:build && tsc --noEmit",
-		"server:test": "vitest run --root . server/test",
-		"sync-logo": "mkdir -p ui/public && cp ui/logo.png ui/public/logo.png",
-		"ui:dev": "pnpm run sync-logo && next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
-		"ui:build": "pnpm run sync-logo && next build ui",
-		"ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/out",
-		"build": "pnpm run ui:build && pnpm run server:typecheck"
-	},
-	"dependencies": {
-		"@google/genai": "^1.50.1",
-		"@hono/node-server": "^1.19.6",
-		"@langchain/core": "1.1.42",
-		"@langchain/google-genai": "2.1.27",
-		"@langchain/langgraph": "1.2.9",
-		"@langchain/openai": "1.4.4",
-		"@modelcontextprotocol/sdk": "^1.29.0",
-		"@types/turndown": "^5.0.6",
-		"d3": "^7.9.0",
-		"dotenv": "^17.2.3",
-		"exa-js": "^2.11.0",
-		"fastmcp": "^4.0.0",
-		"hono": "^4.10.1",
-		"htm": "^3.1.1",
-		"langchain": "1.3.3",
-		"llm-harness-js": "workspace:*",
-		"next": "^16.2.4",
-		"nodejs-polars": "^0.24.1",
-		"opencc-js": "^1.0.5",
-		"react": "^19.2.5",
-		"react-dom": "^19.2.5",
-		"tsx": "^4.20.6",
-		"turndown": "^7.2.4",
-		"zod": "^4.1.12"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.4.14",
-		"@types/node": "^24.9.1",
-		"@types/react": "^19.2.14",
-		"@types/react-dom": "^19.2.3",
-		"playwright": "^1.59.1",
-		"typescript": "^5.9.3",
-		"vitest": "^4.0.7"
-	},
-	"pnpm": {
-		"overrides": {
-			"@langchain/core": "1.1.42"
-		}
-	}
+  "name": "stock-search",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.28.1",
+  "type": "module",
+  "bin": {
+    "stock-search": "src/stock-search/cli.ts"
+  },
+  "workspaces": [
+    "llm-harness-js"
+  ],
+  "scripts": {
+    "dev": "bash ./start.sh",
+    "prepare:vercel-public": "node ./scripts/prepare-vercel-public.mjs",
+    "lint": "oxlint -c .oxlintrc.jsonc .",
+    "lint:fix": "oxlint -c .oxlintrc.jsonc --fix .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "deploy": "bash ./scripts/deploy.sh",
+    "deploy:preview": "bash ./scripts/deploy.sh --preview",
+    "deploy:prod": "bash ./scripts/deploy.sh --prod",
+    "deploy:prod:mauve": "bash ./scripts/deploy.sh --prod --alias stock-search-mauve.vercel.app",
+    "llm-harness:build": "pnpm --filter llm-harness-js run build",
+    "server:dev": "pnpm run llm-harness:build && tsx watch src/node.ts",
+    "server:start": "pnpm run llm-harness:build && tsx src/node.ts",
+    "calibration:build": "tsx scripts/build-evaluation-calibration-db.ts",
+    "mcp:start": "pnpm run llm-harness:build && tsx src/stock-search/mcp/main.ts",
+    "cli": "pnpm run llm-harness:build && tsx src/stock-search/cli.ts",
+    "server:typecheck": "pnpm run llm-harness:build && tsc --noEmit",
+    "server:test": "vitest run --root . server/test",
+    "sync-logo": "mkdir -p ui/public && cp ui/logo.png ui/public/logo.png",
+    "ui:dev": "pnpm run sync-logo && next dev ui --hostname ${FRONTEND_HOST:-localhost} --port ${FRONTEND_PORT:-5173}",
+    "ui:build": "pnpm run sync-logo && next build ui",
+    "ui:preview": "pnpm run ui:build && python3 -m http.server 4173 -d ui/out",
+    "build": "pnpm run ui:build && pnpm run server:typecheck"
+  },
+  "dependencies": {
+    "@google/genai": "^1.50.1",
+    "@hono/node-server": "^1.19.6",
+    "@langchain/core": "1.1.42",
+    "@langchain/google-genai": "2.1.27",
+    "@langchain/langgraph": "1.2.9",
+    "@langchain/openai": "1.4.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/turndown": "^5.0.6",
+    "d3": "^7.9.0",
+    "dotenv": "^17.2.3",
+    "exa-js": "^2.11.0",
+    "fastmcp": "^4.0.0",
+    "hono": "^4.10.1",
+    "htm": "^3.1.1",
+    "langchain": "1.3.3",
+    "llm-harness-js": "workspace:*",
+    "next": "^16.2.4",
+    "nodejs-polars": "^0.24.1",
+    "opencc-js": "^1.0.5",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tsx": "^4.20.6",
+    "turndown": "^7.2.4",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "oxfmt": "0.60.0",
+    "oxlint": "1.75.0",
+    "playwright": "^1.59.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "@langchain/core": "1.1.42"
+    }
+  }
 }

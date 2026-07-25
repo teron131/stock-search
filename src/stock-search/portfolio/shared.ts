@@ -14,35 +14,31 @@ export const POSITION_SOURCE_CACHED_UNIVERSE = "cached_universe";
 export const LABEL_FETCHED_AT_FIELD = "industry_labels_fetched_at";
 export const LABEL_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const EVAL_KEYS = [
-	"overall_score",
-	"quality_score",
-	"llm_quality_score",
-	"valuation_score",
-	"moat_score",
-	"upside_score",
-	"market_cap_score",
-	"tactical_score",
+  "overall_score",
+  "quality_score",
+  "llm_quality_score",
+  "valuation_score",
+  "moat_score",
+  "upside_score",
+  "market_cap_score",
+  "tactical_score",
 ] as const;
 export const STAT_DERIVED_EVAL_KEYS = new Set<(typeof EVAL_KEYS)[number]>([
-	"overall_score",
-	"quality_score",
-	"valuation_score",
-	"moat_score",
-	"upside_score",
-	"market_cap_score",
-	"tactical_score",
+  "overall_score",
+  "quality_score",
+  "valuation_score",
+  "moat_score",
+  "upside_score",
+  "market_cap_score",
+  "tactical_score",
 ]);
 export function normalizeLabels(value: unknown): string[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return [
-		...new Set(
-			value.map((label) => String(label ?? "").trim()).filter(Boolean),
-		),
-	];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.map((label) => String(label ?? "").trim()).filter(Boolean))];
 }
 
 export function portfolioTickers(positions: PositionRow[]): string[] {
-	return uniqueTickers(positions.map((position) => position.ticker));
+  return uniqueTickers(positions.map((position) => position.ticker));
 }

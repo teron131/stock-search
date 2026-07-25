@@ -70,7 +70,8 @@ The external skill wrapper lives in `/Users/teron/Projects/agents-config/skills/
 For CLI or skill-surface changes, prefer:
 
 ```bash
-pnpm exec biome check src/stock-search/cli.ts README.md
+pnpm exec oxlint -c .oxlintrc.jsonc src/stock-search/cli.ts
+pnpm exec oxfmt --check src/stock-search/cli.ts
 pnpm run server:typecheck
 pnpm run cli help
 pnpm --silent run cli stocks NVDA --source cache

@@ -4,5 +4,5 @@ import { ClientApp } from "../client-app.js";
 export const metadata = getMetadataForView("news");
 
 export default function NewsPage() {
-	return <ClientApp initialView="news" />;
+  return <ClientApp initialView="news" />;
 }

@@ -1,493 +1,447 @@
 /** Build dashboard portfolio rows from positions, indicators, and evaluation data. */
 
 import { ETF_HOLDINGS_FETCHED_AT_FIELD } from "../etf/index.js";
-import {
-	bucketFromEvaluation,
-	deriveEvaluationScores,
-} from "../evaluation/normalization.js";
+import { bucketFromEvaluation, deriveEvaluationScores } from "../evaluation/normalization.js";
 import type { PortfolioRefreshIntent } from "../policy.js";
 import { REQUIRED_FAMILY_FIELDS } from "../stats-resolver/families.js";
 import type { PositionRow, StockEntry } from "../storage/index.js";
 import { asNumber, normalizeTicker } from "../utils.js";
 import {
-	EVAL_KEYS,
-	normalizeLabels,
-	PORTFOLIO_LABEL_FIELD,
-	POSITION_SOURCE_CACHED_UNIVERSE,
-	POSITION_SOURCE_FIELD,
-	STAT_DERIVED_EVAL_KEYS,
+  EVAL_KEYS,
+  normalizeLabels,
+  PORTFOLIO_LABEL_FIELD,
+  POSITION_SOURCE_CACHED_UNIVERSE,
+  POSITION_SOURCE_FIELD,
+  STAT_DERIVED_EVAL_KEYS,
 } from "./shared.js";
 
-const NON_US_TICKER_SUFFIXES = new Set([
-	"HK",
-	"JP",
-	"KR",
-	"KS",
-	"KQ",
-	"TT",
-	"TW",
-]);
+const NON_US_TICKER_SUFFIXES = new Set(["HK", "JP", "KR", "KS", "KQ", "TT", "TW"]);
 const US_EXCHANGE_PREFIXES = new Set(["AMEX", "NASDAQ", "NYSE"]);
 const REQUIRED_STATISTICS_FIELDS = REQUIRED_FAMILY_FIELDS.statistics ?? [];
 const REQUIRED_FINANCIAL_FIELDS = REQUIRED_FAMILY_FIELDS.financials ?? [];
 
 function positionQuantity(position: PositionRow): number {
-	const quantity = Number(position.quantity ?? 0);
-	return Number.isFinite(quantity) ? quantity : 0;
+  const quantity = Number(position.quantity ?? 0);
+  return Number.isFinite(quantity) ? quantity : 0;
 }
 
 function isNonUsTicker(tickerInput: unknown): boolean {
-	const ticker = normalizeTicker(tickerInput).replace("-", ".");
-	if (!ticker) {
-		return false;
-	}
-	if (/^\d/.test(ticker)) {
-		return true;
-	}
-	const [prefix, prefixedSymbol] = ticker.includes(":")
-		? ticker.split(":", 2)
-		: ["", ""];
-	if (prefixedSymbol) {
-		return !US_EXCHANGE_PREFIXES.has(prefix);
-	}
-	const suffix = ticker.match(/\.([A-Z]{1,4})$/)?.[1];
-	return suffix ? NON_US_TICKER_SUFFIXES.has(suffix) : false;
+  const ticker = normalizeTicker(tickerInput).replace("-", ".");
+  if (!ticker) {
+    return false;
+  }
+  if (/^\d/.test(ticker)) {
+    return true;
+  }
+  const [prefix, prefixedSymbol] = ticker.includes(":") ? ticker.split(":", 2) : ["", ""];
+  if (prefixedSymbol) {
+    return !US_EXCHANGE_PREFIXES.has(prefix);
+  }
+  const suffix = ticker.match(/\.([A-Z]{1,4})$/)?.[1];
+  return suffix ? NON_US_TICKER_SUFFIXES.has(suffix) : false;
 }
 
 function hasMeaningfulValue(value: unknown): boolean {
-	if (value == null) {
-		return false;
-	}
-	if (typeof value === "string") {
-		return value.trim() !== "";
-	}
-	return true;
+  if (value == null) {
+    return false;
+  }
+  if (typeof value === "string") {
+    return value.trim() !== "";
+  }
+  return true;
 }
 
 function hasMissingRequiredFields(
-	indicators: Record<string, unknown>,
-	fields: readonly string[],
+  indicators: Record<string, unknown>,
+  fields: readonly string[],
 ): boolean {
-	return fields.some((field) => !hasMeaningfulValue(indicators[field]));
+  return fields.some((field) => !hasMeaningfulValue(indicators[field]));
 }
 
 function needsPriorityRefresh(stock: StockEntry | undefined): boolean {
-	const indicators = stock?.indicators ?? {};
-	const quoteType = String(indicators.quote_type ?? "")
-		.trim()
-		.toUpperCase();
-	if (quoteType === "ETF" || quoteType === "MUTUALFUND") {
-		return false;
-	}
-	return (
-		hasMissingRequiredFields(indicators, REQUIRED_STATISTICS_FIELDS) ||
-		hasMissingRequiredFields(indicators, REQUIRED_FINANCIAL_FIELDS)
-	);
+  const indicators = stock?.indicators ?? {};
+  const quoteType = String(indicators.quote_type ?? "")
+    .trim()
+    .toUpperCase();
+  if (quoteType === "ETF" || quoteType === "MUTUALFUND") {
+    return false;
+  }
+  return (
+    hasMissingRequiredFields(indicators, REQUIRED_STATISTICS_FIELDS) ||
+    hasMissingRequiredFields(indicators, REQUIRED_FINANCIAL_FIELDS)
+  );
 }
 
 export function clearEtfMarketCapFields(row: Record<string, unknown>): void {
-	const proxiedFields = Array.isArray(row.proxied_stat_fields)
-		? row.proxied_stat_fields.map((field) => String(field))
-		: [];
-	if (!proxiedFields.includes("market_cap")) {
-		row.market_cap = null;
-	}
-	row.fx = null;
+  const proxiedFields = Array.isArray(row.proxied_stat_fields)
+    ? row.proxied_stat_fields.map((field) => String(field))
+    : [];
+  if (!proxiedFields.includes("market_cap")) {
+    row.market_cap = null;
+  }
+  row.fx = null;
 }
 
-export function hasOwnEvaluation(
-	evaluation: Record<string, unknown> | null | undefined,
-): boolean {
-	if (!evaluation) {
-		return false;
-	}
-	return EVAL_KEYS.some(
-		(key) => evaluation[key] != null && evaluation[key] !== "",
-	);
+export function hasOwnEvaluation(evaluation: Record<string, unknown> | null | undefined): boolean {
+  if (!evaluation) {
+    return false;
+  }
+  return EVAL_KEYS.some((key) => evaluation[key] != null && evaluation[key] !== "");
 }
 
 function pickEvalValue({
-	evaluation,
-	normalizedEvaluation,
-	key,
-	aliases = [],
+  evaluation,
+  normalizedEvaluation,
+  key,
+  aliases = [],
 }: {
-	evaluation: Record<string, unknown>;
-	normalizedEvaluation: Record<string, number>;
-	key: (typeof EVAL_KEYS)[number];
-	aliases?: readonly string[];
+  evaluation: Record<string, unknown>;
+  normalizedEvaluation: Record<string, number>;
+  key: (typeof EVAL_KEYS)[number];
+  aliases?: readonly string[];
 }): [number | null, boolean] {
-	const hasLlmValue = [key, ...aliases].some(
-		(alias) => evaluation[alias] != null,
-	);
-	const normalizedValue = normalizedEvaluation[key];
-	if (normalizedValue != null && STAT_DERIVED_EVAL_KEYS.has(key)) {
-		return [Number(normalizedValue), false];
-	}
-	if (hasLlmValue && normalizedValue != null) {
-		return [Number(normalizedValue), true];
-	}
-	return [null, false];
+  const hasLlmValue = [key, ...aliases].some((alias) => evaluation[alias] != null);
+  const normalizedValue = normalizedEvaluation[key];
+  if (normalizedValue != null && STAT_DERIVED_EVAL_KEYS.has(key)) {
+    return [Number(normalizedValue), false];
+  }
+  if (hasLlmValue && normalizedValue != null) {
+    return [Number(normalizedValue), true];
+  }
+  return [null, false];
 }
 
 function mergeIndicatorLabels(
-	position: PositionRow,
-	indicators: Record<string, unknown>,
-	stockLabels: string[],
+  position: PositionRow,
+  indicators: Record<string, unknown>,
+  stockLabels: string[],
 ): string[] {
-	const positionLabels = normalizeLabels(position[PORTFOLIO_LABEL_FIELD]);
-	if (positionLabels.length > 0) {
-		return positionLabels;
-	}
-	const indicatorLabels = normalizeLabels(indicators.industry_labels);
-	return indicatorLabels.length > 0 ? indicatorLabels : stockLabels;
+  const positionLabels = normalizeLabels(position[PORTFOLIO_LABEL_FIELD]);
+  if (positionLabels.length > 0) {
+    return positionLabels;
+  }
+  const indicatorLabels = normalizeLabels(indicators.industry_labels);
+  return indicatorLabels.length > 0 ? indicatorLabels : stockLabels;
 }
 
 export function buildRowsForUniverse(
-	positions: PositionRow[],
-	stocksMap: Record<string, StockEntry>,
-	includeCachedUniverse: boolean,
+  positions: PositionRow[],
+  stocksMap: Record<string, StockEntry>,
+  includeCachedUniverse: boolean,
 ): PositionRow[] {
-	if (!includeCachedUniverse) {
-		return positions.map((position) => ({ ...position }));
-	}
+  if (!includeCachedUniverse) {
+    return positions.map((position) => ({ ...position }));
+  }
 
-	const rows = positions.map((position) => ({ ...position }));
-	const existingTickers = new Set(
-		rows.map((row) => normalizeTicker(row.ticker)),
-	);
-	for (const ticker of Object.keys(stocksMap)) {
-		if (existingTickers.has(ticker)) {
-			continue;
-		}
-		rows.push({
-			ticker,
-			quantity: 0,
-			[POSITION_SOURCE_FIELD]: POSITION_SOURCE_CACHED_UNIVERSE,
-		});
-	}
-	return rows;
+  const rows = positions.map((position) => ({ ...position }));
+  const existingTickers = new Set(rows.map((row) => normalizeTicker(row.ticker)));
+  for (const ticker of Object.keys(stocksMap)) {
+    if (existingTickers.has(ticker)) {
+      continue;
+    }
+    rows.push({
+      ticker,
+      quantity: 0,
+      [POSITION_SOURCE_FIELD]: POSITION_SOURCE_CACHED_UNIVERSE,
+    });
+  }
+  return rows;
 }
 
 export function rankRows(rows: Array<Record<string, unknown>>): void {
-	const rankedRows = rows
-		.map((row, index) => ({
-			index,
-			score: asNumber(row.overall_score),
-		}))
-		.filter(
-			(entry): entry is { index: number; score: number } => entry.score != null,
-		)
-		.sort((left, right) => right.score - left.score);
+  const rankedRows = rows
+    .map((row, index) => ({
+      index,
+      score: asNumber(row.overall_score),
+    }))
+    .filter((entry): entry is { index: number; score: number } => entry.score != null)
+    .sort((left, right) => right.score - left.score);
 
-	for (const [rankIndex, entry] of rankedRows.entries()) {
-		rows[entry.index].rank = rankIndex + 1;
-	}
+  for (const [rankIndex, entry] of rankedRows.entries()) {
+    rows[entry.index].rank = rankIndex + 1;
+  }
 }
 
 function clearRefreshedProxyFields(
-	indicators: Record<string, unknown>,
-	refreshedRow: Record<string, unknown>,
+  indicators: Record<string, unknown>,
+  refreshedRow: Record<string, unknown>,
 ): void {
-	if (!Array.isArray(indicators.proxied_stat_fields)) {
-		return;
-	}
-	const previousProxiedFields = indicators.proxied_stat_fields.map((field) =>
-		String(field),
-	);
-	const remainingProxiedFields = previousProxiedFields.filter(
-		(field) => !(field in refreshedRow && refreshedRow[field] != null),
-	);
-	if (remainingProxiedFields.length === previousProxiedFields.length) {
-		return;
-	}
+  if (!Array.isArray(indicators.proxied_stat_fields)) {
+    return;
+  }
+  const previousProxiedFields = indicators.proxied_stat_fields.map((field) => String(field));
+  const remainingProxiedFields = previousProxiedFields.filter(
+    (field) => !(field in refreshedRow && refreshedRow[field] != null),
+  );
+  if (remainingProxiedFields.length === previousProxiedFields.length) {
+    return;
+  }
 
-	if (remainingProxiedFields.length === 0) {
-		delete indicators.proxied_stat_fields;
-		delete indicators.proxied_stat_coverage;
-		delete indicators.stats_proxy_source;
-		return;
-	}
+  if (remainingProxiedFields.length === 0) {
+    delete indicators.proxied_stat_fields;
+    delete indicators.proxied_stat_coverage;
+    delete indicators.stats_proxy_source;
+    return;
+  }
 
-	const remainingProxiedFieldSet = new Set(remainingProxiedFields);
-	const coverage =
-		typeof indicators.proxied_stat_coverage === "object" &&
-		indicators.proxied_stat_coverage !== null &&
-		!Array.isArray(indicators.proxied_stat_coverage)
-			? { ...(indicators.proxied_stat_coverage as Record<string, unknown>) }
-			: {};
-	for (const field of previousProxiedFields) {
-		if (!remainingProxiedFieldSet.has(field)) {
-			delete coverage[field];
-		}
-	}
-	indicators.proxied_stat_fields = remainingProxiedFields;
-	indicators.proxied_stat_coverage = coverage;
+  const remainingProxiedFieldSet = new Set(remainingProxiedFields);
+  const coverage =
+    typeof indicators.proxied_stat_coverage === "object" &&
+    indicators.proxied_stat_coverage !== null &&
+    !Array.isArray(indicators.proxied_stat_coverage)
+      ? { ...(indicators.proxied_stat_coverage as Record<string, unknown>) }
+      : {};
+  for (const field of previousProxiedFields) {
+    if (!remainingProxiedFieldSet.has(field)) {
+      delete coverage[field];
+    }
+  }
+  indicators.proxied_stat_fields = remainingProxiedFields;
+  indicators.proxied_stat_coverage = coverage;
 }
 
 export function mergeLiveResultsIntoStocks(
-	stocksMap: Record<string, StockEntry>,
-	liveResults: Record<
-		string,
-		{
-			row: Record<string, unknown>;
-		}
-	>,
+  stocksMap: Record<string, StockEntry>,
+  liveResults: Record<
+    string,
+    {
+      row: Record<string, unknown>;
+    }
+  >,
 ): Record<string, StockEntry> {
-	const mergedMap: Record<string, StockEntry> = {};
-	for (const [ticker, stock] of Object.entries(stocksMap)) {
-		mergedMap[ticker] = {
-			indicators: { ...(stock.indicators ?? {}) },
-			evaluation: { ...(stock.evaluation ?? {}) },
-			labels: [...(stock.labels ?? [])],
-		};
-	}
+  const mergedMap: Record<string, StockEntry> = {};
+  for (const [ticker, stock] of Object.entries(stocksMap)) {
+    mergedMap[ticker] = {
+      indicators: { ...stock.indicators },
+      evaluation: { ...stock.evaluation },
+      labels: [...(stock.labels ?? [])],
+    };
+  }
 
-	for (const [ticker, result] of Object.entries(liveResults)) {
-		const existing = mergedMap[ticker];
-		const indicators = {
-			...(existing?.indicators ?? {}),
-			...result.row,
-		};
-		clearRefreshedProxyFields(indicators, result.row);
-		mergedMap[ticker] = {
-			indicators,
-			evaluation: existing?.evaluation ?? {},
-			labels: existing?.labels ?? [],
-		};
-	}
-	return mergedMap;
+  for (const [ticker, result] of Object.entries(liveResults)) {
+    const existing = mergedMap[ticker];
+    const indicators = {
+      ...existing?.indicators,
+      ...result.row,
+    };
+    clearRefreshedProxyFields(indicators, result.row);
+    mergedMap[ticker] = {
+      indicators,
+      evaluation: existing?.evaluation ?? {},
+      labels: existing?.labels ?? [],
+    };
+  }
+  return mergedMap;
 }
 
-function weightedAverage(
-	rows: Array<Record<string, unknown>>,
-	fieldName: string,
-): number | null {
-	let weightedSum = 0;
-	let totalWeight = 0;
+function weightedAverage(rows: Array<Record<string, unknown>>, fieldName: string): number | null {
+  let weightedSum = 0;
+  let totalWeight = 0;
 
-	for (const row of rows) {
-		const total = asNumber(row.total);
-		const value = asNumber(row[fieldName]);
-		if (total == null || total <= 0 || value == null) {
-			continue;
-		}
-		weightedSum += total * value;
-		totalWeight += total;
-	}
+  for (const row of rows) {
+    const total = asNumber(row.total);
+    const value = asNumber(row[fieldName]);
+    if (total == null || total <= 0 || value == null) {
+      continue;
+    }
+    weightedSum += total * value;
+    totalWeight += total;
+  }
 
-	return totalWeight > 0 ? weightedSum / totalWeight : null;
+  return totalWeight > 0 ? weightedSum / totalWeight : null;
 }
 
 export function applyRowWeights(rows: Array<Record<string, unknown>>): number {
-	const heldTotal = rows.reduce((sum, row) => {
-		return Number(row.quantity ?? 0) > 0 ? sum + Number(row.total ?? 0) : sum;
-	}, 0);
-	for (const row of rows) {
-		const rowTotal = Number(row.total ?? 0);
-		row.weight_pct =
-			Number(row.quantity ?? 0) > 0 && heldTotal > 0
-				? (rowTotal / heldTotal) * 100
-				: 0;
-	}
-	return heldTotal;
+  const heldTotal = rows.reduce((sum, row) => {
+    return Number(row.quantity ?? 0) > 0 ? sum + Number(row.total ?? 0) : sum;
+  }, 0);
+  for (const row of rows) {
+    const rowTotal = Number(row.total ?? 0);
+    row.weight_pct =
+      Number(row.quantity ?? 0) > 0 && heldTotal > 0 ? (rowTotal / heldTotal) * 100 : 0;
+  }
+  return heldTotal;
 }
 
-export function weightPctByTicker(
-	rows: Array<Record<string, unknown>>,
-): Map<string, number> {
-	return new Map(
-		rows.map((row) => [
-			normalizeTicker(row.ticker),
-			asNumber(row.weight_pct) ?? 0,
-		]),
-	);
+export function weightPctByTicker(rows: Array<Record<string, unknown>>): Map<string, number> {
+  return new Map(rows.map((row) => [normalizeTicker(row.ticker), asNumber(row.weight_pct) ?? 0]));
 }
 
 function resolveRowStrategy(
-	ticker: string,
-	indicators: Record<string, unknown>,
-	evaluation: Record<string, unknown>,
+  ticker: string,
+  indicators: Record<string, unknown>,
+  evaluation: Record<string, unknown>,
 ): string | null {
-	const cachedStrategy =
-		typeof indicators.strategy === "string" && indicators.strategy.trim()
-			? indicators.strategy.trim()
-			: null;
-	return bucketFromEvaluation(ticker, evaluation) ?? cachedStrategy;
+  const cachedStrategy =
+    typeof indicators.strategy === "string" && indicators.strategy.trim()
+      ? indicators.strategy.trim()
+      : null;
+  return bucketFromEvaluation(ticker, evaluation) ?? cachedStrategy;
 }
 
 export function calculatePortfolioStats(
-	rows: Array<Record<string, unknown>>,
-	sectorDistribution: Array<{
-		sector: string;
-		portfolio_weight: number;
-		stock_weight: number;
-		etf_lookthrough_weight: number;
-	}>,
+  rows: Array<Record<string, unknown>>,
+  sectorDistribution: Array<{
+    sector: string;
+    portfolio_weight: number;
+    stock_weight: number;
+    etf_lookthrough_weight: number;
+  }>,
 ): Record<string, unknown> {
-	const heldRows = rows.filter((row) => Number(row.quantity ?? 0) > 0);
-	const total = heldRows.reduce((sum, row) => sum + Number(row.total ?? 0), 0);
-	let changeValue = 0;
-	for (const row of heldRows) {
-		const totalValue = asNumber(row.total);
-		const changePercent = asNumber(row.change_percent_1d);
-		if (totalValue == null || totalValue <= 0 || changePercent == null) {
-			continue;
-		}
-		changeValue +=
-			((changePercent / 100) * totalValue) / (1 + changePercent / 100);
-	}
+  const heldRows = rows.filter((row) => Number(row.quantity ?? 0) > 0);
+  const total = heldRows.reduce((sum, row) => sum + Number(row.total ?? 0), 0);
+  let changeValue = 0;
+  for (const row of heldRows) {
+    const totalValue = asNumber(row.total);
+    const changePercent = asNumber(row.change_percent_1d);
+    if (totalValue == null || totalValue <= 0 || changePercent == null) {
+      continue;
+    }
+    changeValue += ((changePercent / 100) * totalValue) / (1 + changePercent / 100);
+  }
 
-	const denominator = total - changeValue;
-	return {
-		held_positions_count: heldRows.length,
-		total,
-		change: changeValue,
-		change_percent: denominator > 0 ? (changeValue / denominator) * 100 : 0,
-		weighted_beta: weightedAverage(heldRows, "beta"),
-		weighted_iv: weightedAverage(heldRows, "iv"),
-		sector_distribution: sectorDistribution,
-	};
+  const denominator = total - changeValue;
+  return {
+    held_positions_count: heldRows.length,
+    total,
+    change: changeValue,
+    change_percent: denominator > 0 ? (changeValue / denominator) * 100 : 0,
+    weighted_beta: weightedAverage(heldRows, "beta"),
+    weighted_iv: weightedAverage(heldRows, "iv"),
+    sector_distribution: sectorDistribution,
+  };
 }
 
 export function liveTickersForRefreshIntent(
-	positions: PositionRow[],
-	evalTickers: Set<string>,
-	refreshIntent: PortfolioRefreshIntent,
-	stocksMap: Record<string, StockEntry> = {},
+  positions: PositionRow[],
+  evalTickers: Set<string>,
+  refreshIntent: PortfolioRefreshIntent,
+  stocksMap: Record<string, StockEntry> = {},
 ): string[] {
-	if (refreshIntent === "repair_missing_required") {
-		return [
-			...new Set(
-				positions.flatMap((position) => {
-					const ticker = normalizeTicker(position.ticker);
-					return ticker && needsPriorityRefresh(stocksMap[ticker])
-						? [ticker]
-						: [];
-				}),
-			),
-		];
-	}
-	if (refreshIntent === "none") {
-		return [];
-	}
-	return [
-		...new Set(
-			positions
-				.filter((position) => {
-					const ticker = normalizeTicker(position.ticker);
-					return evalTickers.has(ticker) || positionQuantity(position) > 0;
-				})
-				.map((position) => normalizeTicker(position.ticker))
-				.filter(Boolean),
-		),
-	];
+  if (refreshIntent === "repair_missing_required") {
+    return [
+      ...new Set(
+        positions.flatMap((position) => {
+          const ticker = normalizeTicker(position.ticker);
+          return ticker && needsPriorityRefresh(stocksMap[ticker]) ? [ticker] : [];
+        }),
+      ),
+    ];
+  }
+  if (refreshIntent === "none") {
+    return [];
+  }
+  return [
+    ...new Set(
+      positions
+        .filter((position) => {
+          const ticker = normalizeTicker(position.ticker);
+          return evalTickers.has(ticker) || positionQuantity(position) > 0;
+        })
+        .map((position) => normalizeTicker(position.ticker))
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function fxRefreshTickersForLivePolicy(
-	positions: PositionRow[],
-	stocksMap: Record<string, StockEntry>,
-	liveRefresh: boolean,
+  positions: PositionRow[],
+  stocksMap: Record<string, StockEntry>,
+  liveRefresh: boolean,
 ): string[] {
-	if (!liveRefresh) {
-		return [];
-	}
-	return [
-		...new Set(
-			positions
-				.filter((position) => {
-					const ticker = normalizeTicker(position.ticker);
-					const indicators = stocksMap[ticker]?.indicators ?? {};
-					return (
-						isNonUsTicker(ticker) &&
-						asNumber(indicators.market_cap) != null &&
-						asNumber(indicators.fx) == null
-					);
-				})
-				.map((position) => normalizeTicker(position.ticker))
-				.filter(Boolean),
-		),
-	];
+  if (!liveRefresh) {
+    return [];
+  }
+  return [
+    ...new Set(
+      positions
+        .filter((position) => {
+          const ticker = normalizeTicker(position.ticker);
+          const indicators = stocksMap[ticker]?.indicators ?? {};
+          return (
+            isNonUsTicker(ticker) &&
+            asNumber(indicators.market_cap) != null &&
+            asNumber(indicators.fx) == null
+          );
+        })
+        .map((position) => normalizeTicker(position.ticker))
+        .filter(Boolean),
+    ),
+  ];
 }
 
 /** Merge one position row with cached indicators and evaluation fields. */
 export function mergePortfolioRow(
-	position: PositionRow,
-	stockEntry: StockEntry | undefined,
+  position: PositionRow,
+  stockEntry: StockEntry | undefined,
 ): Record<string, unknown> {
-	const indicators = stockEntry?.indicators ?? {};
-	const evaluation = stockEntry?.evaluation ?? {};
-	const ticker = normalizeTicker(position.ticker);
-	const quantity = positionQuantity(position);
-	const price = asNumber(indicators.price);
-	const total = price == null ? 0 : quantity * price;
-	const normalizedEvaluation = deriveEvaluationScores(evaluation, indicators);
-	const selectedEvaluation: Record<string, number | null> = {};
-	let llmCount = 0;
-	let selectedCount = 0;
-	for (const field of EVAL_KEYS) {
-		const [value, isFromLlm] = pickEvalValue({
-			evaluation,
-			normalizedEvaluation,
-			key: field,
-		});
-		selectedEvaluation[field] = value;
-		if (value != null) {
-			selectedCount += 1;
-		}
-		if (isFromLlm) {
-			llmCount += 1;
-		}
-	}
-	const evalSource =
-		selectedCount === 0
-			? "none"
-			: llmCount === selectedCount
-				? "llm"
-				: llmCount === 0
-					? "stats"
-					: "hybrid";
-	const industryLabels = mergeIndicatorLabels(
-		position,
-		indicators,
-		stockEntry?.labels ?? [],
-	);
-	const quoteType = String(indicators.quote_type ?? "")
-		.trim()
-		.toUpperCase();
-	const etfHoldings = Array.isArray(indicators.etf_holdings)
-		? indicators.etf_holdings
-		: Array.isArray(indicators.holdings)
-			? indicators.holdings
-			: [];
-	const strategyEvaluation =
-		selectedCount > 0 || hasOwnEvaluation(evaluation)
-			? selectedEvaluation
-			: evaluation;
-	const strategy = resolveRowStrategy(ticker, indicators, strategyEvaluation);
+  const indicators = stockEntry?.indicators ?? {};
+  const evaluation = stockEntry?.evaluation ?? {};
+  const ticker = normalizeTicker(position.ticker);
+  const quantity = positionQuantity(position);
+  const price = asNumber(indicators.price);
+  const total = price == null ? 0 : quantity * price;
+  const normalizedEvaluation = deriveEvaluationScores(evaluation, indicators);
+  const selectedEvaluation: Record<string, number | null> = {};
+  let llmCount = 0;
+  let selectedCount = 0;
+  for (const field of EVAL_KEYS) {
+    const [value, isFromLlm] = pickEvalValue({
+      evaluation,
+      normalizedEvaluation,
+      key: field,
+    });
+    selectedEvaluation[field] = value;
+    if (value != null) {
+      selectedCount += 1;
+    }
+    if (isFromLlm) {
+      llmCount += 1;
+    }
+  }
+  const evalSource =
+    selectedCount === 0
+      ? "none"
+      : llmCount === selectedCount
+        ? "llm"
+        : llmCount === 0
+          ? "stats"
+          : "hybrid";
+  const industryLabels = mergeIndicatorLabels(position, indicators, stockEntry?.labels ?? []);
+  const quoteType = String(indicators.quote_type ?? "")
+    .trim()
+    .toUpperCase();
+  const etfHoldings = Array.isArray(indicators.etf_holdings)
+    ? indicators.etf_holdings
+    : Array.isArray(indicators.holdings)
+      ? indicators.holdings
+      : [];
+  const strategyEvaluation =
+    selectedCount > 0 || hasOwnEvaluation(evaluation) ? selectedEvaluation : evaluation;
+  const strategy = resolveRowStrategy(ticker, indicators, strategyEvaluation);
 
-	return {
-		...indicators,
-		...selectedEvaluation,
-		...position,
-		evaluation_update_tier: "evaluation",
-		market_update_tier: "market_data",
-		indicator_update_tier: "indicator",
-		ratings_update_tier: "ratings",
-		etf_holdings_update_tier: etfHoldings.length > 0 ? "etf_holdings" : null,
-		eval_source: evalSource,
-		ticker,
-		quantity,
-		total,
-		equity_type: quoteType === "ETF" ? "ETF" : quoteType ? "STOCK" : "UNKNOWN",
-		industry_labels: industryLabels,
-		primary_label: industryLabels[0] ?? null,
-		etf_holdings: etfHoldings,
-		etf_holdings_fetched_at:
-			typeof indicators[ETF_HOLDINGS_FETCHED_AT_FIELD] === "string"
-				? indicators[ETF_HOLDINGS_FETCHED_AT_FIELD]
-				: null,
-		strategy,
-		rank: null,
-	};
+  return {
+    ...indicators,
+    ...selectedEvaluation,
+    ...position,
+    evaluation_update_tier: "evaluation",
+    market_update_tier: "market_data",
+    indicator_update_tier: "indicator",
+    ratings_update_tier: "ratings",
+    etf_holdings_update_tier: etfHoldings.length > 0 ? "etf_holdings" : null,
+    eval_source: evalSource,
+    ticker,
+    quantity,
+    total,
+    equity_type: quoteType === "ETF" ? "ETF" : quoteType ? "STOCK" : "UNKNOWN",
+    industry_labels: industryLabels,
+    primary_label: industryLabels[0] ?? null,
+    etf_holdings: etfHoldings,
+    etf_holdings_fetched_at:
+      typeof indicators[ETF_HOLDINGS_FETCHED_AT_FIELD] === "string"
+        ? indicators[ETF_HOLDINGS_FETCHED_AT_FIELD]
+        : null,
+    strategy,
+    rank: null,
+  };
 }

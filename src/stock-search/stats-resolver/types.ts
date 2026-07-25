@@ -6,55 +6,49 @@ import type { StatsFamily } from "./families.js";
 export type StatsResolutionMode = TickerSource;
 
 export class LiveStatsUnavailableError extends Error {
-	readonly ticker: string;
+  readonly ticker: string;
 
-	constructor(ticker: string, options?: ErrorOptions) {
-		super(`Live stats unavailable for ticker: ${ticker}`, options);
-		this.name = "LiveStatsUnavailableError";
-		this.ticker = ticker;
-	}
+  constructor(ticker: string, options?: ErrorOptions) {
+    super(`Live stats unavailable for ticker: ${ticker}`, options);
+    this.name = "LiveStatsUnavailableError";
+    this.ticker = ticker;
+  }
 }
 
-export function isLiveStatsUnavailableError(
-	error: unknown,
-): error is LiveStatsUnavailableError {
-	return error instanceof LiveStatsUnavailableError;
+export function isLiveStatsUnavailableError(error: unknown): error is LiveStatsUnavailableError {
+  return error instanceof LiveStatsUnavailableError;
 }
 
-export type FamilyDecision =
-	| "fresh"
-	| "stale_served"
-	| "inline_refresh"
-	| "missing";
+export type FamilyDecision = "fresh" | "stale_served" | "inline_refresh" | "missing";
 export type SourceTier = "l1" | "l2" | "live" | "missing";
 
 export type FamilyResolution = {
-	family: StatsFamily;
-	row: Record<string, unknown>;
-	decision: FamilyDecision;
-	sourceTier: SourceTier;
-	timestamp: number | null;
-	queuedRefresh: boolean;
+  family: StatsFamily;
+  row: Record<string, unknown>;
+  decision: FamilyDecision;
+  sourceTier: SourceTier;
+  timestamp: number | null;
+  queuedRefresh: boolean;
 };
 
 export type StatsResolutionResult = {
-	row: Record<string, unknown>;
-	dataSource: "cache" | "live" | "live_with_cache_fallback";
-	families: Partial<Record<StatsFamily, FamilyResolution>>;
+  row: Record<string, unknown>;
+  dataSource: "cache" | "live" | "live_with_cache_fallback";
+  families: Partial<Record<StatsFamily, FamilyResolution>>;
 };
 
 export type FamilyCacheEntry = {
-	value: Record<string, unknown>;
-	updatedAt: number;
-	lastFailureAt: number | null;
+  value: Record<string, unknown>;
+  updatedAt: number;
+  lastFailureAt: number | null;
 };
 
 export type CachedFamilySnapshot = {
-	sourceTier: SourceTier;
-	row: Record<string, unknown>;
-	timestamp: number | null;
-	hasRequiredFields: boolean;
-	isFresh: boolean;
-	isStale: boolean;
-	present: boolean;
+  sourceTier: SourceTier;
+  row: Record<string, unknown>;
+  timestamp: number | null;
+  hasRequiredFields: boolean;
+  isFresh: boolean;
+  isStale: boolean;
+  present: boolean;
 };

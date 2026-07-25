@@ -3,21 +3,21 @@
 export type StorageValue = string | number | null;
 export type ColumnKind = "real" | "text";
 export type StockScalarColumn = {
-	name: string;
-	kind: ColumnKind;
-	group: "indicator" | "evaluation";
+  name: string;
+  kind: ColumnKind;
+  group: "indicator" | "evaluation";
 };
 
 function fieldNames(value: string): string[] {
-	return value.trim().split(/\s+/).filter(Boolean);
+  return value.trim().split(/\s+/).filter(Boolean);
 }
 
 function sqlLines(value: string): string[] {
-	return value
-		.trim()
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean);
+  return value
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 export const DEFAULT_STORAGE_KEY = "default";
@@ -32,11 +32,7 @@ export const NEWS_FIELD_COLUMNS = fieldNames(`
 export const NEWS_METADATA_COLUMNS = fieldNames(`
 	provider source_domain published_at fetched_at
 `);
-export const NEWS_KNOWN_FIELDS = new Set([
-	...NEWS_FIELD_COLUMNS,
-	"days_ago",
-	"metadata",
-]);
+export const NEWS_KNOWN_FIELDS = new Set([...NEWS_FIELD_COLUMNS, "days_ago", "metadata"]);
 export const NEWS_KNOWN_METADATA_FIELDS = new Set(NEWS_METADATA_COLUMNS);
 
 export const STOCK_TEXT_INDICATOR_COLUMNS = fieldNames(`
@@ -117,24 +113,23 @@ export const CALIBRATION_STATS_COLUMN_DEFINITIONS = sqlLines(`
 	last_fetched_at TEXT
 `);
 
-export const CALIBRATION_STATS_COLUMN_NAMES =
-	CALIBRATION_STATS_COLUMN_DEFINITIONS.map(
-		(definition) => definition.split(/\s+/, 1)[0] ?? "",
-	).filter(Boolean);
+export const CALIBRATION_STATS_COLUMN_NAMES = CALIBRATION_STATS_COLUMN_DEFINITIONS.map(
+  (definition) => definition.split(/\s+/, 1)[0] ?? "",
+).filter(Boolean);
 
 export type CalibrationStatsRow = Record<string, StorageValue> & {
-	ticker: string;
+  ticker: string;
 };
 
 export const STOCK_EVALUATION_REASON_COLUMNS = [
-	["moat_score", "moat_reasons"],
-	["quality_score", "quality_reasons"],
-	["upside_score", "upside_reasons"],
+  ["moat_score", "moat_reasons"],
+  ["quality_score", "quality_reasons"],
+  ["upside_score", "upside_reasons"],
 ] as const;
 
 export const STOCK_FUTURE_OUTLOOK_COLUMNS = {
-	score: "future_score",
-	reasons: "future_reasons",
+  score: "future_score",
+  reasons: "future_reasons",
 } as const;
 
 export const STOCK_SERIALIZED_INDICATOR_COLUMNS = fieldNames(`
@@ -142,79 +137,75 @@ export const STOCK_SERIALIZED_INDICATOR_COLUMNS = fieldNames(`
 `);
 
 export const STOCK_SCALAR_COLUMNS: readonly StockScalarColumn[] = [
-	...STOCK_TEXT_INDICATOR_COLUMNS.map((name) => ({
-		name,
-		kind: "text" as const,
-		group: "indicator" as const,
-	})),
-	...STOCK_NUMERIC_INDICATOR_COLUMNS.map((name) => ({
-		name,
-		kind: "real" as const,
-		group: "indicator" as const,
-	})),
-	...STOCK_NUMERIC_EVALUATION_COLUMNS.map((name) => ({
-		name,
-		kind: "real" as const,
-		group: "evaluation" as const,
-	})),
+  ...STOCK_TEXT_INDICATOR_COLUMNS.map((name) => ({
+    name,
+    kind: "text" as const,
+    group: "indicator" as const,
+  })),
+  ...STOCK_NUMERIC_INDICATOR_COLUMNS.map((name) => ({
+    name,
+    kind: "real" as const,
+    group: "indicator" as const,
+  })),
+  ...STOCK_NUMERIC_EVALUATION_COLUMNS.map((name) => ({
+    name,
+    kind: "real" as const,
+    group: "evaluation" as const,
+  })),
 ];
 
 export const STOCK_COLUMN_NAMES = [
-	"labels",
-	"indicator_extra",
-	"evaluation_extra",
-	...STOCK_SCALAR_COLUMNS.map((column) => column.name),
-	STOCK_FUTURE_OUTLOOK_COLUMNS.score,
-	STOCK_FUTURE_OUTLOOK_COLUMNS.reasons,
-	...STOCK_EVALUATION_REASON_COLUMNS.map(([, reasonsColumn]) => reasonsColumn),
-	...STOCK_SERIALIZED_INDICATOR_COLUMNS,
+  "labels",
+  "indicator_extra",
+  "evaluation_extra",
+  ...STOCK_SCALAR_COLUMNS.map((column) => column.name),
+  STOCK_FUTURE_OUTLOOK_COLUMNS.score,
+  STOCK_FUTURE_OUTLOOK_COLUMNS.reasons,
+  ...STOCK_EVALUATION_REASON_COLUMNS.map(([, reasonsColumn]) => reasonsColumn),
+  ...STOCK_SERIALIZED_INDICATOR_COLUMNS,
 ];
-export const STOCK_SELECT_COLUMNS = ["ticker", ...STOCK_COLUMN_NAMES].join(
-	", ",
-);
+export const STOCK_SELECT_COLUMNS = ["ticker", ...STOCK_COLUMN_NAMES].join(", ");
 export const POSITION_COLUMN_NAMES = new Set(
-	fieldNames("ticker quantity strategy industry_labels"),
+  fieldNames("ticker quantity strategy industry_labels"),
 );
 
 export function tableSchemaQueries(): string[] {
-	return [...TABLE_DEFINITIONS.map(tableCreateQuery), ...INDEX_QUERIES];
+  return [...TABLE_DEFINITIONS.map(tableCreateQuery), ...INDEX_QUERIES];
 }
 
 function columnSqlType(kind: ColumnKind): string {
-	return kind === "real" ? "REAL" : "TEXT";
+  return kind === "real" ? "REAL" : "TEXT";
 }
 
 function stockColumnDefinitions(): string[] {
-	return [
-		"ticker TEXT PRIMARY KEY",
-		"labels TEXT NOT NULL DEFAULT '[]'",
-		"indicator_extra TEXT NOT NULL DEFAULT '{}'",
-		"evaluation_extra TEXT NOT NULL DEFAULT '{}'",
-		...STOCK_SCALAR_COLUMNS.map(
-			(column) => `${column.name} ${columnSqlType(column.kind)}`,
-		),
-		`${STOCK_FUTURE_OUTLOOK_COLUMNS.score} REAL`,
-		`${STOCK_FUTURE_OUTLOOK_COLUMNS.reasons} TEXT NOT NULL DEFAULT '[]'`,
-		...STOCK_EVALUATION_REASON_COLUMNS.map(
-			([, reasonsColumn]) => `${reasonsColumn} TEXT NOT NULL DEFAULT '[]'`,
-		),
-		...STOCK_SERIALIZED_INDICATOR_COLUMNS.map(
-			(columnName) => `${columnName} TEXT NOT NULL DEFAULT '[]'`,
-		),
-		"updated_at INTEGER NOT NULL",
-	];
+  return [
+    "ticker TEXT PRIMARY KEY",
+    "labels TEXT NOT NULL DEFAULT '[]'",
+    "indicator_extra TEXT NOT NULL DEFAULT '{}'",
+    "evaluation_extra TEXT NOT NULL DEFAULT '{}'",
+    ...STOCK_SCALAR_COLUMNS.map((column) => `${column.name} ${columnSqlType(column.kind)}`),
+    `${STOCK_FUTURE_OUTLOOK_COLUMNS.score} REAL`,
+    `${STOCK_FUTURE_OUTLOOK_COLUMNS.reasons} TEXT NOT NULL DEFAULT '[]'`,
+    ...STOCK_EVALUATION_REASON_COLUMNS.map(
+      ([, reasonsColumn]) => `${reasonsColumn} TEXT NOT NULL DEFAULT '[]'`,
+    ),
+    ...STOCK_SERIALIZED_INDICATOR_COLUMNS.map(
+      (columnName) => `${columnName} TEXT NOT NULL DEFAULT '[]'`,
+    ),
+    "updated_at INTEGER NOT NULL",
+  ];
 }
 
 type TableDefinition = {
-	name: string;
-	columns: string[];
-	primaryKey?: string;
+  name: string;
+  columns: string[];
+  primaryKey?: string;
 };
 
 const TABLE_DEFINITIONS: TableDefinition[] = [
-	{
-		name: "portfolio_stats",
-		columns: sqlLines(`
+  {
+    name: "portfolio_stats",
+    columns: sqlLines(`
 			key TEXT PRIMARY KEY
 			total REAL
 			change REAL
@@ -225,10 +216,10 @@ const TABLE_DEFINITIONS: TableDefinition[] = [
 			extra TEXT NOT NULL DEFAULT '{}'
 			updated_at INTEGER NOT NULL
 		`),
-	},
-	{
-		name: "positions",
-		columns: sqlLines(`
+  },
+  {
+    name: "positions",
+    columns: sqlLines(`
 			key TEXT NOT NULL
 			ticker TEXT NOT NULL
 			sort_index INTEGER NOT NULL
@@ -237,19 +228,19 @@ const TABLE_DEFINITIONS: TableDefinition[] = [
 			industry_labels TEXT NOT NULL DEFAULT '[]'
 			extra TEXT NOT NULL DEFAULT '{}'
 		`),
-		primaryKey: "key, ticker",
-	},
-	{
-		name: "stocks",
-		columns: stockColumnDefinitions(),
-	},
-	{
-		name: "calibration_stats",
-		columns: CALIBRATION_STATS_COLUMN_DEFINITIONS,
-	},
-	{
-		name: "news",
-		columns: sqlLines(`
+    primaryKey: "key, ticker",
+  },
+  {
+    name: "stocks",
+    columns: stockColumnDefinitions(),
+  },
+  {
+    name: "calibration_stats",
+    columns: CALIBRATION_STATS_COLUMN_DEFINITIONS,
+  },
+  {
+    name: "news",
+    columns: sqlLines(`
 			key TEXT NOT NULL
 			ticker TEXT NOT NULL
 			url TEXT
@@ -267,11 +258,11 @@ const TABLE_DEFINITIONS: TableDefinition[] = [
 			row_json TEXT NOT NULL DEFAULT '{}'
 			updated_at INTEGER NOT NULL
 		`),
-		primaryKey: "key, ticker",
-	},
-	{
-		name: "sector_snapshots",
-		columns: sqlLines(`
+    primaryKey: "key, ticker",
+  },
+  {
+    name: "sector_snapshots",
+    columns: sqlLines(`
 			key TEXT PRIMARY KEY
 			source TEXT
 			fetched_at TEXT
@@ -279,10 +270,10 @@ const TABLE_DEFINITIONS: TableDefinition[] = [
 			extra TEXT NOT NULL DEFAULT '{}'
 			updated_at INTEGER NOT NULL
 		`),
-	},
-	{
-		name: "sector_snapshot_sectors",
-		columns: sqlLines(`
+  },
+  {
+    name: "sector_snapshot_sectors",
+    columns: sqlLines(`
 			key TEXT NOT NULL
 			sector TEXT NOT NULL
 			sort_index INTEGER NOT NULL
@@ -299,36 +290,30 @@ const TABLE_DEFINITIONS: TableDefinition[] = [
 			change_percent_1y REAL
 			extra TEXT NOT NULL DEFAULT '{}'
 		`),
-		primaryKey: "key, sector",
-	},
-	{
-		name: "meta",
-		columns: sqlLines(`
+    primaryKey: "key, sector",
+  },
+  {
+    name: "meta",
+    columns: sqlLines(`
 			key TEXT PRIMARY KEY
 			value TEXT NOT NULL
 			updated_at INTEGER NOT NULL
 		`),
-	},
+  },
 ];
 
 const INDEX_QUERIES = [
-	"CREATE INDEX IF NOT EXISTS idx_positions_key_sort ON positions (key, sort_index)",
-	"CREATE INDEX IF NOT EXISTS idx_news_key ON news (key)",
-	"CREATE INDEX IF NOT EXISTS idx_news_category ON news (category)",
-	"CREATE INDEX IF NOT EXISTS idx_stocks_updated_at ON stocks (updated_at)",
-	"CREATE INDEX IF NOT EXISTS idx_stocks_sector_name ON stocks (sector_name)",
-	"CREATE INDEX IF NOT EXISTS idx_calibration_complete ON calibration_stats (is_complete, missing_score_field_count)",
-	"CREATE INDEX IF NOT EXISTS idx_calibration_sector ON calibration_stats (sector_name)",
-	"CREATE INDEX IF NOT EXISTS idx_sector_rows_key_sort ON sector_snapshot_sectors (key, sort_index)",
+  "CREATE INDEX IF NOT EXISTS idx_positions_key_sort ON positions (key, sort_index)",
+  "CREATE INDEX IF NOT EXISTS idx_news_key ON news (key)",
+  "CREATE INDEX IF NOT EXISTS idx_news_category ON news (category)",
+  "CREATE INDEX IF NOT EXISTS idx_stocks_updated_at ON stocks (updated_at)",
+  "CREATE INDEX IF NOT EXISTS idx_stocks_sector_name ON stocks (sector_name)",
+  "CREATE INDEX IF NOT EXISTS idx_calibration_complete ON calibration_stats (is_complete, missing_score_field_count)",
+  "CREATE INDEX IF NOT EXISTS idx_calibration_sector ON calibration_stats (sector_name)",
+  "CREATE INDEX IF NOT EXISTS idx_sector_rows_key_sort ON sector_snapshot_sectors (key, sort_index)",
 ];
 
-function tableCreateQuery({
-	name,
-	columns,
-	primaryKey,
-}: TableDefinition): string {
-	const definitions = primaryKey
-		? [...columns, `PRIMARY KEY (${primaryKey})`]
-		: columns;
-	return `CREATE TABLE IF NOT EXISTS ${name} (${definitions.join(", ")})`;
+function tableCreateQuery({ name, columns, primaryKey }: TableDefinition): string {
+  const definitions = primaryKey ? [...columns, `PRIMARY KEY (${primaryKey})`] : columns;
+  return `CREATE TABLE IF NOT EXISTS ${name} (${definitions.join(", ")})`;
 }

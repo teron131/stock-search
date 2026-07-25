@@ -19,56 +19,46 @@ const INDUSTRY_LABEL_SET = new Set(INDUSTRY_LABELS);
 const MAX_LABELS = 5;
 
 const PillarSchema = z
-	.object({
-		pillar: z.string().describe("Business pillar name."),
-		portion: z
-			.number()
-			.min(0)
-			.max(100)
-			.nullable()
-			.optional()
-			.describe(
-				"Estimated portion of company valuation / revenue represented by this pillar (0-100).",
-			),
-		description: z
-			.string()
-			.describe("Brief one-sentence description of what this pillar does."),
-	})
-	.describe("[STRUCTURED OUTPUTS] One current business pillar.");
+  .object({
+    pillar: z.string().describe("Business pillar name."),
+    portion: z
+      .number()
+      .min(0)
+      .max(100)
+      .nullable()
+      .optional()
+      .describe(
+        "Estimated portion of company valuation / revenue represented by this pillar (0-100).",
+      ),
+    description: z.string().describe("Brief one-sentence description of what this pillar does."),
+  })
+  .describe("[STRUCTURED OUTPUTS] One current business pillar.");
 
 const PillarsSchema = z
-	.object({
-		pillars: z
-			.array(PillarSchema)
-			.min(1)
-			.max(5)
-			.default([])
-			.describe("Top business pillars ranked by strategic importance."),
-	})
-	.describe(
-		"[STRUCTURED OUTPUTS] Current business pillars returned by the pillar research step.",
-	);
+  .object({
+    pillars: z
+      .array(PillarSchema)
+      .min(1)
+      .max(5)
+      .default([])
+      .describe("Top business pillars ranked by strategic importance."),
+  })
+  .describe("[STRUCTURED OUTPUTS] Current business pillars returned by the pillar research step.");
 
 const OutlookSchema = z
-	.object({
-		outlook: z
-			.string()
-			.describe(
-				"Outlook of the company's existing pillars and emerging businesses.",
-			),
-		impact: z
-			.string()
-			.describe("Expected impact on the company's sector / industry exposure."),
-	})
-	.describe(
-		"[STRUCTURED OUTPUTS] Forward outlook returned by the outlook research step.",
-	);
+  .object({
+    outlook: z
+      .string()
+      .describe("Outlook of the company's existing pillars and emerging businesses."),
+    impact: z.string().describe("Expected impact on the company's sector / industry exposure."),
+  })
+  .describe("[STRUCTURED OUTPUTS] Forward outlook returned by the outlook research step.");
 
 const labelGraphState = Annotation.Root({
-	ticker: Annotation<string>,
-	pillars: Annotation<z.infer<typeof PillarsSchema> | null>,
-	outlook: Annotation<z.infer<typeof OutlookSchema> | null>,
-	labels: Annotation<TickerLabels | null>,
+  ticker: Annotation<string>,
+  pillars: Annotation<z.infer<typeof PillarsSchema> | null>,
+  outlook: Annotation<z.infer<typeof OutlookSchema> | null>,
+  labels: Annotation<TickerLabels | null>,
 });
 
 type LabelGraphState = typeof labelGraphState.State;
@@ -91,7 +81,7 @@ Rules:
 - Keep output concise and factual.`;
 
 const OUTLOOK_QUERY =
-	"Ticker: {ticker}\nCompany pillars context: {pillars}\nProvide concise outlook and sector/industry exposure impact.";
+  "Ticker: {ticker}\nCompany pillars context: {pillars}\nProvide concise outlook and sector/industry exposure impact.";
 
 const OUTLOOK_SYSTEM_PROMPT = `Perspective: Forward outlook and exposure shift.
 
@@ -143,204 +133,187 @@ Allowed label taxonomy (sector -> industries; must choose only from these indust
 {allowed_labels_by_sector}`;
 
 const LABEL_QUERY =
-	"Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels.";
+  "Ticker: {ticker}\nCompany pillars: {pillars}\nOutlook: {outlook}\nAssign final labels.";
 
-function fillPrompt(
-	template: string,
-	values: Record<string, string | number>,
-): string {
-	return template.replace(/\{([a-z_]+)\}/gi, (match, key) =>
-		key in values ? String(values[key]) : match,
-	);
+function fillPrompt(template: string, values: Record<string, string | number>): string {
+  return template.replace(/\{([a-z_]+)\}/gi, (match, key) =>
+    key in values ? String(values[key]) : match,
+  );
 }
 
 function normalizeLabels(labels: string[]): string[] {
-	const orderedUniqueLabels = [...new Set(labels)];
-	return orderedUniqueLabels
-		.filter((label) => INDUSTRY_LABEL_SET.has(label))
-		.slice(0, MAX_LABELS);
+  const orderedUniqueLabels = [...new Set(labels)];
+  return orderedUniqueLabels.filter((label) => INDUSTRY_LABEL_SET.has(label)).slice(0, MAX_LABELS);
 }
 
 function buildLabelSystemPrompt(): string {
-	const allowedLabelsBySector = INDUSTRY_LABELS_BY_SECTOR.map(
-		([sector, industryLabels]) => `- ${sector}: ${industryLabels.join(", ")}`,
-	).join("\n");
-	return fillPrompt(LABEL_SYSTEM_PROMPT_TEMPLATE, {
-		max_labels: MAX_LABELS,
-		allowed_labels_by_sector: allowedLabelsBySector,
-	});
+  const allowedLabelsBySector = INDUSTRY_LABELS_BY_SECTOR.map(
+    ([sector, industryLabels]) => `- ${sector}: ${industryLabels.join(", ")}`,
+  ).join("\n");
+  return fillPrompt(LABEL_SYSTEM_PROMPT_TEMPLATE, {
+    max_labels: MAX_LABELS,
+    allowed_labels_by_sector: allowedLabelsBySector,
+  });
 }
 
 async function pillarNode(state: LabelGraphState) {
-	const pillarsAgent = new ExaAnswerAgent(PILLARS_SYSTEM_PROMPT, PillarsSchema);
-	const pillars = await pillarsAgent.invoke(state.ticker);
-	return { pillars };
+  const pillarsAgent = new ExaAnswerAgent(PILLARS_SYSTEM_PROMPT, PillarsSchema);
+  const pillars = await pillarsAgent.invoke(state.ticker);
+  return { pillars };
 }
 
 async function outlookNode(state: LabelGraphState) {
-	const outlookAgent = new ExaAnswerAgent(OUTLOOK_SYSTEM_PROMPT, OutlookSchema);
-	const outlook = await outlookAgent.invoke(
-		fillPrompt(OUTLOOK_QUERY, {
-			ticker: state.ticker,
-			pillars: JSON.stringify(state.pillars),
-		}),
-	);
-	return { outlook };
+  const outlookAgent = new ExaAnswerAgent(OUTLOOK_SYSTEM_PROMPT, OutlookSchema);
+  const outlook = await outlookAgent.invoke(
+    fillPrompt(OUTLOOK_QUERY, {
+      ticker: state.ticker,
+      pillars: JSON.stringify(state.pillars),
+    }),
+  );
+  return { outlook };
 }
 
 async function labelNode(state: LabelGraphState) {
-	const labelModel = ChatOpenAI({
-		model: ModelConfig.qualityOrFast(),
-		temperature: 0.1,
-		reasoningEffort: "medium",
-	}).withStructuredOutput(TickerLabelsSchema);
-	const rawResult = await labelModel.invoke(
-		`${buildLabelSystemPrompt()}\n\n${fillPrompt(LABEL_QUERY, {
-			ticker: state.ticker,
-			pillars: JSON.stringify(state.pillars),
-			outlook: JSON.stringify(state.outlook),
-		})}`,
-	);
+  const labelModel = ChatOpenAI({
+    model: ModelConfig.qualityOrFast(),
+    temperature: 0.1,
+    reasoningEffort: "medium",
+  }).withStructuredOutput(TickerLabelsSchema);
+  const rawResult = await labelModel.invoke(
+    `${buildLabelSystemPrompt()}\n\n${fillPrompt(LABEL_QUERY, {
+      ticker: state.ticker,
+      pillars: JSON.stringify(state.pillars),
+      outlook: JSON.stringify(state.outlook),
+    })}`,
+  );
 
-	const rawLabels = rawResult.labels ?? [];
-	const normalized = normalizeLabels(rawLabels);
-	if (normalized.length === 0) {
-		throw new Error(
-			`Could not normalize labels into INDUSTRY_LABELS: ${rawLabels.join(", ")}`,
-		);
-	}
+  const rawLabels = rawResult.labels ?? [];
+  const normalized = normalizeLabels(rawLabels);
+  if (normalized.length === 0) {
+    throw new Error(`Could not normalize labels into INDUSTRY_LABELS: ${rawLabels.join(", ")}`);
+  }
 
-	return {
-		labels: TickerLabelsSchema.parse({
-			labels: normalized,
-		}),
-	};
+  return {
+    labels: TickerLabelsSchema.parse({
+      labels: normalized,
+    }),
+  };
 }
 
 function buildLabelGraph() {
-	return new StateGraph(labelGraphState)
-		.addNode("pillars", pillarNode)
-		.addNode("outlook", outlookNode)
-		.addNode("labels", labelNode)
-		.addEdge(START, "pillars")
-		.addEdge("pillars", "outlook")
-		.addEdge("outlook", "labels")
-		.addEdge("labels", END)
-		.compile();
+  return new StateGraph(labelGraphState)
+    .addNode("pillars", pillarNode)
+    .addNode("outlook", outlookNode)
+    .addNode("labels", labelNode)
+    .addEdge(START, "pillars")
+    .addEdge("pillars", "outlook")
+    .addEdge("outlook", "labels")
+    .addEdge("labels", END)
+    .compile();
 }
 
 /** Bridge synchronous callers through a child tsx process because label generation is async-only. */
 function runLabelerSync<T>(command: string, payload: unknown): T {
-	const workerUrl = new URL("./labeler-sync-worker.ts", import.meta.url);
-	const workerPath = fileURLToPath(workerUrl);
-	const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
-	const tsxBinaryName = process.platform === "win32" ? "tsx.cmd" : "tsx";
-	const tsxBinaryPath = path.join(
-		repoRoot,
-		"node_modules",
-		".bin",
-		tsxBinaryName,
-	);
-	const spawnCommand =
-		process.execArgv.length > 0
-			? process.execPath
-			: existsSync(tsxBinaryPath)
-				? tsxBinaryPath
-				: process.execPath;
-	const spawnArgs =
-		process.execArgv.length > 0
-			? [...process.execArgv, workerPath, command, JSON.stringify(payload)]
-			: existsSync(tsxBinaryPath)
-				? [workerPath, command, JSON.stringify(payload)]
-				: ["--import", "tsx", workerPath, command, JSON.stringify(payload)];
-	const result = spawnSync(spawnCommand, spawnArgs, {
-		cwd: repoRoot,
-		encoding: "utf8",
-	});
+  const workerUrl = new URL("./labeler-sync-worker.ts", import.meta.url);
+  const workerPath = fileURLToPath(workerUrl);
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const tsxBinaryName = process.platform === "win32" ? "tsx.cmd" : "tsx";
+  const tsxBinaryPath = path.join(repoRoot, "node_modules", ".bin", tsxBinaryName);
+  const spawnCommand =
+    process.execArgv.length > 0
+      ? process.execPath
+      : existsSync(tsxBinaryPath)
+        ? tsxBinaryPath
+        : process.execPath;
+  const spawnArgs =
+    process.execArgv.length > 0
+      ? [...process.execArgv, workerPath, command, JSON.stringify(payload)]
+      : existsSync(tsxBinaryPath)
+        ? [workerPath, command, JSON.stringify(payload)]
+        : ["--import", "tsx", workerPath, command, JSON.stringify(payload)];
+  const result = spawnSync(spawnCommand, spawnArgs, {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
 
-	if (result.error) {
-		throw result.error;
-	}
-	if (result.status !== 0) {
-		const message =
-			result.stderr.trim() ||
-			result.stdout.trim() ||
-			"Labeler sync worker failed";
-		throw new Error(message);
-	}
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const message = result.stderr.trim() || result.stdout.trim() || "Labeler sync worker failed";
+    throw new Error(message);
+  }
 
-	return JSON.parse(result.stdout) as T;
+  return JSON.parse(result.stdout) as T;
 }
 
 /** Run the async label graph for one normalized ticker. */
 export async function agetLabel(ticker: string): Promise<TickerLabels> {
-	const tickerSymbol = normalizeTicker(ticker);
-	if (!tickerSymbol) {
-		throw new Error("ticker cannot be empty");
-	}
+  const tickerSymbol = normalizeTicker(ticker);
+  if (!tickerSymbol) {
+    throw new Error("ticker cannot be empty");
+  }
 
-	const graph = buildLabelGraph();
-	const response = await graph.invoke({
-		ticker: tickerSymbol,
-		pillars: null,
-		outlook: null,
-		labels: null,
-	});
-	if (!response.labels) {
-		throw new Error("Label graph did not produce labels");
-	}
-	return response.labels;
+  const graph = buildLabelGraph();
+  const response = await graph.invoke({
+    ticker: tickerSymbol,
+    pillars: null,
+    outlook: null,
+    labels: null,
+  });
+  if (!response.labels) {
+    throw new Error("Label graph did not produce labels");
+  }
+  return response.labels;
 }
 
 /** Batch async label graph calls while treating individual ticker failures as missing labels. */
 export async function agetLabels(
-	tickers: string[],
-	{ maxConcurrency = 4 }: { maxConcurrency?: number } = {},
+  tickers: string[],
+  { maxConcurrency = 4 }: { maxConcurrency?: number } = {},
 ): Promise<Record<string, TickerLabels>> {
-	const normalizedTickers = [
-		...new Set(
-			tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean),
-		),
-	];
-	if (normalizedTickers.length === 0) {
-		return {};
-	}
+  const normalizedTickers = [
+    ...new Set(tickers.map((ticker) => normalizeTicker(ticker)).filter(Boolean)),
+  ];
+  if (normalizedTickers.length === 0) {
+    return {};
+  }
 
-	const batchSize = Math.max(1, maxConcurrency);
-	const results: Record<string, TickerLabels> = {};
-	for (let index = 0; index < normalizedTickers.length; index += batchSize) {
-		const batch = normalizedTickers.slice(index, index + batchSize);
-		const batchResults = await Promise.all(
-			batch.map(async (tickerSymbol) => {
-				try {
-					return [tickerSymbol, await agetLabel(tickerSymbol)] as const;
-				} catch {
-					return [tickerSymbol, null] as const;
-				}
-			}),
-		);
-		for (const [tickerSymbol, labels] of batchResults) {
-			if (labels) {
-				results[tickerSymbol] = labels;
-			}
-		}
-	}
+  const batchSize = Math.max(1, maxConcurrency);
+  const results: Record<string, TickerLabels> = {};
+  for (let index = 0; index < normalizedTickers.length; index += batchSize) {
+    const batch = normalizedTickers.slice(index, index + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (tickerSymbol) => {
+        try {
+          return [tickerSymbol, await agetLabel(tickerSymbol)] as const;
+        } catch {
+          return [tickerSymbol, null] as const;
+        }
+      }),
+    );
+    for (const [tickerSymbol, labels] of batchResults) {
+      if (labels) {
+        results[tickerSymbol] = labels;
+      }
+    }
+  }
 
-	return results;
+  return results;
 }
 
 /** Expose sync label lookup for CLI and legacy synchronous entrypoints. */
 export function getLabel(ticker: string): TickerLabels {
-	return runLabelerSync<TickerLabels>("get-label", { ticker });
+  return runLabelerSync<TickerLabels>("get-label", { ticker });
 }
 
 /** Expose sync batched label lookup through the worker bridge. */
 export function getLabels(
-	tickers: string[],
-	options: { maxConcurrency?: number } = {},
+  tickers: string[],
+  options: { maxConcurrency?: number } = {},
 ): Record<string, TickerLabels> {
-	return runLabelerSync<Record<string, TickerLabels>>("get-labels", {
-		tickers,
-		maxConcurrency: options.maxConcurrency ?? 4,
-	});
+  return runLabelerSync<Record<string, TickerLabels>>("get-labels", {
+    tickers,
+    maxConcurrency: options.maxConcurrency ?? 4,
+  });
 }

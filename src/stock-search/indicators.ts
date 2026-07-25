@@ -1,192 +1,182 @@
 /** Merge live indicator snapshots from backend data-source adapters. */
 
 import {
-	applySourcePegFallback,
-	PEG_SOURCE_FINVIZ,
-	PEG_SOURCE_STOCKANALYSIS,
+  applySourcePegFallback,
+  PEG_SOURCE_FINVIZ,
+  PEG_SOURCE_STOCKANALYSIS,
 } from "./stats-resolver/derived-stats.js";
 import {
-	mergeStockAnalysisSnapshots,
-	normalizeMonetaryFields,
+  mergeStockAnalysisSnapshots,
+  normalizeMonetaryFields,
 } from "./stats-resolver/monetary-fields.js";
 import { ProviderBundle } from "./stats-resolver/provider-bundle.js";
 import {
-	mergeSourceFields,
-	SAME_DEFINITION_BLEND_FIELDS,
-	SOURCE_CACHE,
-	SOURCE_FINVIZ,
-	SOURCE_STOCKANALYSIS,
-	SOURCE_YAHOO,
-	sourceFieldPolicies,
+  mergeSourceFields,
+  SAME_DEFINITION_BLEND_FIELDS,
+  SOURCE_CACHE,
+  SOURCE_FINVIZ,
+  SOURCE_STOCKANALYSIS,
+  SOURCE_YAHOO,
+  sourceFieldPolicies,
 } from "./stats-resolver/source-merge.js";
 import { LiveStatsUnavailableError } from "./stats-resolver/types.js";
 import { normalizeTicker } from "./utils.js";
 
 const YAHOO_PRIORITY_FIELDS = new Set([
-	"price",
-	"change",
-	"change_percent_1d",
-	"iv",
-	"change_percent_1m",
-	"change_percent_3m",
-	"change_percent_6m",
-	"change_percent_1y",
-	"ratings",
-	"median_upside",
-	"name",
-	"quote_type",
-	"sector_name",
-	"industry_name",
+  "price",
+  "change",
+  "change_percent_1d",
+  "iv",
+  "change_percent_1m",
+  "change_percent_3m",
+  "change_percent_6m",
+  "change_percent_1y",
+  "ratings",
+  "median_upside",
+  "name",
+  "quote_type",
+  "sector_name",
+  "industry_name",
 ]);
 const STATISTICS_PRIORITY_FIELDS = new Set([
-	"market_cap",
-	"fx",
-	"revenue",
-	"pe",
-	"pe_forward",
-	"ps",
-	"ps_forward",
-	"peg",
-	"beta",
-	"roe",
-	"roic",
-	"debt_to_equity",
-	"free_cash_flow",
-	"shareholder_yield",
-	"rsi",
-	"eps_this_y_growth",
-	"eps_next_y_growth",
-	"eps_next_5y_growth",
-	"eps_past_3y_growth",
-	"eps_past_5y_growth",
-	"sales_past_3y_growth",
-	"sales_past_5y_growth",
-	"eps_yoy_ttm_growth",
+  "market_cap",
+  "fx",
+  "revenue",
+  "pe",
+  "pe_forward",
+  "ps",
+  "ps_forward",
+  "peg",
+  "beta",
+  "roe",
+  "roic",
+  "debt_to_equity",
+  "free_cash_flow",
+  "shareholder_yield",
+  "rsi",
+  "eps_this_y_growth",
+  "eps_next_y_growth",
+  "eps_next_5y_growth",
+  "eps_past_3y_growth",
+  "eps_past_5y_growth",
+  "sales_past_3y_growth",
+  "sales_past_5y_growth",
+  "eps_yoy_ttm_growth",
 ]);
 const FINANCIALS_PRIORITY_FIELDS = new Set([
-	"revenue_growth",
-	"eps_growth",
-	"gross_margin",
-	"operating_margin",
+  "revenue_growth",
+  "eps_growth",
+  "gross_margin",
+  "operating_margin",
 ]);
 const FX_SOURCE_FIELDS = new Set(["market_cap", "free_cash_flow"]);
 const LIVE_FIELD_POLICIES = sourceFieldPolicies(
-	{
-		fields: YAHOO_PRIORITY_FIELDS,
-		mode: "first",
-		sources: [SOURCE_YAHOO, SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE],
-	},
-	{
-		fields: ["revenue"],
-		mode: "mean",
-		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
-		fallbackSources: [SOURCE_CACHE],
-	},
-	{
-		fields: SAME_DEFINITION_BLEND_FIELDS,
-		mode: "mean",
-		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
-		fallbackSources: [SOURCE_CACHE, SOURCE_YAHOO],
-	},
-	{
-		fields: new Set([
-			...STATISTICS_PRIORITY_FIELDS,
-			...FINANCIALS_PRIORITY_FIELDS,
-		]),
-		mode: "first",
-		sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE, SOURCE_YAHOO],
-	},
+  {
+    fields: YAHOO_PRIORITY_FIELDS,
+    mode: "first",
+    sources: [SOURCE_YAHOO, SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE],
+  },
+  {
+    fields: ["revenue"],
+    mode: "mean",
+    sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+    fallbackSources: [SOURCE_CACHE],
+  },
+  {
+    fields: SAME_DEFINITION_BLEND_FIELDS,
+    mode: "mean",
+    sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ],
+    fallbackSources: [SOURCE_CACHE, SOURCE_YAHOO],
+  },
+  {
+    fields: new Set([...STATISTICS_PRIORITY_FIELDS, ...FINANCIALS_PRIORITY_FIELDS]),
+    mode: "first",
+    sources: [SOURCE_STOCKANALYSIS, SOURCE_FINVIZ, SOURCE_CACHE, SOURCE_YAHOO],
+  },
 );
 
 /** Fetch the merged live indicator payload used by the public API layer. */
 export async function fetchLiveIndicators(
-	tickerInput: string,
-	cachedIndicators: Record<string, unknown> = {},
+  tickerInput: string,
+  cachedIndicators: Record<string, unknown> = {},
 ): Promise<Record<string, unknown>> {
-	const ticker = normalizeTicker(tickerInput);
-	if (!ticker) {
-		throw new Error("Invalid ticker");
-	}
+  const ticker = normalizeTicker(tickerInput);
+  if (!ticker) {
+    throw new Error("Invalid ticker");
+  }
 
-	const bundle = new ProviderBundle(ticker);
-	const [
-		yahooFields,
-		yahooSymbolMetadata,
-		stockAnalysisStatistics,
-		stockAnalysisFinancials,
-		finvizStatistics,
-	] = await Promise.all([
-		bundle.getYahooIndicators(),
-		bundle.getYahooMetadata(),
-		bundle.getStockAnalysisStatistics(),
-		bundle.getStockAnalysisFinancials(),
-		bundle.getFinvizStatistics(),
-	]);
+  const bundle = new ProviderBundle(ticker);
+  const [
+    yahooFields,
+    yahooSymbolMetadata,
+    stockAnalysisStatistics,
+    stockAnalysisFinancials,
+    finvizStatistics,
+  ] = await Promise.all([
+    bundle.getYahooIndicators(),
+    bundle.getYahooMetadata(),
+    bundle.getStockAnalysisStatistics(),
+    bundle.getStockAnalysisFinancials(),
+    bundle.getFinvizStatistics(),
+  ]);
 
-	const yahooPayload = {
-		...yahooFields,
-		...yahooSymbolMetadata,
-	};
-	const stockAnalysisPayload: Record<string, unknown> = {
-		...mergeStockAnalysisSnapshots(
-			stockAnalysisStatistics,
-			stockAnalysisFinancials,
-		),
-		revenue_growth: stockAnalysisFinancials.revenue_growth ?? null,
-		eps_growth: stockAnalysisFinancials.eps_growth ?? null,
-		gross_margin:
-			stockAnalysisFinancials.gross_margin ??
-			stockAnalysisStatistics.gross_margin ??
-			null,
-		operating_margin:
-			stockAnalysisFinancials.operating_margin ??
-			stockAnalysisStatistics.operating_margin ??
-			null,
-		debt_to_equity: stockAnalysisStatistics.debt_to_equity ?? null,
-	};
+  const yahooPayload = {
+    ...yahooFields,
+    ...yahooSymbolMetadata,
+  };
+  const stockAnalysisPayload: Record<string, unknown> = {
+    ...mergeStockAnalysisSnapshots(stockAnalysisStatistics, stockAnalysisFinancials),
+    revenue_growth: stockAnalysisFinancials.revenue_growth ?? null,
+    eps_growth: stockAnalysisFinancials.eps_growth ?? null,
+    gross_margin:
+      stockAnalysisFinancials.gross_margin ?? stockAnalysisStatistics.gross_margin ?? null,
+    operating_margin:
+      stockAnalysisFinancials.operating_margin ?? stockAnalysisStatistics.operating_margin ?? null,
+    debt_to_equity: stockAnalysisStatistics.debt_to_equity ?? null,
+  };
 
-	const liveFields = mergeSourceFields({
-		fields: new Set([
-			...Object.keys(cachedIndicators),
-			...Object.keys(yahooPayload),
-			...Object.keys(stockAnalysisPayload),
-			...Object.keys(finvizStatistics),
-		]),
-		sources: [
-			{ source: SOURCE_CACHE, fields: cachedIndicators },
-			{ source: SOURCE_YAHOO, fields: yahooPayload },
-			{ source: SOURCE_STOCKANALYSIS, fields: stockAnalysisPayload },
-			{ source: SOURCE_FINVIZ, fields: finvizStatistics },
-		],
-		policies: LIVE_FIELD_POLICIES,
-	});
+  const liveFields = mergeSourceFields({
+    fields: new Set([
+      ...Object.keys(cachedIndicators),
+      ...Object.keys(yahooPayload),
+      ...Object.keys(stockAnalysisPayload),
+      ...Object.keys(finvizStatistics),
+    ]),
+    sources: [
+      { source: SOURCE_CACHE, fields: cachedIndicators },
+      { source: SOURCE_YAHOO, fields: yahooPayload },
+      { source: SOURCE_STOCKANALYSIS, fields: stockAnalysisPayload },
+      { source: SOURCE_FINVIZ, fields: finvizStatistics },
+    ],
+    policies: LIVE_FIELD_POLICIES,
+  });
 
-	if (yahooPayload.fx != null) {
-		for (const field of FX_SOURCE_FIELDS) {
-			liveFields[field] = yahooPayload[field] ?? null;
-		}
-	}
+  if (yahooPayload.fx != null) {
+    for (const field of FX_SOURCE_FIELDS) {
+      liveFields[field] = yahooPayload[field] ?? null;
+    }
+  }
 
-	normalizeMonetaryFields(liveFields);
-	applySourcePegFallback(liveFields, [
-		{
-			source: PEG_SOURCE_STOCKANALYSIS,
-			pe_forward: stockAnalysisPayload.pe_forward,
-			peg: stockAnalysisPayload.peg,
-		},
-		{
-			source: PEG_SOURCE_FINVIZ,
-			pe_forward: finvizStatistics.pe_forward,
-			peg: finvizStatistics.peg,
-		},
-	]);
+  normalizeMonetaryFields(liveFields);
+  applySourcePegFallback(liveFields, [
+    {
+      source: PEG_SOURCE_STOCKANALYSIS,
+      pe_forward: stockAnalysisPayload.pe_forward,
+      peg: stockAnalysisPayload.peg,
+    },
+    {
+      source: PEG_SOURCE_FINVIZ,
+      pe_forward: finvizStatistics.pe_forward,
+      peg: finvizStatistics.peg,
+    },
+  ]);
 
-	const hasLiveField = Object.values(liveFields).some(
-		(value) => value !== null && value !== undefined,
-	);
-	if (!hasLiveField) {
-		throw new LiveStatsUnavailableError(ticker);
-	}
+  const hasLiveField = Object.values(liveFields).some(
+    (value) => value !== null && value !== undefined,
+  );
+  if (!hasLiveField) {
+    throw new LiveStatsUnavailableError(ticker);
+  }
 
-	return liveFields;
+  return liveFields;
 }

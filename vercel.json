@@ -1,26 +1,26 @@
 {
-	"$schema": "https://openapi.vercel.sh/vercel.json",
-	"buildCommand": "pnpm install --frozen-lockfile && pnpm run build && pnpm run prepare:vercel-public",
-	"outputDirectory": "public",
-	"routes": [
-		{
-			"src": "/(auth(?:/.*)?|portfolio(?:/.*)?|stock/[^/]+/(?:stats|evaluate|news)|stocks|eval|industries|color-standards|realtime-config)",
-			"dest": "/api/index"
-		},
-		{
-			"src": "/",
-			"dest": "/api/index"
-		},
-		{
-			"src": "/(dashboard|marketmap|calendar|sectors|news)/?",
-			"dest": "/api/index"
-		},
-		{
-			"handle": "filesystem"
-		},
-		{
-			"src": "/(.*)",
-			"dest": "/index.html"
-		}
-	]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm run build && pnpm run prepare:vercel-public",
+  "outputDirectory": "public",
+  "routes": [
+    {
+      "src": "/(auth(?:/.*)?|portfolio(?:/.*)?|stock/[^/]+/(?:stats|evaluate|news)|stocks|eval|industries|color-standards|realtime-config)",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/",
+      "dest": "/api/index"
+    },
+    {
+      "src": "/(dashboard|marketmap|calendar|sectors|news)/?",
+      "dest": "/api/index"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }

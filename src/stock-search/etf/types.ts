@@ -3,33 +3,33 @@
 import type { PositionRow } from "../storage/index.js";
 
 export type EtfHolding = {
-	ticker: string;
-	name: string | null;
-	weight: number;
+  ticker: string;
+  name: string | null;
+  weight: number;
 };
 
 export type EtfSector = {
-	name: string;
-	weight: number;
+  name: string;
+  weight: number;
 };
 
 export type EtfSnapshotResult = {
-	holdings: EtfHolding[];
-	sectors: EtfSector[];
-	error: string | null;
+  holdings: EtfHolding[];
+  sectors: EtfSector[];
+  error: string | null;
 };
 
 export type EtfResolutionResult = {
-	stockPositions: PositionRow[];
-	etfPositions: PositionRow[];
-	snapshotByTicker: Record<string, EtfSnapshotResult>;
-	etfRefreshedCount: number;
-	cacheChanged: boolean;
-	changedTickers: string[];
+  stockPositions: PositionRow[];
+  etfPositions: PositionRow[];
+  snapshotByTicker: Record<string, EtfSnapshotResult>;
+  etfRefreshedCount: number;
+  cacheChanged: boolean;
+  changedTickers: string[];
 };
 
 export type EtfSnapshotCacheResult = {
-	snapshot: EtfSnapshotResult;
-	refreshedIndicators: Record<string, unknown> | null;
-	didRefresh: boolean;
+  snapshot: EtfSnapshotResult;
+  refreshedIndicators: Record<string, unknown> | null;
+  didRefresh: boolean;
 };

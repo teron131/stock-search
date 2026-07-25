@@ -18,13 +18,13 @@ export const DATE_COLUMN = "date";
 export const DEFAULT_CORRELATION_TICKERS: string[] = [];
 
 export const HORIZONS: readonly HorizonConfig[] = [
-	{ name: "daily", intentWeight: 1.0, minObservations: 60 },
-	{ name: "weekly", intentWeight: 3.0, minObservations: 26 },
-	{ name: "monthly", intentWeight: 2.0, minObservations: 12 },
+  { name: "daily", intentWeight: 1.0, minObservations: 60 },
+  { name: "weekly", intentWeight: 3.0, minObservations: 26 },
+  { name: "monthly", intentWeight: 2.0, minObservations: 12 },
 ] as const;
 
 export const LOOKBACKS: readonly LookbackConfig[] = [
-	{ years: 1, intentWeight: 3.0 },
-	{ years: 3, intentWeight: 2.0 },
-	{ years: 5, intentWeight: 1.0 },
+  { years: 1, intentWeight: 3.0 },
+  { years: 3, intentWeight: 2.0 },
+  { years: 5, intentWeight: 1.0 },
 ] as const;

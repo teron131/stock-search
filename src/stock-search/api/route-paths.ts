@@ -7,14 +7,7 @@ export const MARKETMAP = "/marketmap";
 export const CALENDAR = "/calendar";
 export const NEWS = "/news";
 
-export const APP_PAGE_PATHS = [
-	ROOT,
-	DASHBOARD,
-	NEWS,
-	SECTORS,
-	MARKETMAP,
-	CALENDAR,
-] as const;
+export const APP_PAGE_PATHS = [ROOT, DASHBOARD, NEWS, SECTORS, MARKETMAP, CALENDAR] as const;
 
 export const AUTH_LOGIN = "/auth/login";
 export const AUTH_CALLBACK = "/auth/callback";
@@ -43,33 +36,30 @@ export const REALTIME_CONFIG = "/realtime-config";
 export const PUBLIC_STATIC_PREFIXES = ["/assets/", "/demo/", "/.well-known/"];
 
 export function normalizeAppPagePath(pathname: string): string | null {
-	const normalizedPath =
-		pathname === ROOT ? ROOT : pathname.replace(/\/+$/g, "");
-	return (APP_PAGE_PATHS as readonly string[]).includes(normalizedPath)
-		? normalizedPath
-		: null;
+  const normalizedPath = pathname === ROOT ? ROOT : pathname.replace(/\/+$/g, "");
+  return (APP_PAGE_PATHS as readonly string[]).includes(normalizedPath) ? normalizedPath : null;
 }
 
 export function isAppPagePath(pathname: string): boolean {
-	return normalizeAppPagePath(pathname) !== null;
+  return normalizeAppPagePath(pathname) !== null;
 }
 
 function encodePathSegment(value: string): string {
-	return encodeURIComponent(String(value || "").trim());
+  return encodeURIComponent(String(value || "").trim());
 }
 
 export function portfolioTickerPath(ticker: string): string {
-	return `/portfolio/${encodePathSegment(ticker)}`;
+  return `/portfolio/${encodePathSegment(ticker)}`;
 }
 
 export function stockStatsPath(ticker: string): string {
-	return `/stock/${encodePathSegment(ticker)}/stats`;
+  return `/stock/${encodePathSegment(ticker)}/stats`;
 }
 
 export function stockEvaluatePath(ticker: string): string {
-	return `/stock/${encodePathSegment(ticker)}/evaluate`;
+  return `/stock/${encodePathSegment(ticker)}/evaluate`;
 }
 
 export function stockNewsPath(ticker: string): string {
-	return `/stock/${encodePathSegment(ticker)}/news`;
+  return `/stock/${encodePathSegment(ticker)}/news`;
 }

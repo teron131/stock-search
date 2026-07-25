@@ -5,462 +5,418 @@ import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { config as loadDotenv } from "dotenv";
+
 import type { JsonValue, OpenApiTool } from "./mcp/tools.js";
 import { INDICATOR_FIELD_GROUPS } from "./models/field-definitions.js";
 import { policy, type TickerSource } from "./policy.js";
 
 type CliCommand = {
-	command: string;
-	usage: string;
-	toolName: string;
-	description: string;
+  command: string;
+  usage: string;
+  toolName: string;
+  description: string;
 };
 
 type NewsCliMode = "raw-fast" | "analyzed-slow";
 
 /** Load the user-level CLI env copy before app modules read configuration. */
 function loadCliEnv(): void {
-	const envFile =
-		process.env.STOCK_SEARCH_ENV_FILE ??
-		path.join(homedir(), ".config", "stock-search", ".env");
-	if (existsSync(envFile)) {
-		loadDotenv({
-			path: envFile,
-			quiet: true,
-		});
-	}
+  const envFile =
+    process.env.STOCK_SEARCH_ENV_FILE ?? path.join(homedir(), ".config", "stock-search", ".env");
+  if (existsSync(envFile)) {
+    loadDotenv({
+      path: envFile,
+      quiet: true,
+    });
+  }
 }
 
 /** Detect direct execution even when npm invokes the CLI through a symlink. */
 function isCliEntrypoint(): boolean {
-	if (!process.argv[1]) {
-		return false;
-	}
-	return (
-		realpathSync(fileURLToPath(import.meta.url)) ===
-		realpathSync(process.argv[1])
-	);
+  if (!process.argv[1]) {
+    return false;
+  }
+  return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
 }
 
 loadCliEnv();
 
 const CLI_COMMANDS: readonly CliCommand[] = [
-	{
-		command: "stocks",
-		usage: `stocks TICKER... [--source ${policy.request.tickerSourceValues.join("|")}] [--pretty]`,
-		toolName: "get_stock_stats",
-		description: "Return flattened stats for one or many tickers.",
-	},
-	{
-		command: "sectors",
-		usage: "sectors [--pretty]",
-		toolName: "sectors_api_sectors_get",
-		description: "Return the current StockAnalysis sector snapshot.",
-	},
-	{
-		command: "news",
-		usage:
-			"news TICKER [--mode raw-fast|analyzed-slow] [--max-results N] [--pretty]",
-		toolName: "get_stock_news",
-		description: "Return recent news articles for a ticker.",
-	},
-	{
-		command: "evaluate",
-		usage: "evaluate TICKER [--pretty]",
-		toolName: "evaluate_stock",
-		description: "Return the evaluation payload for a ticker.",
-	},
+  {
+    command: "stocks",
+    usage: `stocks TICKER... [--source ${policy.request.tickerSourceValues.join("|")}] [--pretty]`,
+    toolName: "get_stock_stats",
+    description: "Return flattened stats for one or many tickers.",
+  },
+  {
+    command: "sectors",
+    usage: "sectors [--pretty]",
+    toolName: "sectors_api_sectors_get",
+    description: "Return the current StockAnalysis sector snapshot.",
+  },
+  {
+    command: "news",
+    usage: "news TICKER [--mode raw-fast|analyzed-slow] [--max-results N] [--pretty]",
+    toolName: "get_stock_news",
+    description: "Return recent news articles for a ticker.",
+  },
+  {
+    command: "evaluate",
+    usage: "evaluate TICKER [--pretty]",
+    toolName: "evaluate_stock",
+    description: "Return the evaluation payload for a ticker.",
+  },
 ];
 
 const STOCK_STATS_FIELDS: readonly string[] = [
-	"ticker",
-	...Object.values(INDICATOR_FIELD_GROUPS)
-		.flatMap((group) => group.fields)
-		.filter((field) => field !== "change"),
+  "ticker",
+  ...Object.values(INDICATOR_FIELD_GROUPS)
+    .flatMap((group) => group.fields)
+    .filter((field) => field !== "change"),
 ];
 
 function parseBool(value: string): boolean {
-	const normalized = value.trim().toLowerCase();
-	if (["1", "true", "t", "yes", "y", "on"].includes(normalized)) {
-		return true;
-	}
-	if (["0", "false", "f", "no", "n", "off"].includes(normalized)) {
-		return false;
-	}
-	throw new Error(`Invalid boolean value: ${value}`);
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "t", "yes", "y", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "f", "no", "n", "off"].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`Invalid boolean value: ${value}`);
 }
 
-function normalizeSchema(
-	schema: Record<string, unknown>,
-): Record<string, unknown> {
-	const anyOf = Array.isArray(schema.anyOf) ? schema.anyOf : null;
-	if (!anyOf) {
-		return schema;
-	}
+function normalizeSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const anyOf = Array.isArray(schema.anyOf) ? schema.anyOf : null;
+  if (!anyOf) {
+    return schema;
+  }
 
-	const nonNullOptions = anyOf.filter(
-		(option) =>
-			typeof option === "object" &&
-			option !== null &&
-			(option as Record<string, unknown>).type !== "null",
-	);
-	if (nonNullOptions.length !== 1) {
-		return schema;
-	}
+  const nonNullOptions = anyOf.filter(
+    (option) =>
+      typeof option === "object" &&
+      option !== null &&
+      (option as Record<string, unknown>).type !== "null",
+  );
+  if (nonNullOptions.length !== 1) {
+    return schema;
+  }
 
-	const normalized = {
-		...(nonNullOptions[0] as Record<string, unknown>),
-	};
-	for (const key of ["title", "description", "default", "enum"]) {
-		if (schema[key] !== undefined && normalized[key] === undefined) {
-			normalized[key] = schema[key];
-		}
-	}
-	return normalized;
+  const normalized = {
+    ...(nonNullOptions[0] as Record<string, unknown>),
+  };
+  for (const key of ["title", "description", "default", "enum"]) {
+    if (schema[key] !== undefined && normalized[key] === undefined) {
+      normalized[key] = schema[key];
+    }
+  }
+  return normalized;
 }
 
 function jsonArgument(value: string): unknown {
-	try {
-		return JSON.parse(value);
-	} catch (error) {
-		throw new Error(
-			`Invalid JSON value: ${value}${error instanceof Error ? ` (${error.message})` : ""}`,
-		);
-	}
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON value: ${value}${error instanceof Error ? ` (${error.message})` : ""}`,
+    );
+  }
 }
 
 function arrayArgument(value: string): unknown[] {
-	const trimmed = value.trim();
-	if (trimmed.startsWith("[")) {
-		const parsed = jsonArgument(trimmed);
-		if (!Array.isArray(parsed)) {
-			throw new Error(`Expected a JSON array: ${value}`);
-		}
-		return parsed;
-	}
-	return trimmed
-		.split(",")
-		.map((item) => item.trim())
-		.filter(Boolean);
+  const trimmed = value.trim();
+  if (trimmed.startsWith("[")) {
+    const parsed = jsonArgument(trimmed);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`Expected a JSON array: ${value}`);
+    }
+    return parsed;
+  }
+  return trimmed
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function asJsonValue(value: unknown): JsonValue {
-	return JSON.parse(JSON.stringify(value, null, 0)) as JsonValue;
+  return JSON.parse(JSON.stringify(value, null, 0)) as JsonValue;
 }
 
-function parseArgumentValue(
-	parameterSchema: Record<string, unknown>,
-	value: string,
-): unknown {
-	const normalized = normalizeSchema(parameterSchema);
-	const schemaType = normalized.type;
-	if (schemaType === "integer" || schemaType === "number") {
-		return Number(value);
-	}
-	if (schemaType === "boolean") {
-		return parseBool(value);
-	}
-	if (schemaType === "array") {
-		return arrayArgument(value);
-	}
-	if (schemaType === "object") {
-		return jsonArgument(value);
-	}
-	return value;
+function parseArgumentValue(parameterSchema: Record<string, unknown>, value: string): unknown {
+  const normalized = normalizeSchema(parameterSchema);
+  const schemaType = normalized.type;
+  if (schemaType === "integer" || schemaType === "number") {
+    return Number(value);
+  }
+  if (schemaType === "boolean") {
+    return parseBool(value);
+  }
+  if (schemaType === "array") {
+    return arrayArgument(value);
+  }
+  if (schemaType === "object") {
+    return jsonArgument(value);
+  }
+  return value;
 }
 
 function printCommandList(): void {
-	console.log("Usage:");
-	console.log("  help");
-	for (const cliCommand of CLI_COMMANDS) {
-		console.log(`  ${cliCommand.usage}`);
-	}
-	console.log("");
-	console.log("Commands:");
-	for (const cliCommand of CLI_COMMANDS) {
-		console.log(`  ${cliCommand.command}\t${cliCommand.description}`);
-	}
-	console.log("");
-	console.log("Notes:");
-	console.log(
-		"  stocks accepts separate tickers, comma-separated tickers, or both.",
-	);
-	console.log(
-		"  JSON is compact by default; pass --pretty for indented output.",
-	);
-	console.log(
-		"  When parsing stdout through pnpm, use pnpm --silent run cli <command>.",
-	);
+  console.log("Usage:");
+  console.log("  help");
+  for (const cliCommand of CLI_COMMANDS) {
+    console.log(`  ${cliCommand.usage}`);
+  }
+  console.log("");
+  console.log("Commands:");
+  for (const cliCommand of CLI_COMMANDS) {
+    console.log(`  ${cliCommand.command}\t${cliCommand.description}`);
+  }
+  console.log("");
+  console.log("Notes:");
+  console.log("  stocks accepts separate tickers, comma-separated tickers, or both.");
+  console.log("  JSON is compact by default; pass --pretty for indented output.");
+  console.log("  When parsing stdout through pnpm, use pnpm --silent run cli <command>.");
 }
 
 function parseToolArguments(
-	tool: OpenApiTool,
-	argv: string[],
+  tool: OpenApiTool,
+  argv: string[],
 ): { pretty: boolean; arguments: Record<string, unknown> } {
-	const pretty = argv.includes("--pretty");
-	const parameters =
-		tool.parameters && typeof tool.parameters === "object"
-			? tool.parameters
-			: {};
-	const properties =
-		parameters.properties && typeof parameters.properties === "object"
-			? (parameters.properties as Record<string, Record<string, unknown>>)
-			: {};
-	const requiredNames = new Set(
-		Array.isArray(parameters.required)
-			? parameters.required.map((value) => String(value))
-			: [],
-	);
+  const pretty = argv.includes("--pretty");
+  const parameters = tool.parameters && typeof tool.parameters === "object" ? tool.parameters : {};
+  const properties =
+    parameters.properties && typeof parameters.properties === "object"
+      ? (parameters.properties as Record<string, Record<string, unknown>>)
+      : {};
+  const requiredNames = new Set(
+    Array.isArray(parameters.required) ? parameters.required.map((value) => String(value)) : [],
+  );
 
-	const values: Record<string, unknown> = {};
-	const remainingPositionals: string[] = [];
+  const values: Record<string, unknown> = {};
+  const remainingPositionals: string[] = [];
 
-	for (let index = 0; index < argv.length; index += 1) {
-		const token = argv[index];
-		if (!token || token === "--pretty") {
-			continue;
-		}
-		if (token.startsWith("--")) {
-			const parameterName = token.slice(2).replaceAll("-", "_");
-			const parameterSchema = properties[parameterName];
-			if (!parameterSchema) {
-				throw new Error(`Unknown option for ${tool.name}: ${token}`);
-			}
-			const normalizedSchema = normalizeSchema(parameterSchema);
-			if (normalizedSchema.type === "boolean") {
-				values[parameterName] = true;
-				continue;
-			}
-			const nextValue = argv[index + 1];
-			if (nextValue == null) {
-				throw new Error(`Missing value for option: ${token}`);
-			}
-			values[parameterName] = parseArgumentValue(parameterSchema, nextValue);
-			index += 1;
-			continue;
-		}
-		remainingPositionals.push(token);
-	}
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token || token === "--pretty") {
+      continue;
+    }
+    if (token.startsWith("--")) {
+      const parameterName = token.slice(2).replaceAll("-", "_");
+      const parameterSchema = properties[parameterName];
+      if (!parameterSchema) {
+        throw new Error(`Unknown option for ${tool.name}: ${token}`);
+      }
+      const normalizedSchema = normalizeSchema(parameterSchema);
+      if (normalizedSchema.type === "boolean") {
+        values[parameterName] = true;
+        continue;
+      }
+      const nextValue = argv[index + 1];
+      if (nextValue == null) {
+        throw new Error(`Missing value for option: ${token}`);
+      }
+      values[parameterName] = parseArgumentValue(parameterSchema, nextValue);
+      index += 1;
+      continue;
+    }
+    remainingPositionals.push(token);
+  }
 
-	const orderedRequiredNames = Object.keys(properties).filter((name) =>
-		requiredNames.has(name),
-	);
-	orderedRequiredNames.forEach((parameterName, index) => {
-		const rawValue = remainingPositionals[index];
-		if (rawValue == null) {
-			throw new Error(`Missing required argument: ${parameterName}`);
-		}
-		values[parameterName] = parseArgumentValue(
-			properties[parameterName],
-			rawValue,
-		);
-	});
+  const orderedRequiredNames = Object.keys(properties).filter((name) => requiredNames.has(name));
+  orderedRequiredNames.forEach((parameterName, index) => {
+    const rawValue = remainingPositionals[index];
+    if (rawValue == null) {
+      throw new Error(`Missing required argument: ${parameterName}`);
+    }
+    values[parameterName] = parseArgumentValue(properties[parameterName], rawValue);
+  });
 
-	const unusedPositionals = remainingPositionals.slice(
-		orderedRequiredNames.length,
-	);
-	if (
-		unusedPositionals.length > 0 &&
-		values.tickers === undefined &&
-		properties.tickers
-	) {
-		values.tickers = unusedPositionals;
-	}
+  const unusedPositionals = remainingPositionals.slice(orderedRequiredNames.length);
+  if (unusedPositionals.length > 0 && values.tickers === undefined && properties.tickers) {
+    values.tickers = unusedPositionals;
+  }
 
-	return {
-		pretty,
-		arguments: values,
-	};
+  return {
+    pretty,
+    arguments: values,
+  };
 }
 
 function stockStatsPayload(row: JsonValue): JsonValue {
-	if (!row || typeof row !== "object" || Array.isArray(row)) {
-		return row;
-	}
+  if (!row || typeof row !== "object" || Array.isArray(row)) {
+    return row;
+  }
 
-	const values = row as Record<string, JsonValue>;
-	const stats = Object.fromEntries(
-		STOCK_STATS_FIELDS.filter((field) => Object.hasOwn(values, field)).map(
-			(field) => [field, values[field]],
-		),
-	);
-	return stats as JsonValue;
+  const values = row as Record<string, JsonValue>;
+  const stats = Object.fromEntries(
+    STOCK_STATS_FIELDS.filter((field) => Object.hasOwn(values, field)).map((field) => [
+      field,
+      values[field],
+    ]),
+  );
+  return stats as JsonValue;
 }
 
 function parseStocksArguments(argv: string[]): {
-	pretty: boolean;
-	tickers: string[];
-	source?: TickerSource;
+  pretty: boolean;
+  tickers: string[];
+  source?: TickerSource;
 } {
-	const pretty = argv.includes("--pretty");
-	const tickers: string[] = [];
-	let source: TickerSource | undefined;
+  const pretty = argv.includes("--pretty");
+  const tickers: string[] = [];
+  let source: TickerSource | undefined;
 
-	for (let index = 0; index < argv.length; index += 1) {
-		const token = argv[index];
-		if (!token || token === "--pretty") {
-			continue;
-		}
-		if (token === "--source") {
-			const rawSource = argv[index + 1];
-			if (!policy.request.isTickerSource(rawSource)) {
-				throw new Error(
-					`Invalid source. Use ${policy.request.tickerSourceValues.join(", ")}.`,
-				);
-			}
-			source = rawSource;
-			index += 1;
-			continue;
-		}
-		if (token.startsWith("--")) {
-			throw new Error(`Unknown option for stocks: ${token}`);
-		}
-		tickers.push(...arrayArgument(token).map((value) => String(value)));
-	}
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token || token === "--pretty") {
+      continue;
+    }
+    if (token === "--source") {
+      const rawSource = argv[index + 1];
+      if (!policy.request.isTickerSource(rawSource)) {
+        throw new Error(`Invalid source. Use ${policy.request.tickerSourceValues.join(", ")}.`);
+      }
+      source = rawSource;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--")) {
+      throw new Error(`Unknown option for stocks: ${token}`);
+    }
+    tickers.push(...arrayArgument(token).map((value) => String(value)));
+  }
 
-	if (tickers.length === 0) {
-		throw new Error("At least one ticker is required.");
-	}
+  if (tickers.length === 0) {
+    throw new Error("At least one ticker is required.");
+  }
 
-	return { pretty, tickers, source };
+  return { pretty, tickers, source };
 }
 
 function parseNewsArguments(argv: string[]): {
-	pretty: boolean;
-	ticker: string;
-	mode: NewsCliMode;
-	maxResults?: number;
+  pretty: boolean;
+  ticker: string;
+  mode: NewsCliMode;
+  maxResults?: number;
 } {
-	const pretty = argv.includes("--pretty");
-	const tickers: string[] = [];
-	let mode: NewsCliMode = "raw-fast";
-	let maxResults: number | undefined;
+  const pretty = argv.includes("--pretty");
+  const tickers: string[] = [];
+  let mode: NewsCliMode = "raw-fast";
+  let maxResults: number | undefined;
 
-	for (let index = 0; index < argv.length; index += 1) {
-		const token = argv[index];
-		if (!token || token === "--pretty") {
-			continue;
-		}
-		if (token === "--mode") {
-			const rawMode = argv[index + 1];
-			if (rawMode !== "raw-fast" && rawMode !== "analyzed-slow") {
-				throw new Error("Invalid mode. Use raw-fast or analyzed-slow.");
-			}
-			mode = rawMode;
-			index += 1;
-			continue;
-		}
-		if (token === "--max-results") {
-			const value = Number(argv[index + 1]);
-			if (!Number.isFinite(value) || value <= 0) {
-				throw new Error("Invalid max results. Use a positive number.");
-			}
-			maxResults = Math.min(25, Math.floor(value));
-			index += 1;
-			continue;
-		}
-		if (token.startsWith("--")) {
-			throw new Error(`Unknown option for news: ${token}`);
-		}
-		tickers.push(...arrayArgument(token).map((value) => String(value)));
-	}
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token || token === "--pretty") {
+      continue;
+    }
+    if (token === "--mode") {
+      const rawMode = argv[index + 1];
+      if (rawMode !== "raw-fast" && rawMode !== "analyzed-slow") {
+        throw new Error("Invalid mode. Use raw-fast or analyzed-slow.");
+      }
+      mode = rawMode;
+      index += 1;
+      continue;
+    }
+    if (token === "--max-results") {
+      const value = Number(argv[index + 1]);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new Error("Invalid max results. Use a positive number.");
+      }
+      maxResults = Math.min(25, Math.floor(value));
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--")) {
+      throw new Error(`Unknown option for news: ${token}`);
+    }
+    tickers.push(...arrayArgument(token).map((value) => String(value)));
+  }
 
-	if (tickers.length !== 1) {
-		throw new Error("Exactly one ticker is required.");
-	}
+  if (tickers.length !== 1) {
+    throw new Error("Exactly one ticker is required.");
+  }
 
-	return { pretty, ticker: tickers[0], mode, maxResults };
+  return { pretty, ticker: tickers[0], mode, maxResults };
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<void> {
-	const [command, ...rest] = argv;
-	if (!command) {
-		throw new Error("A command is required. Use help to inspect the CLI.");
-	}
+  const [command, ...rest] = argv;
+  if (!command) {
+    throw new Error("A command is required. Use help to inspect the CLI.");
+  }
 
-	if (command === "help") {
-		printCommandList();
-		return;
-	}
+  if (command === "help") {
+    printCommandList();
+    return;
+  }
 
-	const { mcp } = await import("./mcp/server.js");
+  const { mcp } = await import("./mcp/server.js");
 
-	if (command === "stocks") {
-		const { pretty, tickers, source } = parseStocksArguments(rest);
-		const entries = await Promise.all(
-			tickers.map(async (ticker) => {
-				const payload = await mcp.callTool("get_stock_stats", {
-					ticker,
-					...(source ? { source } : {}),
-				});
-				const content = payload.structuredContent;
-				const row =
-					content &&
-					typeof content === "object" &&
-					!Array.isArray(content) &&
-					"row" in content
-						? (content as Record<string, JsonValue>).row
-						: content;
-				return [String(ticker).toUpperCase(), stockStatsPayload(row)] as const;
-			}),
-		);
-		console.log(
-			JSON.stringify(
-				Object.fromEntries(entries) as JsonValue,
-				null,
-				pretty ? 2 : undefined,
-			),
-		);
-		return;
-	}
+  if (command === "stocks") {
+    const { pretty, tickers, source } = parseStocksArguments(rest);
+    const entries = await Promise.all(
+      tickers.map(async (ticker) => {
+        const payload = await mcp.callTool("get_stock_stats", {
+          ticker,
+          ...(source ? { source } : {}),
+        });
+        const content = payload.structuredContent;
+        const row =
+          content && typeof content === "object" && !Array.isArray(content) && "row" in content
+            ? (content as Record<string, JsonValue>).row
+            : content;
+        return [String(ticker).toUpperCase(), stockStatsPayload(row)] as const;
+      }),
+    );
+    console.log(
+      JSON.stringify(Object.fromEntries(entries) as JsonValue, null, pretty ? 2 : undefined),
+    );
+    return;
+  }
 
-	if (command === "news") {
-		const { pretty, ticker, mode, maxResults } = parseNewsArguments(rest);
-		const payload = await mcp.callTool(
-			mode === "analyzed-slow"
-				? "get_stock_news_analyzed_slow"
-				: "get_stock_news_raw_fast",
-			{
-				ticker,
-				...(maxResults ? { max_results: maxResults } : {}),
-			},
-		);
-		console.log(
-			JSON.stringify(
-				payload.structuredContent ?? asJsonValue(payload.content),
-				null,
-				pretty ? 2 : undefined,
-			),
-		);
-		return;
-	}
+  if (command === "news") {
+    const { pretty, ticker, mode, maxResults } = parseNewsArguments(rest);
+    const payload = await mcp.callTool(
+      mode === "analyzed-slow" ? "get_stock_news_analyzed_slow" : "get_stock_news_raw_fast",
+      {
+        ticker,
+        ...(maxResults ? { max_results: maxResults } : {}),
+      },
+    );
+    console.log(
+      JSON.stringify(
+        payload.structuredContent ?? asJsonValue(payload.content),
+        null,
+        pretty ? 2 : undefined,
+      ),
+    );
+    return;
+  }
 
-	const tools = await mcp.listTools();
-	const toolName = CLI_COMMANDS.find(
-		(item) => item.command === command,
-	)?.toolName;
-	const tool = toolName
-		? tools.find((candidate) => candidate.name === toolName)
-		: undefined;
-	if (!tool) {
-		throw new Error(`Unknown command: ${command}`);
-	}
+  const tools = await mcp.listTools();
+  const toolName = CLI_COMMANDS.find((item) => item.command === command)?.toolName;
+  const tool = toolName ? tools.find((candidate) => candidate.name === toolName) : undefined;
+  if (!tool) {
+    throw new Error(`Unknown command: ${command}`);
+  }
 
-	const { pretty, arguments: toolArguments } = parseToolArguments(tool, rest);
-	const payload = await mcp.callTool(tool.name, toolArguments);
-	console.log(
-		JSON.stringify(
-			payload.structuredContent ?? asJsonValue(payload.content),
-			null,
-			pretty ? 2 : undefined,
-		),
-	);
+  const { pretty, arguments: toolArguments } = parseToolArguments(tool, rest);
+  const payload = await mcp.callTool(tool.name, toolArguments);
+  console.log(
+    JSON.stringify(
+      payload.structuredContent ?? asJsonValue(payload.content),
+      null,
+      pretty ? 2 : undefined,
+    ),
+  );
 }
 
 if (isCliEntrypoint()) {
-	main().catch((error) => {
-		console.error(error instanceof Error ? error.message : error);
-		process.exit(1);
-	});
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
 }
