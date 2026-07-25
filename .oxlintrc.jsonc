@@ -1,28 +1,28 @@
 {
   "categories": {
     "correctness": "error",
-    "suspicious": "off",
+    "suspicious": "off"
   },
   "rules": {
     "no-unused-vars": [
       "error",
       {
         "argsIgnorePattern": "^_",
-        "ignoreRestSiblings": true,
-      },
+        "ignoreRestSiblings": true
+      }
     ],
     "sort-imports": [
       "error",
       {
         "ignoreCase": true,
-        "ignoreDeclarationSort": true,
-      },
+        "ignoreDeclarationSort": true
+      }
     ],
     "unicorn/no-array-reverse": "off",
     "unicorn/no-array-sort": "off",
-    "unicorn/no-new-array": "off",
+    "unicorn/no-new-array": "off"
   },
   "options": {
-    "reportUnusedDisableDirectives": "off",
-  },
+    "reportUnusedDisableDirectives": "off"
+  }
 }

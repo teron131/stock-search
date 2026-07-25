@@ -1,5 +1,13 @@
 {
   "sortImports": true,
   "sortPackageJson": false,
-  "ignorePatterns": ["*.md", "*.markdown", "*.mdx"],
+  "overrides": [
+    {
+      "files": ["**/*.json", "**/*.jsonc"],
+      "options": {
+        "trailingComma": "none"
+      }
+    }
+  ],
+  "ignorePatterns": ["*.md", "*.markdown", "*.mdx"]
 }
